@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+   # Dashboard application
+   dashboard:
+      build:
+         context: ./whiteboard-dashboard
+         dockerfile: Dockerfile
+      ports:
+         - '3001:3000'
+      environment:
+         - NODE_ENV=production
+      networks:
+         - whiteboard-network
+
+   # Excalidraw application
+   excalidraw-app:
+      build:
+         context: ./excalidraw/excalidraw-app
+         dockerfile: Dockerfile
+      ports:
+         - '3000:3000'
+      environment:
+         - NODE_ENV=production
+         - VITE_APP_BASE_PATH=/dashboard/whiteboard
+      networks:
+         - whiteboard-network
+
+   # Nginx reverse proxy
+   nginx:
+      image: nginx:alpine
+      ports:
+         - '80:80'
+      volumes:
+         - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      depends_on:
+         - dashboard
+         - excalidraw-app
+      networks:
+         - whiteboard-network
+
+networks:
+   whiteboard-network:
+      driver: bridge
