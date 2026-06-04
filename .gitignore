@@ -1,4 +1,7 @@
 references/
+dashboard/dist/
+dashboard/node_modules/
+
 # Harness durable layer
 harness.db
 harness.db-wal
