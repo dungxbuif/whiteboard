@@ -17,10 +17,12 @@ We have completed planning for Phase 1-5.
 - **Phase 5:** AI Features.
 
 ## 3. Working with this Repo
-1. Always start by reading [docs/HARNESS.md](docs/HARNESS.md).
+1. Always start by reading [docs/HARNESS.md](docs/HARNESS.md). When working on any ticket, always remember and adhere strictly to the constraints and workflows in [docs/HARNESS.md](docs/HARNESS.md).
 2. Follow the [Clean Architecture](docs/ARCHITECTURE.md) mandates for Go.
 3. Use **Zustand** for React state management.
-4. Refer to `docs/stories/phase-XX/` for executable plans.
+4. Refer to `docs/stories/phase-01/` for executable plans.
+5. **Branch Checkout**: Always checkout a new/appropriate branch before implementing code.
+6. **Tests & Verification**: When reporting completion, you must write tests and self-verify the completed task (including running linter, ensuring builds pass, and verifying tests).
 
 ---
 *Reference Research:* [docs/research/](docs/research/)
