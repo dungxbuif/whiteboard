@@ -1,5 +1,15 @@
-import { Folder, LayoutDashboard, Plus, Search, Star } from "lucide-react";
+import { Folder, LayoutDashboard, MoreHorizontal, Plus, Search, Star } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDashboardStore } from "./store/dashboard-store";
 
 const workspaces = ["Design Ops", "Product Boards", "Engineering"];
@@ -14,58 +24,85 @@ function App() {
   const setActiveWorkspace = useDashboardStore((state) => state.setActiveWorkspace);
 
   return (
-    <main className="dashboard-shell">
-      <aside className="sidebar" aria-label="Workspace navigation">
-        <div className="brand">
+    <main className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)] bg-background max-md:grid-cols-1">
+      <aside
+        className="flex flex-col gap-6 border-r bg-card px-4 py-6 max-md:border-b max-md:border-r-0"
+        aria-label="Workspace navigation"
+      >
+        <div className="flex h-10 items-center gap-2 px-2 font-bold">
           <LayoutDashboard size={22} aria-hidden="true" />
           <span>Devtool</span>
         </div>
 
-        <nav className="workspace-list" aria-label="Workspaces">
-          {workspaces.map((workspace) => (
-            <button
-              className={workspace === activeWorkspace ? "workspace active" : "workspace"}
-              key={workspace}
-              onClick={() => setActiveWorkspace(workspace)}
-              type="button"
-            >
-              <Folder size={16} aria-hidden="true" />
-              <span>{workspace}</span>
-            </button>
-          ))}
-        </nav>
+        <ScrollArea className="h-[calc(100vh-7rem)] max-md:h-auto">
+          <nav className="grid gap-1 pr-3" aria-label="Workspaces">
+            {workspaces.map((workspace) => (
+              <Button
+                className="justify-start"
+                key={workspace}
+                onClick={() => setActiveWorkspace(workspace)}
+                type="button"
+                variant={workspace === activeWorkspace ? "secondary" : "ghost"}
+              >
+                <Folder size={16} aria-hidden="true" />
+                <span>{workspace}</span>
+              </Button>
+            ))}
+          </nav>
+        </ScrollArea>
       </aside>
 
-      <section className="content">
-        <header className="topbar">
+      <section className="grid content-start gap-7 p-7">
+        <header className="flex items-center justify-between gap-5 max-md:flex-col max-md:items-stretch">
           <div>
-            <p className="eyebrow">Workspace</p>
-            <h1>{activeWorkspace}</h1>
+            <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Workspace</p>
+            <h1 className="text-3xl font-semibold leading-tight">{activeWorkspace}</h1>
           </div>
 
-          <div className="actions">
-            <label className="search">
-              <Search size={16} aria-hidden="true" />
-              <input aria-label="Search scenes" placeholder="Search scenes" />
+          <div className="flex items-center gap-3 max-md:flex-col max-md:items-stretch">
+            <label className="relative block w-80 max-w-full">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                size={16}
+                aria-hidden="true"
+              />
+              <Input aria-label="Search scenes" className="pl-9" placeholder="Search scenes" />
             </label>
-            <button className="primary-action" type="button">
+            <Button type="button">
               <Plus size={16} aria-hidden="true" />
               <span>New scene</span>
-            </button>
+            </Button>
           </div>
         </header>
 
-        <div className="scene-grid">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
           {recentScenes.map((scene) => (
-            <article className="scene-card" key={scene.title}>
-              <div className="scene-card-header">
-                <Folder size={18} aria-hidden="true" />
-                <Star size={16} aria-label="Not starred" />
-              </div>
-              <h2>{scene.title}</h2>
-              <p>{scene.folder}</p>
-              <span>{scene.updated}</span>
-            </article>
+            <Card key={scene.title}>
+              <CardHeader className="space-y-4">
+                <div className="flex items-center justify-between text-muted-foreground">
+                  <Folder size={18} aria-hidden="true" />
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button aria-label="Scene actions" size="icon" type="button" variant="ghost">
+                        <MoreHorizontal size={16} aria-hidden="true" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>Open</DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Star size={16} aria-hidden="true" />
+                        Star
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+                <CardTitle className="text-lg">{scene.title}</CardTitle>
+              </CardHeader>
+              <CardContent className="grid gap-2 text-sm text-muted-foreground">
+                <p>{scene.folder}</p>
+                <span>{scene.updated}</span>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </section>
