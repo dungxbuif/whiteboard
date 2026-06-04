@@ -35,3 +35,8 @@ type WorkspaceRepository interface {
 	ListForUser(ctx Context, userID uuid.UUID) ([]Workspace, error)
 	Save(ctx Context, workspace *Workspace) error
 }
+
+type WorkspaceUsecase interface {
+	Create(ctx Context, userID uuid.UUID, name string) (*Workspace, error)
+	ListByUser(ctx Context, userID uuid.UUID) ([]Workspace, error)
+}

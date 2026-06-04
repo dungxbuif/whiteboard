@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Lane
 
@@ -26,25 +26,37 @@ WorkspaceUsecase (ListByUser, Create), WorkspaceHandler, route registration, Zus
 
 A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-01/EXC-008-design.md` and approved by the reviewer before implementation starts.
 
-- **Link to Detail Design**: [Design Document](EXC-008-design.md)
+- **Link to Detail Design**: [Design Document](../EXC-008-design.md)
 
-- **Modified Files**: `src/backend/internal/usecase/workspace_ucase.go`, `workspace_handler.go`, `router.go`, `src/frontend/src/store/workspace-store.ts`, `src/frontend/src/components/src/frontend/workspace-switcher.tsx`
+- **Modified Files**: `src/backend/internal/usecase/workspace_ucase.go`, `src/backend/internal/delivery/http/handler/workspace_handler.go`, `src/backend/internal/delivery/http/router.go`, `src/frontend/src/store/workspace-store.ts`, `src/frontend/src/components/workspace-switcher.tsx`, `src/frontend/src/App.tsx`
 - **Sprint Phase**: phase-01
 
 ## Validation
 
-| Layer | Expected proof |
-| --- | --- |
-| Unit | go test -v ./src/backend/internal/usecase/... && cd dashboard && npm run build |
-| Integration | |
-| E2E | |
-| Platform | |
-| Release | |
+| Layer | Expected proof | Result |
+| --- | --- | --- |
+| Unit | go test -v ./src/backend/internal/usecase/... && cd src/frontend && npm run build | PASS |
+| Integration | go test -v ./src/backend/internal/repository/postgres/... | PASS |
+| E2E | | |
+| Platform | | |
+| Release | | |
 
 ## Harness Delta
 
 - Registered EXC-008 in the harness database.
+- Implemented full-stack Workspace CRUD with Zustand and shadcn/ui.
 
 ## Evidence
 
-(No evidence yet)
+Backend tests passed:
+```text
+ok      devtool/internal/usecase        0.609s
+ok      devtool/internal/repository/postgres    0.699s
+```
+
+Frontend build passed:
+```text
+vite v7.3.5 building for production...
+✓ built in 1.28s
+```
+

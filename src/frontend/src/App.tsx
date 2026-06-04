@@ -1,4 +1,5 @@
-import { Folder, LayoutDashboard, MoreHorizontal, Plus, Search, Star } from "lucide-react";
+import { useEffect } from "react";
+import { Folder, MoreHorizontal, Plus, Search, Star } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,9 +11,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useDashboardStore } from "./store/dashboard-store";
+import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import useAuthStore from "./store/auth-store";
+import useWorkspaceStore from "./store/workspace-store";
 
-const workspaces = ["Design Ops", "Product Boards", "Engineering"];
 const recentScenes = [
   { title: "Launch flow", folder: "Product Boards", updated: "Today" },
   { title: "Auth rewrite", folder: "Engineering", updated: "Yesterday" },
@@ -20,8 +22,14 @@ const recentScenes = [
 ];
 
 function App() {
-  const activeWorkspace = useDashboardStore((state) => state.activeWorkspace);
-  const setActiveWorkspace = useDashboardStore((state) => state.setActiveWorkspace);
+  const checkAuth = useAuthStore((state) => state.checkAuth);
+  const { workspaces, activeWorkspaceId } = useWorkspaceStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
 
   return (
     <main className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)] bg-background max-md:grid-cols-1">
@@ -29,25 +37,11 @@ function App() {
         className="flex flex-col gap-6 border-r bg-card px-4 py-6 max-md:border-b max-md:border-r-0"
         aria-label="Workspace navigation"
       >
-        <div className="flex h-10 items-center gap-2 px-2 font-bold">
-          <LayoutDashboard size={22} aria-hidden="true" />
-          <span>Devtool</span>
-        </div>
+        <WorkspaceSwitcher />
 
         <ScrollArea className="h-[calc(100vh-7rem)] max-md:h-auto">
           <nav className="grid gap-1 pr-3" aria-label="Workspaces">
-            {workspaces.map((workspace) => (
-              <Button
-                className="justify-start"
-                key={workspace}
-                onClick={() => setActiveWorkspace(workspace)}
-                type="button"
-                variant={workspace === activeWorkspace ? "secondary" : "ghost"}
-              >
-                <Folder size={16} aria-hidden="true" />
-                <span>{workspace}</span>
-              </Button>
-            ))}
+            {/* Folder list will go here */}
           </nav>
         </ScrollArea>
       </aside>
@@ -56,8 +50,9 @@ function App() {
         <header className="flex items-center justify-between gap-5 max-md:flex-col max-md:items-stretch">
           <div>
             <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Workspace</p>
-            <h1 className="text-3xl font-semibold leading-tight">{activeWorkspace}</h1>
+            <h1 className="text-3xl font-semibold leading-tight">{activeWorkspace?.name || "Select Workspace"}</h1>
           </div>
+...
 
           <div className="flex items-center gap-3 max-md:flex-col max-md:items-stretch">
             <label className="relative block w-80 max-w-full">

@@ -16,6 +16,7 @@ import (
 	"devtool/internal/domain"
 	httpdelivery "devtool/internal/delivery/http"
 	"devtool/internal/delivery/http/handler"
+	middledelivery "devtool/internal/delivery/http/middleware"
 	postgresrepo "devtool/internal/repository/postgres"
 	"devtool/internal/usecase"
 )
@@ -61,8 +62,11 @@ func main() {
 		logger.Warn("failed to load casbin policy", "error", err)
 	}
 
+	// Repositories
 	userRepo := postgresrepo.NewUserRepository(db)
+	workspaceRepo := postgresrepo.NewWorkspaceRepository(db)
 
+	// OAuth Config
 	oauthConfig := &oauth2.Config{
 		ClientID:     cfg.GoogleClientID,
 		ClientSecret: cfg.GoogleClientSecret,
@@ -75,12 +79,20 @@ func main() {
 		Endpoint: google.Endpoint,
 	}
 
+	// Usecases
 	authUsecase := usecase.NewAuthUsecase(oauthConfig, userRepo, []byte(cfg.JWTSecret))
+	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
+
+	// Handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
+	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
+
+	// Middlewares
+	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouter(authHandler),
+		Handler:           httpdelivery.NewRouter(authHandler, workspaceHandler, authMiddleware),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
