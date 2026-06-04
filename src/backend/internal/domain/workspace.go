@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type WorkspaceRole string
@@ -14,12 +15,12 @@ const (
 )
 
 type Workspace struct {
-	ID        uuid.UUID
-	Name      string
-	OwnerID   uuid.UUID
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name      string         `gorm:"not null"`
+	OwnerID   uuid.UUID      `gorm:"type:uuid;not null;index"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt *time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 type WorkspaceMember struct {

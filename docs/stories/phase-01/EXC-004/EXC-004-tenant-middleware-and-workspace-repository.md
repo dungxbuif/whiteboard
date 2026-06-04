@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Lane
 
@@ -28,23 +28,30 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-004-design.md)
 
-- **Modified Files**: `src/backend/internal/delivery/http/middleware/tenant.go`, `tenant_test.go`, `src/backend/internal/repository/postgres/workspace_repo.go`, `workspace_repo_test.go`
+- **Modified Files**: `src/backend/internal/delivery/http/middleware/tenant.go`, `src/backend/internal/delivery/http/middleware/tenant_test.go`, `src/backend/internal/repository/postgres/workspace_repo.go`, `src/backend/internal/repository/postgres/workspace_repo_test.go`
 - **Sprint Phase**: phase-01
 
 ## Validation
 
-| Layer | Expected proof |
-| --- | --- |
-| Unit | go test -v ./src/backend/internal/delivery/http/middleware/... ./src/backend/internal/repository/postgres/... |
-| Integration | |
-| E2E | |
-| Platform | |
-| Release | |
+| Layer | Expected proof | Result |
+| --- | --- | --- |
+| Unit | go test -v ./src/backend/internal/delivery/http/middleware/... ./src/backend/internal/repository/postgres/... | PASS |
+| Integration | go test -v ./src/backend/internal/repository/postgres/... (with DB) | PASS |
+| E2E | | |
+| Platform | | |
+| Release | | |
 
 ## Harness Delta
 
 - Registered EXC-004 in the harness database.
+- Implemented TenantMiddleware and WorkspaceRepository.
+- Verified with unit and integration tests.
 
 ## Evidence
 
-(No evidence yet)
+Tests passed locally:
+```text
+ok      devtool/internal/delivery/http/middleware       0.561s
+ok      devtool/internal/repository/postgres    0.627s
+```
+
