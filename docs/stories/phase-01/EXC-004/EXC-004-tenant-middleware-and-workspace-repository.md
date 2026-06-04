@@ -28,14 +28,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-004-design.md)
 
-- **Modified Files**: `internal/delivery/http/middleware/tenant.go`, `tenant_test.go`, `internal/repository/postgres/workspace_repo.go`, `workspace_repo_test.go`
+- **Modified Files**: `src/backend/internal/delivery/http/middleware/tenant.go`, `tenant_test.go`, `src/backend/internal/repository/postgres/workspace_repo.go`, `workspace_repo_test.go`
 - **Sprint Phase**: phase-01
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go test -v ./internal/delivery/http/middleware/... ./internal/repository/postgres/... |
+| Unit | go test -v ./src/backend/internal/delivery/http/middleware/... ./src/backend/internal/repository/postgres/... |
 | Integration | |
 | E2E | |
 | Platform | |

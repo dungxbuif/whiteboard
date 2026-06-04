@@ -4,7 +4,7 @@
 Rewrite the existing Excalidraw-based whiteboard and dashboard ecosystem (currently NestJS/Next.js) into a high-performance, clean, and SaaS-ready architecture using Go (Clean Architecture) and React Vite + Zustand.
 
 ## 2. Core Architecture
-- **Backend:** Go with Clean Architecture (`internal/domain`, `internal/usecase`, `internal/repository`, `internal/delivery`).
+- **Backend:** Go with Clean Architecture (`src/backend/internal/domain`, `src/backend/internal/usecase`, `src/backend/internal/repository`, `src/backend/internal/delivery`).
 - **Frontend:** React Vite, Shadcn UI, Zustand for state management.
 - **Database:** PostgreSQL with Multi-tenancy support (UUID-based identifiers).
 - **Storage:** S3-compatible (MinIO/AWS/GCS) for binary assets.

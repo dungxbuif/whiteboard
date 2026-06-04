@@ -27,14 +27,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-020-design.md)
 
-- **Modified Files**: `internal/repository/postgres/scene_permission_repo.go`, `internal/usecase/scene_permission_ucase.go`, `internal/delivery/http/handler/sharing_handler.go`
+- **Modified Files**: `src/backend/internal/repository/postgres/scene_permission_repo.go`, `src/backend/internal/usecase/scene_permission_ucase.go`, `src/backend/internal/delivery/http/handler/sharing_handler.go`
 - **Sprint Phase**: phase-03
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go build ./cmd/server |
+| Unit | go build ./src/backend/cmd/server |
 | Integration | |
 | E2E | |
 | Platform | |

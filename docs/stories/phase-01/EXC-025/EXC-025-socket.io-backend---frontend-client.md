@@ -28,14 +28,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-025-design.md)
 
-- **Modified Files**: `internal/delivery/http/socket.go`, `router.go`, `dashboard/src/lib/socket.ts`, `dashboard/src/context/SocketContext.tsx`
+- **Modified Files**: `src/backend/internal/delivery/http/socket.go`, `router.go`, `src/frontend/src/lib/socket.ts`, `src/frontend/src/context/SocketContext.tsx`
 - **Sprint Phase**: phase-04
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go build ./cmd/server && cd dashboard && npm run build |
+| Unit | go build ./src/backend/cmd/server && cd dashboard && npm run build |
 | Integration | |
 | E2E | |
 | Platform | |

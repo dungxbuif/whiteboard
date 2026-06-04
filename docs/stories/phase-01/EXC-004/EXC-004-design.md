@@ -18,7 +18,7 @@ Under Review
   - *Decision/Trade-off*: Keep a private key type in middleware and expose `GetWorkspaceID(ctx)` for retrieval.
 - **Repository owns SQL, domain owns contract**:
   - *Issue/Challenge*: Clean Architecture requires SQL details to stay out of domain entities.
-  - *Decision/Trade-off*: Implement `internal/repository/postgres.WorkspaceRepository` with pgx and map rows into `domain.Workspace`.
+  - *Decision/Trade-off*: Implement `src/backend/internal/repository/postgres.WorkspaceRepository` with pgx and map rows into `domain.Workspace`.
 - **Test without requiring global app server**:
   - *Issue/Challenge*: Middleware should be unit-testable without PostgreSQL; repository needs database behavior.
   - *Decision/Trade-off*: Add table-driven middleware tests and repository tests using the local `devtool` database or a pgx test pool.
@@ -100,8 +100,8 @@ WHERE id = $1;
 ## 7. Verification & Test Plan
 
 ### Automated Verification
-- `go test -v ./internal/delivery/http/middleware/...`
-- `go test -v ./internal/repository/postgres/...`
+- `go test -v ./src/backend/internal/delivery/http/middleware/...`
+- `go test -v ./src/backend/internal/repository/postgres/...`
 
 ### Manual Verification Scenarios
 - [ ] Send request without `X-Workspace-ID`; expect middleware rejection.

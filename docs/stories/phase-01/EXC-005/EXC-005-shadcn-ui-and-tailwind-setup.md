@@ -18,7 +18,7 @@ Init Shadcn UI, copy Tailwind config, port core components (button, input, card,
 
 ## Acceptance Criteria
 
-- Shadcn UI is initialized inside dashboard/ directory.
+- Shadcn UI is initialized inside src/frontend/ directory.
 - Tailwind CSS is configured and index.css has basic utilities.
 - Core shadcn components (button, input, card, dropdown-menu, dialog, scroll-area) compile and build.
 
@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-005-design.md)
 
-- **Modified Files**: `dashboard/components.json`, `dashboard/tailwind.config.ts`, `dashboard/postcss.config.js`, `dashboard/src/index.css`, `dashboard/src/lib/utils.ts`, `dashboard/src/components/ui/button.tsx`, `dashboard/src/components/ui/input.tsx`, `dashboard/src/components/ui/card.tsx`, `dashboard/src/components/ui/dropdown-menu.tsx`, `dashboard/src/components/ui/dialog.tsx`, `dashboard/src/components/ui/scroll-area.tsx`, `dashboard/src/App.tsx`, `dashboard/package.json`, `dashboard/package-lock.json`, `dashboard/vite.config.ts`, `dashboard/tsconfig.app.json`, `dashboard/tsconfig.node.json`
+- **Modified Files**: `src/frontend/components.json`, `src/frontend/tailwind.config.ts`, `src/frontend/postcss.config.js`, `src/frontend/src/index.css`, `src/frontend/src/lib/utils.ts`, `src/frontend/src/components/ui/button.tsx`, `src/frontend/src/components/ui/input.tsx`, `src/frontend/src/components/ui/card.tsx`, `src/frontend/src/components/ui/dropdown-menu.tsx`, `src/frontend/src/components/ui/dialog.tsx`, `src/frontend/src/components/ui/scroll-area.tsx`, `src/frontend/src/App.tsx`, `src/frontend/package.json`, `src/frontend/package-lock.json`, `src/frontend/vite.config.ts`, `src/frontend/tsconfig.app.json`, `src/frontend/tsconfig.node.json`
 - **Sprint Phase**: phase-01
 
 ## Validation

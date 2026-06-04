@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-028-design.md)
 
-- **Modified Files**: `internal/delivery/http/socket.go`, `dashboard/src/store/useVoiceStore.ts`, `dashboard/src/lib/audio.ts`, `dashboard/src/components/collaboration/VoiceProvider.tsx`, `VoiceControls.tsx`
+- **Modified Files**: `src/backend/internal/delivery/http/socket.go`, `src/frontend/src/store/useVoiceStore.ts`, `src/frontend/src/lib/audio.ts`, `src/frontend/src/components/collaboration/VoiceProvider.tsx`, `VoiceControls.tsx`
 - **Sprint Phase**: phase-04
 
 ## Validation

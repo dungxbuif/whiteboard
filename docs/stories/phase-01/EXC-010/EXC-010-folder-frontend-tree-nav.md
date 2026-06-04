@@ -29,7 +29,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-010-design.md)
 
-- **Modified Files**: `dashboard/src/store/folder-store.ts`, `dashboard/src/components/dashboard/folder-tree.tsx`, `breadcrumbs.tsx`, `file-list.tsx`, `dashboard/src/app/dashboard-page.tsx`
+- **Modified Files**: `src/frontend/src/store/folder-store.ts`, `src/frontend/src/components/src/frontend/folder-tree.tsx`, `breadcrumbs.tsx`, `file-list.tsx`, `src/frontend/src/app/dashboard-page.tsx`
 - **Sprint Phase**: phase-01
 
 ## Validation

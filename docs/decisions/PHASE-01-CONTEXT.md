@@ -49,7 +49,7 @@ This phase delivers a complete rewrite of the Excalidraw Dashboard (Frontend) an
 
 <canonical_refs>
 ## Canonical References
-- `.planning/phases/01-selfhost-dashboard/01-SPEC.md`
+- `.planning/phases/01-selfhost-src/frontend/01-SPEC.md`
 - `.planning/research/01-EXISTING-ANALYSIS.md`
 - `.planning/research/00-REFERENCES-CONTEXT.md`
 - `https://github.com/bxcodec/go-clean-arch`

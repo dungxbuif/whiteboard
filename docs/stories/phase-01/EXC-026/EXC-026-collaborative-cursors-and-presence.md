@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-026-design.md)
 
-- **Modified Files**: `internal/delivery/http/socket.go`, `dashboard/src/store/useCollaborationStore.ts`, `dashboard/src/components/whiteboard/CollaborativeCursors.tsx`
+- **Modified Files**: `src/backend/internal/delivery/http/socket.go`, `src/frontend/src/store/useCollaborationStore.ts`, `src/frontend/src/components/whiteboard/CollaborativeCursors.tsx`
 - **Sprint Phase**: phase-04
 
 ## Validation

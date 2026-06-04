@@ -28,14 +28,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-014-design.md)
 
-- **Modified Files**: `internal/repository/postgres/search_repo.go`, `search_repo_test.go`, `internal/usecase/search_ucase.go`, `search_ucase_test.go`, `search_handler.go`, `router.go`, `dashboard/src/components/dashboard/search-bar.tsx`, `sidebar-starred.tsx`, `sidebar-trash.tsx`
+- **Modified Files**: `src/backend/internal/repository/postgres/search_repo.go`, `search_repo_test.go`, `src/backend/internal/usecase/search_ucase.go`, `search_ucase_test.go`, `search_handler.go`, `router.go`, `src/frontend/src/components/src/frontend/search-bar.tsx`, `sidebar-starred.tsx`, `sidebar-trash.tsx`
 - **Sprint Phase**: phase-01
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go test -v ./internal/... && cd dashboard && npm run build |
+| Unit | go test -v ./src/backend/internal/... && cd dashboard && npm run build |
 | Integration | |
 | E2E | |
 | Platform | |

@@ -18,7 +18,7 @@ Create Vite React TS project, install core dependencies (zustand, axios, lucide-
 
 ## Acceptance Criteria
 
-- React TS application is scaffolded in dashboard/ directory.
+- React TS application is scaffolded in src/frontend/ directory.
 - Dependencies (zustand, axios, lucide-react) are installed.
 - Frontend builds successfully without errors.
 
@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-002-design.md)
 
-- **Modified Files**: `dashboard/package.json`, `dashboard/package-lock.json`, `dashboard/vite.config.ts`, `dashboard/tsconfig.json`, `dashboard/tsconfig.app.json`, `dashboard/tsconfig.node.json`, `dashboard/src/main.tsx`, `dashboard/src/App.tsx`, `dashboard/src/styles.css`, `dashboard/src/store/dashboard-store.ts`, `dashboard/src/lib/api.ts`, `dashboard/src/vite-env.d.ts`, `dashboard/index.html`, `.gitignore`
+- **Modified Files**: `src/frontend/package.json`, `src/frontend/package-lock.json`, `src/frontend/vite.config.ts`, `src/frontend/tsconfig.json`, `src/frontend/tsconfig.app.json`, `src/frontend/tsconfig.node.json`, `src/frontend/src/main.tsx`, `src/frontend/src/App.tsx`, `src/frontend/src/styles.css`, `src/frontend/src/store/dashboard-store.ts`, `src/frontend/src/lib/api.ts`, `src/frontend/src/vite-env.d.ts`, `src/frontend/index.html`, `.gitignore`
 - **Sprint Phase**: phase-01
 
 ## Validation

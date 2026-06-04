@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-021-design.md)
 
-- **Modified Files**: `internal/delivery/http/handler/public_handler.go`, `src/features/sharing/stores/useSharingStore.ts`, `src/features/sharing/components/ShareDialog.tsx`, `src/pages/PublicView.tsx`
+- **Modified Files**: `src/backend/internal/delivery/http/handler/public_handler.go`, `src/features/sharing/stores/useSharingStore.ts`, `src/features/sharing/components/ShareDialog.tsx`, `src/pages/PublicView.tsx`
 - **Sprint Phase**: phase-03
 
 ## Validation

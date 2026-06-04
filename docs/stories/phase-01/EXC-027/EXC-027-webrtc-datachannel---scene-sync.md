@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-027-design.md)
 
-- **Modified Files**: `dashboard/src/lib/webrtc.ts`, `internal/delivery/http/socket.go`, `dashboard/src/hooks/useWhiteboardSync.ts`
+- **Modified Files**: `src/frontend/src/lib/webrtc.ts`, `src/backend/internal/delivery/http/socket.go`, `src/frontend/src/hooks/useWhiteboardSync.ts`
 - **Sprint Phase**: phase-04
 
 ## Validation

@@ -28,14 +28,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-011-design.md)
 
-- **Modified Files**: `internal/repository/postgres/scene_repo.go`, `scene_repo_test.go`, `internal/usecase/scene_ucase.go`, `scene_ucase_test.go`, `internal/delivery/http/handler/scene_handler.go`, `router.go`
+- **Modified Files**: `src/backend/internal/repository/postgres/scene_repo.go`, `scene_repo_test.go`, `src/backend/internal/usecase/scene_ucase.go`, `scene_ucase_test.go`, `src/backend/internal/delivery/http/handler/scene_handler.go`, `router.go`
 - **Sprint Phase**: phase-01
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go test -v ./internal/usecase/... ./internal/repository/postgres/... |
+| Unit | go test -v ./src/backend/internal/usecase/... ./src/backend/internal/repository/postgres/... |
 | Integration | |
 | E2E | |
 | Platform | |

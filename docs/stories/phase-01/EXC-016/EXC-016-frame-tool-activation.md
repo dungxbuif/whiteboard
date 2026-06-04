@@ -27,7 +27,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-016-design.md)
 
-- **Modified Files**: `dashboard/src/components/whiteboard/excalidraw-wrapper.tsx`
+- **Modified Files**: `src/frontend/src/components/whiteboard/excalidraw-wrapper.tsx`
 - **Sprint Phase**: phase-02
 
 ## Validation

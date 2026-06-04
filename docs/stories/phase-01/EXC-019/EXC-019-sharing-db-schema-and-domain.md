@@ -27,14 +27,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-019-design.md)
 
-- **Modified Files**: `migrations/000004_create_scene_permissions.up.sql`, `internal/domain/scene_permission.go`
+- **Modified Files**: `migrations/000004_create_scene_permissions.up.sql`, `src/backend/internal/domain/scene_permission.go`
 - **Sprint Phase**: phase-03
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | grep "ScenePermission struct" internal/domain/scene_permission.go |
+| Unit | grep "ScenePermission struct" src/backend/internal/domain/scene_permission.go |
 | Integration | |
 | E2E | |
 | Platform | |

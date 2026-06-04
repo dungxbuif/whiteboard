@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-032-design.md)
 
-- **Modified Files**: `dashboard/src/components/ai/AICommandPanel.tsx`, `dashboard/src/components/ai/CodePreview.tsx`
+- **Modified Files**: `src/frontend/src/components/ai/AICommandPanel.tsx`, `src/frontend/src/components/ai/CodePreview.tsx`
 - **Sprint Phase**: phase-05
 
 ## Validation

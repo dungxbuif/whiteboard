@@ -29,7 +29,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-017-design.md)
 
-- **Modified Files**: `dashboard/src/store/presentation-store.ts`, `dashboard/src/components/whiteboard/presentation-controls.tsx`, `excalidraw-wrapper.tsx`
+- **Modified Files**: `src/frontend/src/store/presentation-store.ts`, `src/frontend/src/components/whiteboard/presentation-controls.tsx`, `excalidraw-wrapper.tsx`
 - **Sprint Phase**: phase-02
 
 ## Validation

@@ -138,7 +138,7 @@ COMMIT;
 *Detailed verification steps for automated tests and manual smoke checks.*
 
 ### Automated Verification
-- **Unit Test Command**: `go test -v ./internal/...`
+- **Unit Test Command**: `go test -v ./src/backend/internal/...`
 - **Frontend Test Command**: `cd dashboard && npm run build`
 
 ### Manual Verification Scenarios

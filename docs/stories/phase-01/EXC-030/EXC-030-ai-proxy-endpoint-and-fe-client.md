@@ -28,14 +28,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-030-design.md)
 
-- **Modified Files**: `internal/usecase/ai_usecase.go`, `internal/delivery/http/ai_handler.go`, `router.go`, `dashboard/src/lib/ai-client.ts`
+- **Modified Files**: `src/backend/internal/usecase/ai_usecase.go`, `src/backend/internal/delivery/http/ai_handler.go`, `router.go`, `src/frontend/src/lib/ai-client.ts`
 - **Sprint Phase**: phase-05
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go build ./cmd/server |
+| Unit | go build ./src/backend/cmd/server |
 | Integration | |
 | E2E | |
 | Platform | |

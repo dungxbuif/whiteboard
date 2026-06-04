@@ -27,14 +27,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-029-design.md)
 
-- **Modified Files**: `internal/domain/ai.go`, `internal/repository/gemini_repository.go`
+- **Modified Files**: `src/backend/internal/domain/ai.go`, `src/backend/internal/repository/gemini_repository.go`
 - **Sprint Phase**: phase-05
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go build ./internal/repository/... |
+| Unit | go build ./src/backend/internal/repository/... |
 | Integration | |
 | E2E | |
 | Platform | |

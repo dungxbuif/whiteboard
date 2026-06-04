@@ -29,14 +29,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-006-design.md)
 
-- **Modified Files**: `internal/usecase/auth_ucase.go`, `auth_ucase_test.go`, `internal/delivery/http/handler/auth_handler.go`, `internal/delivery/http/middleware/auth.go`, `router.go`
+- **Modified Files**: `src/backend/internal/usecase/auth_ucase.go`, `auth_ucase_test.go`, `src/backend/internal/delivery/http/handler/auth_handler.go`, `src/backend/internal/delivery/http/middleware/auth.go`, `router.go`
 - **Sprint Phase**: phase-01
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go test -v ./internal/delivery/http/middleware/... |
+| Unit | go test -v ./src/backend/internal/delivery/http/middleware/... |
 | Integration | |
 | E2E | |
 | Platform | |

@@ -43,7 +43,7 @@ sequenceDiagram
     participant Router as chi Router
     participant DB as Postgres
 
-    Developer->>Server: go run ./cmd/server
+    Developer->>Server: go run ./src/backend/cmd/server
     Server->>DB: Attempt pgx pool ping
     DB-->>Server: Success or warning
     Server->>Router: Mount /healthz
@@ -97,12 +97,12 @@ No database schema is created in EXC-001. EXC-003 owns migrations and multi-tena
 ## 7. Verification & Test Plan
 
 ### Automated Verification
-- **Unit/Compile Command**: `go mod verify && go build -o /private/tmp/devtool-server ./cmd/server`
-- **Smoke Command**: `HTTP_ADDR=:18080 go run ./cmd/server`
+- **Unit/Compile Command**: `go mod verify && go build -o /private/tmp/devtool-server ./src/backend/cmd/server`
+- **Smoke Command**: `HTTP_ADDR=:18080 go run ./src/backend/cmd/server`
 
 ### Manual Verification Scenarios
 - [ ] Confirm local PostgreSQL is running with user `dev`, password `password`, and app database `devtool`.
-- [ ] Start the backend directly with `go run ./cmd/server`.
+- [ ] Start the backend directly with `go run ./src/backend/cmd/server`.
 - [ ] Request `GET http://localhost:8080/healthz` and confirm `200`.
 
 ---

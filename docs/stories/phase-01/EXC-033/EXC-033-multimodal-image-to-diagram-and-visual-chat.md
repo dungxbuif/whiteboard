@@ -28,14 +28,14 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-033-design.md)
 
-- **Modified Files**: `internal/usecase/ai_usecase.go`, `ai_handler.go`, `dashboard/src/components/ai/VisualChat.tsx`, `dashboard/src/store/ai-store.ts`
+- **Modified Files**: `src/backend/internal/usecase/ai_usecase.go`, `ai_handler.go`, `src/frontend/src/components/ai/VisualChat.tsx`, `src/frontend/src/store/ai-store.ts`
 - **Sprint Phase**: phase-05
 
 ## Validation
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | go build ./cmd/server && cd dashboard && npm run build |
+| Unit | go build ./src/backend/cmd/server && cd dashboard && npm run build |
 | Integration | |
 | E2E | |
 | Platform | |
