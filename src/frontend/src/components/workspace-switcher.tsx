@@ -18,7 +18,7 @@ export function WorkspaceSwitcher() {
     fetchWorkspaces();
   }, [fetchWorkspaces]);
 
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId);
+  const activeWorkspace = Array.isArray(workspaces) ? workspaces.find((w) => w.id === activeWorkspaceId) : null;
 
   return (
     <DropdownMenu>
@@ -39,7 +39,7 @@ export function WorkspaceSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[240px]">
-        {workspaces.map((workspace) => (
+        {Array.isArray(workspaces) && workspaces.map((workspace) => (
           <DropdownMenuItem
             key={workspace.id}
             onClick={() => setActiveWorkspaceId(workspace.id)}

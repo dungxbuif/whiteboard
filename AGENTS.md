@@ -22,7 +22,7 @@ We have completed planning for Phase 1-5.
 3. Use **Zustand** for React state management.
 4. Refer to `docs/stories/phase-01/` for executable plans.
 5. **Branch Checkout**: Always checkout a new/appropriate branch before implementing code.
-6. **Tests & Verification**: When reporting completion, you must write tests and self-verify the completed task (including running linter, ensuring builds pass, and verifying tests).
+6. **Tests & Verification**: When reporting completion, you must write tests and self-verify the completed task (including running linter, ensuring builds pass, and verifying tests). For frontend changes, verification using the `mcp-playwright-browser` tool is strictly required before reporting completion.
 
 ## 4. Project Engineering Standards
 This section mandates the architectural, code quality, and verification standards for the project. All agents must adhere to these rules strictly.

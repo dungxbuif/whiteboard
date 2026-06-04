@@ -3,8 +3,10 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 
+	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 )
 
@@ -16,6 +18,23 @@ func NewAuthHandler(authUsecase domain.AuthUsecase) *AuthHandler {
 	return &AuthHandler{
 		authUsecase: authUsecase,
 	}
+}
+
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.authUsecase.GetUserByID(r.Context(), userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(user)
 }
 
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {

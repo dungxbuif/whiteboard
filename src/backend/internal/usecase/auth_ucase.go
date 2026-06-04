@@ -28,6 +28,10 @@ func NewAuthUsecase(oauthConfig *oauth2.Config, userRepo domain.UserRepository, 
 	}
 }
 
+func (u *authUsecase) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
+	return u.userRepo.FindByID(ctx, id)
+}
+
 func (u *authUsecase) GetGoogleLoginURL(state string) string {
 	return u.oauthConfig.AuthCodeURL(state)
 }

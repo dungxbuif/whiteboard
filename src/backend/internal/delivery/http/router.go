@@ -26,6 +26,8 @@ func NewRouter(authHandler *handler.AuthHandler, workspaceHandler *handler.Works
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Use(authMiddleware)
 		
+		r.Get("/users/me", authHandler.Me)
+
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Get("/", workspaceHandler.List)
 			r.Post("/", workspaceHandler.Create)
