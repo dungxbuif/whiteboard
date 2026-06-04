@@ -20,3 +20,7 @@ When behavior changes:
    `scripts/bin/harness-cli story update`.
 4. Record a decision if the change affects architecture, scope, risk, or a
    previously settled product rule.
+
+## Current Product Contracts
+
+- [Phase 1 Database Design](phase-01-database-design.md)
