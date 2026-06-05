@@ -22,4 +22,8 @@ const (
 	
 	// External APIs
 	GoogleUserInfoURL = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+	// Folder Constants
+	MaxFolderDepth      = 30
+	FolderPathSeparator = "/"
 )

@@ -65,6 +65,7 @@ func main() {
 	// Repositories
 	userRepo := postgresrepo.NewUserRepository(db)
 	workspaceRepo := postgresrepo.NewWorkspaceRepository(db)
+	folderRepo := postgresrepo.NewFolderRepository(db)
 
 	// OAuth Config
 	oauthConfig := &oauth2.Config{
@@ -82,17 +83,19 @@ func main() {
 	// Usecases
 	authUsecase := usecase.NewAuthUsecase(oauthConfig, userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
+	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
+	folderHandler := handler.NewFolderHandler(folderUsecase)
 
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouter(authHandler, workspaceHandler, authMiddleware),
+		Handler:           httpdelivery.NewRouter(authHandler, workspaceHandler, folderHandler, authMiddleware),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 

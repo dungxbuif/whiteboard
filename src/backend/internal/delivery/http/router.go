@@ -10,7 +10,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewRouter(authHandler *handler.AuthHandler, workspaceHandler *handler.WorkspaceHandler, authMiddleware func(http.Handler) http.Handler) nethttp.Handler {
+func NewRouter(
+	authHandler *handler.AuthHandler,
+	workspaceHandler *handler.WorkspaceHandler,
+	folderHandler *handler.FolderHandler,
+	authMiddleware func(http.Handler) http.Handler,
+) nethttp.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
@@ -31,6 +36,16 @@ func NewRouter(authHandler *handler.AuthHandler, workspaceHandler *handler.Works
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Get("/", workspaceHandler.List)
 			r.Post("/", workspaceHandler.Create)
+		})
+
+		r.Route("/folders", func(r chi.Router) {
+			r.Get("/", folderHandler.List)
+			r.Post("/", folderHandler.Create)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Patch("/move", folderHandler.Move)
+				r.Post("/star", folderHandler.ToggleStar)
+				r.Delete("/", folderHandler.Delete)
+			})
 		})
 	})
 
