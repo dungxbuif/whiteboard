@@ -1,28 +1,31 @@
 # Decisions
 
-Decision records explain why important product, architecture, or harness choices
-were made.
+This folder stores Architecture Decision Records and other durable technical decisions.
 
-Use `docs/templates/decision.md` when adding a new decision.
+## Naming
 
-After adding or updating a markdown decision file, also add or refresh the
-durable decision row:
+Use:
 
-```bash
-scripts/bin/harness-cli decision add \
-  --id 0008-auth-boundary \
-  --title "Auth Boundary" \
-  --doc docs/decisions/0008-auth-boundary.md
+```text
+ADR-<id>-<short-name>.md
 ```
 
-Trace fields such as `--decisions` summarize task-level choices. They do not
-count as the Harness decision log.
+Example:
 
-Add a decision when:
+```text
+ADR-001-markdown-only-framework.md
+```
 
-- A locked technical choice changes.
-- A product rule changes meaningfully.
-- A validation requirement is added, removed, or weakened.
-- A high-risk feature chooses one design over another.
-- Auth, authorization, data ownership, audit/security, or API behavior changes.
-- The source-of-truth hierarchy changes.
+## ADR Triggers
+
+Create an ADR when work changes:
+
+- Architecture boundaries
+- Public API or event contracts
+- Database schema or data ownership
+- Major dependencies
+- Security or authorization model
+- Deployment/runtime model
+- Repository workflow or standards
+
+Start from `docs/templates/ADR.md`.
