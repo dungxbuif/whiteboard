@@ -63,6 +63,13 @@ func TestFolderRepository(t *testing.T) {
 
 		repo.Save(ctx, root)
 		repo.Save(ctx, child)
+		scene := &domain.Scene{
+			ID: uuid.New(), WorkspaceID: wsID, FolderID: &child.ID, Title: "Child Scene",
+			Content: []byte(`{}`), ContentVersion: 1,
+		}
+		if err := db.Create(scene).Error; err != nil {
+			t.Fatalf("failed to create child scene: %v", err)
+		}
 
 		// Test UpdatePathRecursive
 		err := repo.UpdatePathRecursive(ctx, wsID, "/root/", "/newroot/", 2)
@@ -88,12 +95,19 @@ func TestFolderRepository(t *testing.T) {
 		if err == nil {
 			t.Error("expected child to be deleted")
 		}
+		var deletedScene domain.Scene
+		if err := db.Unscoped().First(&deletedScene, "id = ? AND deleted_at IS NOT NULL", scene.ID).Error; err != nil {
+			t.Errorf("expected child scene to be deleted: %v", err)
+		}
 
 		if err := repo.RestoreRecursive(ctx, wsID, root.ID); err != nil {
 			t.Errorf("restore recursive failed: %v", err)
 		}
 		if _, err := repo.FindByID(ctx, wsID, child.ID); err != nil {
 			t.Errorf("expected child to be restored: %v", err)
+		}
+		if err := db.First(&domain.Scene{}, "id = ?", scene.ID).Error; err != nil {
+			t.Errorf("expected child scene to be restored: %v", err)
 		}
 	})
 }

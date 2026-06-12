@@ -15,6 +15,7 @@ func NewRouter(
 	authHandler *handler.AuthHandler,
 	workspaceHandler *handler.WorkspaceHandler,
 	folderHandler *handler.FolderHandler,
+	sceneHandler *handler.SceneHandler,
 	authMiddleware func(http.Handler) http.Handler,
 ) nethttp.Handler {
 	router := chi.NewRouter()
@@ -46,6 +47,19 @@ func NewRouter(
 					r.Post("/restore", folderHandler.Restore)
 					r.Post("/star", folderHandler.ToggleStar)
 					r.Delete("/", folderHandler.Delete)
+				})
+			})
+
+			r.Route("/scenes", func(r chi.Router) {
+				r.Use(deliverymiddleware.TenantMiddleware)
+				r.Get("/", sceneHandler.List)
+				r.Post("/", sceneHandler.Create)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", sceneHandler.Get)
+					r.Patch("/", sceneHandler.Update)
+					r.Post("/restore", sceneHandler.Restore)
+					r.Post("/star", sceneHandler.SetStar)
+					r.Delete("/", sceneHandler.Delete)
 				})
 			})
 		})

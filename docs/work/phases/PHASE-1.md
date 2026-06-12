@@ -106,7 +106,7 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 | EXC-008 | ticket | Workspace CRUD Full Stack | planned | [EXC-008](../tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) |
 | EXC-009 | ticket | Folder Backend Materialized Path | completed | [EXC-009](../tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | EXC-010 | ticket | Folder Frontend Tree+Nav | completed | [EXC-010](../tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
-| EXC-011 | ticket | Scene Backend | planned | [EXC-011](../tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
+| EXC-011 | ticket | Scene Backend | completed | [EXC-011](../tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
 | EXC-012 | ticket | Excalidraw Integration | planned | [EXC-012](../tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) |
 | EXC-013 | ticket | S3 Assets | planned | [EXC-013](../tickets/phase-01/EXC-013/EXC-013-s3-assets.md) |
 | EXC-014 | ticket | Search + Starred/Trash | planned | [EXC-014](../tickets/phase-01/EXC-014/EXC-014-search---starred-trash.md) |

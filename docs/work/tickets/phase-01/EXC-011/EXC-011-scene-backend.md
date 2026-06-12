@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Lane
 
@@ -33,11 +33,11 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Validation
 
-| Layer | Expected proof |
-| --- | --- |
-| Unit | go test -v ./src/backend/internal/usecase/... ./src/backend/internal/repository/postgres/... |
-| Integration | |
-| E2E | |
+| Layer | Expected proof | Result |
+| --- | --- | --- |
+| Unit | `cd src/backend && go test ./...` | PASS (32 tests) |
+| Integration | PostgreSQL JSONB, version, tenant, star, trash, restore, folder cascade | PASS |
+| E2E | Router-level tenant and camelCase contract tests | PASS |
 | Platform | |
 | Release | |
 
@@ -47,4 +47,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Added workspace-scoped scene create/list/get/update/star/trash/restore repository methods.
+- Scene content persists as JSONB and increments `content_version` on update.
+- Folder trash/restore cascades to scenes in the folder subtree in one transaction.
+- Registered authenticated, tenant-scoped `/api/v1/scenes` routes.

@@ -78,6 +78,13 @@ func (r *FolderRepository) DeleteRecursive(ctx context.Context, workspaceID uuid
 
 		// Delete descendants using path prefix
 		pathPrefix := folder.Path + "%"
+		folderIDs := tx.Unscoped().Model(&domain.Folder{}).
+			Select("id").
+			Where("workspace_id = ? AND path LIKE ?", workspaceID, pathPrefix)
+		if err := tx.Where("workspace_id = ? AND folder_id IN (?)", workspaceID, folderIDs).
+			Delete(&domain.Scene{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("workspace_id = ? AND path LIKE ?", workspaceID, pathPrefix).Delete(&domain.Folder{}).Error; err != nil {
 			return err
 		}
@@ -102,6 +109,14 @@ func (r *FolderRepository) RestoreRecursive(ctx context.Context, workspaceID uui
 			Where("workspace_id = ? AND path LIKE ?", workspaceID, folder.Path+"%").
 			Update("deleted_at", nil).Error; err != nil {
 			return fmt.Errorf("failed to restore folder tree: %w", err)
+		}
+		folderIDs := tx.Unscoped().Model(&domain.Folder{}).
+			Select("id").
+			Where("workspace_id = ? AND path LIKE ?", workspaceID, folder.Path+"%")
+		if err := tx.Unscoped().Model(&domain.Scene{}).
+			Where("workspace_id = ? AND folder_id IN (?)", workspaceID, folderIDs).
+			Update("deleted_at", nil).Error; err != nil {
+			return fmt.Errorf("failed to restore folder scenes: %w", err)
 		}
 		return nil
 	})
