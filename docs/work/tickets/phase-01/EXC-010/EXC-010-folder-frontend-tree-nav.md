@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Lane
 
@@ -34,11 +34,11 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Validation
 
-| Layer | Expected proof |
-| --- | --- |
-| Unit | cd dashboard && npm run build |
-| Integration | |
-| E2E | |
+| Layer | Expected proof | Result |
+| --- | --- | --- |
+| Unit | `cd src/frontend && npm run test:unit` | PASS (11 tests) |
+| Integration | Folder flat-list API uses workspace header and camelCase JSON | PASS |
+| E2E | Login, nested navigation, breadcrumbs, folder creation | PASS (5 tests) |
 | Platform | |
 | Release | |
 
@@ -48,4 +48,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Added Zustand flat-list store with deterministic tree and breadcrumb helpers.
+- Added recursive sidebar tree, folder content list, create dialog, and breadcrumb navigation.
+- Added `GET /api/v1/folders?all=true` while preserving parent-filtered listing.
+- Browser screenshot: `/private/tmp/exc-010-dashboard.png`.

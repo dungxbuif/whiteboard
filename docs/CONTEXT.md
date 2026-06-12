@@ -11,8 +11,8 @@ updated: 2026-06-11
 ## Current Focus
 
 - **Active Phase:** PHASE-1 (Self-hosted Dashboard & Core Infrastructure)
-- **Active Work:** Documentation migration to harness framework complete
-- **Next Work:** Resume PHASE-1 ticket execution; EXC-034 restores Google OAuth near the end of the phase.
+- **Active Work:** EXC-010 folder frontend navigation completed.
+- **Next Work:** EXC-011 scene backend; EXC-034 restores Google OAuth near the end of the phase.
 
 ## Project
 
@@ -42,5 +42,6 @@ None currently.
 ## Recent Changes
 
 - 2026-06-11: Migrated all documentation from old devtool/docs format to harness framework structure.
+- 2026-06-12: Completed EXC-010 nested folder tree, breadcrumbs, folder listing, and creation UI.
 - 2026-06-05: Implemented optimized Materialized Path folder backend (EXC-009).
 - 2026-06-04: Implemented Workspace CRUD (EXC-008) and auth/tenant (EXC-006, EXC-004).

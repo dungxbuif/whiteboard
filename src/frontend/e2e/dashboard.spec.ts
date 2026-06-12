@@ -14,6 +14,30 @@ const mockWorkspaces = [
     createdAt: '2026-06-11T00:00:00Z',
   },
 ];
+const mockFolders = [
+  {
+    id: 'folder-product',
+    workspaceId: mockWorkspaces[0].id,
+    parentId: null,
+    name: 'Product Boards',
+    path: '/folderproduct/',
+    depth: 0,
+    isStarred: false,
+    createdAt: '2026-06-11T00:00:00Z',
+    updatedAt: '2026-06-11T00:00:00Z',
+  },
+  {
+    id: 'folder-research',
+    workspaceId: mockWorkspaces[0].id,
+    parentId: 'folder-product',
+    name: 'Research',
+    path: '/folderproduct/folderresearch/',
+    depth: 1,
+    isStarred: false,
+    createdAt: '2026-06-11T00:00:00Z',
+    updatedAt: '2026-06-11T00:00:00Z',
+  },
+];
 
 test.describe('Dashboard E2E Flows', () => {
   test.beforeEach(async ({ page }) => {
@@ -25,6 +49,21 @@ test.describe('Dashboard E2E Flows', () => {
     });
     await page.route('**/api/v1/workspaces', async (route) => {
       await route.fulfill({ json: mockWorkspaces });
+    });
+    await page.route('**/api/v1/folders**', async (route) => {
+      if (route.request().method() === 'POST') {
+        const body = route.request().postDataJSON() as { name: string; parentId: string | null };
+        await route.fulfill({
+          json: {
+            ...mockFolders[0],
+            id: 'folder-created',
+            name: body.name,
+            parentId: body.parentId,
+          },
+        });
+        return;
+      }
+      await route.fulfill({ json: mockFolders });
     });
 
     await page.goto('/');
@@ -82,5 +121,22 @@ test.describe('Dashboard E2E Flows', () => {
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page.getByRole('alert')).toHaveText('Invalid username or password');
+  });
+
+  test('should navigate nested folders and create a folder', async ({ page }) => {
+    await login(page);
+
+    await page.getByRole('button', { name: 'Product Boards', exact: true }).first().click();
+    await expect(page.getByRole('navigation', { name: 'Folder breadcrumbs' })).toContainText('Product Boards');
+    await expect(page.getByRole('button', { name: 'Research', exact: true }).last()).toBeVisible();
+
+    await page.getByRole('button', { name: 'All files' }).last().click();
+    await page.getByRole('button', { name: 'New folder' }).click();
+    await page.getByLabel('Folder name').fill('Planning');
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+
+    await expect(
+      page.getByRole('region', { name: 'Folder contents' }).getByRole('button', { name: 'Planning', exact: true }),
+    ).toBeVisible();
   });
 });

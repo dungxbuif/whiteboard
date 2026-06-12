@@ -61,6 +61,17 @@ func (h *FolderHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 func (h *FolderHandler) List(w http.ResponseWriter, r *http.Request) {
 	workspaceID, _ := middleware.WorkspaceIDFromContext(r.Context())
+	if r.URL.Query().Get("all") == "true" {
+		folders, err := h.usecase.ListAll(r.Context(), workspaceID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(folders)
+		return
+	}
+
 	parentIDStr := r.URL.Query().Get("parentId")
 
 	var parentID *uuid.UUID

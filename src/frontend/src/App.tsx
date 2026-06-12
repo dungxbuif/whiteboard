@@ -10,10 +10,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import { AdminLogin } from "@/components/admin-login";
+import { FolderBreadcrumbs } from "@/components/folder-breadcrumbs";
+import { FolderList } from "@/components/folder-list";
+import { FolderTree } from "@/components/folder-tree";
 import useAuthStore from "./store/auth-store";
+import useFolderStore from "./store/folder-store";
 import useWorkspaceStore from "./store/workspace-store";
 
 const recentScenes = [
@@ -27,10 +30,21 @@ function App() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isLoading = useAuthStore((state) => state.isLoading);
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
+  const fetchFolders = useFolderStore((state) => state.fetchFolders);
+  const resetFolders = useFolderStore((state) => state.reset);
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      resetFolders();
+      return;
+    }
+    resetFolders();
+    void fetchFolders(activeWorkspaceId).catch(() => undefined);
+  }, [activeWorkspaceId, fetchFolders, resetFolders]);
 
   if (isLoading) {
     return <main className="grid min-h-screen place-items-center">Loading...</main>;
@@ -50,14 +64,13 @@ function App() {
       >
         <WorkspaceSwitcher />
 
-        <ScrollArea className="h-[calc(100vh-7rem)] max-md:h-auto">
-          <nav className="grid gap-1 pr-3" aria-label="Workspaces">
-            {/* Folder list will go here */}
-          </nav>
-        </ScrollArea>
+        <div className="max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 max-md:max-h-none">
+          <FolderTree />
+        </div>
       </aside>
 
       <section className="grid content-start gap-7 p-7">
+        <FolderBreadcrumbs />
         <header className="flex items-center justify-between gap-5 max-md:flex-col max-md:items-stretch">
           <div>
             <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Workspace</p>
@@ -81,6 +94,10 @@ function App() {
           </div>
         </header>
 
+        <FolderList />
+
+        <section className="grid gap-4" aria-label="Recent scenes">
+          <h2 className="text-lg font-semibold">Recent scenes</h2>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
           {recentScenes.map((scene) => (
             <Card key={scene.title}>
@@ -111,6 +128,7 @@ function App() {
             </Card>
           ))}
         </div>
+        </section>
       </section>
     </main>
   );

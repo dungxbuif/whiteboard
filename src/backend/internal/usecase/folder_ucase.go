@@ -123,6 +123,10 @@ func (u *folderUsecase) Restore(ctx context.Context, workspaceID uuid.UUID, fold
 	return u.repo.RestoreRecursive(ctx, workspaceID, folderID)
 }
 
+func (u *folderUsecase) ListAll(ctx context.Context, workspaceID uuid.UUID) ([]domain.Folder, error) {
+	return u.repo.ListByWorkspace(ctx, workspaceID)
+}
+
 func (u *folderUsecase) List(ctx context.Context, workspaceID uuid.UUID, parentID *uuid.UUID) ([]domain.Folder, error) {
 	return u.repo.ListByParent(ctx, workspaceID, parentID)
 }
