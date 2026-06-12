@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-003-design.md)
 
-- **Modified Files**: `migrations/000001_init.up.sql`, `migrations/000001_init.down.sql`, `src/backend/internal/domain/user.go`, `src/backend/internal/domain/workspace.go`, `src/backend/internal/domain/folder.go`, `src/backend/internal/domain/scene.go`
+- **Modified Files**: `src/backend/migrations/000001_init.up.sql`, `src/backend/migrations/000001_init.down.sql`, `src/backend/internal/domain/user.go`, `src/backend/internal/domain/workspace.go`, `src/backend/internal/domain/folder.go`, `src/backend/internal/domain/scene.go`
 - **Sprint Phase**: phase-01
 
 ## Implementation Notes
@@ -42,8 +42,8 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 | Layer | Expected proof |
 | --- | --- |
-| Unit | grep -i "is_starred" migrations/000001_init.up.sql && grep -i "deleted_at" migrations/000001_init.up.sql |
-| Unit | If asset schema is included: grep -i "scene_assets" migrations/000001_init.up.sql && grep -i "asset_kind" migrations/000001_init.up.sql |
+| Unit | grep -i "is_starred" src/backend/migrations/000001_init.up.sql && grep -i "deleted_at" src/backend/migrations/000001_init.up.sql |
+| Unit | If asset schema is included: grep -i "scene_assets" src/backend/migrations/000001_init.up.sql && grep -i "asset_kind" src/backend/migrations/000001_init.up.sql |
 | Integration | |
 | E2E | |
 | Platform | |
@@ -55,13 +55,13 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-- Added `migrations/000001_init.up.sql` and `migrations/000001_init.down.sql`.
+- Added `src/backend/migrations/000001_init.up.sql` and `src/backend/migrations/000001_init.down.sql`.
 - Added tenant-aware tables for identity, sessions, workspaces, workspace membership, folders, scenes, and scene assets.
 - Updated Go domain structs for user OAuth fields, workspace soft delete, folder star/trash/path depth, scene JSONB/version/lifecycle metadata, and scene asset metadata.
 - Verification run:
-  - `rg -n "is_starred" migrations/000001_init.up.sql`
-  - `rg -n "deleted_at" migrations/000001_init.up.sql`
-  - `rg -n "scene_assets" migrations/000001_init.up.sql`
-  - `rg -n "asset_kind" migrations/000001_init.up.sql`
-  - `rg -n "data_url|dataURL|bytea| raw asset|base64" migrations/000001_init.up.sql src/backend/internal/domain` returned no matches.
+  - `rg -n "is_starred" src/backend/migrations/000001_init.up.sql`
+  - `rg -n "deleted_at" src/backend/migrations/000001_init.up.sql`
+  - `rg -n "scene_assets" src/backend/migrations/000001_init.up.sql`
+  - `rg -n "asset_kind" src/backend/migrations/000001_init.up.sql`
+  - `rg -n "data_url|dataURL|bytea| raw asset|base64" src/backend/migrations/000001_init.up.sql src/backend/internal/domain` returned no matches.
   - `go test ./...` from `src/backend` passed.

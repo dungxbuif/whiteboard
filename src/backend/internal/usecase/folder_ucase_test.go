@@ -13,8 +13,11 @@ import (
 
 type mockFolderRepo struct {
 	domain.FolderRepository
-	folders map[uuid.UUID]*domain.Folder
-	saved   *domain.Folder
+	folders          map[uuid.UUID]*domain.Folder
+	saved            *domain.Folder
+	depthDelta       int
+	maxDepth         int
+	restoredFolderID uuid.UUID
 }
 
 func (m *mockFolderRepo) FindByID(ctx context.Context, workspaceID uuid.UUID, id uuid.UUID) (*domain.Folder, error) {
@@ -30,7 +33,17 @@ func (m *mockFolderRepo) Save(ctx context.Context, f *domain.Folder) error {
 	return nil
 }
 
-func (m *mockFolderRepo) UpdatePathRecursive(ctx context.Context, workspaceID uuid.UUID, old, new string) error {
+func (m *mockFolderRepo) MaxDepthByPath(context.Context, uuid.UUID, string) (int, error) {
+	return m.maxDepth, nil
+}
+
+func (m *mockFolderRepo) RestoreRecursive(_ context.Context, _ uuid.UUID, folderID uuid.UUID) error {
+	m.restoredFolderID = folderID
+	return nil
+}
+
+func (m *mockFolderRepo) UpdatePathRecursive(ctx context.Context, workspaceID uuid.UUID, old, new string, depthDelta int) error {
+	m.depthDelta = depthDelta
 	return nil
 }
 
@@ -86,4 +99,50 @@ func TestFolderUsecase_Create(t *testing.T) {
 			t.Error("expected error for max depth, got nil")
 		}
 	})
+}
+
+func TestFolderUsecase_MoveUpdatesDescendantDepth(t *testing.T) {
+	workspaceID := uuid.New()
+	folderID := uuid.New()
+	parentID := uuid.New()
+	repo := &mockFolderRepo{folders: map[uuid.UUID]*domain.Folder{
+		folderID: {ID: folderID, WorkspaceID: workspaceID, Path: "/folder/", Depth: 0},
+		parentID: {ID: parentID, WorkspaceID: workspaceID, Path: "/parent/", Depth: 2},
+	}, maxDepth: 0}
+
+	err := NewFolderUsecase(repo).Move(context.Background(), workspaceID, folderID, &parentID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.depthDelta != 3 {
+		t.Fatalf("expected descendant depth delta 3, got %d", repo.depthDelta)
+	}
+}
+
+func TestFolderUsecase_MoveRejectsSubtreePastDepthLimit(t *testing.T) {
+	workspaceID := uuid.New()
+	folderID := uuid.New()
+	parentID := uuid.New()
+	repo := &mockFolderRepo{folders: map[uuid.UUID]*domain.Folder{
+		folderID: {ID: folderID, WorkspaceID: workspaceID, Path: "/folder/", Depth: 5},
+		parentID: {ID: parentID, WorkspaceID: workspaceID, Path: "/parent/", Depth: 20},
+	}, maxDepth: 14}
+
+	err := NewFolderUsecase(repo).Move(context.Background(), workspaceID, folderID, &parentID)
+	if err == nil || !strings.Contains(err.Error(), "maximum depth") {
+		t.Fatalf("expected maximum depth error, got %v", err)
+	}
+}
+
+func TestFolderUsecase_Restore(t *testing.T) {
+	workspaceID := uuid.New()
+	folderID := uuid.New()
+	repo := &mockFolderRepo{folders: make(map[uuid.UUID]*domain.Folder)}
+
+	if err := NewFolderUsecase(repo).Restore(context.Background(), workspaceID, folderID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if repo.restoredFolderID != folderID {
+		t.Fatalf("expected restored folder %s, got %s", folderID, repo.restoredFolderID)
+	}
 }

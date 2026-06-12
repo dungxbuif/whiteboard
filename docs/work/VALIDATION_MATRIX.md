@@ -46,15 +46,16 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | REQ-02 | 1 | EXC-003 | DB Migrations & Multi-tenant Schema | no | no | no | no | no | no | planned | none |
 | REQ-02 | 1 | EXC-004 | Tenant Middleware & Workspace Repository | no | no | no | no | no | no | planned | none |
 | REQ-01 | 1 | EXC-005 | Shadcn UI & Tailwind Setup | yes | no | no | no | no | no | implemented | [EXC-005](tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) |
-| REQ-04 | 1 | EXC-006 | Google OAuth Backend | no | no | no | no | no | no | planned | none |
-| REQ-04 | 1 | EXC-007 | Frontend Auth Store | no | no | no | no | no | no | planned | none |
+| REQ-04 | 1 | EXC-006 | Google OAuth Backend | yes | yes | no | no | no | no | changed | Temporarily superseded by single-admin login; restore through EXC-034. |
+| REQ-04 | 1 | EXC-007 | Frontend Auth Store | yes | no | yes | no | yes | no | implemented | Temporary admin login flow verified by unit and Playwright tests. |
 | REQ-05 | 1 | EXC-008 | Workspace CRUD Full Stack | no | no | no | no | no | no | planned | none |
-| REQ-06 | 1 | EXC-009 | Folder Backend Materialized Path | no | no | no | no | no | no | planned | none |
+| REQ-06 | 1 | EXC-009 | Folder Backend Materialized Path | yes | yes | no | no | yes | no | implemented | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | REQ-06 | 1 | EXC-010 | Folder Frontend Tree+Nav | no | no | no | no | no | no | planned | none |
 | REQ-10 | 1 | EXC-011 | Scene Backend | no | no | no | no | no | no | planned | none |
 | REQ-10 | 1 | EXC-012 | Excalidraw Integration | no | no | no | no | no | no | planned | none |
 | REQ-03 | 1 | EXC-013 | S3 Assets | no | no | no | no | no | no | planned | none |
 | REQ-08,09 | 1 | EXC-014 | Search + Starred/Trash | no | no | no | no | no | no | planned | none |
+| REQ-04 | 1 | EXC-034 | Replace Temporary Admin Auth With Google OAuth | no | no | no | no | no | no | planned | [EXC-034](tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) |
 | P2-REQ-01 | 2 | EXC-015 | Frame Persistence & Scene Store Extension | no | no | no | no | no | no | planned | none |
 | P2-REQ-01 | 2 | EXC-016 | Frame Tool Activation | no | no | no | no | no | no | planned | none |
 | P2-REQ-02 | 2 | EXC-017 | Presentation Engine & Controls | no | no | no | no | no | no | planned | none |

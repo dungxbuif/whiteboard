@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+completed
 
 ## Lane
 
@@ -35,11 +35,11 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Validation
 
-| Layer | Expected proof |
-| --- | --- |
-| Unit | go test -v ./src/backend/internal/usecase/... ./src/backend/internal/repository/postgres/... |
-| Integration | |
-| E2E | |
+| Layer | Expected proof | Result |
+| --- | --- | --- |
+| Unit | `cd src/backend && go test ./...` | PASS (24 tests) |
+| Integration | PostgreSQL repository tests and migration up/down on a temporary database | PASS |
+| E2E | Folder route tenant-header regression test | PASS |
 | Platform | |
 | Release | |
 
@@ -51,4 +51,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Added tenant middleware to all folder routes.
+- Added recursive restore and subtree-aware depth validation.
+- Verified migration up/down ordering on temporary database `devtool_migration_audit`.
+- Verified PostgreSQL repository integration tests against the local development database.

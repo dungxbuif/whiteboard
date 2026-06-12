@@ -62,7 +62,7 @@ func (h *FolderHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *FolderHandler) List(w http.ResponseWriter, r *http.Request) {
 	workspaceID, _ := middleware.WorkspaceIDFromContext(r.Context())
 	parentIDStr := r.URL.Query().Get("parentId")
-	
+
 	var parentID *uuid.UUID
 	if parentIDStr != "" {
 		id, err := uuid.Parse(parentIDStr)
@@ -114,6 +114,22 @@ func (h *FolderHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.usecase.Delete(r.Context(), workspaceID, folderID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *FolderHandler) Restore(w http.ResponseWriter, r *http.Request) {
+	workspaceID, _ := middleware.WorkspaceIDFromContext(r.Context())
+	folderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Invalid folder ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.usecase.Restore(r.Context(), workspaceID, folderID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

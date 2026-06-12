@@ -32,11 +32,11 @@ func TestWorkspaceHandler_Create(t *testing.T) {
 
 	body, _ := json.Marshal(CreateWorkspaceRequest{Name: "Test WS"})
 	req := httptest.NewRequest("POST", "/workspaces", bytes.NewBuffer(body))
-	
+
 	// Manually inject userID into context (simulating middleware)
 	ctx := context.WithValue(req.Context(), domain.ContextKeyUserID, userID)
 	req = req.WithContext(ctx)
-	
+
 	rr := httptest.NewRecorder()
 	h.Create(rr, req)
 
@@ -48,6 +48,9 @@ func TestWorkspaceHandler_Create(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &res)
 	if res.Name != "Test WS" {
 		t.Errorf("expected name Test WS, got %s", res.Name)
+	}
+	if !bytes.Contains(rr.Body.Bytes(), []byte(`"ownerId"`)) {
+		t.Errorf("expected camelCase ownerId JSON field, got %s", rr.Body.String())
 	}
 }
 

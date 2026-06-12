@@ -56,3 +56,7 @@ ok      devtool/internal/delivery/http/middleware       0.481s
 ok      devtool/internal/repository/postgres    0.542s
 ```
 
+## Current Runtime Note
+
+This completed implementation is temporarily superseded by the single-admin
+development login. EXC-034 restores Google OAuth before Phase 1 release.

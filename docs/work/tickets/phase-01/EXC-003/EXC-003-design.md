@@ -49,7 +49,7 @@ sequenceDiagram
     participant DB as PostgreSQL devtool
     participant Domain as Go Domain
 
-    Developer->>Migration: Apply migrations/000001_init.up.sql
+    Developer->>Migration: Apply src/backend/migrations/000001_init.up.sql
     Migration->>DB: CREATE EXTENSION pgcrypto
     Migration->>DB: CREATE users/auth_sessions/workspaces/workspace_members
     Migration->>DB: CREATE folders/scenes/scene_assets
@@ -157,10 +157,10 @@ must stay out of Postgres and belong in S3-compatible storage.
 ## 7. Verification & Test Plan
 
 ### Automated Verification
-- `grep -i "is_starred" migrations/000001_init.up.sql`
-- `grep -i "deleted_at" migrations/000001_init.up.sql`
-- If asset schema is included: `grep -i "scene_assets" migrations/000001_init.up.sql`
-- If asset schema is included: `grep -i "asset_kind" migrations/000001_init.up.sql`
+- `grep -i "is_starred" src/backend/migrations/000001_init.up.sql`
+- `grep -i "deleted_at" src/backend/migrations/000001_init.up.sql`
+- If asset schema is included: `grep -i "scene_assets" src/backend/migrations/000001_init.up.sql`
+- If asset schema is included: `grep -i "asset_kind" src/backend/migrations/000001_init.up.sql`
 - `go test ./src/backend/internal/domain/...`
 
 ### Manual Verification Scenarios

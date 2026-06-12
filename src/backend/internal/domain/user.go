@@ -8,15 +8,15 @@ import (
 )
 
 type User struct {
-	ID            uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Email         string     `gorm:"uniqueIndex:users_email_lower_key;not null"`
-	Name          string     `gorm:"not null"`
-	AvatarURL     string
-	GoogleSubject *string    `gorm:"uniqueIndex:users_google_subject_key"`
-	LastLoginAt   *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
+	ID            uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Email         string         `json:"email" gorm:"uniqueIndex:users_email_lower_key;not null"`
+	Name          string         `json:"name" gorm:"not null"`
+	AvatarURL     string         `json:"avatarUrl,omitempty"`
+	GoogleSubject *string        `json:"-" gorm:"uniqueIndex:users_google_subject_key"`
+	LastLoginAt   *time.Time     `json:"lastLoginAt,omitempty"`
+	CreatedAt     time.Time      `json:"createdAt"`
+	UpdatedAt     time.Time      `json:"updatedAt"`
+	DeletedAt     gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type UserRepository interface {

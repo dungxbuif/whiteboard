@@ -4,7 +4,11 @@ import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
+const frontendPort = 5173;
+const backendURL = "http://localhost:8080";
+
 export default defineConfig({
+  envDir: "..",
   plugins: [react()],
   resolve: {
     alias: {
@@ -12,7 +16,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: frontendPort,
+    proxy: {
+      "/api": backendURL,
+    },
   },
   test: {
     globals: true,

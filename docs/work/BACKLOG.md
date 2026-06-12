@@ -99,12 +99,13 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | 6 | EXC-006 | ticket | high-risk | Google OAuth Backend | High | planned | [EXC-006](tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) | Auth | Ticket + Detail Design | |
 | 7 | EXC-007 | ticket | normal | Frontend Auth Store | Medium | planned | [EXC-007](tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) | Auth | Ticket | |
 | 8 | EXC-008 | ticket | normal | Workspace CRUD Full Stack | Medium | planned | [EXC-008](tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) | Data model | Ticket | |
-| 9 | EXC-009 | ticket | normal | Folder Backend Materialized Path | Medium | planned | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) | Data model | Ticket | |
+| 9 | EXC-009 | ticket | normal | Folder Backend Materialized Path | Medium | completed | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) | Data model | Ticket | |
 | 10 | EXC-010 | ticket | normal | Folder Frontend Tree+Nav | Medium | planned | [EXC-010](tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) | | Ticket | |
 | 11 | EXC-011 | ticket | normal | Scene Backend | Medium | planned | [EXC-011](tickets/phase-01/EXC-011/EXC-011-scene-backend.md) | Data model | Ticket | |
 | 12 | EXC-012 | ticket | normal | Excalidraw Integration | Medium | planned | [EXC-012](tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) | | Ticket | |
 | 13 | EXC-013 | ticket | normal | S3 Assets | Medium | planned | [EXC-013](tickets/phase-01/EXC-013/EXC-013-s3-assets.md) | External system | Ticket | |
 | 14 | EXC-014 | ticket | normal | Search + Starred/Trash | Low | planned | [EXC-014](tickets/phase-01/EXC-014/EXC-014-search---starred-trash.md) | | Ticket | |
+| 34 | EXC-034 | ticket | high-risk | Replace Temporary Admin Auth With Google OAuth | High | planned | [EXC-034](tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) | Auth, Audit/security/privacy, External system/provider | Ticket + Detail Design | Final Phase 1 auth replacement before release. |
 
 ### Epic E02: Presentation Mode
 

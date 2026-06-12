@@ -22,7 +22,7 @@ trace:
   backlog_items: []
   roadmap: ROADMAP
   requirements: [REQ-01, REQ-02, REQ-03, REQ-04, REQ-05, REQ-06, REQ-07, REQ-08, REQ-09, REQ-10]
-  tickets: [EXC-001, EXC-002, EXC-003, EXC-004, EXC-005, EXC-006, EXC-007, EXC-008, EXC-009, EXC-010, EXC-011, EXC-012, EXC-013, EXC-014]
+  tickets: [EXC-001, EXC-002, EXC-003, EXC-004, EXC-005, EXC-006, EXC-007, EXC-008, EXC-009, EXC-010, EXC-011, EXC-012, EXC-013, EXC-014, EXC-034]
   bugs: []
   test_verification: TBD
   validation_matrix: VALIDATION_MATRIX
@@ -66,7 +66,7 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 
 - Full rewrite of Frontend in React Vite + Shadcn (reusing UI components).
 - Full rewrite of Backend in Go (Clean Architecture).
-- Google OAuth login.
+- Temporary single-admin login, replaced by Google OAuth in EXC-034 before release.
 - Multi-tenant database design.
 - Folder/File CRUD with Trash, Star, and Search.
 - S3 integration for media.
@@ -104,12 +104,13 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 | EXC-006 | ticket | Google OAuth Backend | planned | [EXC-006](../tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) |
 | EXC-007 | ticket | Frontend Auth Store | planned | [EXC-007](../tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) |
 | EXC-008 | ticket | Workspace CRUD Full Stack | planned | [EXC-008](../tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) |
-| EXC-009 | ticket | Folder Backend Materialized Path | planned | [EXC-009](../tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
+| EXC-009 | ticket | Folder Backend Materialized Path | completed | [EXC-009](../tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | EXC-010 | ticket | Folder Frontend Tree+Nav | planned | [EXC-010](../tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
 | EXC-011 | ticket | Scene Backend | planned | [EXC-011](../tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
 | EXC-012 | ticket | Excalidraw Integration | planned | [EXC-012](../tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) |
 | EXC-013 | ticket | S3 Assets | planned | [EXC-013](../tickets/phase-01/EXC-013/EXC-013-s3-assets.md) |
 | EXC-014 | ticket | Search + Starred/Trash | planned | [EXC-014](../tickets/phase-01/EXC-014/EXC-014-search---starred-trash.md) |
+| EXC-034 | ticket | Replace Temporary Admin Auth With Google OAuth | planned | [EXC-034](../tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) |
 
 ## Dependencies
 
@@ -128,7 +129,8 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 
 - [ ] Backend code passes "Clean Architecture" review.
 - [ ] Database schema verified for multi-tenancy support.
-- [ ] User can log in with Google.
+- [ ] User can log in with the temporary admin account during development.
+- [ ] Google OAuth replaces temporary admin auth before Phase 1 release.
 - [ ] User can create multiple Workspaces.
 - [ ] User can create, rename, and move drawings into nested folders.
 - [ ] User can "Star" a drawing and see it in the Starred section.

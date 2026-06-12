@@ -12,7 +12,7 @@ updated: 2026-06-11
 
 - **Active Phase:** PHASE-1 (Self-hosted Dashboard & Core Infrastructure)
 - **Active Work:** Documentation migration to harness framework complete
-- **Next Work:** Resume PHASE-1 ticket execution (EXC-001 through EXC-014)
+- **Next Work:** Resume PHASE-1 ticket execution; EXC-034 restores Google OAuth near the end of the phase.
 
 ## Project
 
@@ -20,8 +20,8 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 ## Key State
 
-- Planning complete for all 5 phases (33 tickets total).
-- Phase 1 has 14 tickets (EXC-001 to EXC-014).
+- Planning covers all 5 phases (34 tickets total).
+- Phase 1 has 15 tickets (EXC-001 to EXC-014 plus EXC-034).
 - EXC-001 (Go Backend Scaffold), EXC-002 (Frontend Scaffold), EXC-005 (Shadcn UI) have some implementation evidence.
 - All other tickets remain in `planned` status.
 - Architecture, requirements, and ADR documentation migrated to harness format.
@@ -33,6 +33,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Single active workspace per session (D-03).
 - Context-based tenancy via middleware (D-04).
 - Last-write-wins for scene persistence (D-06).
+- Temporary development authentication uses the single hard-coded `admin/admin` account; EXC-034 replaces it with Google OAuth before release.
 
 ## Blockers
 

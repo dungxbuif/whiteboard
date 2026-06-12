@@ -23,7 +23,7 @@ func NewFolderUsecase(repo domain.FolderRepository) domain.FolderUsecase {
 func (u *folderUsecase) Create(ctx context.Context, workspaceID uuid.UUID, userID uuid.UUID, name string, parentID *uuid.UUID) (*domain.Folder, error) {
 	id := uuid.New()
 	strippedID := strings.ReplaceAll(id.String(), "-", "")
-	
+
 	depth := 0
 	path := domain.FolderPathSeparator + strippedID + domain.FolderPathSeparator
 
@@ -32,11 +32,11 @@ func (u *folderUsecase) Create(ctx context.Context, workspaceID uuid.UUID, userI
 		if err != nil {
 			return nil, fmt.Errorf("parent folder not found: %w", err)
 		}
-		
+
 		if parent.Depth >= domain.MaxFolderDepth-1 {
 			return nil, fmt.Errorf("maximum folder depth reached (%d)", domain.MaxFolderDepth)
 		}
-		
+
 		depth = parent.Depth + 1
 		path = parent.Path + strippedID + domain.FolderPathSeparator
 	}
@@ -65,8 +65,9 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 	}
 
 	oldPath := folder.Path
+	oldDepth := folder.Depth
 	strippedID := strings.ReplaceAll(folder.ID.String(), "-", "")
-	
+
 	var newPath string
 	var newDepth int
 
@@ -95,6 +96,14 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 		newDepth = parent.Depth + 1
 	}
 
+	maxDepth, err := u.repo.MaxDepthByPath(ctx, workspaceID, oldPath)
+	if err != nil {
+		return fmt.Errorf("failed to inspect folder subtree: %w", err)
+	}
+	if newDepth+(maxDepth-oldDepth) >= domain.MaxFolderDepth {
+		return fmt.Errorf("moving folder would exceed maximum depth (%d)", domain.MaxFolderDepth)
+	}
+
 	folder.ParentID = newParentID
 	folder.Path = newPath
 	folder.Depth = newDepth
@@ -103,11 +112,15 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 		return fmt.Errorf("failed to update folder: %w", err)
 	}
 
-	return u.repo.UpdatePathRecursive(ctx, workspaceID, oldPath, newPath)
+	return u.repo.UpdatePathRecursive(ctx, workspaceID, oldPath, newPath, newDepth-oldDepth)
 }
 
 func (u *folderUsecase) Delete(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {
 	return u.repo.DeleteRecursive(ctx, workspaceID, folderID)
+}
+
+func (u *folderUsecase) Restore(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {
+	return u.repo.RestoreRecursive(ctx, workspaceID, folderID)
 }
 
 func (u *folderUsecase) List(ctx context.Context, workspaceID uuid.UUID, parentID *uuid.UUID) ([]domain.Folder, error) {

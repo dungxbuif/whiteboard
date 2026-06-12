@@ -10,7 +10,7 @@ high-risk
 
 ## Product Contract
 
-Add coturn service to docker-compose (instrumentisto/coturn, port 3478, auth-secret), update .env.example
+Add coturn service to docker-compose (instrumentisto/coturn, port 3478, auth-secret), update src/.env.example
 
 ## Relevant Product Docs
 
@@ -27,7 +27,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-024-design.md)
 
-- **Modified Files**: `docker-compose.yml`, `.env.example`
+- **Modified Files**: `docker-compose.yml`, `src/.env.example`
 - **Sprint Phase**: phase-04
 
 ## Validation

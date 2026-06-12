@@ -90,7 +90,7 @@ No database schema is created in EXC-001. EXC-003 owns migrations and multi-tena
 - **Authentication**: No authenticated endpoints in this ticket.
 - **Authorization**: No tenant middleware in this ticket; workspace IDs are present on domain models for later enforcement.
 - **Input Validation**: `/healthz` accepts no input.
-- **Secrets**: Development credentials are stored only in `.env.example`.
+- **Secrets**: Development credentials are stored only in `src/.env.example`.
 
 ---
 

@@ -15,12 +15,12 @@ const (
 )
 
 type Workspace struct {
-	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	Name      string         `gorm:"not null"`
-	OwnerID   uuid.UUID      `gorm:"type:uuid;not null;index"`
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+	ID        uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	Name      string         `json:"name" gorm:"not null"`
+	OwnerID   uuid.UUID      `json:"ownerId" gorm:"type:uuid;not null;index"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt time.Time      `json:"updatedAt"`
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 type WorkspaceMember struct {

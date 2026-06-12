@@ -21,7 +21,7 @@ Init Go module, Clean Architecture dirs, domain entities, chi router, and direct
 - Clean Architecture directory structure is established.
 - Go module 'devtool' is initialized.
 - src/backend/cmd/server/main.go compiles and runs directly, starting a basic HTTP server.
-- .env.example is present with direct local PostgreSQL credentials.
+- src/.env.example is present with direct local PostgreSQL credentials.
 - Local PostgreSQL defaults use `POSTGRES_USER=dev`, `POSTGRES_PASSWORD=password`, and app database `POSTGRES_DB=devtool`.
 
 ## Design Notes
@@ -30,7 +30,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-001-design.md)
 
-- **Modified Files**: `src/backend/go.mod`, `src/backend/cmd/server/main.go`, `src/backend/internal/domain/user.go`, `src/backend/internal/domain/workspace.go`, `src/backend/internal/domain/folder.go`, `src/backend/internal/domain/scene.go`, `src/backend/internal/delivery/http/router.go`, `.env.example`
+- **Modified Files**: `src/backend/go.mod`, `src/backend/cmd/server/main.go`, `src/backend/internal/domain/user.go`, `src/backend/internal/domain/workspace.go`, `src/backend/internal/domain/folder.go`, `src/backend/internal/domain/scene.go`, `src/backend/internal/delivery/http/router.go`, `src/.env.example`
 - **Sprint Phase**: phase-01
 
 ## Validation

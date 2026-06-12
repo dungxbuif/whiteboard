@@ -2,36 +2,55 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"devtool/internal/domain"
 
-	"golang.org/x/oauth2"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type mockUserRepo struct {
 	domain.UserRepository
+	user *domain.User
 }
 
-func (m *mockUserRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
-	return nil, nil // Simulate not found
+func (m *mockUserRepo) FindByEmail(context.Context, string) (*domain.User, error) {
+	if m.user == nil {
+		return nil, fmt.Errorf("not found: %w", gorm.ErrRecordNotFound)
+	}
+	return m.user, nil
 }
 
-func (m *mockUserRepo) Save(ctx context.Context, user *domain.User) error {
+func (m *mockUserRepo) FindByID(context.Context, uuid.UUID) (*domain.User, error) {
+	return m.user, nil
+}
+
+func (m *mockUserRepo) Save(_ context.Context, user *domain.User) error {
+	m.user = user
 	return nil
 }
 
-func TestAuthUsecase_GetGoogleLoginURL(t *testing.T) {
-	config := &oauth2.Config{
-		ClientID: "client-id",
-		Endpoint: oauth2.Endpoint{
-			AuthURL: "https://accounts.google.com/o/oauth2/auth",
-		},
+func TestAuthUsecaseLogin(t *testing.T) {
+	repo := &mockUserRepo{}
+	usecase := NewAuthUsecase(repo, []byte("secret"))
+
+	token, err := usecase.Login(context.Background(), domain.TemporaryAdminUsername, domain.TemporaryAdminPassword)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	ucase := NewAuthUsecase(config, &mockUserRepo{}, []byte("secret"))
-	
-	url := ucase.GetGoogleLoginURL("state")
-	if url == "" {
-		t.Error("expected non-empty login URL")
+	if token == "" {
+		t.Fatal("expected a token")
+	}
+	if repo.user == nil || repo.user.Email != domain.TemporaryAdminEmail {
+		t.Fatalf("expected temporary admin user, got %#v", repo.user)
+	}
+}
+
+func TestAuthUsecaseLoginRejectsInvalidCredentials(t *testing.T) {
+	usecase := NewAuthUsecase(&mockUserRepo{}, []byte("secret"))
+	if _, err := usecase.Login(context.Background(), "wrong", "wrong"); err == nil {
+		t.Fatal("expected invalid credentials error")
 	}
 }

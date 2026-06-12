@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WorkspaceSwitcher } from "@/components/workspace-switcher";
+import { AdminLogin } from "@/components/admin-login";
 import useAuthStore from "./store/auth-store";
 import useWorkspaceStore from "./store/workspace-store";
 
@@ -23,11 +24,21 @@ const recentScenes = [
 
 function App() {
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isLoading = useAuthStore((state) => state.isLoading);
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+
+  if (isLoading) {
+    return <main className="grid min-h-screen place-items-center">Loading...</main>;
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin />;
+  }
 
   const activeWorkspace = Array.isArray(workspaces) ? workspaces.find((w) => w.id === activeWorkspaceId) : null;
 

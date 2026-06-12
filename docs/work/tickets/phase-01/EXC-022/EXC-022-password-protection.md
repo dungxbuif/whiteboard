@@ -28,7 +28,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-022-design.md)
 
-- **Modified Files**: `migrations/000005_add_password_to_permissions.up.sql`, `src/backend/internal/domain/scene_permission.go`, `scene_permission_ucase.go`, `public_handler.go`, `src/features/sharing/components/PasswordPrompt.tsx`, `src/pages/PublicView.tsx`
+- **Modified Files**: `src/backend/migrations/000005_add_password_to_permissions.up.sql`, `src/backend/internal/domain/scene_permission.go`, `scene_permission_ucase.go`, `public_handler.go`, `src/features/sharing/components/PasswordPrompt.tsx`, `src/pages/PublicView.tsx`
 - **Sprint Phase**: phase-03
 
 ## Validation

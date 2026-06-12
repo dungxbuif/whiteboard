@@ -58,6 +58,17 @@ func (r *FolderRepository) Save(ctx context.Context, f *domain.Folder) error {
 	return nil
 }
 
+func (r *FolderRepository) MaxDepthByPath(ctx context.Context, workspaceID uuid.UUID, pathPrefix string) (int, error) {
+	var maxDepth int
+	if err := r.db.WithContext(ctx).Model(&domain.Folder{}).
+		Where("workspace_id = ? AND path LIKE ?", workspaceID, pathPrefix+"%").
+		Select("COALESCE(MAX(depth), 0)").
+		Scan(&maxDepth).Error; err != nil {
+		return 0, fmt.Errorf("failed to find maximum folder depth: %w", err)
+	}
+	return maxDepth, nil
+}
+
 func (r *FolderRepository) DeleteRecursive(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var folder domain.Folder
@@ -80,12 +91,29 @@ func (r *FolderRepository) DeleteRecursive(ctx context.Context, workspaceID uuid
 	})
 }
 
-func (r *FolderRepository) UpdatePathRecursive(ctx context.Context, workspaceID uuid.UUID, oldPathPrefix, newPathPrefix string) error {
-	// Standard SQL replacement for materialized path
-	// UPDATE folders SET path = REPLACE(path, 'old/', 'new/') WHERE path LIKE 'old/%'
+func (r *FolderRepository) RestoreRecursive(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var folder domain.Folder
+		if err := tx.Unscoped().First(&folder, "workspace_id = ? AND id = ?", workspaceID, folderID).Error; err != nil {
+			return fmt.Errorf("failed to find deleted folder: %w", err)
+		}
+
+		if err := tx.Unscoped().Model(&domain.Folder{}).
+			Where("workspace_id = ? AND path LIKE ?", workspaceID, folder.Path+"%").
+			Update("deleted_at", nil).Error; err != nil {
+			return fmt.Errorf("failed to restore folder tree: %w", err)
+		}
+		return nil
+	})
+}
+
+func (r *FolderRepository) UpdatePathRecursive(ctx context.Context, workspaceID uuid.UUID, oldPathPrefix, newPathPrefix string, depthDelta int) error {
 	err := r.db.WithContext(ctx).Model(&domain.Folder{}).
 		Where("workspace_id = ? AND path LIKE ?", workspaceID, oldPathPrefix+"%").
-		Update("path", gorm.Expr("REPLACE(path, ?, ?)", oldPathPrefix, newPathPrefix)).
+		Updates(map[string]interface{}{
+			"path":  gorm.Expr("REPLACE(path, ?, ?)", oldPathPrefix, newPathPrefix),
+			"depth": gorm.Expr("depth + ?", depthDelta),
+		}).
 		Error
 
 	if err != nil {

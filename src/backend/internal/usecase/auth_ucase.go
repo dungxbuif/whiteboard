@@ -2,29 +2,26 @@ package usecase
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"net/http"
 	"time"
 
 	"devtool/internal/domain"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"golang.org/x/oauth2"
+	"gorm.io/gorm"
 )
 
 type authUsecase struct {
-	oauthConfig *oauth2.Config
-	userRepo    domain.UserRepository
-	jwtSecret   []byte
+	userRepo  domain.UserRepository
+	jwtSecret []byte
 }
 
-func NewAuthUsecase(oauthConfig *oauth2.Config, userRepo domain.UserRepository, jwtSecret []byte) domain.AuthUsecase {
+func NewAuthUsecase(userRepo domain.UserRepository, jwtSecret []byte) domain.AuthUsecase {
 	return &authUsecase{
-		oauthConfig: oauthConfig,
-		userRepo:    userRepo,
-		jwtSecret:   jwtSecret,
+		userRepo:  userRepo,
+		jwtSecret: jwtSecret,
 	}
 }
 
@@ -32,71 +29,37 @@ func (u *authUsecase) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.Us
 	return u.userRepo.FindByID(ctx, id)
 }
 
-func (u *authUsecase) GetGoogleLoginURL(state string) string {
-	return u.oauthConfig.AuthCodeURL(state)
-}
-
-func (u *authUsecase) HandleGoogleCallback(ctx context.Context, code string) (string, error) {
-	token, err := u.oauthConfig.Exchange(ctx, code)
-	if err != nil {
-		return "", fmt.Errorf("failed to exchange code: %w", err)
+func (u *authUsecase) Login(ctx context.Context, username, password string) (string, error) {
+	if username != domain.TemporaryAdminUsername || password != domain.TemporaryAdminPassword {
+		return "", fmt.Errorf("invalid credentials")
 	}
 
-	client := u.oauthConfig.Client(ctx, token)
-	resp, err := client.Get(domain.GoogleUserInfoURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to get user info: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("google api returned status: %d", resp.StatusCode)
-	}
-
-	var googleUser struct {
-		Sub     string `json:"sub"`
-		Email   string `json:"email"`
-		Name    string `json:"name"`
-		Picture string `json:"picture"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&googleUser); err != nil {
-		return "", fmt.Errorf("failed to decode user info: %w", err)
-	}
-
-	user, err := u.userRepo.FindByEmail(ctx, googleUser.Email)
-	if err != nil {
-		now := time.Now()
+	user, err := u.userRepo.FindByEmail(ctx, domain.TemporaryAdminEmail)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		user = &domain.User{
-			ID:            uuid.New(),
-			Email:         googleUser.Email,
-			Name:          googleUser.Name,
-			AvatarURL:     googleUser.Picture,
-			GoogleSubject: &googleUser.Sub,
-			LastLoginAt:   &now,
+			ID:    uuid.New(),
+			Email: domain.TemporaryAdminEmail,
+			Name:  domain.TemporaryAdminName,
 		}
-	} else {
-		now := time.Now()
-		user.LastLoginAt = &now
-		user.Name = googleUser.Name
-		user.AvatarURL = googleUser.Picture
-		user.GoogleSubject = &googleUser.Sub
+	} else if err != nil {
+		return "", fmt.Errorf("failed to load admin user: %w", err)
 	}
 
+	now := time.Now()
+	user.LastLoginAt = &now
 	if err := u.userRepo.Save(ctx, user); err != nil {
-		return "", fmt.Errorf("failed to save user: %w", err)
+		return "", fmt.Errorf("failed to save admin user: %w", err)
 	}
 
-	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":   user.ID.String(),
 		"email": user.Email,
 		"exp":   time.Now().Add(domain.DefaultSessionDuration).Unix(),
 	})
 
-	tokenString, err := jwtToken.SignedString(u.jwtSecret)
+	tokenString, err := token.SignedString(u.jwtSecret)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
 	}
-
 	return tokenString, nil
 }

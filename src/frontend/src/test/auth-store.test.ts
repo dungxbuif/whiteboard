@@ -5,6 +5,7 @@ import api from '../lib/api';
 vi.mock('../lib/api', () => ({
   default: {
     get: vi.fn(),
+    post: vi.fn(),
   },
 }));
 
@@ -28,9 +29,10 @@ describe('AuthStore', () => {
 
   it('should login successfully', async () => {
     const mockUser = { id: '1', email: 'test@example.com', name: 'Test User' };
+    (api.post as any).mockResolvedValue({ data: { token: 'mock-token' } });
     (api.get as any).mockResolvedValue({ data: mockUser });
 
-    await useAuthStore.getState().login('mock-token');
+    await useAuthStore.getState().login('admin', 'admin');
 
     const state = useAuthStore.getState();
     expect(state.token).toBe('mock-token');

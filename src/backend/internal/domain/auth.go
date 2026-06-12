@@ -7,7 +7,6 @@ import (
 )
 
 type AuthUsecase interface {
-	GetGoogleLoginURL(state string) string
-	HandleGoogleCallback(ctx context.Context, code string) (string, error)
+	Login(ctx context.Context, username, password string) (string, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 }

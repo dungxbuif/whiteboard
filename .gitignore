@@ -1,7 +1,9 @@
 references/
 .env
+src/.env
 src/frontend/dist/
 src/frontend/node_modules/
+src/backend/server
 
 # Harness durable layer
 harness.db

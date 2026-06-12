@@ -46,6 +46,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 - Registered EXC-007 in the harness database.
 - Implemented Zustand auth store with session persistence.
 - Configured Axios interceptor for JWT injection.
+- Updated the login action to exchange temporary `admin/admin` credentials for a JWT.
 
 ## Evidence
 
@@ -58,4 +59,3 @@ dist/assets/index-D7K_R_j1.css   20.55 kB │ gzip:  5.18 kB
 dist/assets/index-Ba_L-z_u.js   195.42 kB │ gzip: 65.12 kB
 ✓ built in 1.25s
 ```
-

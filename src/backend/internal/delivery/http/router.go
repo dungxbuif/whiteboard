@@ -1,8 +1,9 @@
 package http
 
 import (
-	"encoding/json"
 	"devtool/internal/delivery/http/handler"
+	deliverymiddleware "devtool/internal/delivery/http/middleware"
+	"encoding/json"
 	"net/http"
 	nethttp "net/http"
 
@@ -23,28 +24,29 @@ func NewRouter(
 
 	router.Get("/healthz", healthHandler)
 
-	router.Route("/auth", func(r chi.Router) {
-		r.Get("/google/login", authHandler.Login)
-		r.Get("/google/callback", authHandler.Callback)
-	})
-
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Use(authMiddleware)
-		
-		r.Get("/users/me", authHandler.Me)
+		r.Post("/auth/login", authHandler.Login)
 
-		r.Route("/workspaces", func(r chi.Router) {
-			r.Get("/", workspaceHandler.List)
-			r.Post("/", workspaceHandler.Create)
-		})
+		r.Group(func(r chi.Router) {
+			r.Use(authMiddleware)
 
-		r.Route("/folders", func(r chi.Router) {
-			r.Get("/", folderHandler.List)
-			r.Post("/", folderHandler.Create)
-			r.Route("/{id}", func(r chi.Router) {
-				r.Patch("/move", folderHandler.Move)
-				r.Post("/star", folderHandler.ToggleStar)
-				r.Delete("/", folderHandler.Delete)
+			r.Get("/users/me", authHandler.Me)
+
+			r.Route("/workspaces", func(r chi.Router) {
+				r.Get("/", workspaceHandler.List)
+				r.Post("/", workspaceHandler.Create)
+			})
+
+			r.Route("/folders", func(r chi.Router) {
+				r.Use(deliverymiddleware.TenantMiddleware)
+				r.Get("/", folderHandler.List)
+				r.Post("/", folderHandler.Create)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Patch("/move", folderHandler.Move)
+					r.Post("/restore", folderHandler.Restore)
+					r.Post("/star", folderHandler.ToggleStar)
+					r.Delete("/", folderHandler.Delete)
+				})
 			})
 		})
 	})

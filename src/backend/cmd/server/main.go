@@ -8,28 +8,25 @@ import (
 
 	"github.com/casbin/casbin/v3"
 	gormadapter "github.com/casbin/gorm-adapter/v3"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"devtool/internal/domain"
 	httpdelivery "devtool/internal/delivery/http"
 	"devtool/internal/delivery/http/handler"
 	middledelivery "devtool/internal/delivery/http/middleware"
+	"devtool/internal/domain"
 	postgresrepo "devtool/internal/repository/postgres"
 	"devtool/internal/usecase"
 )
 
 type config struct {
-	Addr               string
-	DatabaseURL        string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-	JWTSecret          string
-	CasbinModelPath    string
+	Addr            string
+	DatabaseURL     string
+	JWTSecret       string
+	CasbinModelPath string
 }
+
+const defaultHTTPAddr = ":8080"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -67,21 +64,8 @@ func main() {
 	workspaceRepo := postgresrepo.NewWorkspaceRepository(db)
 	folderRepo := postgresrepo.NewFolderRepository(db)
 
-	// OAuth Config
-	oauthConfig := &oauth2.Config{
-		ClientID:     cfg.GoogleClientID,
-		ClientSecret: cfg.GoogleClientSecret,
-		RedirectURL:  cfg.GoogleRedirectURL,
-		Scopes: []string{
-			"https://www.googleapis.com/auth/userinfo.email",
-			"https://www.googleapis.com/auth/userinfo.profile",
-			"openid",
-		},
-		Endpoint: google.Endpoint,
-	}
-
 	// Usecases
-	authUsecase := usecase.NewAuthUsecase(oauthConfig, userRepo, []byte(cfg.JWTSecret))
+	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 
@@ -108,10 +92,9 @@ func main() {
 
 func loadConfig() (config, error) {
 	required := []string{
-		"GOOGLE_CLIENT_ID",
-		"GOOGLE_CLIENT_SECRET",
 		"DATABASE_URL",
 		"JWT_SECRET",
+		"CASBIN_MODEL_PATH",
 	}
 
 	for _, key := range required {
@@ -121,13 +104,10 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		Addr:               getEnv("HTTP_ADDR", ":8080"),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
-		CasbinModelPath:    getEnv("CASBIN_MODEL_PATH", "configs/casbin_model.conf"),
+		Addr:            getEnv("HTTP_ADDR", defaultHTTPAddr),
+		DatabaseURL:     os.Getenv("DATABASE_URL"),
+		JWTSecret:       os.Getenv("JWT_SECRET"),
+		CasbinModelPath: os.Getenv("CASBIN_MODEL_PATH"),
 	}, nil
 }
 
