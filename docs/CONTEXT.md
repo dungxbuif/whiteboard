@@ -11,8 +11,8 @@ updated: 2026-06-11
 ## Current Focus
 
 - **Active Phase:** PHASE-1 (Self-hosted Dashboard & Core Infrastructure)
-- **Active Work:** EXC-011 scene backend completed.
-- **Next Work:** EXC-012 Excalidraw integration; EXC-034 restores Google OAuth near the end of the phase.
+- **Active Work:** EXC-012 Excalidraw integration completed.
+- **Next Work:** EXC-013 S3 assets; EXC-034 restores Google OAuth near the end of the phase.
 
 ## Project
 
@@ -44,5 +44,6 @@ None currently.
 - 2026-06-11: Migrated all documentation from old devtool/docs format to harness framework structure.
 - 2026-06-12: Completed EXC-010 nested folder tree, breadcrumbs, folder listing, and creation UI.
 - 2026-06-12: Completed EXC-011 workspace-scoped scene JSONB persistence and lifecycle APIs.
+- 2026-06-12: Completed EXC-012 embedded Excalidraw, debounced scene sync, and scene actions UI.
 - 2026-06-05: Implemented optimized Materialized Path folder backend (EXC-009).
 - 2026-06-04: Implemented Workspace CRUD (EXC-008) and auth/tenant (EXC-006, EXC-004).

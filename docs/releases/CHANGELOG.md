@@ -19,7 +19,10 @@ All notable changes should be recorded here.
 
 ## [Unreleased]
 
-*(No unreleased changes)*
+### Added
+
+- Embedded Excalidraw editor with workspace-scoped scene creation, opening, rename, star, trash, and responsive canvas UI.
+- Debounced last-write-wins scene persistence with visible save status and stale-response protection.
 
 ## [1.1.1] - 2026-06-07
 

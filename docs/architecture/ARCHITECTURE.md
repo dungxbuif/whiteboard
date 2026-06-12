@@ -26,7 +26,7 @@ S3-compatible binary asset storage.
 
 - **Backend:** Go 1.22+
 - **Architecture:** Clean Architecture (Domain, Usecase, Repository, Delivery)
-- **Frontend:** React + Vite, Zustand, Shadcn UI
+- **Frontend:** React + Vite, Zustand, Shadcn UI, embedded Excalidraw
 - **Database:** PostgreSQL (Multi-tenant)
 - **Storage:** S3-compatible (MinIO/S3)
 - **Auth:** Google OAuth 2.0
@@ -86,6 +86,12 @@ S3-compatible binary asset storage.
 - **Sync:** Frontend saves scene changes through debounced API calls. Asset
   uploads go through backend S3 orchestration before scene JSON references the
   stored asset.
+- **Editor loading:** Excalidraw JavaScript is dynamically imported only after
+  a scene opens. Zustand owns scene metadata and save status while Excalidraw
+  owns high-frequency live canvas state.
+- **Save ordering:** A client generation token prevents stale request
+  completions from replacing newer save status. The backend remains
+  last-write-wins and `content_version` is observability metadata.
 
 ## Data Flow
 
@@ -185,3 +191,4 @@ workspace cannot be read or mutated through another workspace context.
 - [0001-harness-first-development.md](../decisions/0001-harness-first-development.md)
 - [0002-post-spec-product-lifecycle.md](../decisions/0002-post-spec-product-lifecycle.md)
 - [0004-sqlite-durable-layer.md](../decisions/0004-sqlite-durable-layer.md)
+- [0007-excalidraw-runtime-dependency.md](../decisions/0007-excalidraw-runtime-dependency.md)

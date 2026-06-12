@@ -1,0 +1,56 @@
+import { MoreHorizontal, Pencil, Star, Trash2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { Scene } from "@/store/scene-store";
+import useSceneStore from "@/store/scene-store";
+import useWorkspaceStore from "@/store/workspace-store";
+
+export function SceneActions({ scene }: { scene: Scene }) {
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const renameScene = useSceneStore((state) => state.renameScene);
+  const setSceneStar = useSceneStore((state) => state.setSceneStar);
+  const trashScene = useSceneStore((state) => state.trashScene);
+
+  async function handleRename() {
+    if (!activeWorkspaceId) return;
+    const title = window.prompt("Scene name", scene.title)?.trim();
+    if (!title || title === scene.title) return;
+    await renameScene(activeWorkspaceId, scene.id, title);
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button aria-label={`Actions for ${scene.title}`} size="icon" type="button" variant="ghost">
+          <MoreHorizontal size={16} aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => void handleRename()}>
+          <Pencil size={16} aria-hidden="true" /> Rename
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            if (activeWorkspaceId) void setSceneStar(activeWorkspaceId, scene.id, !scene.isStarred);
+          }}
+        >
+          <Star size={16} aria-hidden="true" /> {scene.isStarred ? "Unstar" : "Star"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onSelect={() => {
+            if (activeWorkspaceId) void trashScene(activeWorkspaceId, scene.id);
+          }}
+        >
+          <Trash2 size={16} aria-hidden="true" /> Move to trash
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
