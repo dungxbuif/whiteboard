@@ -65,7 +65,49 @@ type SceneAsset struct {
 	SHA256        *string
 	Width         *int
 	Height        *int
+	PresignedURL  *string
+	URLExpiresAt  *time.Time
 	DeletedAt     *time.Time
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+}
+
+type SceneAssetRepository interface {
+	Create(ctx Context, asset *SceneAsset) error
+	GetByFileIDs(ctx Context, workspaceID uuid.UUID, fileIDs []string) ([]SceneAsset, error)
+	UpdatePresignedURL(ctx Context, id uuid.UUID, url string, expiresAt time.Time) error
+}
+
+type S3Repository interface {
+	PresignUpload(ctx Context, bucket, key string, expires time.Duration) (string, error)
+	PresignDownload(ctx Context, bucket, key string, expires time.Duration) (string, error)
+	Delete(ctx Context, bucket, key string) error
+}
+
+type AssetUsecase interface {
+	PresignUpload(ctx Context, workspaceID, userID, sceneID uuid.UUID, assets []AssetUploadRequest) (map[string]AssetUploadResponse, error)
+	PresignView(ctx Context, workspaceID, sceneID uuid.UUID, fileIDs []string) (map[string]AssetViewResponse, error)
+}
+
+type AssetUploadRequest struct {
+	FileID   string  `json:"fileId" validate:"required"`
+	MimeType string  `json:"mimeType" validate:"required"`
+	ByteSize int64   `json:"byteSize" validate:"gte=0"`
+	SHA256   *string `json:"sha256"`
+	Width    *int    `json:"width"`
+	Height   *int    `json:"height"`
+}
+
+type AssetUploadResponse struct {
+	AssetID    uuid.UUID `json:"assetId"`
+	UploadUrl  string    `json:"uploadUrl"`
+	StorageKey string    `json:"storageKey"`
+	ExpiresAt  time.Time `json:"expiresAt"`
+}
+
+type AssetViewResponse struct {
+	AssetID   uuid.UUID `json:"assetId"`
+	ViewUrl   string    `json:"viewUrl"`
+	MimeType  string    `json:"mimeType"`
+	ExpiresAt time.Time `json:"expiresAt"`
 }

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -25,7 +25,7 @@ S3Repository (Upload, GetURL, Delete with AWS SDK Go v2), AssetUsecase, AssetHan
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-01/EXC-013-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/DETAIL_DESIGN.md` must be approved by the reviewer before implementation starts.
 
 - **Link to Detail Design**: [Design Document](EXC-013-design.md)
 
@@ -59,4 +59,5 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- `asset_ucase_test.go` and `asset_handler_test.go` executed and passed for S3 bulk presigning and caching logic.
+- React Vite build successful with S3 integration logic in `excalidraw-wrapper.tsx`.

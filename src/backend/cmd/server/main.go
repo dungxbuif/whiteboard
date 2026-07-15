@@ -1,11 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/casbin/casbin/v3"
 	gormadapter "github.com/casbin/gorm-adapter/v3"
 	"gorm.io/driver/postgres"
@@ -16,6 +22,7 @@ import (
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	postgresrepo "devtool/internal/repository/postgres"
+	s3repo "devtool/internal/repository/s3"
 	"devtool/internal/usecase"
 )
 
@@ -24,6 +31,11 @@ type config struct {
 	DatabaseURL     string
 	JWTSecret       string
 	CasbinModelPath string
+	S3Endpoint      string
+	S3AccessKey     string
+	S3SecretKey     string
+	S3Bucket        string
+	S3Region        string
 }
 
 const defaultHTTPAddr = ":8080"
@@ -59,30 +71,48 @@ func main() {
 		logger.Warn("failed to load casbin policy", "error", err)
 	}
 
+	// S3 Configuration
+	awsCfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(cfg.S3Region),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(cfg.S3AccessKey, cfg.S3SecretKey, "")),
+	)
+	if err != nil {
+		logger.Error("failed to load aws config", "error", err)
+		os.Exit(1)
+	}
+	s3Client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(cfg.S3Endpoint)
+		o.UsePathStyle = true
+	})
+
 	// Repositories
 	userRepo := postgresrepo.NewUserRepository(db)
 	workspaceRepo := postgresrepo.NewWorkspaceRepository(db)
 	folderRepo := postgresrepo.NewFolderRepository(db)
 	sceneRepo := postgresrepo.NewSceneRepository(db)
+	sceneAssetRepo := postgresrepo.NewSceneAssetRepository(db)
+	s3Repo := s3repo.NewS3Repository(s3Client)
 
 	// Usecases
 	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 	sceneUsecase := usecase.NewSceneUsecase(sceneRepo, folderRepo)
+	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, 1*time.Hour)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUsecase)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
 	folderHandler := handler.NewFolderHandler(folderUsecase)
 	sceneHandler := handler.NewSceneHandler(sceneUsecase)
+	assetHandler := handler.NewAssetHandler(assetUsecase)
 
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, authMiddleware),
+		Handler:           httpdelivery.NewRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -98,6 +128,10 @@ func loadConfig() (config, error) {
 		"DATABASE_URL",
 		"JWT_SECRET",
 		"CASBIN_MODEL_PATH",
+		"S3_ENDPOINT",
+		"S3_ACCESS_KEY",
+		"S3_SECRET_KEY",
+		"S3_BUCKET",
 	}
 
 	for _, key := range required {
@@ -111,6 +145,11 @@ func loadConfig() (config, error) {
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
 		JWTSecret:       os.Getenv("JWT_SECRET"),
 		CasbinModelPath: os.Getenv("CASBIN_MODEL_PATH"),
+		S3Endpoint:      os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:     os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:     os.Getenv("S3_SECRET_KEY"),
+		S3Bucket:        os.Getenv("S3_BUCKET"),
+		S3Region:        getEnv("S3_REGION", "auto"),
 	}, nil
 }
 

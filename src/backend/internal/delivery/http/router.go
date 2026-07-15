@@ -16,6 +16,7 @@ func NewRouter(
 	workspaceHandler *handler.WorkspaceHandler,
 	folderHandler *handler.FolderHandler,
 	sceneHandler *handler.SceneHandler,
+	assetHandler *handler.AssetHandler,
 	authMiddleware func(http.Handler) http.Handler,
 ) nethttp.Handler {
 	router := chi.NewRouter()
@@ -61,6 +62,12 @@ func NewRouter(
 					r.Post("/star", sceneHandler.SetStar)
 					r.Delete("/", sceneHandler.Delete)
 				})
+			})
+
+			r.Route("/assets", func(r chi.Router) {
+				r.Use(deliverymiddleware.TenantMiddleware)
+				r.Post("/presign-upload", assetHandler.PresignUpload)
+				r.Post("/presign-view", assetHandler.PresignView)
 			})
 		})
 	})

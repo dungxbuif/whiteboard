@@ -53,7 +53,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | REQ-06 | 1 | EXC-010 | Folder Frontend Tree+Nav | yes | yes | yes | no | yes | no | implemented | [EXC-010](tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
 | REQ-10 | 1 | EXC-011 | Scene Backend | yes | yes | yes | no | yes | yes | implemented | [EXC-011](tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
 | REQ-10 | 1 | EXC-012 | Excalidraw Integration | yes | yes | yes | yes | yes | yes | implemented | [EXC-012 evidence](tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) |
-| REQ-03 | 1 | EXC-013 | S3 Assets | no | no | no | no | no | no | planned | none |
+| REQ-03 | 1 | EXC-013 | S3 Assets | yes | no | no | no | no | no | implemented | Unit tests for AssetUsecase and AssetHandler pass |
 | REQ-08,09 | 1 | EXC-014 | Search + Starred/Trash | no | no | no | no | no | no | planned | none |
 | REQ-04 | 1 | EXC-034 | Replace Temporary Admin Auth With Google OAuth | no | no | no | no | no | no | planned | [EXC-034](tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) |
 | P2-REQ-01 | 2 | EXC-015 | Frame Persistence & Scene Store Extension | no | no | no | no | no | no | planned | none |

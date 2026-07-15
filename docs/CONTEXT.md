@@ -11,8 +11,8 @@ updated: 2026-06-11
 ## Current Focus
 
 - **Active Phase:** PHASE-1 (Self-hosted Dashboard & Core Infrastructure)
-- **Active Work:** EXC-012 Excalidraw integration completed.
-- **Next Work:** EXC-013 S3 assets; EXC-034 restores Google OAuth near the end of the phase.
+- **Active Work:** Moving to the next task in PHASE-1 backlog.
+- **Next Work:** EXC-014 Search + Starred/Trash or EXC-034 Replace Temporary Admin Auth With Google OAuth.
 
 ## Project
 
@@ -37,10 +37,12 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 ## Blockers
 
-None currently.
+- None.
 
 ## Recent Changes
 
+- 2026-07-15: Completed EXC-013 S3 assets backend, caching logic, frontend hook, and tests.
+- 2026-07-15: Approved EXC-013 S3 assets detail design and moved to in_progress.
 - 2026-06-11: Migrated all documentation from old devtool/docs format to harness framework structure.
 - 2026-06-12: Completed EXC-010 nested folder tree, breadcrumbs, folder listing, and creation UI.
 - 2026-06-12: Completed EXC-011 workspace-scoped scene JSONB persistence and lifecycle APIs.
