@@ -12,6 +12,7 @@ services:
     command: ["migrate -path=/migrations -database=\"$${DATABASE_URL}\" up"]
 
   backend:
+    container_name: whiteboard-backend
     build:
       context: ./src/backend
       dockerfile: Dockerfile
@@ -36,6 +37,7 @@ services:
       retries: 6
 
   frontend:
+    container_name: whiteboard-frontend
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
