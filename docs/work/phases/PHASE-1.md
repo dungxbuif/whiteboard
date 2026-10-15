@@ -96,14 +96,14 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 
 | ID | Type | Title | Status | Link |
 | --- | --- | --- | --- | --- |
-| EXC-001 | ticket | Go Backend Scaffold | planned | [EXC-001](../tickets/phase-01/EXC-001/EXC-001-go-backend-scaffold.md) |
-| EXC-002 | ticket | Frontend Scaffold Vite+React | planned | [EXC-002](../tickets/phase-01/EXC-002/EXC-002-frontend-scaffold-vite-react.md) |
-| EXC-003 | ticket | DB Migrations & Multi-tenant Schema | planned | [EXC-003](../tickets/phase-01/EXC-003/EXC-003-db-migrations-and-multi-tenant-schema.md) |
-| EXC-004 | ticket | Tenant Middleware & Workspace Repository | planned | [EXC-004](../tickets/phase-01/EXC-004/EXC-004-tenant-middleware-and-workspace-repository.md) |
-| EXC-005 | ticket | Shadcn UI & Tailwind Setup | planned | [EXC-005](../tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) |
+| EXC-001 | ticket | Go Backend Scaffold | done | [EXC-001](../tickets/phase-01/EXC-001/EXC-001-go-backend-scaffold.md) |
+| EXC-002 | ticket | Frontend Scaffold Vite+React | done | [EXC-002](../tickets/phase-01/EXC-002/EXC-002-frontend-scaffold-vite-react.md) |
+| EXC-003 | ticket | DB Migrations & Multi-tenant Schema | done | [EXC-003](../tickets/phase-01/EXC-003/EXC-003-db-migrations-and-multi-tenant-schema.md) |
+| EXC-004 | ticket | Tenant Middleware & Workspace Repository | done | [EXC-004](../tickets/phase-01/EXC-004/EXC-004-tenant-middleware-and-workspace-repository.md) |
+| EXC-005 | ticket | Shadcn UI & Tailwind Setup | done | [EXC-005](../tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) |
 | EXC-006 | ticket | Google OAuth Backend | done | [EXC-006](../tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) |
 | EXC-007 | ticket | Frontend Auth Store | done | [EXC-007](../tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) |
-| EXC-008 | ticket | Workspace CRUD Full Stack | planned | [EXC-008](../tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) |
+| EXC-008 | ticket | Workspace CRUD Full Stack | done | [EXC-008](../tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) |
 | EXC-009 | ticket | Folder Backend Materialized Path | completed | [EXC-009](../tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | EXC-010 | ticket | Folder Frontend Tree+Nav | completed | [EXC-010](../tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
 | EXC-011 | ticket | Scene Backend | completed | [EXC-011](../tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |

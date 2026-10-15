@@ -91,14 +91,14 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 | Rank | ID | Type | Lane | Title | Priority | Status | Links | Risk Flags | Next Artifact | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | EXC-001 | ticket | normal | Go Backend Scaffold | High | planned | [EXC-001](tickets/phase-01/EXC-001/EXC-001-go-backend-scaffold.md) | | Ticket | |
-| 2 | EXC-002 | ticket | normal | Frontend Scaffold Vite+React | High | planned | [EXC-002](tickets/phase-01/EXC-002/EXC-002-frontend-scaffold-vite-react.md) | | Ticket | |
-| 3 | EXC-003 | ticket | high-risk | DB Migrations & Multi-tenant Schema | High | planned | [EXC-003](tickets/phase-01/EXC-003/EXC-003-db-migrations-and-multi-tenant-schema.md) | Data model, Migration | Ticket + Detail Design | |
-| 4 | EXC-004 | ticket | high-risk | Tenant Middleware & Workspace Repository | High | planned | [EXC-004](tickets/phase-01/EXC-004/EXC-004-tenant-middleware-and-workspace-repository.md) | Authorization | Ticket + Detail Design | |
-| 5 | EXC-005 | ticket | normal | Shadcn UI & Tailwind Setup | Medium | planned | [EXC-005](tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) | | Ticket | |
+| 1 | EXC-001 | ticket | normal | Go Backend Scaffold | High | done | [EXC-001](tickets/phase-01/EXC-001/EXC-001-go-backend-scaffold.md) | | Ticket | Backend build and health smoke verified. |
+| 2 | EXC-002 | ticket | normal | Frontend Scaffold Vite+React | High | done | [EXC-002](tickets/phase-01/EXC-002/EXC-002-frontend-scaffold-vite-react.md) | | Ticket | Frontend build and dependency checks verified. |
+| 3 | EXC-003 | ticket | high-risk | DB Migrations & Multi-tenant Schema | High | done | [EXC-003](tickets/phase-01/EXC-003/EXC-003-db-migrations-and-multi-tenant-schema.md) | Data model, Migration | Ticket + Detail Design | Tenant schema and migration checks verified. |
+| 4 | EXC-004 | ticket | high-risk | Tenant Middleware & Workspace Repository | High | done | [EXC-004](tickets/phase-01/EXC-004/EXC-004-tenant-middleware-and-workspace-repository.md) | Authorization | Ticket + Detail Design | Tenant middleware and repository tests pass. |
+| 5 | EXC-005 | ticket | normal | Shadcn UI & Tailwind Setup | Medium | done | [EXC-005](tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) | | Ticket | UI dependencies and production build verified. |
 | 6 | EXC-006 | ticket | high-risk | Google OAuth Backend | High | done | [EXC-006](tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) | Auth | Ticket + Detail Design | Active OAuth implementation verified through EXC-034. |
 | 7 | EXC-007 | ticket | normal | Frontend Auth Store | Medium | done | [EXC-007](tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) | Auth | Ticket | OAuth callback token handoff verified through EXC-034. |
-| 8 | EXC-008 | ticket | normal | Workspace CRUD Full Stack | Medium | planned | [EXC-008](tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) | Data model | Ticket | |
+| 8 | EXC-008 | ticket | normal | Workspace CRUD Full Stack | Medium | done | [EXC-008](tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) | Data model | Ticket | Workspace CRUD backend and Zustand UI verified. |
 | 9 | EXC-009 | ticket | normal | Folder Backend Materialized Path | Medium | completed | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) | Data model | Ticket | |
 | 10 | EXC-010 | ticket | normal | Folder Frontend Tree+Nav | Medium | completed | [EXC-010](tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) | | Ticket | |
 | 11 | EXC-011 | ticket | normal | Scene Backend | Medium | completed | [EXC-011](tickets/phase-01/EXC-011/EXC-011-scene-backend.md) | Data model | Ticket | |

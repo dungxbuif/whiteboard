@@ -22,7 +22,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 - Planning covers all 5 phases (34 tickets total).
 - Phase 1 has 15 tickets (EXC-001 to EXC-014 plus EXC-034).
-- EXC-001 (Go Backend Scaffold), EXC-002 (Frontend Scaffold), EXC-005 (Shadcn UI) have some implementation evidence.
+- EXC-001 through EXC-023 are implemented; EXC-034 completes the auth replacement.
 - EXC-006 through EXC-023 and EXC-034 are implemented; external credential rotation remains a release operation.
 - Architecture, requirements, and ADR documentation migrated to harness format.
 

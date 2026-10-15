@@ -43,12 +43,12 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | REQ-01 | 1 | EXC-001 | Go Backend Scaffold | yes | yes | no | no | no | no | implemented | [EXC-001](tickets/phase-01/EXC-001/EXC-001-go-backend-scaffold.md) |
 | REQ-01 | 1 | EXC-002 | Frontend Scaffold Vite+React | yes | no | no | no | no | no | implemented | [EXC-002](tickets/phase-01/EXC-002/EXC-002-frontend-scaffold-vite-react.md) |
-| REQ-02 | 1 | EXC-003 | DB Migrations & Multi-tenant Schema | no | no | no | no | no | no | planned | none |
-| REQ-02 | 1 | EXC-004 | Tenant Middleware & Workspace Repository | no | no | no | no | no | no | planned | none |
+| REQ-02 | 1 | EXC-003 | DB Migrations & Multi-tenant Schema | yes | yes | no | no | no | yes | implemented | Migration assertions and `go test ./...` pass. |
+| REQ-02 | 1 | EXC-004 | Tenant Middleware & Workspace Repository | yes | yes | no | no | yes | yes | implemented | Tenant middleware and repository tests pass. |
 | REQ-01 | 1 | EXC-005 | Shadcn UI & Tailwind Setup | yes | no | no | no | no | no | implemented | [EXC-005](tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) |
 | REQ-04 | 1 | EXC-006 | Google OAuth Backend | yes | yes | yes | no | yes | yes | implemented | OAuth usecase/handler tests, provider-backed callback test, and Playwright redirect flow. |
 | REQ-04 | 1 | EXC-007 | Frontend Auth Store | yes | no | yes | no | yes | yes | implemented | OAuth hash handoff unit test and Google-only login Playwright coverage. |
-| REQ-05 | 1 | EXC-008 | Workspace CRUD Full Stack | no | no | no | no | no | no | planned | none |
+| REQ-05 | 1 | EXC-008 | Workspace CRUD Full Stack | yes | yes | yes | no | no | yes | implemented | Workspace usecase/repository tests and dashboard browser flows pass. |
 | REQ-06 | 1 | EXC-009 | Folder Backend Materialized Path | yes | yes | no | no | yes | no | implemented | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | REQ-06 | 1 | EXC-010 | Folder Frontend Tree+Nav | yes | yes | yes | no | yes | no | implemented | [EXC-010](tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
 | REQ-10 | 1 | EXC-011 | Scene Backend | yes | yes | yes | no | yes | yes | implemented | [EXC-011](tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
