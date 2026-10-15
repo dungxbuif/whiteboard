@@ -31,6 +31,9 @@ image-to-diagram is required.
 1. Run the pre-release checklist and all repository tests.
 2. Build and start the migration job, backend, and frontend:
    `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.
+   The production manifest attaches the services to the pre-created
+   `homelab-net`, `whiteboard-app`, and `edge-http-net` networks; the frontend
+   stays portless and is reached through the public gateway.
 3. Confirm the migration job exits successfully before accepting traffic.
 4. Verify `/healthz`, password sign-in, an owned workspace request, scene save,
    an authenticated deep link at `/w/{workspaceId}/scenes/{sceneId}`, public
