@@ -108,7 +108,7 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 | EXC-010 | ticket | Folder Frontend Tree+Nav | completed | [EXC-010](../tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
 | EXC-011 | ticket | Scene Backend | completed | [EXC-011](../tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
 | EXC-012 | ticket | Excalidraw Integration | done | [EXC-012](../tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) |
-| EXC-013 | ticket | S3 Assets | planned | [EXC-013](../tickets/phase-01/EXC-013/EXC-013-s3-assets.md) |
+| EXC-013 | ticket | S3 Assets | implemented | [EXC-013](../tickets/phase-01/EXC-013/EXC-013-s3-assets.md) |
 | EXC-014 | ticket | Search + Starred/Trash | done | [EXC-014](../tickets/phase-01/EXC-014/EXC-014-search-starred-trash.md) |
 | EXC-034 | ticket | Replace Temporary Admin Auth With Google OAuth | done | [EXC-034](../tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) |
 
