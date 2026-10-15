@@ -20,6 +20,15 @@ import useRealtimeStore from "@/store/realtime-store";
 type ExcalidrawModule = typeof import("@excalidraw/excalidraw");
 const EXCALIDRAW_INITIALIZATION_MS = 250;
 
+function normalizeSceneContent(content: SceneContent): SceneContent {
+  const collaborators = content.appState?.collaborators;
+  if (collaborators && typeof (collaborators as { forEach?: unknown }).forEach === "function") return content;
+  return {
+    ...content,
+    appState: { ...content.appState, collaborators: new Map() } as SceneContent["appState"],
+  };
+}
+
 const saveLabels = {
   idle: "Saved",
   pending: "Waiting to save",
@@ -131,7 +140,7 @@ export function ExcalidrawWrapper() {
     const hydrate = async () => {
       const content = activeScene.content;
       if (!content || !content.files) {
-        if (isMounted) setHydratedContent(content || { elements: [], appState: {}, files: {}, presentationOrder: [] });
+        if (isMounted) setHydratedContent(normalizeSceneContent(content || { elements: [], appState: {}, files: {}, presentationOrder: [] }));
         return;
       }
 
@@ -143,7 +152,7 @@ export function ExcalidrawWrapper() {
       });
 
       if (missingUrls.length === 0) {
-        if (isMounted) setHydratedContent(content);
+        if (isMounted) setHydratedContent(normalizeSceneContent(content));
         return;
       }
 
@@ -160,10 +169,10 @@ export function ExcalidrawWrapper() {
           }
         }
 
-        if (isMounted) setHydratedContent({ ...content, files: hydratedFiles });
+        if (isMounted) setHydratedContent(normalizeSceneContent({ ...content, files: hydratedFiles }));
       } catch (err) {
         console.error("Failed to hydrate S3 URLs", err);
-        if (isMounted) setHydratedContent(content);
+        if (isMounted) setHydratedContent(normalizeSceneContent(content));
       }
     };
 
