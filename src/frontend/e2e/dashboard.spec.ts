@@ -56,11 +56,8 @@ let mockScenes: Array<{
 test.describe('Dashboard E2E Flows', () => {
   test.beforeEach(async ({ page }) => {
     mockScenes = [];
-    await page.route('**/api/v1/auth/google/login', async (route) => {
-      await route.fulfill({
-        status: 302,
-        headers: { Location: 'http://localhost:5173/#token=playwright-token' },
-      });
+    await page.route('**/api/v1/auth/login', async (route) => {
+      await route.fulfill({ json: { token: 'playwright-token' } });
     });
     await page.route('**/api/v1/users/me', async (route) => {
       await route.fulfill({ json: mockUser });
@@ -143,7 +140,9 @@ test.describe('Dashboard E2E Flows', () => {
   });
 
   async function login(page: import('@playwright/test').Page) {
-    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await page.getByLabel('Email', { exact: true }).fill('test-playwright@example.com');
+    await page.getByLabel('Password', { exact: true }).fill('playwright-password');
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await expect(page.getByText('Workspace', { exact: true })).toBeVisible();
   }
 
@@ -183,11 +182,11 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Select Workspace');
   });
 
-  test('should expose Google as the only interactive login path', async ({ page }) => {
+  test('should expose email and password login', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Sign in to Whiteboard' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
-    await expect(page.getByLabel('Username')).toHaveCount(0);
-    await expect(page.getByLabel('Password')).toHaveCount(0);
+    await expect(page.getByLabel('Email', { exact: true })).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue with Google' })).toHaveCount(0);
   });
 
   test('should navigate nested folders and create a folder', async ({ page }) => {

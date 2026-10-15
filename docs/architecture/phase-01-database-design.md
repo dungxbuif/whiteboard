@@ -66,7 +66,7 @@ scenes
 
 ### users
 
-Stores the app user account created or updated during Google OAuth callback.
+Stores the app user account created or updated by the password-auth user CLI.
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -74,6 +74,7 @@ Stores the app user account created or updated during Google OAuth callback.
 | `email` | `text` | Required, unique case-insensitive login email. |
 | `name` | `text` | Required display name. |
 | `avatar_url` | `text` | Nullable Google profile image URL. |
+| `password_hash` | `text` | Nullable bcrypt hash used by the temporary password login flow. |
 | `google_subject` | `text` | Nullable, unique Google OAuth `sub` claim. |
 | `last_login_at` | `timestamptz` | Nullable. |
 | `created_at` | `timestamptz` | Required, default `now()`. |

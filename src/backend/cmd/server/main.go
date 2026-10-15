@@ -29,26 +29,24 @@ import (
 )
 
 type config struct {
-	Addr               string
-	DatabaseURL        string
-	JWTSecret          string
-	CasbinModelPath    string
-	S3Endpoint         string
-	S3AccessKey        string
-	S3SecretKey        string
-	S3Bucket           string
-	S3Region           string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-	FrontendURL        string
-	AIAPIKey           string
-	AIBaseURL          string
-	AIModelFast        string
-	AIModelReasoning   string
-	TURNURL            string
-	TURNUsername       string
-	TURNPassword       string
+	Addr             string
+	DatabaseURL      string
+	JWTSecret        string
+	CasbinModelPath  string
+	S3Endpoint       string
+	S3AccessKey      string
+	S3SecretKey      string
+	S3Bucket         string
+	S3Region         string
+	FrontendURL      string
+	AIAPIKey         string
+	AIBaseURL        string
+	AIModelFast      string
+	AIModelReasoning string
+	TURNURL          string
+	TURNUsername     string
+	TURNPassword     string
+	TURNAuthSecret   string
 }
 
 const defaultHTTPAddr = ":8080"
@@ -109,10 +107,7 @@ func main() {
 	s3Repo := s3repo.NewS3Repository(s3Client)
 
 	// Usecases
-	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret), usecase.OAuthConfig{
-		ClientID: cfg.GoogleClientID, ClientSecret: cfg.GoogleClientSecret,
-		RedirectURL: cfg.GoogleRedirectURL, FrontendURL: cfg.FrontendURL,
-	})
+	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 	sceneUsecase := usecase.NewSceneUsecase(sceneRepo, folderRepo)
@@ -138,6 +133,9 @@ func main() {
 		os.Exit(1)
 	}
 	realtimeServer.SetTURNConfig(cfg.TURNURL, cfg.TURNUsername, cfg.TURNPassword)
+	if cfg.TURNAuthSecret != "" {
+		realtimeServer.SetTURNAuthSecret(cfg.TURNAuthSecret, cfg.TURNUsername)
+	}
 
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
@@ -164,9 +162,6 @@ func loadConfig() (config, error) {
 		"S3_ACCESS_KEY",
 		"S3_SECRET_KEY",
 		"S3_BUCKET",
-		"GOOGLE_CLIENT_ID",
-		"GOOGLE_CLIENT_SECRET",
-		"GOOGLE_REDIRECT_URL",
 		"FRONTEND_URL",
 	}
 
@@ -177,26 +172,24 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		Addr:               getEnv("HTTP_ADDR", defaultHTTPAddr),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
-		CasbinModelPath:    os.Getenv("CASBIN_MODEL_PATH"),
-		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
-		S3AccessKey:        os.Getenv("S3_ACCESS_KEY"),
-		S3SecretKey:        os.Getenv("S3_SECRET_KEY"),
-		S3Bucket:           os.Getenv("S3_BUCKET"),
-		S3Region:           getEnv("S3_REGION", "auto"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
-		FrontendURL:        os.Getenv("FRONTEND_URL"),
-		AIAPIKey:           os.Getenv("AI_API_KEY"),
-		AIBaseURL:          getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
-		AIModelFast:        getEnv("AI_MODEL_FAST", "deepseek-chat"),
-		AIModelReasoning:   getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
-		TURNURL:            os.Getenv("TURN_URL"),
-		TURNUsername:       os.Getenv("TURN_USERNAME"),
-		TURNPassword:       os.Getenv("TURN_PASSWORD"),
+		Addr:             getEnv("HTTP_ADDR", defaultHTTPAddr),
+		DatabaseURL:      os.Getenv("DATABASE_URL"),
+		JWTSecret:        os.Getenv("JWT_SECRET"),
+		CasbinModelPath:  os.Getenv("CASBIN_MODEL_PATH"),
+		S3Endpoint:       os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:      os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:      os.Getenv("S3_SECRET_KEY"),
+		S3Bucket:         os.Getenv("S3_BUCKET"),
+		S3Region:         getEnv("S3_REGION", "auto"),
+		FrontendURL:      os.Getenv("FRONTEND_URL"),
+		AIAPIKey:         os.Getenv("AI_API_KEY"),
+		AIBaseURL:        getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
+		AIModelFast:      getEnv("AI_MODEL_FAST", "deepseek-chat"),
+		AIModelReasoning: getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
+		TURNURL:          os.Getenv("TURN_URL"),
+		TURNUsername:     os.Getenv("TURN_USERNAME"),
+		TURNPassword:     os.Getenv("TURN_PASSWORD"),
+		TURNAuthSecret:   os.Getenv("TURN_AUTH_SECRET"),
 	}, nil
 }
 

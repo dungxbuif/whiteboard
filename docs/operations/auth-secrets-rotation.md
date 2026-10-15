@@ -1,20 +1,16 @@
 # Authentication Secret Rotation
 
-Google OAuth and JWT configuration are required at runtime. Before deploying
-the rewritten app:
+JWT configuration is required at runtime. Before deploying the rewritten app:
 
-1. Create a new Google OAuth web client and set its callback to
-   `GOOGLE_REDIRECT_URL` (for example,
-   `https://whiteboard.example.com/api/v1/auth/google/callback`).
-2. Revoke the old Google client secret and store the replacement as
-   `GOOGLE_CLIENT_SECRET`.
-3. Generate a new high-entropy `JWT_SECRET` and update every backend instance
+1. Generate a new high-entropy `JWT_SECRET` and update every backend instance
    atomically. Existing JWTs will expire and users must sign in again.
-4. Set `FRONTEND_URL` to the canonical HTTPS SPA origin and verify the Google
-   client allow-list contains that callback.
-5. Restart the backend, complete a real Google sign-in, and verify `/users/me`
-   and one workspace request with the new session.
+2. Set `FRONTEND_URL` to the canonical HTTPS SPA origin.
+3. Restart the backend, provision or rotate a user with `userctl`, and verify
+   `/api/v1/auth/login`, `/users/me`, and one workspace request with the new session.
+4. Rotate the Coturn `TURN_AUTH_SECRET` together with the VPS Coturn
+   `static-auth-secret`, restart the backend, and complete a voice allocation
+   from an external network. Existing TURN credentials expire within one hour.
 
 Do not commit `src/.env` or paste secret values into tickets, logs, or browser
-URLs. The OAuth callback only places the short-lived JWT in the frontend hash;
-the SPA removes the hash after storing the token.
+URLs. The CLI accepts passwords only through its process invocation and stores
+only bcrypt hashes in `users.password_hash`.

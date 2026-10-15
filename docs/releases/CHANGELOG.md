@@ -10,6 +10,10 @@ shared_fields: [status]
 
 # Changelog
 
+## Unreleased
+
+- Temporarily switched interactive authentication to email/password login and added the backend `userctl` CLI for user creation and password rotation. Google OAuth is no longer wired into the runtime routes or required environment.
+
 ## Field Ownership
 
 - Human owns release approval.
@@ -30,7 +34,10 @@ All notable changes should be recorded here.
 - Public read-only scene links with revoke controls, optional bcrypt password
   protection, share dialog, and `/p/:token` viewer.
 - Authenticated Socket.IO scene rooms with presence, cursor, scene sync, and
-  WebRTC voice signaling; coturn is configured through `docker-compose.yml`.
+  WebRTC voice signaling; production TURN uses short-lived credentials from an
+  external Coturn relay on the Homelab gateway.
+- Production Docker Compose bundle with migration gating, backend/frontend
+  images, nginx API/WebSocket proxy, and external TURN configuration.
 - OpenAI-compatible AI proxy endpoints for chat, text/image-to-diagram, and
   diagram-to-code, defaulting to DeepSeek, plus the in-canvas AI command panel
   and code preview.

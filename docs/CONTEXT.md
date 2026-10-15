@@ -12,7 +12,7 @@ updated: 2026-10-15
 
 - **Active Phase:** Reconciliation (Phases 1–5 implementation)
 - **Active Work:** Realtime collaboration/voice and OpenAI-compatible AI vertical slices are implemented and verified locally.
-- **Next Work:** Run deployment/UAT checks with real TURN and DeepSeek credentials; rotate exposed deployment credentials before release.
+- **Next Work:** Run deployment/UAT checks with real RelayHub, TURN, and DeepSeek credentials; rotate exposed deployment credentials before release.
 
 ## Project
 
@@ -34,6 +34,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Last-write-wins for scene persistence (D-06).
 - Google OAuth is the only interactive login path; JWT middleware and authenticated API contracts remain stable.
 - Socket.IO is used for ephemeral room coordination; HTTP scene PATCH remains the persistence boundary.
+- Coturn runs on the Homelab gateway at `turn.relayhub.dungxbuif.com:5349`; the app backend mints short-lived TURN REST credentials from `TURN_AUTH_SECRET`.
 - OpenAI-compatible AI calls are backend-proxied and optional locally when `AI_API_KEY` is absent; DeepSeek is the default target.
 
 ## Blockers

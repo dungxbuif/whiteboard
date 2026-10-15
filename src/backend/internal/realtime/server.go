@@ -1,11 +1,16 @@
 package realtime
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -16,26 +21,47 @@ import (
 // Server exposes the Socket.IO transport used for ephemeral collaboration
 // events. Persistence remains owned by the scene HTTP API.
 type Server struct {
-	socket       *socketio.Server
-	secret       []byte
-	mu           sync.Mutex
-	rooms        map[string]map[string]roomMember
-	turnURL      string
-	turnUsername string
-	turnPassword string
+	socket         *socketio.Server
+	secret         []byte
+	mu             sync.Mutex
+	rooms          map[string]map[string]roomMember
+	turnURL        string
+	turnUsername   string
+	turnPassword   string
+	turnAuthSecret []byte
 }
 
 func (s *Server) SetTURNConfig(url, username, password string) {
 	s.turnURL, s.turnUsername, s.turnPassword = url, username, password
 }
 
+func (s *Server) SetTURNAuthSecret(secret, username string) {
+	s.turnAuthSecret = []byte(secret)
+	s.turnUsername = username
+}
+
 func (s *Server) ConfigHandler(w http.ResponseWriter, _ *http.Request) {
 	iceServers := []map[string]any{}
 	if s.turnURL != "" {
-		iceServers = append(iceServers, map[string]any{"urls": []string{s.turnURL}, "username": s.turnUsername, "credential": s.turnPassword})
+		username, credential := s.turnUsername, s.turnPassword
+		if len(s.turnAuthSecret) > 0 {
+			username, credential = turnRESTCredential(s.turnUsername, s.turnAuthSecret, time.Now(), time.Hour)
+		}
+		urls := []string{s.turnURL}
+		if strings.HasPrefix(s.turnURL, "turn:") && !strings.Contains(s.turnURL, "transport=") {
+			urls = append(urls, s.turnURL+"?transport=tcp")
+		}
+		iceServers = append(iceServers, map[string]any{"urls": urls, "username": username, "credential": credential})
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"iceServers": iceServers})
+}
+
+func turnRESTCredential(label string, secret []byte, now time.Time, ttl time.Duration) (string, string) {
+	username := strconv.FormatInt(now.Add(ttl).Unix(), 10) + ":" + label
+	mac := hmac.New(sha1.New, secret)
+	_, _ = mac.Write([]byte(username))
+	return username, base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
 type roomMember struct {

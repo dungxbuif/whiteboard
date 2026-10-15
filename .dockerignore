@@ -1,0 +1,10 @@
+.git
+.env*
+src/.env
+src/frontend/node_modules
+src/frontend/dist
+src/frontend/test-results
+src/frontend/playwright-report
+src/backend/server
+references
+docs

@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { useEffect } from "react";
 
-import { GoogleLogin } from "@/components/admin-login";
+import { PasswordLogin } from "@/components/admin-login";
 import { FolderBreadcrumbs } from "@/components/folder-breadcrumbs";
 import { FolderList } from "@/components/folder-list";
 import { FolderTree } from "@/components/folder-tree";
@@ -65,7 +65,7 @@ function App() {
 
   if (publicToken) return <PublicView token={publicToken} />;
   if (isLoading) return <main className="grid min-h-screen place-items-center">Loading...</main>;
-  if (!isAuthenticated) return <GoogleLogin />;
+  if (!isAuthenticated) return <PasswordLogin />;
   if (activeScene) return <ExcalidrawWrapper />;
 
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);

@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"devtool/internal/domain"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"gorm.io/gorm"
@@ -135,6 +137,23 @@ func (u *authUsecase) OAuthCallback(ctx context.Context, code string) (string, e
 
 func (u *authUsecase) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	return u.userRepo.FindByID(ctx, id)
+}
+
+func (u *authUsecase) PasswordLogin(ctx context.Context, email, password string) (string, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || password == "" {
+		return "", errors.New("email and password are required")
+	}
+	user, err := u.userRepo.FindByEmail(ctx, email)
+	if err != nil || user.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)) != nil {
+		return "", errors.New("invalid email or password")
+	}
+	now := time.Now()
+	user.LastLoginAt = &now
+	if err := u.userRepo.Save(ctx, user); err != nil {
+		return "", fmt.Errorf("failed to update last login: %w", err)
+	}
+	return u.issueToken(user)
 }
 
 func (u *authUsecase) issueToken(user *domain.User) (string, error) {

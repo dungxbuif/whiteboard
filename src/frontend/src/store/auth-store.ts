@@ -13,7 +13,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  startOAuth: () => void;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -24,9 +24,18 @@ const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  startOAuth: () => {
-    const baseURL = api.defaults.baseURL || '/api/v1';
-    window.location.assign(`${baseURL}/auth/google/login`);
+  login: async (email, password) => {
+    const response = await api.post<{ token: string }>('/auth/login', { email, password });
+    localStorage.setItem('auth_token', response.data.token);
+    set({ token: response.data.token, isLoading: true });
+    try {
+      const userResponse = await api.get<User>('/users/me');
+      set({ user: userResponse.data, isAuthenticated: true, isLoading: false });
+    } catch (error) {
+      localStorage.removeItem('auth_token');
+      set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+      throw error;
+    }
   },
 
   logout: () => {

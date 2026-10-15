@@ -21,8 +21,7 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 
 | Contract | Type | Auth | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `GET /api/v1/auth/google/login` | HTTP | Public | active | Starts Google OAuth and sets a short-lived state cookie. |
-| `GET /api/v1/auth/google/callback` | HTTP | Public | active | Validates OAuth state, upserts the Google user, issues the existing JWT, and redirects to `FRONTEND_URL#token=...`. |
+| `POST /api/v1/auth/login` | HTTP | Public | active | Accepts `{email,password}` and returns `{token}` for a password-authenticated user. |
 | `GET, POST /api/v1/workspaces` | HTTP | JWT | active | List and create workspaces. |
 | `GET, POST /api/v1/folders` | HTTP | JWT + workspace | active | List/create folders; `all=true` returns flat tree data. |
 | `PATCH, DELETE /api/v1/folders/{id}` | HTTP | JWT + workspace | active | Folder move and trash lifecycle routes. |
@@ -39,6 +38,7 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | `POST /api/v1/ai/chat` | HTTP | JWT | active | Proxies text or image context to the configured OpenAI-compatible provider. |
 | `POST /api/v1/ai/generate-diagram` | HTTP | JWT | active | Generates and validates Excalidraw JSON from text or a base64 image. |
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
+| `GET /api/v1/realtime/config` | HTTP | JWT | active | Returns the external TURN URL(s) and short-lived credentials; the backend signs credentials with `TURN_AUTH_SECRET`. |
 | `/socket.io/` | Socket.IO | JWT query token | active | Scene rooms broadcast presence, cursor, scene update, and WebRTC signaling events. |
 
 ## Errors
@@ -46,11 +46,19 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | Error | Meaning | Consumer Impact |
 | --- | --- | --- |
 | `400 Bad Request` | Invalid UUID, body, title, content, or folder mapping | Request must be corrected. |
-| `401 Unauthorized` | Missing/invalid JWT or failed/cancelled OAuth login | Consumer must authenticate again. |
+| `401 Unauthorized` | Missing/invalid JWT or invalid email/password | Consumer must authenticate again. |
 | `404 Not Found` | Workspace-scoped entity does not exist | Consumer must discard stale entity reference. |
 | `500 Internal Server Error` | Repository or infrastructure failure | Consumer may retry safely where appropriate. |
 
 AI requests are limited to a 2 MiB JSON body and prompts are limited to 12,000 bytes. `AI_API_KEY` is read only by the backend.
+TURN credentials are minted for a one-hour lifetime and must never be logged or
+persisted by the browser. `TURN_AUTH_SECRET` is shared only between the backend
+and the Coturn relay.
+
+Password accounts are created or rotated with `go run ./cmd/userctl --email ...
+--password ...` (or `/app/userctl` in the backend image). Passwords are stored as
+bcrypt hashes and are never returned by the API. The command also creates a
+`My Workspace` owned by the user when no non-deleted workspace exists.
 
 ## Versioning
 

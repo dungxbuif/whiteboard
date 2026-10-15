@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
 import api from "@/lib/api";
+import useFolderStore from "@/store/folder-store";
+import useSceneStore from "@/store/scene-store";
 
 export const SEARCH_DEBOUNCE_MS = 250;
 export const SEARCH_VIEW_ALL = "all" as const;
@@ -65,6 +67,11 @@ const useSearchStore = create<SearchState>((set, get) => ({
       headers: workspaceHeaders(workspaceId),
     });
     await get().search(workspaceId);
+    if (item.type === "scene") {
+      await useSceneStore.getState().fetchScenes(workspaceId, item.folderId ?? null);
+    } else {
+      await useFolderStore.getState().fetchFolders(workspaceId);
+    }
   },
 
   reset: () => set({ query: "", view: SEARCH_VIEW_ALL, results: [], isLoading: false, error: null }),

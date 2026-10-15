@@ -18,6 +18,11 @@ type AuthHandler struct {
 	frontendURL string
 }
 
+type passwordLoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
 func NewAuthHandler(authUsecase domain.AuthUsecase, frontendURLs ...string) *AuthHandler {
 	frontendURL := "/"
 	if len(frontendURLs) > 0 && frontendURLs[0] != "" {
@@ -62,6 +67,21 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, h.frontendURL+"#token="+token, http.StatusFound)
+}
+
+func (h *AuthHandler) PasswordLogin(w http.ResponseWriter, r *http.Request) {
+	var input passwordLoginRequest
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid login request", http.StatusBadRequest)
+		return
+	}
+	token, err := h.authUsecase.PasswordLogin(r.Context(), input.Email, input.Password)
+	if err != nil {
+		http.Error(w, "Invalid email or password", http.StatusUnauthorized)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"token": token})
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {

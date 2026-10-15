@@ -13,6 +13,7 @@ type User struct {
 	Name          string         `json:"name" gorm:"not null"`
 	AvatarURL     string         `json:"avatarUrl,omitempty"`
 	GoogleSubject *string        `json:"-" gorm:"uniqueIndex:users_google_subject_key"`
+	PasswordHash  *string        `json:"-" gorm:"column:password_hash"`
 	LastLoginAt   *time.Time     `json:"lastLoginAt,omitempty"`
 	CreatedAt     time.Time      `json:"createdAt"`
 	UpdatedAt     time.Time      `json:"updatedAt"`

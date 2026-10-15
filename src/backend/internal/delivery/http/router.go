@@ -79,8 +79,7 @@ func newRouter(
 	}
 
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Get("/auth/google/login", authHandler.GoogleLogin)
-		r.Get("/auth/google/callback", authHandler.GoogleCallback)
+		r.Post("/auth/login", authHandler.PasswordLogin)
 		if publicHandler != nil {
 			r.Get("/public/scenes/{token}", publicHandler.GetScene)
 		}

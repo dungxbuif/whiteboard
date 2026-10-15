@@ -29,7 +29,7 @@ S3-compatible binary asset storage.
 - **Frontend:** React + Vite, Zustand, Shadcn UI, embedded Excalidraw
 - **Database:** PostgreSQL (Multi-tenant)
 - **Storage:** S3-compatible (MinIO/S3)
-- **Auth:** Google OAuth 2.0
+- **Auth:** Email/password login with backend-issued JWTs; legacy Google identity columns remain for migration compatibility.
 
 ## System Boundaries
 
@@ -131,7 +131,7 @@ Usecase Layer (Business Logic)
 ## Runtime Flow
 
 ```text
-User Login --> Google OAuth --> Session/JWT --> Workspace Selection
+User Login --> Password Check --> Session/JWT --> Workspace Selection
     |
     v
 Dashboard (Folders, Scenes, Search, Starred, Trash)
@@ -146,7 +146,8 @@ Open Scene --> Embedded Excalidraw --> Debounced Auto-Save --> Backend API
 
 ## Integration Points
 
-- **Google OAuth:** External identity provider.
+- **Password auth:** bcrypt password hashes are checked by the backend; the
+  frontend stores only the short-lived JWT session token.
 - **S3:** Blob storage for images and videos.
 - **Excalidraw Library:** Core drawing primitive.
 
