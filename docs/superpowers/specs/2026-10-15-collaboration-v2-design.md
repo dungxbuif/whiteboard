@@ -74,8 +74,12 @@ for collaboration transport.
 10. The custom WebSocket carries document sync, awareness, presence, follow,
     and voice signaling on one connection. Voice signaling remains peer-to-peer
     WebRTC with a ten-participant mesh limit.
-11. Dashboard collaboration/admin UI uses shadcn/ui with a black/white
-    monochrome variant. Scene/Excalidraw components retain their current style.
+11. The dashboard visual source of truth is the old dashboard in
+   `references/devtool`: its shadcn sidebar, workspace switcher, search,
+   collection/folder navigation, user footer, cards, spacing, dialogs, and
+   light/dark token structure are ported faithfully. Dashboard/admin
+   collaboration controls may use the black/white `monochrome` variant within
+   that system. Scene/Excalidraw components retain their current/native style.
 12. Agents can discover workspaces and scenes, create scenes, and generate
    native Excalidraw diagrams through an authenticated MCP server. MCP writes
    use the same ACL, Yjs transaction, persistence, and audit path as browser
@@ -112,6 +116,13 @@ Behavior deliberately replaced:
   state remains ephemeral.
 - The old public permission row is replaced by scoped, hashed, independently
   revocable links and owner-checked APIs.
+
+The old dashboard is reused as a visual and interaction reference, not as an
+unreviewed application dependency. The port keeps its layout language and
+component contracts while using the new app's route, auth, workspace/folder,
+scene, collaboration, and accessibility contracts. Old implementation bugs,
+commented permission hooks, and obsolete Next.js data-loading assumptions are
+not copied.
 
 ## Current Excalidraw+ / Enterprise parity research
 
@@ -462,8 +473,9 @@ document update log. Public edit links receive the same capability policy as
 member editors.
 
 Dashboard/admin components use shadcn/ui and a black/white `monochrome`
-variant. Scene/Excalidraw tools retain their current/native style. State labels
-and icons must remain understandable without color alone.
+variant, following the old dashboard's sidebar/workspace/search/card visual
+language. Scene/Excalidraw tools retain their current/native style. State
+labels and icons must remain understandable without color alone.
 
 ## Security and operational limits
 
@@ -509,6 +521,10 @@ and icons must remain understandable without color alone.
 
 - Unit tests cover Yjs-to-Excalidraw diffing, remote loop guard, IndexedDB queue,
   replay ordering, public display name, permission UI, and monochrome states.
+- Visual browser checks compare the dashboard port against the old reference
+  for sidebar collapse, workspace switching, search, collection/folder
+  navigation, scene cards, dialogs, user footer, responsive layout, and theme
+  tokens. These checks do not apply the dashboard theme to the scene canvas.
 - Playwright covers owner/member/public flows, invite accept, two tabs editing
   one scene, offline/reconnect replay, public edit asset upload, revoke while
   connected, and voice cap behavior.
@@ -540,7 +556,10 @@ The implementation plan will split work into independently testable slices:
 3. Frontend Yjs provider, Excalidraw adapter, IndexedDB replay, and native-style
    scene integration.
 4. Dashboard shadcn monochrome invite/member/share management UI.
-5. Native MCP service, agent-key capabilities, audit, scene tools, diagram
+5. Dashboard visual parity port from `references/devtool`, including sidebar,
+   workspace switcher, search, collection/folder navigation, user footer,
+   cards, dialogs, responsive collapse, and theme tokens.
+6. Native MCP service, agent-key capabilities, audit, scene tools, diagram
    catalog, Mermaid conversion, exports, and stdio adapter.
-6. Presence/follow/voice migration and the ten-participant voice guard.
-7. E2E/load verification, VM100 deployment, canary, and v1 rollback.
+7. Presence/follow/voice migration and the ten-participant voice guard.
+8. E2E/load verification, VM100 deployment, canary, and v1 rollback.
