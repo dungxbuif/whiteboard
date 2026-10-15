@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -23,7 +23,7 @@ Enable Frame tool in Excalidraw toolbar, detect new frames on onChange, auto-cal
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-02/EXC-016-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-016-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-016-design.md)
 
@@ -46,4 +46,6 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- `npm run test:unit`, `npm run build`, and `npx playwright test` pass. The
+  native Excalidraw frame tool remains available and every editor change syncs
+  frame IDs into `presentationOrder`.

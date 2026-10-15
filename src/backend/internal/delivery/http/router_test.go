@@ -36,7 +36,7 @@ func (routerFolderUsecase) List(context.Context, uuid.UUID, *uuid.UUID) ([]domai
 func TestFolderRoutesListAllWithCamelCaseJSON(t *testing.T) {
 	folderHandler := handler.NewFolderHandler(routerFolderUsecase{})
 	passthroughAuth := func(next http.Handler) http.Handler { return next }
-	router := NewRouter(nil, nil, folderHandler, nil, passthroughAuth)
+	router := NewRouter(nil, nil, folderHandler, nil, nil, passthroughAuth)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/folders/?all=true", nil)
 	request.Header.Set(domain.HeaderWorkspaceID, uuid.NewString())
@@ -54,7 +54,7 @@ func TestFolderRoutesListAllWithCamelCaseJSON(t *testing.T) {
 func TestFolderRoutesRequireWorkspaceHeader(t *testing.T) {
 	folderHandler := handler.NewFolderHandler(routerFolderUsecase{})
 	passthroughAuth := func(next http.Handler) http.Handler { return next }
-	router := NewRouter(nil, nil, folderHandler, nil, passthroughAuth)
+	router := NewRouter(nil, nil, folderHandler, nil, nil, passthroughAuth)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/folders/", nil)
 	response := httptest.NewRecorder()
@@ -68,7 +68,7 @@ func TestFolderRoutesRequireWorkspaceHeader(t *testing.T) {
 func TestFolderRoutesInjectWorkspaceID(t *testing.T) {
 	folderHandler := handler.NewFolderHandler(routerFolderUsecase{})
 	passthroughAuth := func(next http.Handler) http.Handler { return next }
-	router := NewRouter(nil, nil, folderHandler, nil, passthroughAuth)
+	router := NewRouter(nil, nil, folderHandler, nil, nil, passthroughAuth)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/folders/", nil)
 	request.Header.Set(domain.HeaderWorkspaceID, uuid.NewString())
@@ -83,7 +83,7 @@ func TestFolderRoutesInjectWorkspaceID(t *testing.T) {
 func TestSceneRoutesRequireWorkspaceHeader(t *testing.T) {
 	sceneHandler := handler.NewSceneHandler(routerSceneUsecase{})
 	passthroughAuth := func(next http.Handler) http.Handler { return next }
-	router := NewRouter(nil, nil, nil, sceneHandler, passthroughAuth)
+	router := NewRouter(nil, nil, nil, sceneHandler, nil, passthroughAuth)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/", nil)
 	response := httptest.NewRecorder()
@@ -97,7 +97,7 @@ func TestSceneRoutesRequireWorkspaceHeader(t *testing.T) {
 func TestSceneRoutesReturnCamelCaseJSON(t *testing.T) {
 	sceneHandler := handler.NewSceneHandler(routerSceneUsecase{})
 	passthroughAuth := func(next http.Handler) http.Handler { return next }
-	router := NewRouter(nil, nil, nil, sceneHandler, passthroughAuth)
+	router := NewRouter(nil, nil, nil, sceneHandler, nil, passthroughAuth)
 
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/", nil)
 	request.Header.Set(domain.HeaderWorkspaceID, uuid.NewString())

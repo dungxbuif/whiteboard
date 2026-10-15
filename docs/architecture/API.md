@@ -21,21 +21,28 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 
 | Contract | Type | Auth | Status | Notes |
 | --- | --- | --- | --- | --- |
-| `POST /api/v1/auth/login` | HTTP | Public | active | Temporary single-admin login; replaced by EXC-034. |
+| `GET /api/v1/auth/google/login` | HTTP | Public | active | Starts Google OAuth and sets a short-lived state cookie. |
+| `GET /api/v1/auth/google/callback` | HTTP | Public | active | Validates OAuth state, upserts the Google user, issues the existing JWT, and redirects to `FRONTEND_URL#token=...`. |
 | `GET, POST /api/v1/workspaces` | HTTP | JWT | active | List and create workspaces. |
 | `GET, POST /api/v1/folders` | HTTP | JWT + workspace | active | List/create folders; `all=true` returns flat tree data. |
 | `PATCH, DELETE /api/v1/folders/{id}` | HTTP | JWT + workspace | active | Folder move and trash lifecycle routes. |
 | `GET, POST /api/v1/scenes` | HTTP | JWT + workspace | active | List/create scenes; `trash=true` lists deleted scenes. |
 | `GET, PATCH, DELETE /api/v1/scenes/{id}` | HTTP | JWT + workspace | active | Read, update, and trash scene JSONB content. |
-| `POST /api/v1/scenes/{id}/star` | HTTP | JWT + workspace | active | Explicitly set starred state. |
+| `POST /api/v1/scenes/{id}/star` | HTTP | JWT + workspace | active | Explicitly set starred state; returns the updated scene. |
 | `POST /api/v1/scenes/{id}/restore` | HTTP | JWT + workspace | active | Restore a trashed scene. |
+| `POST /api/v1/folders/{id}/star` | HTTP | JWT + workspace | active | Toggle a folder's starred state. |
+| `POST /api/v1/folders/{id}/restore` | HTTP | JWT + workspace | active | Restore a trashed folder tree. |
+| `GET /api/v1/search` | HTTP | JWT + workspace | active | Search folder and scene names with `q`; `view=all|starred|trash` selects the dashboard view. |
+| Scene `content.presentationOrder` | JSON field | JWT + workspace | active | Ordered Excalidraw frame IDs persisted with scene JSON for local presentation mode. |
+| `PUT /api/v1/scenes/{id}/share` | HTTP | JWT + workspace | active | Enable/revoke a public link and optionally set a bcrypt-protected password. |
+| `GET /api/v1/public/scenes/{token}` | HTTP | Public | active | Read a shared scene by opaque token; accepts `password` query for protected links and returns read-only scene JSON. |
 
 ## Errors
 
 | Error | Meaning | Consumer Impact |
 | --- | --- | --- |
 | `400 Bad Request` | Invalid UUID, body, title, content, or folder mapping | Request must be corrected. |
-| `401 Unauthorized` | Missing/invalid JWT or login credentials | Consumer must authenticate again. |
+| `401 Unauthorized` | Missing/invalid JWT or failed/cancelled OAuth login | Consumer must authenticate again. |
 | `404 Not Found` | Workspace-scoped entity does not exist | Consumer must discard stale entity reference. |
 | `500 Internal Server Error` | Repository or infrastructure failure | Consumer may retry safely where appropriate. |
 

@@ -1,7 +1,7 @@
 ---
 artifact_type: phase
 id: PHASE-3
-status: planned
+status: done
 owner: human
 human_fields: [goal, scope, out_of_scope, priority, success_criteria]
 ai_fields: [risks, dependencies, verification_plan, completion_summary]
@@ -23,7 +23,7 @@ trace:
 ## Status
 
 - ID: PHASE-3
-- Status: planned
+- Status: done
 - Owner: human
 - Created: 2026-06-03
 - Updated: 2026-06-11
@@ -53,16 +53,16 @@ Enable public sharing of drawings with fine-grained access control, replicating 
 
 | ID | Type | Title | Status | Link |
 | --- | --- | --- | --- | --- |
-| EXC-019 | ticket | Sharing DB Schema & Domain | planned | [EXC-019](../tickets/phase-01/EXC-019/EXC-019-sharing-db-schema-and-domain.md) |
-| EXC-020 | ticket | Sharing Backend | planned | [EXC-020](../tickets/phase-01/EXC-020/EXC-020-sharing-backend.md) |
-| EXC-021 | ticket | Public API & Share Dialog UI | planned | [EXC-021](../tickets/phase-01/EXC-021/EXC-021-public-api-and-share-dialog-ui.md) |
-| EXC-022 | ticket | Password Protection | planned | [EXC-022](../tickets/phase-01/EXC-022/EXC-022-password-protection.md) |
-| EXC-023 | ticket | Sharing Integration Tests | planned | [EXC-023](../tickets/phase-01/EXC-023/EXC-023-sharing-integration-tests.md) |
+| EXC-019 | ticket | Sharing DB Schema & Domain | done | [EXC-019](../tickets/phase-01/EXC-019/EXC-019-sharing-db-schema-and-domain.md) |
+| EXC-020 | ticket | Sharing Backend | done | [EXC-020](../tickets/phase-01/EXC-020/EXC-020-sharing-backend.md) |
+| EXC-021 | ticket | Public API & Share Dialog UI | done | [EXC-021](../tickets/phase-01/EXC-021/EXC-021-public-api-and-share-dialog-ui.md) |
+| EXC-022 | ticket | Password Protection | done | [EXC-022](../tickets/phase-01/EXC-022/EXC-022-password-protection.md) |
+| EXC-023 | ticket | Sharing Integration Tests | done | [EXC-023](../tickets/phase-01/EXC-023/EXC-023-sharing-integration-tests.md) |
 
 ## Success Criteria
 
-- [ ] Public links are accessible without login.
-- [ ] Revoking a link immediately blocks access.
+- [x] Public links are accessible without login.
+- [x] Revoking a link immediately blocks access.
 
 ## Gate Checklist
 
@@ -74,4 +74,6 @@ Enable public sharing of drawings with fine-grained access control, replicating 
 
 ## Completion Summary
 
-Complete this section when the phase is done.
+Implemented opaque public links, authenticated revoke/update controls,
+optional bcrypt password challenges, a share dialog, and a read-only public
+viewer. Backend and browser verification pass.

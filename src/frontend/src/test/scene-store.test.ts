@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import api from "../lib/api";
-import useSceneStore, { SCENE_SAVE_DEBOUNCE_MS, type Scene, type SceneContent } from "../store/scene-store";
+import useSceneStore, { SCENE_SAVE_DEBOUNCE_MS, syncPresentationOrder, type Scene, type SceneContent } from "../store/scene-store";
 
 vi.mock("../lib/api", () => ({
   default: {
@@ -12,7 +12,7 @@ vi.mock("../lib/api", () => ({
   },
 }));
 
-const emptyContent: SceneContent = { elements: [], appState: {}, files: {} };
+const emptyContent: SceneContent = { elements: [], appState: {}, files: {}, presentationOrder: [] };
 const scene: Scene = {
   id: "scene-1",
   workspaceId: "workspace-1",
@@ -35,6 +35,14 @@ describe("scene store", () => {
     vi.useRealTimers();
   });
 
+  it("keeps existing frame order and appends newly created frames", () => {
+    expect(syncPresentationOrder([
+      { id: "frame-new", type: "frame" },
+      { id: "frame-old", type: "frame" },
+      { id: "shape", type: "rectangle" },
+    ], ["frame-old", "deleted-frame"])).toEqual(["frame-old", "frame-new"]);
+  });
+
   it("loads scenes for the active workspace and folder", async () => {
     vi.mocked(api.get).mockResolvedValue({ data: [scene] });
 
@@ -49,7 +57,7 @@ describe("scene store", () => {
 
   it("debounces rapid scene changes into one save", async () => {
     vi.useFakeTimers();
-    const latestContent: SceneContent = { elements: [{ id: "latest" }], appState: {}, files: {} };
+    const latestContent: SceneContent = { elements: [{ id: "latest" }], appState: {}, files: {}, presentationOrder: [] };
     vi.mocked(api.patch).mockResolvedValue({ data: { ...scene, content: latestContent, contentVersion: 2 } });
 
     useSceneStore.getState().openScene(scene);

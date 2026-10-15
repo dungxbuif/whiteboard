@@ -16,11 +16,10 @@ Phase 1 covers the self-hosted dashboard rewrite:
 - Workspace-owned folders with materialized paths.
 - Workspace-owned Excalidraw scenes stored as JSONB.
 - S3-backed scene assets with relational metadata.
-- Search, starred views, and trash views.
+- Search, starred views, trash views, and public scene permissions.
 
 Out of scope for this document:
 
-- Public sharing links and passwords from Phase 3.
 - Real-time collaboration state from Phase 4.
 - AI request history or prompt artifacts from Phase 5.
 - Workspace invitations and complex role management UI.
@@ -52,6 +51,7 @@ workspaces
   1--N folders
   1--N scenes
   1--N scene_assets
+  1--N scene_permissions
 
 folders
   0/1--N folders.parent_id
@@ -59,6 +59,7 @@ folders
 
 scenes
   1--N scene_assets
+  1--1 scene_permissions
 ```
 
 ## Core Tables
@@ -333,6 +334,8 @@ Recommended Phase 1 migration sequence:
    - `scene_assets`
 7. `000007_search_indexes.up.sql`
    - optional trigram indexes if `pg_trgm` is enabled
+8. `000005_create_scene_permissions.up.sql` in the current rewrite checkout
+   - one opaque, revocable public-link permission per scene
 
 Down migrations should reverse this order and must not be used against
 production data without an explicit backup and restore plan.

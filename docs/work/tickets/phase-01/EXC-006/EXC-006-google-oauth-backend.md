@@ -58,5 +58,6 @@ ok      devtool/internal/repository/postgres    0.542s
 
 ## Current Runtime Note
 
-This completed implementation is temporarily superseded by the single-admin
-development login. EXC-034 restores Google OAuth before Phase 1 release.
+The Google OAuth implementation is the active runtime login path. EXC-034
+removed the temporary single-admin development login and added state protection,
+Google profile upsert, and browser verification.

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -23,7 +23,7 @@ ScenePermissionRepository (GetBySceneID, Upsert), ScenePermissionUsecase, Sharin
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-03/EXC-020-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-020-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-020-design.md)
 
@@ -46,4 +46,6 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Authenticated share/revoke handling, public token lookup, and bcrypt password
+  verification are implemented; `go test ./...` passes with usecase and HTTP
+  handler coverage.

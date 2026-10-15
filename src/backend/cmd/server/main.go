@@ -27,15 +27,19 @@ import (
 )
 
 type config struct {
-	Addr            string
-	DatabaseURL     string
-	JWTSecret       string
-	CasbinModelPath string
-	S3Endpoint      string
-	S3AccessKey     string
-	S3SecretKey     string
-	S3Bucket        string
-	S3Region        string
+	Addr               string
+	DatabaseURL        string
+	JWTSecret          string
+	CasbinModelPath    string
+	S3Endpoint         string
+	S3AccessKey        string
+	S3SecretKey        string
+	S3Bucket           string
+	S3Region           string
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
+	FrontendURL        string
 }
 
 const defaultHTTPAddr = ":8080"
@@ -90,21 +94,31 @@ func main() {
 	workspaceRepo := postgresrepo.NewWorkspaceRepository(db)
 	folderRepo := postgresrepo.NewFolderRepository(db)
 	sceneRepo := postgresrepo.NewSceneRepository(db)
+	searchRepo := postgresrepo.NewSearchRepository(db)
+	scenePermissionRepo := postgresrepo.NewScenePermissionRepository(db)
 	sceneAssetRepo := postgresrepo.NewSceneAssetRepository(db)
 	s3Repo := s3repo.NewS3Repository(s3Client)
 
 	// Usecases
-	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
+	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret), usecase.OAuthConfig{
+		ClientID: cfg.GoogleClientID, ClientSecret: cfg.GoogleClientSecret,
+		RedirectURL: cfg.GoogleRedirectURL, FrontendURL: cfg.FrontendURL,
+	})
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 	sceneUsecase := usecase.NewSceneUsecase(sceneRepo, folderRepo)
+	searchUsecase := usecase.NewSearchUsecase(searchRepo)
+	scenePermissionUsecase := usecase.NewScenePermissionUsecase(scenePermissionRepo, sceneRepo)
 	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, 1*time.Hour)
 
 	// Handlers
-	authHandler := handler.NewAuthHandler(authUsecase)
+	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
 	folderHandler := handler.NewFolderHandler(folderUsecase)
 	sceneHandler := handler.NewSceneHandler(sceneUsecase)
+	searchHandler := handler.NewSearchHandler(searchUsecase)
+	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase)
+	publicHandler := handler.NewPublicHandler(scenePermissionUsecase)
 	assetHandler := handler.NewAssetHandler(assetUsecase)
 
 	// Middlewares
@@ -112,7 +126,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware),
+		Handler:           httpdelivery.NewRouterWithSharing(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -132,6 +146,10 @@ func loadConfig() (config, error) {
 		"S3_ACCESS_KEY",
 		"S3_SECRET_KEY",
 		"S3_BUCKET",
+		"GOOGLE_CLIENT_ID",
+		"GOOGLE_CLIENT_SECRET",
+		"GOOGLE_REDIRECT_URL",
+		"FRONTEND_URL",
 	}
 
 	for _, key := range required {
@@ -141,15 +159,19 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		Addr:            getEnv("HTTP_ADDR", defaultHTTPAddr),
-		DatabaseURL:     os.Getenv("DATABASE_URL"),
-		JWTSecret:       os.Getenv("JWT_SECRET"),
-		CasbinModelPath: os.Getenv("CASBIN_MODEL_PATH"),
-		S3Endpoint:      os.Getenv("S3_ENDPOINT"),
-		S3AccessKey:     os.Getenv("S3_ACCESS_KEY"),
-		S3SecretKey:     os.Getenv("S3_SECRET_KEY"),
-		S3Bucket:        os.Getenv("S3_BUCKET"),
-		S3Region:        getEnv("S3_REGION", "auto"),
+		Addr:               getEnv("HTTP_ADDR", defaultHTTPAddr),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		JWTSecret:          os.Getenv("JWT_SECRET"),
+		CasbinModelPath:    os.Getenv("CASBIN_MODEL_PATH"),
+		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:        os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:        os.Getenv("S3_SECRET_KEY"),
+		S3Bucket:           os.Getenv("S3_BUCKET"),
+		S3Region:           getEnv("S3_REGION", "auto"),
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
+		FrontendURL:        os.Getenv("FRONTEND_URL"),
 	}, nil
 }
 

@@ -4,8 +4,8 @@ import api from '../lib/api';
 
 vi.mock('../lib/api', () => ({
   default: {
+    defaults: { baseURL: '/api/v1' },
     get: vi.fn(),
-    post: vi.fn(),
   },
 }));
 
@@ -25,20 +25,6 @@ describe('AuthStore', () => {
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
-  });
-
-  it('should login successfully', async () => {
-    const mockUser = { id: '1', email: 'test@example.com', name: 'Test User' };
-    (api.post as any).mockResolvedValue({ data: { token: 'mock-token' } });
-    (api.get as any).mockResolvedValue({ data: mockUser });
-
-    await useAuthStore.getState().login('admin', 'admin');
-
-    const state = useAuthStore.getState();
-    expect(state.token).toBe('mock-token');
-    expect(state.user).toEqual(mockUser);
-    expect(state.isAuthenticated).toBe(true);
-    expect(localStorage.getItem('auth_token')).toBe('mock-token');
   });
 
   it('should logout correctly', () => {
@@ -63,5 +49,19 @@ describe('AuthStore', () => {
     const state = useAuthStore.getState();
     expect(state.user).toEqual(mockUser);
     expect(state.isAuthenticated).toBe(true);
+  });
+
+  it('should consume an OAuth token from the callback hash', async () => {
+    const mockUser = { id: '1', email: 'test@example.com', name: 'Test User' };
+    window.history.replaceState({}, '', '/#token=oauth-token');
+    (api.get as any).mockResolvedValue({ data: mockUser });
+
+    await useAuthStore.getState().checkAuth();
+
+    const state = useAuthStore.getState();
+    expect(state.token).toBe('oauth-token');
+    expect(state.user).toEqual(mockUser);
+    expect(localStorage.getItem('auth_token')).toBe('oauth-token');
+    expect(window.location.hash).toBe('');
   });
 });

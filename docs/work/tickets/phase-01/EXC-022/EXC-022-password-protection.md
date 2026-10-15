@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -24,7 +24,7 @@ Migration: add password_hash column, bcrypt hashing in usecase, PublicHandler 40
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-03/EXC-022-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-022-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-022-design.md)
 
@@ -47,4 +47,5 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Share passwords are stored with bcrypt and the public viewer handles the
+  password challenge; Go and Playwright checks pass.

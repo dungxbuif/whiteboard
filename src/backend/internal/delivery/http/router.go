@@ -18,6 +18,39 @@ func NewRouter(
 	sceneHandler *handler.SceneHandler,
 	assetHandler *handler.AssetHandler,
 	authMiddleware func(http.Handler) http.Handler,
+	searchHandlers ...*handler.SearchHandler,
+) nethttp.Handler {
+	var searchHandler *handler.SearchHandler
+	if len(searchHandlers) > 0 {
+		searchHandler = searchHandlers[0]
+	}
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, nil, nil)
+}
+
+func NewRouterWithSharing(
+	authHandler *handler.AuthHandler,
+	workspaceHandler *handler.WorkspaceHandler,
+	folderHandler *handler.FolderHandler,
+	sceneHandler *handler.SceneHandler,
+	assetHandler *handler.AssetHandler,
+	authMiddleware func(http.Handler) http.Handler,
+	searchHandler *handler.SearchHandler,
+	sharingHandler *handler.SharingHandler,
+	publicHandler *handler.PublicHandler,
+) nethttp.Handler {
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler)
+}
+
+func newRouter(
+	authHandler *handler.AuthHandler,
+	workspaceHandler *handler.WorkspaceHandler,
+	folderHandler *handler.FolderHandler,
+	sceneHandler *handler.SceneHandler,
+	assetHandler *handler.AssetHandler,
+	authMiddleware func(http.Handler) http.Handler,
+	searchHandler *handler.SearchHandler,
+	sharingHandler *handler.SharingHandler,
+	publicHandler *handler.PublicHandler,
 ) nethttp.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -27,10 +60,20 @@ func NewRouter(
 	router.Get("/healthz", healthHandler)
 
 	router.Route("/api/v1", func(r chi.Router) {
-		r.Post("/auth/login", authHandler.Login)
+		r.Get("/auth/google/login", authHandler.GoogleLogin)
+		r.Get("/auth/google/callback", authHandler.GoogleCallback)
+		if publicHandler != nil {
+			r.Get("/public/scenes/{token}", publicHandler.GetScene)
+		}
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
+			if searchHandler != nil {
+				r.Route("/search", func(r chi.Router) {
+					r.Use(deliverymiddleware.TenantMiddleware)
+					r.Get("/", searchHandler.Search)
+				})
+			}
 
 			r.Get("/users/me", authHandler.Me)
 
@@ -60,6 +103,9 @@ func NewRouter(
 					r.Patch("/", sceneHandler.Update)
 					r.Post("/restore", sceneHandler.Restore)
 					r.Post("/star", sceneHandler.SetStar)
+					if sharingHandler != nil {
+						r.Put("/share", sharingHandler.Update)
+					}
 					r.Delete("/", sceneHandler.Delete)
 				})
 			})

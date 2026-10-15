@@ -39,8 +39,8 @@ A high-performance, self-hosted whiteboard ecosystem with Google Drive-like mana
 | Milestone | Goal | Status | Phase Files | Plans |
 | --- | --- | --- | --- | --- |
 | M1 | Phase 1: Self-hosted Dashboard Rewrite | in_progress | [PHASE-1.md](phases/PHASE-1.md) | 11 plans (01-01 to 01-11) |
-| M2 | Phase 2: Presentation Mode | planned | [PHASE-2-PRODUCT.md](phases/PHASE-2-PRODUCT.md) | 3 plans (02-01 to 02-03) |
-| M3 | Phase 3: Shareable Production | planned | [PHASE-3.md](phases/PHASE-3.md) | 3 plans (03-01 to 03-03) |
+| M2 | Phase 2: Presentation Mode | done | [PHASE-2-PRODUCT.md](phases/PHASE-2-PRODUCT.md) | 3 plans (02-01 to 02-03) |
+| M3 | Phase 3: Shareable Production | done | [PHASE-3.md](phases/PHASE-3.md) | 3 plans (03-01 to 03-03) |
 | M4 | Phase 4: Real-time Collaboration & Calling | planned | [PHASE-4.md](phases/PHASE-4.md) | 3 plans (04-01 to 04-03) |
 | M5 | Phase 5: AI Features (Gemini API) | planned | [PHASE-5.md](phases/PHASE-5.md) | 3 plans (05-01 to 05-03) |
 | MH | Harness: Develop Harness CLI (Hard Enforcement) | ready | [PHASE-2.md](phases/PHASE-2.md) | TBD |
@@ -61,15 +61,15 @@ A high-performance, self-hosted whiteboard ecosystem with Google Drive-like mana
 
 ## Phase 2 Plans
 
-- [ ] 02-01-PLAN.md — Frame Persistence & Management
-- [ ] 02-02-PLAN.md — Presentation Engine & Navigation
-- [ ] 02-03-PLAN.md — Navigator & Final Polish
+- [x] 02-01-PLAN.md — Frame Persistence & Management
+- [x] 02-02-PLAN.md — Presentation Engine & Navigation
+- [x] 02-03-PLAN.md — Navigator & Final Polish
 
 ## Phase 3 Plans
 
-- [ ] 03-01-PLAN.md — Sharing API and DB Schema
-- [ ] 03-02-PLAN.md — Public UI and Access Control
-- [ ] 03-03-PLAN.md — Legacy Parity and Testing
+- [x] 03-01-PLAN.md — Sharing API and DB Schema
+- [x] 03-02-PLAN.md — Public UI and Access Control
+- [x] 03-03-PLAN.md — Legacy Parity and Testing
 
 ## Phase 4 Plans
 

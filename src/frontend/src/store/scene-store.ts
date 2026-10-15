@@ -7,12 +7,26 @@ export const EMPTY_SCENE_CONTENT = {
   elements: [],
   appState: {},
   files: {},
+  presentationOrder: [],
 };
 
 export interface SceneContent {
   elements: unknown[];
   appState: Record<string, unknown>;
   files: Record<string, unknown>;
+  presentationOrder?: string[];
+}
+
+export function syncPresentationOrder(elements: unknown[], previousOrder: string[] = []): string[] {
+  const frameIds = elements.flatMap((element) => {
+    if (!element || typeof element !== "object") return [];
+    const candidate = element as { id?: unknown; type?: unknown };
+    return candidate.type === "frame" && typeof candidate.id === "string" ? [candidate.id] : [];
+  });
+  const frameIdSet = new Set(frameIds);
+  const preserved = previousOrder.filter((id, index) => frameIdSet.has(id) && previousOrder.indexOf(id) === index);
+  const seen = new Set(preserved);
+  return [...preserved, ...frameIds.filter((id) => !seen.has(id) && seen.add(id))];
 }
 
 export interface Scene {
@@ -38,12 +52,14 @@ interface SceneState {
   fetchScenes: (workspaceId: string, folderId: string | null) => Promise<void>;
   createScene: (workspaceId: string, folderId: string | null, title?: string) => Promise<Scene>;
   openScene: (scene: Scene) => void;
+  openSceneById: (workspaceId: string, sceneId: string) => Promise<void>;
   closeScene: () => Promise<void>;
   scheduleSave: (workspaceId: string, sceneId: string, content: SceneContent) => void;
   flushSave: () => Promise<void>;
   renameScene: (workspaceId: string, sceneId: string, title: string) => Promise<void>;
   setSceneStar: (workspaceId: string, sceneId: string, isStarred: boolean) => Promise<void>;
   trashScene: (workspaceId: string, sceneId: string) => Promise<void>;
+  updatePresentationOrder: (workspaceId: string, sceneId: string, presentationOrder: string[]) => void;
   reset: () => void;
 }
 
@@ -129,6 +145,13 @@ const useSceneStore = create<SceneState>((set, get) => {
 
     openScene: (activeScene) => set({ activeScene, saveStatus: "idle", error: null }),
 
+    openSceneById: async (workspaceId, sceneId) => {
+      const response = await api.get<Scene>(`/scenes/${sceneId}/`, {
+        headers: workspaceHeaders(workspaceId),
+      });
+      set({ activeScene: response.data, saveStatus: "idle", error: null });
+    },
+
     closeScene: async () => {
       await performSave();
       set({ activeScene: null, saveStatus: "idle" });
@@ -176,6 +199,14 @@ const useSceneStore = create<SceneState>((set, get) => {
         scenes: state.scenes.filter((scene) => scene.id !== sceneId),
         activeScene: state.activeScene?.id === sceneId ? null : state.activeScene,
       }));
+    },
+
+    updatePresentationOrder: (workspaceId, sceneId, presentationOrder) => {
+      const activeScene = get().activeScene;
+      if (!activeScene || activeScene.id !== sceneId) return;
+      const content = { ...activeScene.content, presentationOrder: [...presentationOrder] };
+      set({ activeScene: { ...activeScene, content } });
+      get().scheduleSave(workspaceId, sceneId, content);
     },
 
     reset: () => {

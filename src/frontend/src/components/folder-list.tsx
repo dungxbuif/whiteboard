@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import useFolderStore from "@/store/folder-store";
 import useWorkspaceStore from "@/store/workspace-store";
+import { FolderActions } from "@/components/folder-actions";
 
 export function FolderList() {
   const folders = useFolderStore((state) => state.folders);
@@ -79,16 +80,18 @@ export function FolderList() {
       {visibleFolders.length ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(210px,1fr))] gap-3">
           {visibleFolders.map((folder) => (
-            <Button
-              className="h-auto justify-start border bg-card p-4 text-left shadow-sm"
-              key={folder.id}
-              onClick={() => setCurrentFolderId(folder.id)}
-              type="button"
-              variant="ghost"
-            >
-              <Folder className="text-primary" />
-              <span className="truncate">{folder.name}</span>
-            </Button>
+            <div className="flex items-center gap-2 rounded-md border bg-card p-2 shadow-sm" key={folder.id}>
+              <Button
+                className="h-auto min-w-0 flex-1 justify-start p-2 text-left"
+                onClick={() => setCurrentFolderId(folder.id)}
+                type="button"
+                variant="ghost"
+              >
+                <Folder className="text-primary" />
+                <span className="truncate">{folder.name}</span>
+              </Button>
+              <FolderActions folder={folder} />
+            </div>
           ))}
         </div>
       ) : (

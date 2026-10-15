@@ -31,7 +31,7 @@ Rewrite the existing Excalidraw-based whiteboard and dashboard ecosystem (curren
 - Multi-user collaboration (deferred to Phase 4).
 - AI features (deferred to Phase 5).
 - Complex permission systems (deferred to later phases).
-- Public sharing links (deferred to Phase 3).
+- Public sharing links (implemented in Phase 3).
 
 ## Users And Stakeholders
 
@@ -123,7 +123,7 @@ Rewrite the existing Excalidraw dashboard and hosting logic into a clean, modern
 
 #### Authentication & Access
 - **REQ-04: Google OAuth Integration**
-  - **Current State:** Custom auth or none.
+  - **Current State:** Google OAuth authorization-code flow with backend-issued JWT sessions.
   - **Target State:** Users can log in via Google; sessions managed by the Go backend (JWT or Secure Cookies).
   - **Acceptance:** User can log in, see their profile, and session persists.
 
@@ -174,7 +174,7 @@ Rewrite the existing Excalidraw dashboard and hosting logic into a clean, modern
 ### Phase 1 Acceptance Criteria
 - [ ] Backend code passes "Clean Architecture" review (separation of concerns).
 - [ ] Database schema verified for multi-tenancy support.
-- [ ] User can log in with Google.
+- [x] User can log in with Google.
 - [ ] User can create multiple Workspaces.
 - [ ] User can create, rename, and move drawings into nested folders.
 - [ ] User can "Star" a drawing and see it in the Starred section.
@@ -198,9 +198,9 @@ Implement a high-fidelity presentation mode that mirrors Excalidraw Plus functio
 - **REQ-05: Persistence:** Frame positions and order must be saved in the Scene JSON.
 
 ### Acceptance Criteria
-- [ ] Frames can be created and ordered.
-- [ ] Presentation mode activates/deactivates cleanly.
-- [ ] Keyboard navigation works between frames.
+- [x] Frames can be created and ordered.
+- [x] Presentation mode activates/deactivates cleanly.
+- [x] Keyboard navigation works between frames.
 
 ---
 
@@ -216,8 +216,8 @@ Enable public sharing of drawings with fine-grained access control, replicating 
 - **REQ-04: Parity:** Ensure the sharing logic matches the reference server's public module.
 
 ### Acceptance Criteria
-- [ ] Public links are accessible without login.
-- [ ] Revoking a link immediately blocks access.
+- [x] Public links are accessible without login.
+- [x] Revoking a link immediately blocks access.
 
 ---
 

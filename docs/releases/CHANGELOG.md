@@ -23,6 +23,12 @@ All notable changes should be recorded here.
 
 - Embedded Excalidraw editor with workspace-scoped scene creation, opening, rename, star, trash, and responsive canvas UI.
 - Debounced last-write-wins scene persistence with visible save status and stale-response protection.
+- Workspace-scoped search across folders and scenes, plus Starred and Trash dashboard views with restore actions.
+- Google OAuth login and callback with state protection, Google profile upsert, and JWT session handoff; removed the temporary admin login.
+- Frame-based presentation mode with persisted slide order, slide navigator,
+  reorder controls, animated navigation, and keyboard shortcuts.
+- Public read-only scene links with revoke controls, optional bcrypt password
+  protection, share dialog, and `/p/:token` viewer.
 
 ## [1.1.1] - 2026-06-07
 

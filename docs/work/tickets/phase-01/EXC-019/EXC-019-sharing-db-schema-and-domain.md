@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -23,7 +23,7 @@ Migration: scene_permissions table (id, value, active, timestamps), ScenePermiss
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-03/EXC-019-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-019-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-019-design.md)
 
@@ -46,4 +46,5 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Migration `000005_create_scene_permissions` and the ScenePermission domain
+  repository contract are implemented; `go test ./...` passes.

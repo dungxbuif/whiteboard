@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -24,7 +24,7 @@ PublicHandler (GET /api/public/scenes/{id} — no auth), useSharingStore, ShareD
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-03/EXC-021-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-021-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-021-design.md)
 
@@ -47,4 +47,5 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- `/api/v1/public/scenes/{token}`, the share dialog, and `/p/:token` read-only
+  viewer are implemented; Playwright public viewer flow passes.

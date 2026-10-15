@@ -82,7 +82,15 @@ S3-compatible binary asset storage.
 - **Lifecycle Flags:** Trash is represented by nullable `deleted_at`; starred
   views use `is_starred`. Default list and search queries exclude trashed rows.
 - **Search:** Phase 1 search runs over folder names and scene titles inside the
-  active workspace. PostgreSQL trigram indexes are optional optimization.
+  active workspace. The workspace-scoped search handler also powers the
+  `all`, `starred`, and `trash` dashboard views; PostgreSQL trigram indexes
+  are optional optimization.
+- **Presentation:** Frame element IDs are stored as `presentationOrder` inside
+  scene JSON. Presentation mode is viewer-local and uses Excalidraw's
+  `viewModeEnabled` plus animated `scrollToContent` navigation.
+- **Sharing:** Owners manage one workspace-scoped permission per scene. Public
+  access resolves an opaque token, checks active state and an optional bcrypt
+  hash, then returns scene JSON to a read-only viewer without JWT access.
 - **Sync:** Frontend saves scene changes through debounced API calls. Asset
   uploads go through backend S3 orchestration before scene JSON references the
   stored asset.

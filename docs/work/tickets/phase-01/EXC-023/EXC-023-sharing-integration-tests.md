@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -23,7 +23,7 @@ Integration tests: toggle sharing, public access, password challenge, read-only 
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-03/EXC-023-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-023-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-023-design.md)
 
@@ -46,4 +46,5 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- Sharing usecase tests cover enable, revoke, password failure, and success;
+  the browser suite covers the public read-only viewer.

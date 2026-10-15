@@ -6,13 +6,10 @@ import (
 
 const (
 	// Authentication
-	HeaderAuthorization    = "Authorization"
-	HeaderWorkspaceID      = "X-Workspace-ID"
-	BearerPrefix           = "Bearer "
-	TemporaryAdminUsername = "admin"
-	TemporaryAdminPassword = "admin"
-	TemporaryAdminEmail    = "admin@local.dev"
-	TemporaryAdminName     = "Administrator"
+	HeaderAuthorization = "Authorization"
+	HeaderWorkspaceID   = "X-Workspace-ID"
+	BearerPrefix        = "Bearer "
+	OAuthStateCookie    = "devtool_oauth_state"
 
 	// Timeouts & Durations
 	DefaultReadHeaderTimeout = 5 * time.Second

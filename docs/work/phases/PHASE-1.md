@@ -66,7 +66,7 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 
 - Full rewrite of Frontend in React Vite + Shadcn (reusing UI components).
 - Full rewrite of Backend in Go (Clean Architecture).
-- Temporary single-admin login, replaced by Google OAuth in EXC-034 before release.
+- Google OAuth authorization-code login with backend-issued JWT sessions.
 - Multi-tenant database design.
 - Folder/File CRUD with Trash, Star, and Search.
 - S3 integration for media.
@@ -101,16 +101,16 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 | EXC-003 | ticket | DB Migrations & Multi-tenant Schema | planned | [EXC-003](../tickets/phase-01/EXC-003/EXC-003-db-migrations-and-multi-tenant-schema.md) |
 | EXC-004 | ticket | Tenant Middleware & Workspace Repository | planned | [EXC-004](../tickets/phase-01/EXC-004/EXC-004-tenant-middleware-and-workspace-repository.md) |
 | EXC-005 | ticket | Shadcn UI & Tailwind Setup | planned | [EXC-005](../tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) |
-| EXC-006 | ticket | Google OAuth Backend | planned | [EXC-006](../tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) |
-| EXC-007 | ticket | Frontend Auth Store | planned | [EXC-007](../tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) |
+| EXC-006 | ticket | Google OAuth Backend | done | [EXC-006](../tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) |
+| EXC-007 | ticket | Frontend Auth Store | done | [EXC-007](../tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) |
 | EXC-008 | ticket | Workspace CRUD Full Stack | planned | [EXC-008](../tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) |
 | EXC-009 | ticket | Folder Backend Materialized Path | completed | [EXC-009](../tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | EXC-010 | ticket | Folder Frontend Tree+Nav | completed | [EXC-010](../tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
 | EXC-011 | ticket | Scene Backend | completed | [EXC-011](../tickets/phase-01/EXC-011/EXC-011-scene-backend.md) |
 | EXC-012 | ticket | Excalidraw Integration | done | [EXC-012](../tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) |
 | EXC-013 | ticket | S3 Assets | planned | [EXC-013](../tickets/phase-01/EXC-013/EXC-013-s3-assets.md) |
-| EXC-014 | ticket | Search + Starred/Trash | planned | [EXC-014](../tickets/phase-01/EXC-014/EXC-014-search---starred-trash.md) |
-| EXC-034 | ticket | Replace Temporary Admin Auth With Google OAuth | planned | [EXC-034](../tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) |
+| EXC-014 | ticket | Search + Starred/Trash | done | [EXC-014](../tickets/phase-01/EXC-014/EXC-014-search-starred-trash.md) |
+| EXC-034 | ticket | Replace Temporary Admin Auth With Google OAuth | done | [EXC-034](../tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) |
 
 ## Dependencies
 
@@ -129,8 +129,9 @@ Replace NestJS/Next.js stack with Go/React Vite. Core rewrite of Dashboard and B
 
 - [ ] Backend code passes "Clean Architecture" review.
 - [ ] Database schema verified for multi-tenancy support.
-- [ ] User can log in with the temporary admin account during development.
-- [ ] Google OAuth replaces temporary admin auth before Phase 1 release.
+- [x] User can log in through Google OAuth and receive a JWT session.
+- [x] Google OAuth replaces temporary admin auth in runtime code and browser flow.
+- [ ] Deployment OAuth/JWT credentials are rotated in the secret store before release.
 - [ ] User can create multiple Workspaces.
 - [ ] User can create, rename, and move drawings into nested folders.
 - [ ] User can "Star" a drawing and see it in the Starred section.

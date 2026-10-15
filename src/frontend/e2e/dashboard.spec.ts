@@ -56,8 +56,11 @@ let mockScenes: Array<{
 test.describe('Dashboard E2E Flows', () => {
   test.beforeEach(async ({ page }) => {
     mockScenes = [];
-    await page.route('**/api/v1/auth/login', async (route) => {
-      await route.fulfill({ json: { token: 'playwright-token' } });
+    await page.route('**/api/v1/auth/google/login', async (route) => {
+      await route.fulfill({
+        status: 302,
+        headers: { Location: 'http://localhost:5173/#token=playwright-token' },
+      });
     });
     await page.route('**/api/v1/users/me', async (route) => {
       await route.fulfill({ json: mockUser });
@@ -124,6 +127,10 @@ test.describe('Dashboard E2E Flows', () => {
         await route.fulfill({ json: updated });
         return;
       }
+      if (request.method() === 'PUT' && url.pathname.endsWith('/share') && sceneId) {
+        await route.fulfill({ json: { active: true, token: 'share-token' } });
+        return;
+      }
       if (request.method() === 'DELETE' && sceneId) {
         mockScenes = mockScenes.filter((scene) => scene.id !== sceneId);
         await route.fulfill({ status: 204 });
@@ -136,9 +143,8 @@ test.describe('Dashboard E2E Flows', () => {
   });
 
   async function login(page: import('@playwright/test').Page) {
-    await page.getByLabel('Username').fill('admin');
-    await page.getByLabel('Password').fill('admin');
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Continue with Google' }).click();
+    await expect(page.getByText('Workspace', { exact: true })).toBeVisible();
   }
 
   test('should restore session and display user context', async ({ page }) => {
@@ -149,7 +155,7 @@ test.describe('Dashboard E2E Flows', () => {
       }
     });
 
-    await expect(page.getByRole('heading', { name: 'Admin login' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in to Whiteboard' })).toBeVisible();
     await login(page);
     await expect(page.getByText('Workspace', { exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Test Workspace');
@@ -177,16 +183,11 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Select Workspace');
   });
 
-  test('should show an error for invalid credentials', async ({ page }) => {
-    await page.unroute('**/api/v1/auth/login');
-    await page.route('**/api/v1/auth/login', async (route) => {
-      await route.fulfill({ status: 401, body: 'Invalid credentials' });
-    });
-    await page.getByLabel('Username').fill('wrong');
-    await page.getByLabel('Password').fill('wrong');
-    await page.getByRole('button', { name: 'Sign in' }).click();
-
-    await expect(page.getByRole('alert')).toHaveText('Invalid username or password');
+  test('should expose Google as the only interactive login path', async ({ page }) => {
+    await expect(page.getByRole('heading', { name: 'Sign in to Whiteboard' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Continue with Google' })).toBeVisible();
+    await expect(page.getByLabel('Username')).toHaveCount(0);
+    await expect(page.getByLabel('Password')).toHaveCount(0);
   });
 
   test('should navigate nested folders and create a folder', async ({ page }) => {
@@ -267,5 +268,61 @@ test.describe('Dashboard E2E Flows', () => {
     const pageWidth = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth }));
     expect(pageWidth.scrollWidth).toBeLessThanOrEqual(pageWidth.innerWidth);
     if (mobileScreenshotPath) await page.screenshot({ path: mobileScreenshotPath, fullPage: false });
+  });
+
+  test('should enter and exit presentation mode', async ({ page }) => {
+    await login(page);
+    await page.getByRole('button', { name: 'New scene' }).click();
+    await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Present' }).click();
+    await expect(page.getByRole('button', { name: 'Exit presentation', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Presentation controls' })).toBeVisible();
+    await page.getByRole('button', { name: 'Exit presentation', exact: true }).first().click();
+    await expect(page.getByRole('button', { name: 'Present' })).toBeVisible();
+  });
+
+  test('should render a public shared scene in read-only mode', async ({ page }) => {
+    await page.route('**/api/v1/public/scenes/share-token', async (route) => {
+      await route.fulfill({
+        json: {
+          title: 'Shared roadmap',
+          content: { elements: [], appState: {}, files: {}, presentationOrder: [] },
+        },
+      });
+    });
+    await page.goto('/p/share-token');
+
+    await expect(page.getByRole('heading', { name: 'Shared roadmap' })).toBeVisible();
+    await expect(page.getByText('Read-only')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Public Excalidraw canvas' })).toBeVisible();
+  });
+
+  test('should create a public link from scene actions', async ({ page }) => {
+    await login(page);
+    await page.getByRole('button', { name: 'New scene' }).click();
+    await page.getByRole('button', { name: 'Back to dashboard' }).click();
+    await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
+    await page.getByRole('menuitem', { name: 'Share', exact: true }).click();
+    await expect(page.getByRole('dialog')).toContainText('Share Untitled scene');
+    await page.getByRole('button', { name: 'Save link' }).click();
+    await expect(page.getByLabel('Share URL')).toHaveValue('http://localhost:5173/p/share-token');
+  });
+
+  test('should prompt for a password on protected public links', async ({ page }) => {
+    await page.route('**/api/v1/public/scenes/password-token**', async (route) => {
+      const password = new URL(route.request().url()).searchParams.get('password');
+      if (password !== 'correct horse') {
+        await route.fulfill({ status: 401, json: { passwordRequired: true } });
+        return;
+      }
+      await route.fulfill({ json: { title: 'Protected scene', content: { elements: [], appState: {}, files: {} } } });
+    });
+    await page.goto('/p/password-token');
+    await expect(page.getByRole('heading', { name: 'Password required' })).toBeVisible();
+    await page.getByPlaceholder('Share password').fill('correct horse');
+    await page.getByRole('button', { name: 'Open shared scene' }).click();
+    await expect(page.getByText('Protected scene')).toBeVisible();
+    await expect(page.getByText('Read-only')).toBeVisible();
   });
 });

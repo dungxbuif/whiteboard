@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -25,7 +25,7 @@ SlideNavigator sidebar (list frames, jump, reorder), keyboard hooks (Arrow keys,
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-02/EXC-018-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-018-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-018-design.md)
 
@@ -48,4 +48,6 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- `npm run build` and `npx playwright test` pass. The slide navigator provides
+  selection and reorder controls, and the wrapper handles Arrow, Space, and
+  Escape keyboard shortcuts while presenting.

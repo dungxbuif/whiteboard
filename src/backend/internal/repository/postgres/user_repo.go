@@ -36,6 +36,14 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*domain
 	return &u, nil
 }
 
+func (r *UserRepository) FindByGoogleSubject(ctx context.Context, subject string) (*domain.User, error) {
+	var u domain.User
+	if err := r.db.WithContext(ctx).First(&u, "google_subject = ?", subject).Error; err != nil {
+		return nil, fmt.Errorf("failed to find user by Google subject: %w", err)
+	}
+	return &u, nil
+}
+
 func (r *UserRepository) Save(ctx context.Context, u *domain.User) error {
 	if err := r.db.WithContext(ctx).Save(u).Error; err != nil {
 		return fmt.Errorf("failed to save user: %w", err)

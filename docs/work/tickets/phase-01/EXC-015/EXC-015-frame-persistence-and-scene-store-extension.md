@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -24,7 +24,7 @@ Extend SceneData interface with presentationOrder, implement syncPresentationOrd
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-02/EXC-015-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-015-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-015-design.md)
 
@@ -47,4 +47,6 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- `npm run test:unit`, `npm run build`, and `npx playwright test` pass. The
+  ordering helper preserves existing frame order, appends new frames, and the
+  debounced scene payload persists `presentationOrder`.

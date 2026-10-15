@@ -1,7 +1,7 @@
 ---
 artifact_type: phase
 id: PHASE-2-PRODUCT
-status: planned
+status: done
 owner: human
 human_fields:
   - goal
@@ -35,7 +35,7 @@ trace:
 ## Status
 
 - ID: PHASE-2-PRODUCT
-- Status: planned
+- Status: done
 - Owner: human
 - Created: 2026-06-03
 - Updated: 2026-06-11
@@ -64,16 +64,16 @@ Implement a high-fidelity presentation mode that mirrors Excalidraw Plus functio
 
 | ID | Type | Title | Status | Link |
 | --- | --- | --- | --- | --- |
-| EXC-015 | ticket | Frame Persistence & Scene Store Extension | planned | [EXC-015](../tickets/phase-01/EXC-015/EXC-015-frame-persistence-and-scene-store-extension.md) |
-| EXC-016 | ticket | Frame Tool Activation | planned | [EXC-016](../tickets/phase-01/EXC-016/EXC-016-frame-tool-activation.md) |
-| EXC-017 | ticket | Presentation Engine & Controls | planned | [EXC-017](../tickets/phase-01/EXC-017/EXC-017-presentation-engine-and-controls.md) |
-| EXC-018 | ticket | Slide Navigator & Keyboard Support | planned | [EXC-018](../tickets/phase-01/EXC-018/EXC-018-slide-navigator-and-keyboard-support.md) |
+| EXC-015 | ticket | Frame Persistence & Scene Store Extension | done | [EXC-015](../tickets/phase-01/EXC-015/EXC-015-frame-persistence-and-scene-store-extension.md) |
+| EXC-016 | ticket | Frame Tool Activation | done | [EXC-016](../tickets/phase-01/EXC-016/EXC-016-frame-tool-activation.md) |
+| EXC-017 | ticket | Presentation Engine & Controls | done | [EXC-017](../tickets/phase-01/EXC-017/EXC-017-presentation-engine-and-controls.md) |
+| EXC-018 | ticket | Slide Navigator & Keyboard Support | done | [EXC-018](../tickets/phase-01/EXC-018/EXC-018-slide-navigator-and-keyboard-support.md) |
 
 ## Success Criteria
 
-- [ ] Frames can be created and ordered.
-- [ ] Presentation mode activates/deactivates cleanly.
-- [ ] Keyboard navigation works between frames.
+- [x] Frames can be created and ordered.
+- [x] Presentation mode activates/deactivates cleanly.
+- [x] Keyboard navigation works between frames.
 
 ## Gate Checklist
 
@@ -85,4 +85,6 @@ Implement a high-fidelity presentation mode that mirrors Excalidraw Plus functio
 
 ## Completion Summary
 
-Complete this section when the phase is done.
+Implemented frame order persistence, local presentation mode, animated frame
+navigation, slide reorder controls, and keyboard shortcuts. Frontend unit,
+production build, and Playwright verification pass.

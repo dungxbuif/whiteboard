@@ -13,7 +13,7 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  startOAuth: () => void;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -24,28 +24,9 @@ const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   isLoading: true,
 
-  login: async (username: string, password: string) => {
-    try {
-      const loginResponse = await api.post<{ token: string }>('/auth/login', { username, password });
-      const token = loginResponse.data.token;
-      localStorage.setItem('auth_token', token);
-      set({ token });
-      const response = await api.get<User>('/users/me');
-      set({
-        user: response.data,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-    } catch (error) {
-      localStorage.removeItem('auth_token');
-      set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-      throw error;
-    }
+  startOAuth: () => {
+    const baseURL = api.defaults.baseURL || '/api/v1';
+    window.location.assign(`${baseURL}/auth/google/login`);
   },
 
   logout: () => {
@@ -59,7 +40,12 @@ const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const token = localStorage.getItem('auth_token');
+    const hashToken = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
+    if (hashToken) {
+      localStorage.setItem('auth_token', hashToken);
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    }
+    const token = hashToken || localStorage.getItem('auth_token');
     if (!token) {
       set({ isLoading: false });
       return;

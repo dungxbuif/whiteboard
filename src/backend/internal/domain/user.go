@@ -22,5 +22,6 @@ type User struct {
 type UserRepository interface {
 	FindByID(ctx Context, id uuid.UUID) (*User, error)
 	FindByEmail(ctx Context, email string) (*User, error)
+	FindByGoogleSubject(ctx Context, subject string) (*User, error)
 	Save(ctx Context, user *User) error
 }

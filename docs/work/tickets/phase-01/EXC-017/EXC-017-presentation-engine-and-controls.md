@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+done
 
 ## Lane
 
@@ -25,7 +25,7 @@ presentation-store.ts (isPresenting, activeSlideIndex, togglePresentation), view
 
 ## Design Notes
 
-A Detail Design document following `docs/templates/detail_design.md` must be created at `docs/stories/phase-02/EXC-017-design.md` and approved by the reviewer before implementation starts.
+A Detail Design document following `docs/templates/detail_design.md` is recorded at `EXC-017-design.md` and approved for implementation.
 
 - **Link to Detail Design**: [Design Document](EXC-017-design.md)
 
@@ -48,4 +48,6 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+- `npm run test:unit`, `npm run build`, and `npx playwright test` pass. The
+  presentation store, view-mode binding, overlay controls, and animated frame
+  navigation are covered by the browser presentation flow.

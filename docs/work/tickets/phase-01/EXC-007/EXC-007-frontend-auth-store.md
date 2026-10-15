@@ -10,7 +10,7 @@ normal
 
 ## Product Contract
 
-Zustand auth store (user, login, logout, checkAuth), axios interceptor with JWT, API client setup
+Zustand auth store (user, OAuth handoff, logout, checkAuth), axios interceptor with JWT, API client setup
 
 ## Relevant Product Docs
 
@@ -46,7 +46,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 - Registered EXC-007 in the harness database.
 - Implemented Zustand auth store with session persistence.
 - Configured Axios interceptor for JWT injection.
-- Updated the login action to exchange temporary `admin/admin` credentials for a JWT.
+- Updated the auth store to consume the OAuth callback token fragment and restore the JWT session.
 
 ## Evidence
 

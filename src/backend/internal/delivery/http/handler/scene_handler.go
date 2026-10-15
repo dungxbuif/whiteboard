@@ -135,7 +135,12 @@ func (h *SceneHandler) SetStar(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	scene, err := h.usecase.Get(r.Context(), workspaceID, sceneID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, scene)
 }
 
 func (h *SceneHandler) Delete(w http.ResponseWriter, r *http.Request) {

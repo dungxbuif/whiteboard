@@ -1,14 +1,17 @@
 import { ArrowLeft, Cloud, CloudAlert, CloudUpload } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
 
 import "@excalidraw/excalidraw/index.css";
 
 import { Button } from "@/components/ui/button";
 import type { SceneContent } from "@/store/scene-store";
-import useSceneStore from "@/store/scene-store";
+import useSceneStore, { syncPresentationOrder } from "@/store/scene-store";
+import usePresentationStore from "@/store/presentation-store";
 import useWorkspaceStore from "@/store/workspace-store";
 import api from "@/lib/api";
+import { PresentationControls } from "@/components/whiteboard/presentation-controls";
+import { SlideNavigator } from "@/components/whiteboard/slide-navigator";
 
 type ExcalidrawModule = typeof import("@excalidraw/excalidraw");
 const EXCALIDRAW_INITIALIZATION_MS = 250;
@@ -27,6 +30,12 @@ export function ExcalidrawWrapper() {
   const saveStatus = useSceneStore((state) => state.saveStatus);
   const scheduleSave = useSceneStore((state) => state.scheduleSave);
   const closeScene = useSceneStore((state) => state.closeScene);
+  const updatePresentationOrder = useSceneStore((state) => state.updatePresentationOrder);
+  const isPresenting = usePresentationStore((state) => state.isPresenting);
+  const activeSlideIndex = usePresentationStore((state) => state.activeSlideIndex);
+  const enterPresentation = usePresentationStore((state) => state.enter);
+  const exitPresentation = usePresentationStore((state) => state.exit);
+  const setActiveSlide = usePresentationStore((state) => state.setActiveSlide);
   
   const [module, setModule] = useState<ExcalidrawModule | null>(null);
   const [hydratedContent, setHydratedContent] = useState<SceneContent | null>(null);
@@ -34,6 +43,53 @@ export function ExcalidrawWrapper() {
   const lastSerialized = useRef(JSON.stringify(activeScene?.content));
   const isInitialized = useRef(false);
   const uploadedFiles = useRef<Set<string>>(new Set());
+  const excalidrawAPI = useRef<{
+    scrollToContent: (target?: unknown, options?: Record<string, unknown>) => void;
+  } | null>(null);
+
+  const frameElements = useMemo(
+    () => (activeScene?.content.elements ?? []).filter((element): element is { id: string; type: string } => {
+      if (!element || typeof element !== "object") return false;
+      const candidate = element as { id?: unknown; type?: unknown };
+      return candidate.type === "frame" && typeof candidate.id === "string";
+    }),
+    [activeScene?.content.elements],
+  );
+  const slideIds = useMemo(
+    () => syncPresentationOrder(frameElements, activeScene?.content.presentationOrder ?? []),
+    [activeScene?.content.presentationOrder, frameElements],
+  );
+
+  useEffect(() => {
+    setActiveSlide(activeSlideIndex, slideIds.length);
+  }, [activeSlideIndex, setActiveSlide, slideIds.length]);
+
+  useEffect(() => {
+    if (!isPresenting) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLElement && ["INPUT", "TEXTAREA", "BUTTON"].includes(event.target.tagName)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        exitPresentation();
+      } else if (event.key === "ArrowRight" || event.key === "ArrowDown" || event.key === " ") {
+        event.preventDefault();
+        setActiveSlide(activeSlideIndex + 1, slideIds.length);
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveSlide(activeSlideIndex - 1, slideIds.length);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeSlideIndex, exitPresentation, isPresenting, setActiveSlide, slideIds.length]);
+
+  useEffect(() => {
+    if (!isPresenting || !excalidrawAPI.current || slideIds.length === 0) return;
+    const frame = frameElements.find((element) => element.id === slideIds[activeSlideIndex]);
+    if (frame) {
+      excalidrawAPI.current.scrollToContent(frame, { fitToViewport: true, viewportZoomFactor: 0.8, animate: true, duration: 300 });
+    }
+  }, [activeSlideIndex, frameElements, isPresenting, slideIds]);
 
   useEffect(() => {
     void import("@excalidraw/excalidraw").then(setModule);
@@ -47,7 +103,7 @@ export function ExcalidrawWrapper() {
     const hydrate = async () => {
       const content = activeScene.content;
       if (!content || !content.files) {
-        if (isMounted) setHydratedContent(content || { elements: [], appState: {}, files: {} });
+        if (isMounted) setHydratedContent(content || { elements: [], appState: {}, files: {}, presentationOrder: [] });
         return;
       }
 
@@ -114,16 +170,24 @@ export function ExcalidrawWrapper() {
           </Button>
           <h1 className="truncate font-semibold">{activeScene.title}</h1>
         </div>
-        <p className={`flex items-center gap-2 text-sm ${saveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`} role="status">
-          <SaveIcon size={16} aria-hidden="true" /> {saveLabels[saveStatus]}
-        </p>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => (isPresenting ? exitPresentation() : enterPresentation())} type="button" variant={isPresenting ? "secondary" : "outline"}>
+            {isPresenting ? "Exit presentation" : "Present"}
+          </Button>
+          <p className={`flex items-center gap-2 text-sm ${saveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`} role="status">
+            <SaveIcon size={16} aria-hidden="true" /> {saveLabels[saveStatus]}
+          </p>
+        </div>
       </header>
       <section className="min-h-0" aria-label="Excalidraw canvas">
         <Excalidraw
+          excalidrawAPI={(apiInstance: { scrollToContent: (target?: unknown, options?: Record<string, unknown>) => void }) => { excalidrawAPI.current = apiInstance; }}
           initialData={hydratedContent}
           name={activeScene.title}
+          viewModeEnabled={isPresenting}
           onChange={async (elements: unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => {
-            const contentToSave: SceneContent = { elements: [...elements], appState, files: { ...files } };
+            const presentationOrder = syncPresentationOrder(elements, activeScene.content.presentationOrder ?? []);
+            const contentToSave: SceneContent = { elements: [...elements], appState, files: { ...files }, presentationOrder };
             const filesToUpload: any[] = [];
 
             // 1. Process files: intercept new data URIs and strip them for DB save
@@ -179,6 +243,29 @@ export function ExcalidrawWrapper() {
             scheduleSave(activeWorkspaceId, activeScene.id, contentToSave);
           }}
         />
+        {isPresenting ? (
+          <>
+            <SlideNavigator
+              activeIndex={activeSlideIndex}
+              onMove={(index, direction) => {
+                const nextOrder = [...slideIds];
+                const swapIndex = index + direction;
+                [nextOrder[index], nextOrder[swapIndex]] = [nextOrder[swapIndex], nextOrder[index]];
+                updatePresentationOrder(activeWorkspaceId, activeScene.id, nextOrder);
+                setActiveSlide(swapIndex, nextOrder.length);
+              }}
+              onSelect={(index) => setActiveSlide(index, slideIds.length)}
+              slideIds={slideIds}
+            />
+            <PresentationControls
+              activeIndex={activeSlideIndex}
+              onExit={exitPresentation}
+              onNext={() => setActiveSlide(activeSlideIndex + 1, slideIds.length)}
+              onPrevious={() => setActiveSlide(activeSlideIndex - 1, slideIds.length)}
+              slideCount={slideIds.length}
+            />
+          </>
+        ) : null}
       </section>
     </main>
   );

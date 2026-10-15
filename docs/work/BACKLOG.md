@@ -96,35 +96,35 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | 3 | EXC-003 | ticket | high-risk | DB Migrations & Multi-tenant Schema | High | planned | [EXC-003](tickets/phase-01/EXC-003/EXC-003-db-migrations-and-multi-tenant-schema.md) | Data model, Migration | Ticket + Detail Design | |
 | 4 | EXC-004 | ticket | high-risk | Tenant Middleware & Workspace Repository | High | planned | [EXC-004](tickets/phase-01/EXC-004/EXC-004-tenant-middleware-and-workspace-repository.md) | Authorization | Ticket + Detail Design | |
 | 5 | EXC-005 | ticket | normal | Shadcn UI & Tailwind Setup | Medium | planned | [EXC-005](tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) | | Ticket | |
-| 6 | EXC-006 | ticket | high-risk | Google OAuth Backend | High | planned | [EXC-006](tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) | Auth | Ticket + Detail Design | |
-| 7 | EXC-007 | ticket | normal | Frontend Auth Store | Medium | planned | [EXC-007](tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) | Auth | Ticket | |
+| 6 | EXC-006 | ticket | high-risk | Google OAuth Backend | High | done | [EXC-006](tickets/phase-01/EXC-006/EXC-006-google-oauth-backend.md) | Auth | Ticket + Detail Design | Active OAuth implementation verified through EXC-034. |
+| 7 | EXC-007 | ticket | normal | Frontend Auth Store | Medium | done | [EXC-007](tickets/phase-01/EXC-007/EXC-007-frontend-auth-store.md) | Auth | Ticket | OAuth callback token handoff verified through EXC-034. |
 | 8 | EXC-008 | ticket | normal | Workspace CRUD Full Stack | Medium | planned | [EXC-008](tickets/phase-01/EXC-008/EXC-008-workspace-crud-full-stack.md) | Data model | Ticket | |
 | 9 | EXC-009 | ticket | normal | Folder Backend Materialized Path | Medium | completed | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) | Data model | Ticket | |
 | 10 | EXC-010 | ticket | normal | Folder Frontend Tree+Nav | Medium | completed | [EXC-010](tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) | | Ticket | |
 | 11 | EXC-011 | ticket | normal | Scene Backend | Medium | completed | [EXC-011](tickets/phase-01/EXC-011/EXC-011-scene-backend.md) | Data model | Ticket | |
 | 12 | EXC-012 | ticket | normal | Excalidraw Integration | Medium | done | [EXC-012](tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) | Upstream transitive advisories recorded in ADR-0007 | [Verified Detail Design](tickets/phase-01/EXC-012/EXC-012-design.md) | |
 | 13 | EXC-013 | ticket | normal | S3 Assets | Medium | done | [EXC-013](tickets/phase-01/EXC-013/EXC-013-s3-assets.md) | External system | [Detail Design](tickets/phase-01/EXC-013/EXC-013-design.md) | |
-| 14 | EXC-014 | ticket | normal | Search + Starred/Trash | Low | planned | [EXC-014](tickets/phase-01/EXC-014/EXC-014-search---starred-trash.md) | | Ticket | |
-| 34 | EXC-034 | ticket | high-risk | Replace Temporary Admin Auth With Google OAuth | High | planned | [EXC-034](tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) | Auth, Audit/security/privacy, External system/provider | Ticket + Detail Design | Final Phase 1 auth replacement before release. |
+| 14 | EXC-014 | ticket | normal | Search + Starred/Trash | Low | done | [EXC-014](tickets/phase-01/EXC-014/EXC-014-search-starred-trash.md) | | [Detail Design](tickets/phase-01/EXC-014/EXC-014-design.md) | Workspace-scoped search plus Starred and Trash dashboard views implemented. |
+| 34 | EXC-034 | ticket | high-risk | Replace Temporary Admin Auth With Google OAuth | High | done | [EXC-034](tickets/phase-01/EXC-034/EXC-034-replace-temporary-admin-auth-with-google-oauth.md) | Auth, Audit/security/privacy, External system/provider | [Detail Design](tickets/phase-01/EXC-034/EXC-034-design.md) | Code and automated verification complete; rotate deployment credentials before release. |
 
 ### Epic E02: Presentation Mode
 
 | Rank | ID | Type | Lane | Title | Priority | Status | Links | Risk Flags | Next Artifact | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 15 | EXC-015 | ticket | normal | Frame Persistence & Scene Store Extension | Medium | planned | [EXC-015](tickets/phase-01/EXC-015/EXC-015-frame-persistence-and-scene-store-extension.md) | Data model | Ticket | |
-| 16 | EXC-016 | ticket | normal | Frame Tool Activation | Medium | planned | [EXC-016](tickets/phase-01/EXC-016/EXC-016-frame-tool-activation.md) | | Ticket | |
-| 17 | EXC-017 | ticket | normal | Presentation Engine & Controls | Medium | planned | [EXC-017](tickets/phase-01/EXC-017/EXC-017-presentation-engine-and-controls.md) | | Ticket | |
-| 18 | EXC-018 | ticket | normal | Slide Navigator & Keyboard Support | Medium | planned | [EXC-018](tickets/phase-01/EXC-018/EXC-018-slide-navigator-and-keyboard-support.md) | | Ticket | |
+| 15 | EXC-015 | ticket | normal | Frame Persistence & Scene Store Extension | Medium | done | [EXC-015](tickets/phase-01/EXC-015/EXC-015-frame-persistence-and-scene-store-extension.md) | Data model | [Detail Design](tickets/phase-01/EXC-015/EXC-015-design.md) | Frame order is persisted inside scene JSON. |
+| 16 | EXC-016 | ticket | normal | Frame Tool Activation | Medium | done | [EXC-016](tickets/phase-01/EXC-016/EXC-016-frame-tool-activation.md) | | [Detail Design](tickets/phase-01/EXC-016/EXC-016-design.md) | Native frame tool changes sync automatically. |
+| 17 | EXC-017 | ticket | normal | Presentation Engine & Controls | Medium | done | [EXC-017](tickets/phase-01/EXC-017/EXC-017-presentation-engine-and-controls.md) | | [Detail Design](tickets/phase-01/EXC-017/EXC-017-design.md) | Local presentation mode with animated frame navigation. |
+| 18 | EXC-018 | ticket | normal | Slide Navigator & Keyboard Support | Medium | done | [EXC-018](tickets/phase-01/EXC-018/EXC-018-slide-navigator-and-keyboard-support.md) | | [Detail Design](tickets/phase-01/EXC-018/EXC-018-design.md) | Navigator reorder controls and keyboard navigation implemented. |
 
 ### Epic E03: Shareable Production
 
 | Rank | ID | Type | Lane | Title | Priority | Status | Links | Risk Flags | Next Artifact | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 19 | EXC-019 | ticket | high-risk | Sharing DB Schema & Domain | Medium | planned | [EXC-019](tickets/phase-01/EXC-019/EXC-019-sharing-db-schema-and-domain.md) | Data model, Public contract | Ticket + Detail Design | |
-| 20 | EXC-020 | ticket | high-risk | Sharing Backend | Medium | planned | [EXC-020](tickets/phase-01/EXC-020/EXC-020-sharing-backend.md) | Public contract, Authorization | Ticket + Detail Design | |
-| 21 | EXC-021 | ticket | normal | Public API & Share Dialog UI | Medium | planned | [EXC-021](tickets/phase-01/EXC-021/EXC-021-public-api-and-share-dialog-ui.md) | Public contract | Ticket | |
-| 22 | EXC-022 | ticket | high-risk | Password Protection | Medium | planned | [EXC-022](tickets/phase-01/EXC-022/EXC-022-password-protection.md) | Auth, Audit/security | Ticket + Detail Design | |
-| 23 | EXC-023 | ticket | normal | Sharing Integration Tests | Low | planned | [EXC-023](tickets/phase-01/EXC-023/EXC-023-sharing-integration-tests.md) | | Ticket | |
+| 19 | EXC-019 | ticket | high-risk | Sharing DB Schema & Domain | Medium | done | [EXC-019](tickets/phase-01/EXC-019/EXC-019-sharing-db-schema-and-domain.md) | Data model, Public contract | [Detail Design](tickets/phase-01/EXC-019/EXC-019-design.md) | Permission migration and domain contract implemented. |
+| 20 | EXC-020 | ticket | high-risk | Sharing Backend | Medium | done | [EXC-020](tickets/phase-01/EXC-020/EXC-020-sharing-backend.md) | Public contract, Authorization | [Detail Design](tickets/phase-01/EXC-020/EXC-020-design.md) | Authenticated share/revoke and public access usecases implemented. |
+| 21 | EXC-021 | ticket | normal | Public API & Share Dialog UI | Medium | done | [EXC-021](tickets/phase-01/EXC-021/EXC-021-public-api-and-share-dialog-ui.md) | Public contract | [Detail Design](tickets/phase-01/EXC-021/EXC-021-design.md) | Public API, share dialog, and read-only viewer implemented. |
+| 22 | EXC-022 | ticket | high-risk | Password Protection | Medium | done | [EXC-022](tickets/phase-01/EXC-022/EXC-022-password-protection.md) | Auth, Audit/security | [Detail Design](tickets/phase-01/EXC-022/EXC-022-design.md) | bcrypt password challenge implemented. |
+| 23 | EXC-023 | ticket | normal | Sharing Integration Tests | Low | done | [EXC-023](tickets/phase-01/EXC-023/EXC-023-sharing-integration-tests.md) | | [Detail Design](tickets/phase-01/EXC-023/EXC-023-design.md) | Backend and browser sharing verification implemented. |
 
 ### Epic E04: Real-time Collaboration
 

@@ -7,6 +7,7 @@ import (
 )
 
 type AuthUsecase interface {
-	Login(ctx context.Context, username, password string) (string, error)
+	OAuthLoginURL(state string) string
+	OAuthCallback(ctx context.Context, code string) (string, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (*User, error)
 }
