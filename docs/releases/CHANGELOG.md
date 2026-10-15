@@ -14,6 +14,8 @@ shared_fields: [status]
 
 - Temporarily switched interactive authentication to email/password login and added the backend `userctl` CLI for user creation and password rotation. Google OAuth is no longer wired into the runtime routes or required environment.
 - Added authenticated scene deep links at `/w/{workspaceId}/scenes/{sceneId}` and enforced workspace-owner authorization for every workspace-scoped API route; public shares remain under `/p/{token}`.
+- Reauthenticated Socket.IO handshakes with the session JWT and restricted realtime room joins to the owning workspace.
+- Upgraded the frontend compiler to TypeScript 7.0.2.
 
 ## Field Ownership
 

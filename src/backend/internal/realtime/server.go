@@ -1,12 +1,14 @@
 package realtime
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -29,6 +31,7 @@ type Server struct {
 	turnUsername   string
 	turnPassword   string
 	turnAuthSecret []byte
+	authorizeRoom  func(context.Context, uuid.UUID, string) bool
 }
 
 func (s *Server) SetTURNConfig(url, username, password string) {
@@ -38,6 +41,13 @@ func (s *Server) SetTURNConfig(url, username, password string) {
 func (s *Server) SetTURNAuthSecret(secret, username string) {
 	s.turnAuthSecret = []byte(secret)
 	s.turnUsername = username
+}
+
+// SetWorkspaceAuthorizer restricts realtime room joins to users authorized for
+// the workspace in the room key. HTTP middleware enforces the same boundary
+// for persisted scene operations.
+func (s *Server) SetWorkspaceAuthorizer(authorizer func(context.Context, uuid.UUID, string) bool) {
+	s.authorizeRoom = authorizer
 }
 
 func (s *Server) ConfigHandler(w http.ResponseWriter, _ *http.Request) {
@@ -105,16 +115,32 @@ type connectionState struct {
 }
 
 func (s *Server) onConnect(conn socketio.Conn) error {
-	conn.SetContext(&connectionState{userID: conn.ID()})
+	request := &http.Request{Header: conn.RemoteHeader(), URL: &url.URL{RawQuery: conn.URL().RawQuery}}
+	userID, err := userIDFromRequest(request, s.secret)
+	if err != nil {
+		return err
+	}
+	conn.SetContext(&connectionState{userID: userID})
 	return nil
 }
 
 func (s *Server) onJoin(conn socketio.Conn, payload joinPayload) {
 	state, _ := conn.Context().(*connectionState)
+	if state == nil {
+		conn.Emit("realtime:error", map[string]string{"message": "authentication is required"})
+		return
+	}
 	room, err := validateRoom(payload)
 	if err != nil {
 		conn.Emit("realtime:error", map[string]string{"message": err.Error()})
 		return
+	}
+	if s.authorizeRoom != nil {
+		workspaceID, _ := uuid.Parse(payload.WorkspaceID)
+		if !s.authorizeRoom(context.Background(), workspaceID, state.userID) {
+			conn.Emit("realtime:error", map[string]string{"message": "you do not have access to this workspace"})
+			return
+		}
 	}
 	if state.room != "" {
 		s.leave(state.room, conn)
@@ -188,8 +214,11 @@ func userIDFromRequest(r *http.Request, secret []byte) (string, error) {
 	if tokenValue == "" {
 		tokenValue = r.URL.Query().Get("token")
 	}
-	if tokenValue == "" || len(secret) == 0 {
-		return "anonymous", nil
+	if tokenValue == "" {
+		if len(secret) == 0 {
+			return "anonymous", nil
+		}
+		return "", fmt.Errorf("authentication token is required")
 	}
 	token, err := jwt.Parse(tokenValue, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {

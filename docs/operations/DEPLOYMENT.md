@@ -34,7 +34,8 @@ image-to-diagram is required.
 3. Confirm the migration job exits successfully before accepting traffic.
 4. Verify `/healthz`, password sign-in, an owned workspace request, scene save,
    an authenticated deep link at `/w/{workspaceId}/scenes/{sceneId}`, public
-   share viewer, `/socket.io/` connection, TURN allocation from an external
+   share viewer, a JWT-authenticated `/socket.io/` connection that can join
+   only an owned workspace room, TURN allocation from an external
    network, and the AI proxy with a real key.
 5. Record the image tags, migration version, and verification results in the
    release notes.

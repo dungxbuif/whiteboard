@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/casbin/casbin/v3"
 	gormadapter "github.com/casbin/gorm-adapter/v3"
+	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -136,6 +137,14 @@ func main() {
 	if cfg.TURNAuthSecret != "" {
 		realtimeServer.SetTURNAuthSecret(cfg.TURNAuthSecret, cfg.TURNUsername)
 	}
+	realtimeServer.SetWorkspaceAuthorizer(func(ctx context.Context, workspaceID uuid.UUID, userID string) bool {
+		userUUID, err := uuid.Parse(userID)
+		if err != nil {
+			return false
+		}
+		workspace, err := workspaceRepo.FindByID(ctx, workspaceID)
+		return err == nil && workspace.OwnerID == userUUID
+	})
 
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))

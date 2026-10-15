@@ -49,6 +49,12 @@ func TestUserIDFromRequest(t *testing.T) {
 	}
 }
 
+func TestUserIDFromRequestRequiresTokenWhenSecretConfigured(t *testing.T) {
+	if _, err := userIDFromRequest(httptest.NewRequest("GET", "/socket.io/", nil), []byte("test-secret")); err == nil {
+		t.Fatal("expected missing token to be rejected")
+	}
+}
+
 func TestTURNRESTCredentialUsesExpiringHMAC(t *testing.T) {
 	now := time.Unix(1_700_000_000, 0)
 	username, credential := turnRESTCredential("whiteboard", []byte("shared-secret"), now, time.Hour)

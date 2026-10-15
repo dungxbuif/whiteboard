@@ -40,7 +40,7 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | `POST /api/v1/ai/generate-diagram` | HTTP | JWT | active | Generates and validates Excalidraw JSON from text or a base64 image. |
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
 | `GET /api/v1/realtime/config` | HTTP | JWT | active | Returns the external TURN URL(s) and short-lived credentials; the backend signs credentials with `TURN_AUTH_SECRET`. |
-| `/socket.io/` | Socket.IO | JWT query token | active | Scene rooms broadcast presence, cursor, scene update, and WebRTC signaling events. |
+| `/socket.io/` | Socket.IO | JWT query token | active | The handshake requires a valid JWT; each `scene:join` also checks that the token subject owns the requested workspace before broadcasting presence, cursor, scene update, or WebRTC signaling events. |
 
 ## Errors
 
@@ -56,6 +56,10 @@ AI requests are limited to a 2 MiB JSON body and prompts are limited to 12,000 b
 TURN credentials are minted for a one-hour lifetime and must never be logged or
 persisted by the browser. `TURN_AUTH_SECRET` is shared only between the backend
 and the Coturn relay.
+
+The frontend toolchain pins TypeScript 7.0.2. TypeScript 7 removed the legacy
+`baseUrl` compiler option, so the app keeps its `@/*` path mapping without that
+option and uses `globalThis` for browser test globals.
 
 Password accounts are created or rotated with `go run ./cmd/userctl --email ...
 --password ...` (or `/app/userctl` in the backend image). Passwords are stored as
