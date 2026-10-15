@@ -10,9 +10,9 @@ updated: 2026-10-15
 
 ## Current Focus
 
-- **Active Phase:** PHASE-1 (Self-hosted Dashboard & Core Infrastructure)
-- **Active Work:** Phase 3 sharing is implemented and verified across backend, frontend, and browser layers.
-- **Next Work:** Continue with Phase 4 collaboration, while tracking deployment credential rotation as the Phase 1 release operation.
+- **Active Phase:** Reconciliation (Phases 1–5 implementation)
+- **Active Work:** Realtime collaboration/voice and Gemini AI vertical slices are implemented and verified locally.
+- **Next Work:** Run deployment/UAT checks with real TURN and Gemini credentials; rotate exposed deployment credentials before release.
 
 ## Project
 
@@ -22,8 +22,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 - Planning covers all 5 phases (34 tickets total).
 - Phase 1 has 15 tickets (EXC-001 to EXC-014 plus EXC-034).
-- EXC-001 through EXC-023 are implemented; EXC-034 completes the auth replacement.
-- EXC-006 through EXC-023 and EXC-034 are implemented; external credential rotation remains a release operation.
+- EXC-001 through EXC-034 are implemented; external credential rotation remains a release operation.
 - Architecture, requirements, and ADR documentation migrated to harness format.
 
 ## Active Decisions
@@ -34,6 +33,8 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Context-based tenancy via middleware (D-04).
 - Last-write-wins for scene persistence (D-06).
 - Google OAuth is the only interactive login path; JWT middleware and authenticated API contracts remain stable.
+- Socket.IO is used for ephemeral room coordination; HTTP scene PATCH remains the persistence boundary.
+- Gemini calls are backend-proxied and optional locally when `GEMINI_API_KEY` is absent.
 
 ## Blockers
 
@@ -53,3 +54,5 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - 2026-10-15: Completed EXC-034 Google OAuth login/callback, frontend token handoff, and browser coverage; deployment credential rotation remains operational follow-up.
 - 2026-10-15: Completed EXC-015 through EXC-018 frame persistence, presentation mode, slide navigator, and keyboard navigation; frontend and Playwright checks pass.
 - 2026-10-15: Completed EXC-019 through EXC-023 public sharing, revoke, password challenge, share dialog, and read-only viewer; backend and Playwright checks pass.
+- 2026-10-15: Completed EXC-024 through EXC-028 realtime rooms, presence/cursors, scene sync, WebRTC voice signaling, and coturn compose configuration.
+- 2026-10-15: Completed EXC-029 through EXC-033 Gemini proxy, diagram/code generation, image input validation, visual chat, and in-canvas AI controls.

@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -46,4 +46,4 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+`docker compose config` passes; coturn configuration is committed with configurable relay range and credentials.

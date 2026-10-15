@@ -36,6 +36,10 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | Scene `content.presentationOrder` | JSON field | JWT + workspace | active | Ordered Excalidraw frame IDs persisted with scene JSON for local presentation mode. |
 | `PUT /api/v1/scenes/{id}/share` | HTTP | JWT + workspace | active | Enable/revoke a public link and optionally set a bcrypt-protected password. |
 | `GET /api/v1/public/scenes/{token}` | HTTP | Public | active | Read a shared scene by opaque token; accepts `password` query for protected links and returns read-only scene JSON. |
+| `POST /api/v1/ai/chat` | HTTP | JWT | active | Proxies text or image context to Gemini and returns a chat response. |
+| `POST /api/v1/ai/generate-diagram` | HTTP | JWT | active | Generates and validates Excalidraw JSON from text or a base64 image. |
+| `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
+| `/socket.io/` | Socket.IO | JWT query token | active | Scene rooms broadcast presence, cursor, scene update, and WebRTC signaling events. |
 
 ## Errors
 
@@ -45,6 +49,8 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | `401 Unauthorized` | Missing/invalid JWT or failed/cancelled OAuth login | Consumer must authenticate again. |
 | `404 Not Found` | Workspace-scoped entity does not exist | Consumer must discard stale entity reference. |
 | `500 Internal Server Error` | Repository or infrastructure failure | Consumer may retry safely where appropriate. |
+
+AI requests are limited to a 2 MiB JSON body and prompts are limited to 12,000 bytes. `GEMINI_API_KEY` is read only by the backend.
 
 ## Versioning
 

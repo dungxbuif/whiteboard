@@ -41,8 +41,8 @@ A high-performance, self-hosted whiteboard ecosystem with Google Drive-like mana
 | M1 | Phase 1: Self-hosted Dashboard Rewrite | in_progress | [PHASE-1.md](phases/PHASE-1.md) | 11 plans (01-01 to 01-11) |
 | M2 | Phase 2: Presentation Mode | done | [PHASE-2-PRODUCT.md](phases/PHASE-2-PRODUCT.md) | 3 plans (02-01 to 02-03) |
 | M3 | Phase 3: Shareable Production | done | [PHASE-3.md](phases/PHASE-3.md) | 3 plans (03-01 to 03-03) |
-| M4 | Phase 4: Real-time Collaboration & Calling | planned | [PHASE-4.md](phases/PHASE-4.md) | 3 plans (04-01 to 04-03) |
-| M5 | Phase 5: AI Features (Gemini API) | planned | [PHASE-5.md](phases/PHASE-5.md) | 3 plans (05-01 to 05-03) |
+| M4 | Phase 4: Real-time Collaboration & Calling | implemented | [PHASE-4.md](phases/PHASE-4.md) | realtime, presence, WebRTC voice, coturn |
+| M5 | Phase 5: AI Features (Gemini API) | implemented | [PHASE-5.md](phases/PHASE-5.md) | Gemini proxy, diagram/code generation, multimodal UI |
 | MH | Harness: Develop Harness CLI (Hard Enforcement) | ready | [PHASE-2.md](phases/PHASE-2.md) | TBD |
 
 ## Phase 1 Plans

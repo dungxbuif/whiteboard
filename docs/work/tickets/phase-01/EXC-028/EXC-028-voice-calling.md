@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -47,4 +47,4 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+The toolbar requests microphone access, toggles local tracks, and exchanges WebRTC offer/answer/ICE events over realtime rooms.

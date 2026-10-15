@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -47,4 +47,4 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+Scene updates are broadcast through the scene room and applied to Excalidraw with loop protection; Go and frontend tests pass.

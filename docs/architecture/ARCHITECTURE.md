@@ -49,8 +49,12 @@ S3-compatible binary asset storage.
 - **Whiteboard:** Embedded `@excalidraw/excalidraw` engine. Excalidraw scene
   content is persisted through the backend as JSONB, not by direct browser DB
   access.
-- **Relay/Collab:** WebRTC + Socket.io for real-time collaboration in a future
-  phase. Phase 1 must not introduce collaboration persistence tables.
+- **Relay/Collab:** WebRTC + Socket.io provide ephemeral scene-room presence,
+  scene sync, and voice signaling. Coturn is self-hosted through compose;
+  persistence still goes through the scene API.
+- **AI Gateway:** Authenticated `/api/v1/ai/*` handlers call the Gemini REST
+  repository. The API key remains server-side and model output is validated in
+  the usecase layer.
 
 ## Modules
 
@@ -100,6 +104,9 @@ S3-compatible binary asset storage.
 - **Save ordering:** A client generation token prevents stale request
   completions from replacing newer save status. The backend remains
   last-write-wins and `content_version` is observability metadata.
+- **Realtime rooms:** A room key is `{workspaceId}:{sceneId}`. The server
+  validates the JWT during the Socket.IO handshake, then broadcasts cursor,
+  presence, scene update, and WebRTC signaling events only within that room.
 
 ## Data Flow
 
@@ -115,6 +122,10 @@ Usecase Layer (Business Logic)
     +---> PostgreSQL Repository (Metadata, Scene JSONB)
     |
     +---> S3 Repository (Binary Assets)
+    |
+    +---> Socket.IO Room Manager (Ephemeral collaboration)
+    |
+    +---> Gemini Repository (AI proxy)
 ```
 
 ## Runtime Flow
@@ -157,9 +168,9 @@ Phase 1 persistence tables:
 - `scenes`
 - `scene_assets`
 
-Tables for public sharing, collaboration presence, voice calls, AI prompts, and
-AI outputs are deferred to later phases and should not be added during Phase 1
-unless the product scope changes through a new decision record.
+Collaboration presence, voice calls, AI prompts, and AI outputs remain
+ephemeral; they are intentionally not stored in PostgreSQL. Public sharing is
+stored in `scene_permissions` as documented by the Phase 3 design.
 
 ## Migration Strategy
 
@@ -187,6 +198,8 @@ workspace cannot be read or mutated through another workspace context.
 - React 18+, Vite, Zustand
 - Shadcn UI
 - `@excalidraw/excalidraw`
+- `socket.io-client` 2.x-compatible realtime transport
+- Gemini REST API (optional local secret, required for production AI)
 
 ## Risks And Tradeoffs
 

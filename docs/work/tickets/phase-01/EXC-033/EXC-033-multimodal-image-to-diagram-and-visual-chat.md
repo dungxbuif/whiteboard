@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -47,4 +47,4 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-(No evidence yet)
+Gemini requests accept validated base64 images for image-to-diagram and visual chat; repository tests cover data URL validation.

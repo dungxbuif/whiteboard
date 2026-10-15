@@ -29,6 +29,10 @@ All notable changes should be recorded here.
   reorder controls, animated navigation, and keyboard shortcuts.
 - Public read-only scene links with revoke controls, optional bcrypt password
   protection, share dialog, and `/p/:token` viewer.
+- Authenticated Socket.IO scene rooms with presence, cursor, scene sync, and
+  WebRTC voice signaling; coturn is configured through `docker-compose.yml`.
+- Gemini AI proxy endpoints for chat, text/image-to-diagram, and
+  diagram-to-code, plus the in-canvas AI command panel and code preview.
 
 ## [1.1.1] - 2026-06-07
 

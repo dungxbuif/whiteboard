@@ -65,16 +65,16 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | P3-REQ-02 | 3 | EXC-021 | Public API & Share Dialog UI | no | no | yes | no | no | yes | implemented | Public handler, share dialog, `/p/:token` read-only viewer, and Playwright public viewer test. |
 | P3-REQ-03 | 3 | EXC-022 | Password Protection | yes | no | yes | no | no | yes | implemented | bcrypt challenge response and public viewer password prompt. |
 | P3-REQ-04 | 3 | EXC-023 | Sharing Integration Tests | yes | yes | yes | no | no | yes | implemented | Sharing usecase tests, public viewer browser flow, and full suite verification. |
-| P4-REQ-03 | 4 | EXC-024 | Coturn & Docker Setup | no | no | no | no | no | no | planned | none |
-| P4-REQ-01 | 4 | EXC-025 | Socket.io Backend + Frontend Client | no | no | no | no | no | no | planned | none |
-| P4-REQ-01 | 4 | EXC-026 | Collaborative Cursors & Presence | no | no | no | no | no | no | planned | none |
-| P4-REQ-01 | 4 | EXC-027 | WebRTC DataChannel + Scene Sync | no | no | no | no | no | no | planned | none |
-| P4-REQ-02 | 4 | EXC-028 | Voice Calling | no | no | no | no | no | no | planned | none |
-| P5-REQ-01 | 5 | EXC-029 | AI Domain & Gemini Repository | no | no | no | no | no | no | planned | none |
-| P5-REQ-01 | 5 | EXC-030 | AI Proxy Endpoint & FE Client | no | no | no | no | no | no | planned | none |
-| P5-REQ-01 | 5 | EXC-031 | Text-to-Diagram & Diagram-to-Code (Backend) | no | no | no | no | no | no | planned | none |
-| P5-REQ-02 | 5 | EXC-032 | AI Command Panel & Code Preview (Frontend) | no | no | no | no | no | no | planned | none |
-| P5-REQ-03 | 5 | EXC-033 | Multimodal: Image-to-Diagram & Visual Chat | no | no | no | no | no | no | planned | none |
+| P4-REQ-03 | 4 | EXC-024 | Coturn & Docker Setup | no | no | no | no | yes | yes | implemented | `docker compose config`; compose/env docs |
+| P4-REQ-01 | 4 | EXC-025 | Socket.io Backend + Frontend Client | yes | yes | no | no | no | yes | implemented | Go tests; frontend build; phase detail design |
+| P4-REQ-01 | 4 | EXC-026 | Collaborative Cursors & Presence | yes | no | no | no | no | yes | implemented | realtime store and toolbar; frontend build |
+| P4-REQ-01 | 4 | EXC-027 | WebRTC DataChannel + Scene Sync | yes | yes | no | no | no | yes | implemented | room event handlers; scene update loop guard |
+| P4-REQ-02 | 4 | EXC-028 | Voice Calling | no | no | no | yes | yes | yes | implemented | WebRTC signaling and media controls; TURN config |
+| P5-REQ-01 | 5 | EXC-029 | AI Domain & Gemini Repository | yes | yes | no | no | no | yes | implemented | Gemini repository tests and AI contracts |
+| P5-REQ-01 | 5 | EXC-030 | AI Proxy Endpoint & FE Client | yes | yes | no | no | no | yes | implemented | authenticated routes, AI store, backend tests |
+| P5-REQ-01 | 5 | EXC-031 | Text-to-Diagram & Diagram-to-Code (Backend) | yes | yes | no | no | no | yes | implemented | output cleaning and scene validation tests |
+| P5-REQ-02 | 5 | EXC-032 | AI Command Panel & Code Preview (Frontend) | no | no | yes | no | no | yes | implemented | in-canvas panel and frontend build |
+| P5-REQ-03 | 5 | EXC-033 | Multimodal: Image-to-Diagram & Visual Chat | yes | no | yes | no | no | yes | implemented | base64 validation tests and image attachment UI |
 
 ## Rules
 

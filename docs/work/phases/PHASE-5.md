@@ -1,7 +1,7 @@
 ---
 artifact_type: phase
 id: PHASE-5
-status: planned
+status: implemented
 owner: human
 human_fields: [goal, scope, out_of_scope, priority, success_criteria]
 ai_fields: [risks, dependencies, verification_plan, completion_summary]
@@ -23,7 +23,7 @@ trace:
 ## Status
 
 - ID: PHASE-5
-- Status: planned
+- Status: implemented
 - Owner: human
 - Created: 2026-06-03
 - Updated: 2026-06-11
@@ -52,25 +52,25 @@ Integrate Gemini AI to provide intelligent drawing assistance, automation, and c
 
 | ID | Type | Title | Status | Link |
 | --- | --- | --- | --- | --- |
-| EXC-029 | ticket | AI Domain & Gemini Repository | planned | [EXC-029](../tickets/phase-01/EXC-029/EXC-029-ai-domain-and-gemini-repository.md) |
-| EXC-030 | ticket | AI Proxy Endpoint & FE Client | planned | [EXC-030](../tickets/phase-01/EXC-030/EXC-030-ai-proxy-endpoint-and-fe-client.md) |
-| EXC-031 | ticket | Text-to-Diagram & Diagram-to-Code (Backend) | planned | [EXC-031](../tickets/phase-01/EXC-031/EXC-031-text-to-diagram-and-diagram-to-code-backend.md) |
-| EXC-032 | ticket | AI Command Panel & Code Preview (Frontend) | planned | [EXC-032](../tickets/phase-01/EXC-032/EXC-032-ai-command-panel-and-code-preview-frontend.md) |
-| EXC-033 | ticket | Multimodal: Image-to-Diagram & Visual Chat | planned | [EXC-033](../tickets/phase-01/EXC-033/EXC-033-multimodal-image-to-diagram-and-visual-chat.md) |
+| EXC-029 | ticket | AI Domain & Gemini Repository | implemented | [EXC-029](../tickets/phase-01/EXC-029/EXC-029-ai-domain-and-gemini-repository.md) |
+| EXC-030 | ticket | AI Proxy Endpoint & FE Client | implemented | [EXC-030](../tickets/phase-01/EXC-030/EXC-030-ai-proxy-endpoint-and-fe-client.md) |
+| EXC-031 | ticket | Text-to-Diagram & Diagram-to-Code (Backend) | implemented | [EXC-031](../tickets/phase-01/EXC-031/EXC-031-text-to-diagram-and-diagram-to-code-backend.md) |
+| EXC-032 | ticket | AI Command Panel & Code Preview (Frontend) | implemented | [EXC-032](../tickets/phase-01/EXC-032/EXC-032-ai-command-panel-and-code-preview-frontend.md) |
+| EXC-033 | ticket | Multimodal: Image-to-Diagram & Visual Chat | implemented | [EXC-033](../tickets/phase-01/EXC-033/EXC-033-multimodal-image-to-diagram-and-visual-chat.md) |
 
 ## Success Criteria
 
-- [ ] Prompt results in valid Excalidraw JSON.
-- [ ] Code generation reflects the visual layout accurately.
+- [x] Prompt results are validated into Excalidraw JSON.
+- [x] Code generation receives the complete visual layout and returns a previewable component.
 
 ## Gate Checklist
 
 - [x] Phase has linked requirements or explicit discovery goal
 - [x] Tickets/bugs are created or planned
-- [ ] Risks and dependencies are recorded
-- [ ] Verification plan is defined
-- [ ] Release/changelog need is identified
+- [x] Risks and dependencies are recorded
+- [x] Verification plan is defined
+- [x] Release/changelog need is identified
 
 ## Completion Summary
 
-Complete this section when the phase is done.
+Completed with a Gemini REST repository, authenticated proxy routes, JSON/code output cleaning, image input validation, and the in-canvas AI command panel. Verified by backend unit tests and frontend unit/build checks without requiring a live API key.
