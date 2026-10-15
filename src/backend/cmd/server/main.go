@@ -21,25 +21,33 @@ import (
 	"devtool/internal/delivery/http/handler"
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
+	"devtool/internal/realtime"
+	geminirepo "devtool/internal/repository/gemini"
 	postgresrepo "devtool/internal/repository/postgres"
 	s3repo "devtool/internal/repository/s3"
 	"devtool/internal/usecase"
 )
 
 type config struct {
-	Addr               string
-	DatabaseURL        string
-	JWTSecret          string
-	CasbinModelPath    string
-	S3Endpoint         string
-	S3AccessKey        string
-	S3SecretKey        string
-	S3Bucket           string
-	S3Region           string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-	FrontendURL        string
+	Addr                 string
+	DatabaseURL          string
+	JWTSecret            string
+	CasbinModelPath      string
+	S3Endpoint           string
+	S3AccessKey          string
+	S3SecretKey          string
+	S3Bucket             string
+	S3Region             string
+	GoogleClientID       string
+	GoogleClientSecret   string
+	GoogleRedirectURL    string
+	FrontendURL          string
+	GeminiAPIKey         string
+	GeminiModelFast      string
+	GeminiModelReasoning string
+	TURNURL              string
+	TURNUsername         string
+	TURNPassword         string
 }
 
 const defaultHTTPAddr = ":8080"
@@ -110,6 +118,8 @@ func main() {
 	searchUsecase := usecase.NewSearchUsecase(searchRepo)
 	scenePermissionUsecase := usecase.NewScenePermissionUsecase(scenePermissionRepo, sceneRepo)
 	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, 1*time.Hour)
+	aiRepo := geminirepo.New(cfg.GeminiAPIKey, cfg.GeminiModelFast)
+	aiUsecase := usecase.NewAIUsecase(aiRepo, cfg.GeminiModelFast, cfg.GeminiModelReasoning)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
@@ -120,13 +130,20 @@ func main() {
 	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase)
 	publicHandler := handler.NewPublicHandler(scenePermissionUsecase)
 	assetHandler := handler.NewAssetHandler(assetUsecase)
+	aiHandler := handler.NewAIHandler(aiUsecase)
+	realtimeServer, err := realtime.NewServer([]byte(cfg.JWTSecret))
+	if err != nil {
+		logger.Error("failed to create realtime server", "error", err)
+		os.Exit(1)
+	}
+	realtimeServer.SetTURNConfig(cfg.TURNURL, cfg.TURNUsername, cfg.TURNPassword)
 
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithSharing(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler),
+		Handler:           httpdelivery.NewRouterWithSharing(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -159,19 +176,25 @@ func loadConfig() (config, error) {
 	}
 
 	return config{
-		Addr:               getEnv("HTTP_ADDR", defaultHTTPAddr),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		JWTSecret:          os.Getenv("JWT_SECRET"),
-		CasbinModelPath:    os.Getenv("CASBIN_MODEL_PATH"),
-		S3Endpoint:         os.Getenv("S3_ENDPOINT"),
-		S3AccessKey:        os.Getenv("S3_ACCESS_KEY"),
-		S3SecretKey:        os.Getenv("S3_SECRET_KEY"),
-		S3Bucket:           os.Getenv("S3_BUCKET"),
-		S3Region:           getEnv("S3_REGION", "auto"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
-		FrontendURL:        os.Getenv("FRONTEND_URL"),
+		Addr:                 getEnv("HTTP_ADDR", defaultHTTPAddr),
+		DatabaseURL:          os.Getenv("DATABASE_URL"),
+		JWTSecret:            os.Getenv("JWT_SECRET"),
+		CasbinModelPath:      os.Getenv("CASBIN_MODEL_PATH"),
+		S3Endpoint:           os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:          os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:          os.Getenv("S3_SECRET_KEY"),
+		S3Bucket:             os.Getenv("S3_BUCKET"),
+		S3Region:             getEnv("S3_REGION", "auto"),
+		GoogleClientID:       os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GoogleRedirectURL:    os.Getenv("GOOGLE_REDIRECT_URL"),
+		FrontendURL:          os.Getenv("FRONTEND_URL"),
+		GeminiAPIKey:         os.Getenv("GEMINI_API_KEY"),
+		GeminiModelFast:      getEnv("GEMINI_MODEL_FAST", "gemini-1.5-flash"),
+		GeminiModelReasoning: getEnv("GEMINI_MODEL_REASONING", "gemini-1.5-pro"),
+		TURNURL:              os.Getenv("TURN_URL"),
+		TURNUsername:         os.Getenv("TURN_USERNAME"),
+		TURNPassword:         os.Getenv("TURN_PASSWORD"),
 	}, nil
 }
 

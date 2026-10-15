@@ -12,6 +12,9 @@ import useWorkspaceStore from "@/store/workspace-store";
 import api from "@/lib/api";
 import { PresentationControls } from "@/components/whiteboard/presentation-controls";
 import { SlideNavigator } from "@/components/whiteboard/slide-navigator";
+import { CollaborationToolbar } from "@/components/whiteboard/collaboration-toolbar";
+import { AICommandPanel } from "@/components/whiteboard/ai-command-panel";
+import useRealtimeStore from "@/store/realtime-store";
 
 type ExcalidrawModule = typeof import("@excalidraw/excalidraw");
 const EXCALIDRAW_INITIALIZATION_MS = 250;
@@ -36,6 +39,11 @@ export function ExcalidrawWrapper() {
   const enterPresentation = usePresentationStore((state) => state.enter);
   const exitPresentation = usePresentationStore((state) => state.exit);
   const setActiveSlide = usePresentationStore((state) => state.setActiveSlide);
+  const connectRealtime = useRealtimeStore((state) => state.connect);
+  const disconnectRealtime = useRealtimeStore((state) => state.disconnect);
+  const publishRealtime = useRealtimeStore((state) => state.publish);
+  const latestSceneUpdate = useRealtimeStore((state) => state.latestSceneUpdate);
+  const clearLatestSceneUpdate = useRealtimeStore((state) => state.clearLatestSceneUpdate);
   
   const [module, setModule] = useState<ExcalidrawModule | null>(null);
   const [hydratedContent, setHydratedContent] = useState<SceneContent | null>(null);
@@ -45,7 +53,26 @@ export function ExcalidrawWrapper() {
   const uploadedFiles = useRef<Set<string>>(new Set());
   const excalidrawAPI = useRef<{
     scrollToContent: (target?: unknown, options?: Record<string, unknown>) => void;
+    updateScene?: (scene: Record<string, unknown>) => void;
   } | null>(null);
+  const applyingRemote = useRef(false);
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeScene?.id) return;
+    connectRealtime(activeWorkspaceId, activeScene.id);
+    return () => disconnectRealtime();
+  }, [activeScene?.id, activeWorkspaceId, connectRealtime, disconnectRealtime]);
+
+  useEffect(() => {
+    if (!latestSceneUpdate || !excalidrawAPI.current?.updateScene) return;
+    applyingRemote.current = true;
+    excalidrawAPI.current.updateScene({
+      elements: latestSceneUpdate.elements,
+      appState: latestSceneUpdate.appState,
+      files: latestSceneUpdate.files,
+    });
+    clearLatestSceneUpdate();
+  }, [clearLatestSceneUpdate, latestSceneUpdate]);
 
   const frameElements = useMemo(
     () => (activeScene?.content.elements ?? []).filter((element): element is { id: string; type: string } => {
@@ -162,18 +189,19 @@ export function ExcalidrawWrapper() {
   const SaveIcon = saveStatus === "error" ? CloudAlert : saveStatus === "pending" || saveStatus === "saving" ? CloudUpload : Cloud;
 
   return (
-    <main className="grid h-screen grid-rows-[56px_minmax(0,1fr)] bg-background">
-      <header className="flex items-center justify-between gap-4 border-b bg-card px-4">
+    <main className="grid h-screen min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-background">
+      <header className="flex min-w-0 flex-wrap items-center justify-between gap-4 border-b bg-card px-4 max-md:gap-2">
         <div className="flex min-w-0 items-center gap-3">
           <Button aria-label="Back to dashboard" onClick={() => void closeScene().catch(() => undefined)} size="icon" type="button" variant="ghost">
             <ArrowLeft size={18} aria-hidden="true" />
           </Button>
           <h1 className="truncate font-semibold">{activeScene.title}</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-3 max-md:gap-2">
           <Button onClick={() => (isPresenting ? exitPresentation() : enterPresentation())} type="button" variant={isPresenting ? "secondary" : "outline"}>
             {isPresenting ? "Exit presentation" : "Present"}
           </Button>
+          <CollaborationToolbar />
           <p className={`flex items-center gap-2 text-sm ${saveStatus === "error" ? "text-destructive" : "text-muted-foreground"}`} role="status">
             <SaveIcon size={16} aria-hidden="true" /> {saveLabels[saveStatus]}
           </p>
@@ -181,13 +209,18 @@ export function ExcalidrawWrapper() {
       </header>
       <section className="min-h-0" aria-label="Excalidraw canvas">
         <Excalidraw
-          excalidrawAPI={(apiInstance: { scrollToContent: (target?: unknown, options?: Record<string, unknown>) => void }) => { excalidrawAPI.current = apiInstance; }}
+          excalidrawAPI={(apiInstance: { scrollToContent: (target?: unknown, options?: Record<string, unknown>) => void; updateScene?: (scene: Record<string, unknown>) => void }) => { excalidrawAPI.current = apiInstance; }}
           initialData={hydratedContent}
           name={activeScene.title}
           viewModeEnabled={isPresenting}
           onChange={async (elements: unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => {
             const presentationOrder = syncPresentationOrder(elements, activeScene.content.presentationOrder ?? []);
             const contentToSave: SceneContent = { elements: [...elements], appState, files: { ...files }, presentationOrder };
+            if (applyingRemote.current) {
+              applyingRemote.current = false;
+              return;
+            }
+            publishRealtime("scene:update", contentToSave as unknown as Record<string, unknown>);
             const filesToUpload: any[] = [];
 
             // 1. Process files: intercept new data URIs and strip them for DB save
@@ -265,6 +298,16 @@ export function ExcalidrawWrapper() {
               slideCount={slideIds.length}
             />
           </>
+        ) : null}
+        {!isPresenting ? (
+          <AICommandPanel
+            onApplyDiagram={(generated) => {
+              if (!excalidrawAPI.current?.updateScene) return;
+              applyingRemote.current = true;
+              excalidrawAPI.current.updateScene({ elements: generated.elements, appState: generated.appState, files: generated.files });
+            }}
+            scene={activeScene.content}
+          />
         ) : null}
       </section>
     </main>

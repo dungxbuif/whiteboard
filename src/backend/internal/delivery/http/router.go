@@ -24,7 +24,7 @@ func NewRouter(
 	if len(searchHandlers) > 0 {
 		searchHandler = searchHandlers[0]
 	}
-	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, nil, nil)
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, nil, nil, nil, nil, nil)
 }
 
 func NewRouterWithSharing(
@@ -37,8 +37,21 @@ func NewRouterWithSharing(
 	searchHandler *handler.SearchHandler,
 	sharingHandler *handler.SharingHandler,
 	publicHandler *handler.PublicHandler,
+	realtimeHandlers ...nethttp.Handler,
 ) nethttp.Handler {
-	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler)
+	var realtimeHandler nethttp.Handler
+	var aiHandler nethttp.Handler
+	var realtimeConfigHandler nethttp.Handler
+	if len(realtimeHandlers) > 0 {
+		realtimeHandler = realtimeHandlers[0]
+	}
+	if len(realtimeHandlers) > 1 {
+		aiHandler = realtimeHandlers[1]
+	}
+	if len(realtimeHandlers) > 2 {
+		realtimeConfigHandler = realtimeHandlers[2]
+	}
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler, realtimeHandler, aiHandler, realtimeConfigHandler)
 }
 
 func newRouter(
@@ -51,6 +64,9 @@ func newRouter(
 	searchHandler *handler.SearchHandler,
 	sharingHandler *handler.SharingHandler,
 	publicHandler *handler.PublicHandler,
+	realtimeHandler nethttp.Handler,
+	aiHandler nethttp.Handler,
+	realtimeConfigHandler nethttp.Handler,
 ) nethttp.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -58,6 +74,9 @@ func newRouter(
 	router.Use(middleware.Recoverer)
 
 	router.Get("/healthz", healthHandler)
+	if realtimeHandler != nil {
+		router.Mount("/socket.io", realtimeHandler)
+	}
 
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Get("/auth/google/login", authHandler.GoogleLogin)
@@ -76,6 +95,12 @@ func newRouter(
 			}
 
 			r.Get("/users/me", authHandler.Me)
+			if realtimeConfigHandler != nil {
+				r.Get("/realtime/config", realtimeConfigHandler.ServeHTTP)
+			}
+			if aiHandler != nil {
+				r.Mount("/ai", aiHandler)
+			}
 
 			r.Route("/workspaces", func(r chi.Router) {
 				r.Get("/", workspaceHandler.List)
