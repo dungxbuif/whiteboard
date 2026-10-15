@@ -6,6 +6,7 @@ services:
     volumes:
       - ./src/backend/migrations:/migrations:ro
     networks:
+      - homelab-net
       - whiteboard-app
     entrypoint: ["/bin/sh", "-ec"]
     command: ["migrate -path=/migrations -database=\"$${DATABASE_URL}\" up"]
