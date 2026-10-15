@@ -52,9 +52,9 @@ S3-compatible binary asset storage.
 - **Relay/Collab:** WebRTC + Socket.io provide ephemeral scene-room presence,
   scene sync, and voice signaling. Coturn is self-hosted through compose;
   persistence still goes through the scene API.
-- **AI Gateway:** Authenticated `/api/v1/ai/*` handlers call the Gemini REST
-  repository. The API key remains server-side and model output is validated in
-  the usecase layer.
+- **AI Gateway:** Authenticated `/api/v1/ai/*` handlers call an
+  OpenAI-compatible chat-completions repository. DeepSeek is the default; the
+  key remains server-side and model output is validated in the usecase layer.
 
 ## Modules
 
@@ -125,7 +125,7 @@ Usecase Layer (Business Logic)
     |
     +---> Socket.IO Room Manager (Ephemeral collaboration)
     |
-    +---> Gemini Repository (AI proxy)
+    +---> OpenAI-Compatible Repository (DeepSeek default)
 ```
 
 ## Runtime Flow
@@ -199,7 +199,7 @@ workspace cannot be read or mutated through another workspace context.
 - Shadcn UI
 - `@excalidraw/excalidraw`
 - `socket.io-client` 2.x-compatible realtime transport
-- Gemini REST API (optional local secret, required for production AI)
+- OpenAI-compatible AI API (DeepSeek default; optional local secret, required for production AI)
 
 ## Risks And Tradeoffs
 

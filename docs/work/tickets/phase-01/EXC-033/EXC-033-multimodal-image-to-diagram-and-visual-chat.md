@@ -47,4 +47,4 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-Gemini requests accept validated base64 images for image-to-diagram and visual chat; repository tests cover data URL validation.
+OpenAI-compatible requests accept validated base64 images for image-to-diagram and visual chat when the selected model supports vision; repository tests cover data URL validation.

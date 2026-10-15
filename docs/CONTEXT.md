@@ -11,8 +11,8 @@ updated: 2026-10-15
 ## Current Focus
 
 - **Active Phase:** Reconciliation (Phases 1–5 implementation)
-- **Active Work:** Realtime collaboration/voice and Gemini AI vertical slices are implemented and verified locally.
-- **Next Work:** Run deployment/UAT checks with real TURN and Gemini credentials; rotate exposed deployment credentials before release.
+- **Active Work:** Realtime collaboration/voice and OpenAI-compatible AI vertical slices are implemented and verified locally.
+- **Next Work:** Run deployment/UAT checks with real TURN and DeepSeek credentials; rotate exposed deployment credentials before release.
 
 ## Project
 
@@ -34,7 +34,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Last-write-wins for scene persistence (D-06).
 - Google OAuth is the only interactive login path; JWT middleware and authenticated API contracts remain stable.
 - Socket.IO is used for ephemeral room coordination; HTTP scene PATCH remains the persistence boundary.
-- Gemini calls are backend-proxied and optional locally when `GEMINI_API_KEY` is absent.
+- OpenAI-compatible AI calls are backend-proxied and optional locally when `AI_API_KEY` is absent; DeepSeek is the default target.
 
 ## Blockers
 
@@ -55,4 +55,4 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - 2026-10-15: Completed EXC-015 through EXC-018 frame persistence, presentation mode, slide navigator, and keyboard navigation; frontend and Playwright checks pass.
 - 2026-10-15: Completed EXC-019 through EXC-023 public sharing, revoke, password challenge, share dialog, and read-only viewer; backend and Playwright checks pass.
 - 2026-10-15: Completed EXC-024 through EXC-028 realtime rooms, presence/cursors, scene sync, WebRTC voice signaling, and coturn compose configuration.
-- 2026-10-15: Completed EXC-029 through EXC-033 Gemini proxy, diagram/code generation, image input validation, visual chat, and in-canvas AI controls.
+- 2026-10-15: Completed EXC-029 through EXC-033 with an OpenAI-compatible DeepSeek proxy, diagram/code generation, image input validation, visual chat, and in-canvas AI controls.

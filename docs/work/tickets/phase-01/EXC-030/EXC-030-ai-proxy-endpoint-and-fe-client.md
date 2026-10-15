@@ -20,7 +20,7 @@ AIUsecase (pass-through chat), AIHandler (POST /ai/chat), route registration, FE
 
 - AI REST proxy endpoint is registered on backend router.
 - AI client handles requests and JWT auth headers on frontend.
-- Chat endpoint successfully proxies prompts to Gemini repository.
+- Chat endpoint successfully proxies prompts to the configured OpenAI-compatible repository.
 
 ## Design Notes
 

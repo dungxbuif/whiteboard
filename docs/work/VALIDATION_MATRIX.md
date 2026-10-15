@@ -70,7 +70,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | P4-REQ-01 | 4 | EXC-026 | Collaborative Cursors & Presence | yes | no | no | no | no | yes | implemented | realtime store and toolbar; frontend build |
 | P4-REQ-01 | 4 | EXC-027 | WebRTC DataChannel + Scene Sync | yes | yes | no | no | no | yes | implemented | room event handlers; scene update loop guard |
 | P4-REQ-02 | 4 | EXC-028 | Voice Calling | no | no | no | yes | yes | yes | implemented | WebRTC signaling and media controls; TURN config |
-| P5-REQ-01 | 5 | EXC-029 | AI Domain & Gemini Repository | yes | yes | no | no | no | yes | implemented | Gemini repository tests and AI contracts |
+| P5-REQ-01 | 5 | EXC-029 | AI Domain & OpenAI-Compatible Repository | yes | yes | no | no | no | yes | implemented | OpenAI-compatible repository tests and AI contracts |
 | P5-REQ-01 | 5 | EXC-030 | AI Proxy Endpoint & FE Client | yes | yes | no | no | no | yes | implemented | authenticated routes, AI store, backend tests |
 | P5-REQ-01 | 5 | EXC-031 | Text-to-Diagram & Diagram-to-Code (Backend) | yes | yes | no | no | no | yes | implemented | output cleaning and scene validation tests |
 | P5-REQ-02 | 5 | EXC-032 | AI Command Panel & Code Preview (Frontend) | no | no | yes | no | no | yes | implemented | in-canvas panel and frontend build |

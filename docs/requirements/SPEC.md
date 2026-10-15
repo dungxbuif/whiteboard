@@ -78,7 +78,7 @@ Rewrite the existing Excalidraw-based whiteboard and dashboard ecosystem (curren
   - Voice call support within the whiteboard.
   - Unified TURN/STUN relay solution (Single port/endpoint target).
 
-### Phase 5: AI Integration (Gemini API)
+### Phase 5: AI Integration (OpenAI-Compatible API)
 - **Goal:** Intelligent diagramming and code generation.
 - **Requirements:**
   - Diagram-to-code (React/HTML generation).
@@ -239,16 +239,16 @@ Implement seamless multi-user collaboration and voice calling with a focus on se
 
 ---
 
-## Phase 5 Requirements: AI Features (Gemini API)
+## Phase 5 Requirements: AI Features (OpenAI-Compatible API)
 
 ### Goal
-Integrate Gemini AI to provide intelligent drawing assistance, automation, and code generation.
+Integrate an OpenAI-compatible provider (DeepSeek by default) to provide intelligent drawing assistance, automation, and code generation.
 
 ### Requirements
 - **REQ-01: Text-to-Diagram:** Generate Excalidraw elements from natural language prompts.
 - **REQ-02: Diagram-to-Code:** Convert visual UI components into React/HTML code.
 - **REQ-03: Image-to-Diagram:** Convert uploaded images into editable Excalidraw elements.
-- **REQ-04: Visual Chat:** Chat with Gemini about the current whiteboard content.
+- **REQ-04: Visual Chat:** Chat with the configured provider about the current whiteboard content.
 
 ### Acceptance Criteria
 - [ ] Prompt results in valid Excalidraw JSON.

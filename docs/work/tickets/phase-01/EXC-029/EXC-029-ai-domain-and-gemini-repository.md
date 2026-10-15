@@ -1,4 +1,4 @@
-# EXC-029: AI Domain & Gemini Repository
+# EXC-029: AI Domain & OpenAI-Compatible Repository
 
 ## Status
 
@@ -10,7 +10,7 @@ normal
 
 ## Product Contract
 
-Package check, AIRepository interface, GeminiRepository implementation using Google Generative AI SDK
+AIRepository interface and OpenAI-compatible chat-completions implementation with DeepSeek defaults
 
 ## Relevant Product Docs
 
@@ -19,7 +19,7 @@ Package check, AIRepository interface, GeminiRepository implementation using Goo
 ## Acceptance Criteria
 
 - AIRepository interface defines content and multimodal generation methods.
-- GeminiRepository compiles and initializes Google Generative AI SDK connection.
+- The provider repository compiles and initializes from `AI_API_KEY`, `AI_BASE_URL`, and model settings.
 
 ## Design Notes
 
@@ -27,7 +27,7 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 - **Link to Detail Design**: [Design Document](EXC-029-design.md)
 
-- **Modified Files**: `src/backend/internal/domain/ai.go`, `src/backend/internal/repository/gemini_repository.go`
+- **Modified Files**: `src/backend/internal/domain/ai.go`, `src/backend/internal/repository/openai/openai_repo.go`
 - **Sprint Phase**: phase-05
 
 ## Validation
@@ -46,4 +46,4 @@ A Detail Design document following `docs/templates/detail_design.md` must be cre
 
 ## Evidence
 
-AI contracts, Gemini REST repository, and deterministic unit tests are implemented.
+AI contracts, OpenAI-compatible REST repository, and deterministic unit tests are implemented.

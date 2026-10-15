@@ -83,7 +83,7 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | **E02** | Presentation Mode | Slide navigation and frame tools | planned |
 | **E03** | Shareable Production | Access control and public link sharing | planned |
 | **E04** | Real-time Collaboration | Real-time presence, WebRTC sync & voice calls | planned |
-| **E05** | AI Features | Gemini API text-to-diagram and visual reasoning | planned |
+| **E05** | AI Features | OpenAI-compatible (DeepSeek default) text-to-diagram and visual reasoning | planned |
 
 ## Items
 
@@ -140,7 +140,7 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 | Rank | ID | Type | Lane | Title | Priority | Status | Links | Risk Flags | Next Artifact | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 29 | EXC-029 | ticket | normal | AI Domain & Gemini Repository | Medium | planned | [EXC-029](tickets/phase-01/EXC-029/EXC-029-ai-domain-and-gemini-repository.md) | External system | Ticket | |
+| 29 | EXC-029 | ticket | normal | AI Domain & OpenAI-Compatible Repository | Medium | implemented | [EXC-029](tickets/phase-01/EXC-029/EXC-029-ai-domain-and-gemini-repository.md) | External system | Ticket | |
 | 30 | EXC-030 | ticket | normal | AI Proxy Endpoint & FE Client | Medium | planned | [EXC-030](tickets/phase-01/EXC-030/EXC-030-ai-proxy-endpoint-and-fe-client.md) | Public contract | Ticket | |
 | 31 | EXC-031 | ticket | normal | Text-to-Diagram & Diagram-to-Code (Backend) | Medium | planned | [EXC-031](tickets/phase-01/EXC-031/EXC-031-text-to-diagram-and-diagram-to-code-backend.md) | External system | Ticket | |
 | 32 | EXC-032 | ticket | normal | AI Command Panel & Code Preview (Frontend) | Medium | planned | [EXC-032](tickets/phase-01/EXC-032/EXC-032-ai-command-panel-and-code-preview-frontend.md) | | Ticket | |
