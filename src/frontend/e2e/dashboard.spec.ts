@@ -295,7 +295,7 @@ test.describe('Dashboard E2E Flows', () => {
       await route.fulfill({
         json: {
           title: 'Shared roadmap',
-          content: { elements: [], appState: {}, files: {}, presentationOrder: [] },
+          content: { elements: [], appState: { collaborators: {} }, files: {}, presentationOrder: [] },
         },
       });
     });

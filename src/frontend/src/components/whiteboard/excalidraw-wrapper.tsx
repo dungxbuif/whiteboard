@@ -16,18 +16,10 @@ import { SlideNavigator } from "@/components/whiteboard/slide-navigator";
 import { CollaborationToolbar } from "@/components/whiteboard/collaboration-toolbar";
 import { AICommandPanel } from "@/components/whiteboard/ai-command-panel";
 import useRealtimeStore from "@/store/realtime-store";
+import { normalizeSceneContent } from "@/lib/scene-content";
 
 type ExcalidrawModule = typeof import("@excalidraw/excalidraw");
 const EXCALIDRAW_INITIALIZATION_MS = 250;
-
-function normalizeSceneContent(content: SceneContent): SceneContent {
-  const collaborators = content.appState?.collaborators;
-  if (collaborators && typeof (collaborators as { forEach?: unknown }).forEach === "function") return content;
-  return {
-    ...content,
-    appState: { ...content.appState, collaborators: new Map() } as SceneContent["appState"],
-  };
-}
 
 const saveLabels = {
   idle: "Saved",

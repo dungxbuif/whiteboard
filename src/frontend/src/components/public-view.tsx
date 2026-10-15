@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 import "@excalidraw/excalidraw/index.css";
 
 import api from "@/lib/api";
+import { normalizeSceneContent } from "@/lib/scene-content";
 import type { SceneContent } from "@/store/scene-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,7 @@ export function PublicView({ token }: { token: string }) {
     setError("");
     try {
       const response = await api.get<PublicScene>(`/public/scenes/${token}`, candidatePassword ? { params: { password: candidatePassword } } : undefined);
-      setScene(response.data);
+      setScene({ ...response.data, content: normalizeSceneContent(response.data.content) });
       setRequiresPassword(false);
     } catch (requestError: any) {
       if (requestError.response?.status === 401) setRequiresPassword(true);
