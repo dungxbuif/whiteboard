@@ -11,8 +11,8 @@ updated: 2026-10-15
 ## Current Focus
 
 - **Active Phase:** Reconciliation (Phases 1–5 implementation)
-- **Active Work:** Realtime collaboration/voice and OpenAI-compatible AI vertical slices are implemented and verified locally.
-- **Next Work:** Run deployment/UAT checks with real RelayHub, TURN, and DeepSeek credentials; rotate exposed deployment credentials before release.
+- **Active Work:** Realtime collaboration/voice, OpenAI-compatible AI, authenticated scene routes, and public sharing are deployed on VM100 and smoke-tested.
+- **Next Work:** Rotate any credentials flagged by the release secret-rotation runbook before final production sign-off.
 
 ## Project
 
@@ -32,14 +32,14 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Single active workspace per session (D-03).
 - Context-based tenancy via middleware (D-04).
 - Last-write-wins for scene persistence (D-06).
-- Google OAuth is the only interactive login path; JWT middleware and authenticated API contracts remain stable.
+- Email/password is the active interactive login path; JWT middleware and authenticated API contracts remain stable. Google OAuth is not required by the runtime.
 - Socket.IO is used for ephemeral room coordination; HTTP scene PATCH remains the persistence boundary.
 - Coturn runs on the Homelab gateway at `turn.relayhub.dungxbuif.com:5349`; the app backend mints short-lived TURN REST credentials from `TURN_AUTH_SECRET`.
 - OpenAI-compatible AI calls are backend-proxied and optional locally when `AI_API_KEY` is absent; DeepSeek is the default target.
 
 ## Blockers
 
-- Deployment release is blocked until the Google client secret and any previously exposed JWT secret are rotated in the secret store; see [auth secret rotation runbook](operations/auth-secrets-rotation.md).
+- Final release sign-off still requires checking and rotating any previously exposed JWT or provider credentials; see [auth secret rotation runbook](operations/auth-secrets-rotation.md).
 
 ## Recent Changes
 
@@ -59,3 +59,4 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - 2026-10-15: Completed EXC-019 through EXC-023 public sharing, revoke, password challenge, share dialog, and read-only viewer; backend and Playwright checks pass.
 - 2026-10-15: Completed EXC-024 through EXC-028 realtime rooms, presence/cursors, scene sync, WebRTC voice signaling, and coturn compose configuration.
 - 2026-10-15: Completed EXC-029 through EXC-033 with an OpenAI-compatible DeepSeek proxy, diagram/code generation, image input validation, visual chat, and in-canvas AI controls.
+- 2026-10-15: Fixed public viewer hydration for JSON-persisted collaborator state; unit, browser, build, health, and live public-share checks pass on VM100.

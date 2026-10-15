@@ -16,6 +16,7 @@ shared_fields: [status]
 - Added authenticated scene deep links at `/w/{workspaceId}/scenes/{sceneId}` and enforced workspace-owner authorization for every workspace-scoped API route; public shares remain under `/p/{token}`.
 - Reauthenticated Socket.IO handshakes with the session JWT and restricted realtime room joins to the owning workspace.
 - Upgraded the frontend compiler to TypeScript 7.0.2.
+- Fixed public share rendering for persisted scenes whose Excalidraw collaborator state was JSON-serialized; the viewer now normalizes it before hydration.
 
 ## Field Ownership
 

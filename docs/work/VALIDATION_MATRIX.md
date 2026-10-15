@@ -62,7 +62,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | P2-REQ-03 | 2 | EXC-018 | Slide Navigator & Keyboard Support | no | no | yes | no | no | yes | implemented | Navigator controls and keyboard handling; browser presentation flow passes. |
 | P3-REQ-01 | 3 | EXC-019 | Sharing DB Schema & Domain | yes | no | no | no | no | yes | implemented | Migration plus ScenePermission domain/repository contract. |
 | P3-REQ-01 | 3 | EXC-020 | Sharing Backend | yes | yes | no | no | no | yes | implemented | Share/revoke usecase, bcrypt password handling, authenticated handler, and Go tests. |
-| P3-REQ-02 | 3 | EXC-021 | Public API & Share Dialog UI | no | no | yes | no | no | yes | implemented | Public handler, share dialog, `/p/:token` read-only viewer, and Playwright public viewer test. |
+| P3-REQ-02 | 3 | EXC-021 | Public API & Share Dialog UI | no | no | yes | no | no | yes | implemented | Public handler, share dialog, `/p/:token` read-only viewer, Playwright viewer test, and live production share smoke test. |
 | P3-REQ-03 | 3 | EXC-022 | Password Protection | yes | no | yes | no | no | yes | implemented | bcrypt challenge response and public viewer password prompt. |
 | P3-REQ-04 | 3 | EXC-023 | Sharing Integration Tests | yes | yes | yes | no | no | yes | implemented | Sharing usecase tests, public viewer browser flow, and full suite verification. |
 | P4-REQ-03 | 4 | EXC-024 | Coturn & Docker Setup | no | no | no | no | yes | yes | implemented | `docker compose config`; compose/env docs |
