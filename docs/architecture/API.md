@@ -61,6 +61,11 @@ The frontend toolchain pins TypeScript 7.0.2. TypeScript 7 removed the legacy
 `baseUrl` compiler option, so the app keeps its `@/*` path mapping without that
 option and uses `globalThis` for browser test globals.
 
+Workspace and scene deep-link identifiers remain canonical UUIDs. The legacy
+whiteboard repository has no app-owned short-UUID helper to reuse (its IDs are
+UUIDs; `nanoid` appears only as a transitive dependency), so no unsafe database
+ID migration or new alias scheme was introduced.
+
 Password accounts are created or rotated with `go run ./cmd/userctl --email ...
 --password ...` (or `/app/userctl` in the backend image). Passwords are stored as
 bcrypt hashes and are never returned by the API. The command also creates a
