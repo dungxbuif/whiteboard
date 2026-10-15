@@ -24,7 +24,7 @@ shared_fields: [status]
 - [x] Docker Compose syntax passed (`docker compose config`)
 - [x] Master docs reconciled
 - [x] ADRs updated
-- [x] Release notes prepared in `docs/releases/CHANGELOG.md`
+- [x] Release notes prepared in `docs/releases/CHANGELOG.md` and `docs/releases/2026-10-15-whiteboard-vm100.md`
 - [ ] Production `.env.prod` populated in the secret manager
 - [ ] JWT/TURN/S3 secrets rotated
 - [ ] PostgreSQL backup and restore point confirmed
@@ -32,18 +32,27 @@ shared_fields: [status]
 
 ## Smoke Verification
 
-- [ ] `GET /healthz` returns `{"status":"ok"}`
-- [ ] Password login completes on the HTTPS origin with a user provisioned by `userctl`
-- [ ] Workspace list and scene create/save work
-- [ ] Authenticated scene deep link opens only for the owning workspace
-- [ ] Public share and password challenge work
+- [x] `GET /healthz` returns HTTP 200 with body `ok`
+- [x] Password login completes on the HTTPS origin with a user provisioned by `userctl`
+- [x] Workspace list and scene create/save work
+- [x] Authenticated scene deep link opens only for the owning workspace
+- [x] Public share and password challenge work (automated; live public viewer/revoke smoke also passed)
 - [ ] Socket.IO connection and presence update work
 - [ ] TURN voice call works from two networks
 - [ ] AI chat and diagram generation work with `AI_API_KEY`
 
 ## Post-Release
 
-- [ ] Deployment verified
+- [x] Deployment verified (VM100 health check and live public-share smoke)
 - [ ] Monitoring checked
 - [ ] Incidents recorded if any
-- [ ] `docs/CONTEXT.md` updated
+- [x] `docs/CONTEXT.md` updated
+
+## Evidence Notes — 2026-10-15
+
+- Live public-share smoke used a temporary token and revoked it after the check;
+  the revoked token returned `404 Shared scene not found`.
+- Socket.IO two-browser presence, cross-network TURN voice, and AI generation
+  with a real provider key remain human UAT items.
+- Secret rotation, PostgreSQL backup/restore, and rollback image acceptance
+  remain human-owned production gates.

@@ -46,8 +46,8 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | REQ-02 | 1 | EXC-003 | DB Migrations & Multi-tenant Schema | yes | yes | no | no | no | yes | implemented | Migration assertions and `go test ./...` pass. |
 | REQ-02 | 1 | EXC-004 | Tenant Middleware & Workspace Repository | yes | yes | no | no | yes | yes | implemented | Tenant middleware and repository tests pass. |
 | REQ-01 | 1 | EXC-005 | Shadcn UI & Tailwind Setup | yes | no | no | no | no | no | implemented | [EXC-005](tickets/phase-01/EXC-005/EXC-005-shadcn-ui-and-tailwind-setup.md) |
-| REQ-04 | 1 | EXC-006 | Google OAuth Backend | yes | yes | yes | no | yes | yes | implemented | OAuth usecase/handler tests, provider-backed callback test, and Playwright redirect flow. |
-| REQ-04 | 1 | EXC-007 | Frontend Auth Store | yes | no | yes | no | yes | yes | implemented | OAuth hash handoff unit test and Google-only login Playwright coverage. |
+| REQ-04 | 1 | EXC-006 | Legacy Google OAuth Backend | yes | yes | yes | no | yes | yes | retired | Replaced as the active runtime login path by email/password; legacy identity fields remain for migration compatibility. |
+| REQ-04 | 1 | EXC-007 | Frontend Auth Store | yes | no | yes | no | yes | yes | implemented | Email/password session handoff, authenticated dashboard flows, frontend unit/build, and Playwright coverage. |
 | REQ-05 | 1 | EXC-008 | Workspace CRUD Full Stack | yes | yes | yes | no | no | yes | implemented | Workspace usecase/repository tests and dashboard browser flows pass. |
 | REQ-06 | 1 | EXC-009 | Folder Backend Materialized Path | yes | yes | no | no | yes | no | implemented | [EXC-009](tickets/phase-01/EXC-009/EXC-009-folder-backend-materialized-path.md) |
 | REQ-06 | 1 | EXC-010 | Folder Frontend Tree+Nav | yes | yes | yes | no | yes | no | implemented | [EXC-010](tickets/phase-01/EXC-010/EXC-010-folder-frontend-tree-nav.md) |
@@ -55,7 +55,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | REQ-10 | 1 | EXC-012 | Excalidraw Integration | yes | yes | yes | yes | yes | yes | implemented | [EXC-012 evidence](tickets/phase-01/EXC-012/EXC-012-excalidraw-integration.md) |
 | REQ-03 | 1 | EXC-013 | S3 Assets | yes | no | no | no | no | no | implemented | Unit tests for AssetUsecase and AssetHandler pass |
 | REQ-08,09 | 1 | EXC-014 | Search + Starred/Trash | yes | no | yes | no | no | yes | implemented | `go test ./...`; `npm run test:unit`; `npm run build`; `npx playwright test` (11 passed) |
-| REQ-04 | 1 | EXC-034 | Replace Temporary Admin Auth With Google OAuth | yes | yes | yes | no | yes | yes | implemented | OAuth state/usecase/handler tests; frontend unit/build; `npx playwright test` (11 passed). Deployment credential rotation is tracked as an operational release gate. |
+| REQ-04 | 1 | EXC-034 | Email/Password Auth and User Provisioning | yes | yes | yes | no | yes | yes | implemented | Password auth/userctl tests; default-workspace creation; frontend unit/build; `npx playwright test` (11 passed). Deployment credential rotation is tracked as an operational release gate. |
 | P2-REQ-01 | 2 | EXC-015 | Frame Persistence & Scene Store Extension | yes | no | yes | no | no | yes | implemented | `npm run test:unit`; `npm run build`; presentation E2E flow. |
 | P2-REQ-01 | 2 | EXC-016 | Frame Tool Activation | no | no | yes | no | no | yes | implemented | Native Excalidraw frame tool remains available; browser canvas flow passes. |
 | P2-REQ-02 | 2 | EXC-017 | Presentation Engine & Controls | yes | no | yes | no | no | yes | implemented | Presentation store and controls; `npx playwright test` passes. |

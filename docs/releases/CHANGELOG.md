@@ -12,6 +12,7 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Release candidate: [Whiteboard VM100 — 2026-10-15](2026-10-15-whiteboard-vm100.md). Automated checks and live public-share verification passed; human secret-rotation, backup/restore, rollback, voice, and AI gates remain documented in the release checklist.
 - Temporarily switched interactive authentication to email/password login and added the backend `userctl` CLI for user creation and password rotation. Google OAuth is no longer wired into the runtime routes or required environment.
 - Added authenticated scene deep links at `/w/{workspaceId}/scenes/{sceneId}` and enforced workspace-owner authorization for every workspace-scoped API route; public shares remain under `/p/{token}`.
 - Reauthenticated Socket.IO handshakes with the session JWT and restricted realtime room joins to the owning workspace.
@@ -32,7 +33,7 @@ All notable changes should be recorded here.
 - Embedded Excalidraw editor with workspace-scoped scene creation, opening, rename, star, trash, and responsive canvas UI.
 - Debounced last-write-wins scene persistence with visible save status and stale-response protection.
 - Workspace-scoped search across folders and scenes, plus Starred and Trash dashboard views with restore actions.
-- Google OAuth login and callback with state protection, Google profile upsert, and JWT session handoff; removed the temporary admin login.
+- Email/password login with backend-issued JWT sessions, default workspace creation, and the `userctl` provisioning/password-rotation CLI; legacy Google identity columns remain only for migration compatibility.
 - Frame-based presentation mode with persisted slide order, slide navigator,
   reorder controls, animated navigation, and keyboard shortcuts.
 - Public read-only scene links with revoke controls, optional bcrypt password
