@@ -29,6 +29,33 @@ func TenantMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// WorkspaceAccessMiddleware verifies that the authenticated user owns the
+// workspace selected by TenantMiddleware. Parsing a workspace header alone is
+// not authorization: every workspace-scoped route must enforce ownership
+// before reaching its handler.
+func WorkspaceAccessMiddleware(workspaces domain.WorkspaceRepository) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, ok := UserIDFromContext(r.Context())
+			if !ok {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			workspaceID, ok := WorkspaceIDFromContext(r.Context())
+			if !ok {
+				http.Error(w, "Workspace context is required", http.StatusBadRequest)
+				return
+			}
+			workspace, err := workspaces.FindByID(r.Context(), workspaceID)
+			if err != nil || workspace.OwnerID != userID {
+				http.Error(w, "Forbidden", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // WorkspaceIDFromContext retrieves the workspace ID from the context.
 func WorkspaceIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	id, ok := ctx.Value(domain.ContextKeyWorkspaceID).(uuid.UUID)

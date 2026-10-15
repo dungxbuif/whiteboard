@@ -142,7 +142,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithSharing(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
+		Handler:           httpdelivery.NewRouterWithSharingAndWorkspaceAccess(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, middledelivery.WorkspaceAccessMiddleware(workspaceRepo), searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 

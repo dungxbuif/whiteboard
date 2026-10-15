@@ -1,21 +1,38 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"devtool/internal/domain"
 	"github.com/google/uuid"
 )
+
+type workspaceAccessRepo struct {
+	workspace *domain.Workspace
+	err       error
+}
+
+func (r workspaceAccessRepo) FindByID(context.Context, uuid.UUID) (*domain.Workspace, error) {
+	return r.workspace, r.err
+}
+
+func (workspaceAccessRepo) ListForUser(context.Context, uuid.UUID) ([]domain.Workspace, error) {
+	return nil, nil
+}
+
+func (workspaceAccessRepo) Save(context.Context, *domain.Workspace) error { return nil }
 
 func TestTenantMiddleware(t *testing.T) {
 	validUUID := uuid.New()
 
 	tests := []struct {
-		name           string
+		name            string
 		workspaceHeader string
-		expectedStatus int
-		expectID       bool
+		expectedStatus  int
+		expectID        bool
 	}{
 		{
 			name:            "valid workspace ID",
@@ -66,6 +83,38 @@ func TestTenantMiddleware(t *testing.T) {
 
 			if rr.Code != tt.expectedStatus {
 				t.Errorf("expected status %v, got %v", tt.expectedStatus, rr.Code)
+			}
+		})
+	}
+}
+
+func TestWorkspaceAccessMiddlewareRequiresOwnership(t *testing.T) {
+	ownerID := uuid.New()
+	workspaceID := uuid.New()
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+
+	tests := []struct {
+		name      string
+		userID    uuid.UUID
+		workspace *domain.Workspace
+		repoErr   error
+		expected  int
+	}{
+		{name: "owner is allowed", userID: ownerID, workspace: &domain.Workspace{ID: workspaceID, OwnerID: ownerID}, expected: http.StatusNoContent},
+		{name: "different user is forbidden", userID: uuid.New(), workspace: &domain.Workspace{ID: workspaceID, OwnerID: ownerID}, expected: http.StatusForbidden},
+		{name: "unknown workspace is forbidden", userID: ownerID, repoErr: context.Canceled, expected: http.StatusForbidden},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			ctx := context.WithValue(req.Context(), domain.ContextKeyUserID, tt.userID)
+			ctx = context.WithValue(ctx, domain.ContextKeyWorkspaceID, workspaceID)
+			req = req.WithContext(ctx)
+			rr := httptest.NewRecorder()
+			WorkspaceAccessMiddleware(workspaceAccessRepo{workspace: tt.workspace, err: tt.repoErr})(next).ServeHTTP(rr, req)
+			if rr.Code != tt.expected {
+				t.Fatalf("expected status %d, got %d", tt.expected, rr.Code)
 			}
 		})
 	}

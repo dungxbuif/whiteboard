@@ -35,6 +35,7 @@ shared_fields: [status]
 - [ ] `GET /healthz` returns `{"status":"ok"}`
 - [ ] Password login completes on the HTTPS origin with a user provisioned by `userctl`
 - [ ] Workspace list and scene create/save work
+- [ ] Authenticated scene deep link opens only for the owning workspace
 - [ ] Public share and password challenge work
 - [ ] Socket.IO connection and presence update work
 - [ ] TURN voice call works from two networks

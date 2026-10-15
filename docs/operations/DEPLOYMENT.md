@@ -32,7 +32,8 @@ image-to-diagram is required.
 2. Build and start the migration job, backend, and frontend:
    `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.
 3. Confirm the migration job exits successfully before accepting traffic.
-4. Verify `/healthz`, password sign-in, a workspace request, scene save, public
+4. Verify `/healthz`, password sign-in, an owned workspace request, scene save,
+   an authenticated deep link at `/w/{workspaceId}/scenes/{sceneId}`, public
    share viewer, `/socket.io/` connection, TURN allocation from an external
    network, and the AI proxy with a real key.
 5. Record the image tags, migration version, and verification results in the

@@ -87,6 +87,15 @@ test.describe('Dashboard E2E Flows', () => {
       const body = request.postDataJSON() as Record<string, unknown> | null;
 
       if (request.method() === 'GET') {
+        if (sceneId) {
+          const scene = mockScenes.find((candidate) => candidate.id === sceneId);
+          if (!scene) {
+            await route.fulfill({ status: 404, body: 'scene not found' });
+            return;
+          }
+          await route.fulfill({ json: scene });
+          return;
+        }
         await route.fulfill({ json: mockScenes });
         return;
       }

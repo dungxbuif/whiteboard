@@ -149,7 +149,14 @@ const useSceneStore = create<SceneState>((set, get) => {
       const response = await api.get<Scene>(`/scenes/${sceneId}/`, {
         headers: workspaceHeaders(workspaceId),
       });
-      set({ activeScene: response.data, saveStatus: "idle", error: null });
+      set((state) => ({
+        scenes: state.scenes.some((scene) => scene.id === response.data.id)
+          ? updateScene(state.scenes, response.data)
+          : [response.data, ...state.scenes],
+        activeScene: response.data,
+        saveStatus: "idle",
+        error: null,
+      }));
     },
 
     closeScene: async () => {

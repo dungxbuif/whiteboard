@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 import "@excalidraw/excalidraw/index.css";
 
 import { Button } from "@/components/ui/button";
+import { navigate } from "@/lib/router";
 import type { SceneContent } from "@/store/scene-store";
 import useSceneStore, { syncPresentationOrder } from "@/store/scene-store";
 import usePresentationStore from "@/store/presentation-store";
@@ -192,7 +193,7 @@ export function ExcalidrawWrapper() {
     <main className="grid h-screen min-w-0 grid-rows-[56px_minmax(0,1fr)] overflow-hidden bg-background">
       <header className="flex min-w-0 flex-wrap items-center justify-between gap-4 border-b bg-card px-4 max-md:gap-2">
         <div className="flex min-w-0 items-center gap-3">
-          <Button aria-label="Back to dashboard" onClick={() => void closeScene().catch(() => undefined)} size="icon" type="button" variant="ghost">
+          <Button aria-label="Back to dashboard" onClick={() => void closeScene().then(() => navigate("/")).catch(() => undefined)} size="icon" type="button" variant="ghost">
             <ArrowLeft size={18} aria-hidden="true" />
           </Button>
           <h1 className="truncate font-semibold">{activeScene.title}</h1>

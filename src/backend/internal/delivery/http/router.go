@@ -24,7 +24,7 @@ func NewRouter(
 	if len(searchHandlers) > 0 {
 		searchHandler = searchHandlers[0]
 	}
-	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, nil, nil, nil, nil, nil)
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, nil, searchHandler, nil, nil, nil, nil, nil)
 }
 
 func NewRouterWithSharing(
@@ -34,6 +34,41 @@ func NewRouterWithSharing(
 	sceneHandler *handler.SceneHandler,
 	assetHandler *handler.AssetHandler,
 	authMiddleware func(http.Handler) http.Handler,
+	searchHandler *handler.SearchHandler,
+	sharingHandler *handler.SharingHandler,
+	publicHandler *handler.PublicHandler,
+	realtimeHandlers ...nethttp.Handler,
+) nethttp.Handler {
+	return newRouterWithSharing(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, nil, searchHandler, sharingHandler, publicHandler, realtimeHandlers...)
+}
+
+// NewRouterWithSharingAndWorkspaceAccess wires ownership checks into every
+// workspace-scoped route. The legacy constructor remains available for unit
+// tests and callers that provide their own authorization layer.
+func NewRouterWithSharingAndWorkspaceAccess(
+	authHandler *handler.AuthHandler,
+	workspaceHandler *handler.WorkspaceHandler,
+	folderHandler *handler.FolderHandler,
+	sceneHandler *handler.SceneHandler,
+	assetHandler *handler.AssetHandler,
+	authMiddleware func(http.Handler) http.Handler,
+	workspaceAccessMiddleware func(http.Handler) http.Handler,
+	searchHandler *handler.SearchHandler,
+	sharingHandler *handler.SharingHandler,
+	publicHandler *handler.PublicHandler,
+	realtimeHandlers ...nethttp.Handler,
+) nethttp.Handler {
+	return newRouterWithSharing(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, workspaceAccessMiddleware, searchHandler, sharingHandler, publicHandler, realtimeHandlers...)
+}
+
+func newRouterWithSharing(
+	authHandler *handler.AuthHandler,
+	workspaceHandler *handler.WorkspaceHandler,
+	folderHandler *handler.FolderHandler,
+	sceneHandler *handler.SceneHandler,
+	assetHandler *handler.AssetHandler,
+	authMiddleware func(http.Handler) http.Handler,
+	workspaceAccessMiddleware func(http.Handler) http.Handler,
 	searchHandler *handler.SearchHandler,
 	sharingHandler *handler.SharingHandler,
 	publicHandler *handler.PublicHandler,
@@ -51,7 +86,7 @@ func NewRouterWithSharing(
 	if len(realtimeHandlers) > 2 {
 		realtimeConfigHandler = realtimeHandlers[2]
 	}
-	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, searchHandler, sharingHandler, publicHandler, realtimeHandler, aiHandler, realtimeConfigHandler)
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, workspaceAccessMiddleware, searchHandler, sharingHandler, publicHandler, realtimeHandler, aiHandler, realtimeConfigHandler)
 }
 
 func newRouter(
@@ -61,6 +96,7 @@ func newRouter(
 	sceneHandler *handler.SceneHandler,
 	assetHandler *handler.AssetHandler,
 	authMiddleware func(http.Handler) http.Handler,
+	workspaceAccessMiddleware func(http.Handler) http.Handler,
 	searchHandler *handler.SearchHandler,
 	sharingHandler *handler.SharingHandler,
 	publicHandler *handler.PublicHandler,
@@ -89,6 +125,9 @@ func newRouter(
 			if searchHandler != nil {
 				r.Route("/search", func(r chi.Router) {
 					r.Use(deliverymiddleware.TenantMiddleware)
+					if workspaceAccessMiddleware != nil {
+						r.Use(workspaceAccessMiddleware)
+					}
 					r.Get("/", searchHandler.Search)
 				})
 			}
@@ -108,6 +147,9 @@ func newRouter(
 
 			r.Route("/folders", func(r chi.Router) {
 				r.Use(deliverymiddleware.TenantMiddleware)
+				if workspaceAccessMiddleware != nil {
+					r.Use(workspaceAccessMiddleware)
+				}
 				r.Get("/", folderHandler.List)
 				r.Post("/", folderHandler.Create)
 				r.Route("/{id}", func(r chi.Router) {
@@ -120,6 +162,9 @@ func newRouter(
 
 			r.Route("/scenes", func(r chi.Router) {
 				r.Use(deliverymiddleware.TenantMiddleware)
+				if workspaceAccessMiddleware != nil {
+					r.Use(workspaceAccessMiddleware)
+				}
 				r.Get("/", sceneHandler.List)
 				r.Post("/", sceneHandler.Create)
 				r.Route("/{id}", func(r chi.Router) {
@@ -136,6 +181,9 @@ func newRouter(
 
 			r.Route("/assets", func(r chi.Router) {
 				r.Use(deliverymiddleware.TenantMiddleware)
+				if workspaceAccessMiddleware != nil {
+					r.Use(workspaceAccessMiddleware)
+				}
 				r.Post("/presign-upload", assetHandler.PresignUpload)
 				r.Post("/presign-view", assetHandler.PresignView)
 			})

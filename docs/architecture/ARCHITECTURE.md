@@ -44,8 +44,9 @@ S3-compatible binary asset storage.
   and asset upload orchestration.
 - **Repository Layer:** PostgreSQL row mapping and transactions for metadata;
   S3-compatible object operations for binary assets.
-- **Delivery Layer:** HTTP handlers and middleware. Middleware validates auth
-  and injects user/workspace context for usecase and repository calls.
+- **Delivery Layer:** HTTP handlers and middleware. Middleware validates auth,
+  parses the selected workspace, and verifies that the authenticated user owns
+  it before workspace-scoped handlers run.
 - **Whiteboard:** Embedded `@excalidraw/excalidraw` engine. Excalidraw scene
   content is persisted through the backend as JSONB, not by direct browser DB
   access.
@@ -71,9 +72,9 @@ S3-compatible binary asset storage.
 - **Multi-tenancy:** `WorkspaceID` is extracted at the delivery boundary and
   carried through Go context. Every workspace-owned repository query must filter
   by `workspace_id`.
-- **Workspace Membership:** Workspace access is checked against
-  `workspace_members` after authenticated sessions exist. Header-based
-  workspace selection is only a temporary pre-auth implementation bridge.
+- **Workspace Membership:** The current runtime authorizes workspace routes by
+  owner ID. Header-based selection remains the transport mechanism, but the
+  header is never trusted without the JWT ownership check.
 - **Data Organization:** Folder hierarchy uses application-managed materialized
   paths. Folder move and trash operations update descendants in a single
   workspace-scoped transaction.
@@ -95,6 +96,9 @@ S3-compatible binary asset storage.
 - **Sharing:** Owners manage one workspace-scoped permission per scene. Public
   access resolves an opaque token, checks active state and an optional bcrypt
   hash, then returns scene JSON to a read-only viewer without JWT access.
+- **Scene URLs:** Authenticated editors use `/w/{workspaceId}/scenes/{sceneId}`;
+  the SPA loads the scene through the protected API and displays an access error
+  when the workspace or scene is not authorized.
 - **Sync:** Frontend saves scene changes through debounced API calls. Asset
   uploads go through backend S3 orchestration before scene JSON references the
   stored asset.

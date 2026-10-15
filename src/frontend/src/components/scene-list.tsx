@@ -3,13 +3,16 @@ import { FilePenLine, Star } from "lucide-react";
 import { SceneActions } from "@/components/scene-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { navigate } from "@/lib/router";
 import useSceneStore from "@/store/scene-store";
+import useWorkspaceStore from "@/store/workspace-store";
 
 export function SceneList() {
   const scenes = useSceneStore((state) => state.scenes);
   const isLoading = useSceneStore((state) => state.isLoading);
   const error = useSceneStore((state) => state.error);
   const openScene = useSceneStore((state) => state.openScene);
+  const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
 
   return (
     <section className="grid gap-4" aria-label="Scenes">
@@ -37,7 +40,14 @@ export function SceneList() {
               </CardHeader>
               <CardContent className="grid gap-3 text-sm text-muted-foreground">
                 <span>Version {scene.contentVersion}</span>
-                <Button onClick={() => openScene(scene)} type="button" variant="outline">Open</Button>
+                <Button
+                  onClick={() => {
+                    openScene(scene);
+                    navigate(`/w/${activeWorkspaceId ?? scene.workspaceId}/scenes/${scene.id}`);
+                  }}
+                  type="button"
+                  variant="outline"
+                >Open</Button>
               </CardContent>
             </Card>
           ))}

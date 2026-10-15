@@ -13,6 +13,7 @@ shared_fields: [status]
 ## Unreleased
 
 - Temporarily switched interactive authentication to email/password login and added the backend `userctl` CLI for user creation and password rotation. Google OAuth is no longer wired into the runtime routes or required environment.
+- Added authenticated scene deep links at `/w/{workspaceId}/scenes/{sceneId}` and enforced workspace-owner authorization for every workspace-scoped API route; public shares remain under `/p/{token}`.
 
 ## Field Ownership
 
