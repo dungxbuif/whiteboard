@@ -1,0 +1,1 @@
+-- Folder schema is owned by 000001_init and must not be dropped here.

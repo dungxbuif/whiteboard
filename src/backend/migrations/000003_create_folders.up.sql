@@ -1,0 +1,2 @@
+-- Folder schema is created by 000001_init.up.sql.
+-- This retained migration is intentionally empty to preserve migration ordering.
