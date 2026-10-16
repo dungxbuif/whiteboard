@@ -22,3 +22,14 @@ export function mergeSceneChanges(base: SceneContent, desired: SceneContent, cur
   if (!equal(base.presentationOrder ?? [], desired.presentationOrder ?? [])) result.presentationOrder = desired.presentationOrder;
   return result;
 }
+
+// Remember local intent actually applied; remote fields are not new local edits.
+export function advanceLocalBaseline(base: SceneContent, desired: SceneContent, current: SceneContent): SceneContent {
+  const before = new Map(base.elements.map(element => [element.id, element]));
+  const live = new Map(current.elements.map(element => [element.id, element]));
+  return structuredClone({ ...desired, elements: desired.elements.flatMap(element => {
+    const old = before.get(element.id);
+    if (!old && live.has(element.id)) return []; // Unrelated colliding addition was not applied.
+    return [old && !live.has(element.id) ? old : element];
+  }) });
+}

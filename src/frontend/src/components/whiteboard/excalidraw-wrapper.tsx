@@ -5,7 +5,7 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { CollabProvider, useCollab } from '@/collab/provider';
 import { offlineStore, scopeKey, type PendingBlob, type ImageDraft } from '@/collab/offline-store';
 import { uploadBlob, type UploadGrant } from '@/collab/assets';
-import { mergeSceneChanges } from '@/collab/scene-diff';
+import { advanceLocalBaseline, mergeSceneChanges } from '@/collab/scene-diff';
 import { Button } from '@/components/ui/button';
 import { navigate } from '@/lib/router';
 import { normalizeSceneContent } from '@/lib/scene-content';
@@ -43,6 +43,8 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
   const files = useRef<Record<string, CanvasFile>>({});
   const refs = useRef<Record<string, AssetReference>>({});
   const pending = useRef<ImageDraft | null>(null);
+  const preparing = useRef(new WeakMap<ImageDraft, Promise<void>>());
+  const appliedImage = useRef<{ scope: string; owner: number; transport: typeof transport; base: SceneContent; durable: Promise<void> } | null>(null);
   const lastNative = useRef<SceneContent | null>(null);
   const localProjection = useRef<string | null>(null);
   const lifetime = useRef(0);
@@ -95,10 +97,14 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     if (!scope || uploading.current || !allowed()) return;
     uploading.current = true; let repeat = false;
     try {
+      const draft = pending.current;
+      if (draft) await preparing.current.get(draft);
+      if (!allowed()) return;
+      if (pending.current !== draft) { repeat = true; return; }
+      if (draft?.pendingBaseline) throw new Error('Image preparation was interrupted. Export recovery before reopening or clearing local data; automatic image replay is paused.');
       const rows = await offlineStore.blobs(scope); if (!allowed()) return; setUploads(rows.length);
       // Upgrade retained pre-revision recovery before any upload/cleanup.
       if (pending.current && pending.current.revision === undefined) { pending.current.revision = await offlineStore.reserveImageDraft(scope, pending.current); if (!allowed()) return; }
-      const draft = pending.current;
       const conflict = () => new Error('A newer image draft exists in this scene. Recovery retained; export recovery and reopen the scene.');
       const currentDraft = async () => {
         if (!allowed()) return false;
@@ -128,7 +134,10 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
           if (!allowed()) return;
           if (useSceneStore.getState().saveStatus !== 'saved') throw new Error('Legacy save is not confirmed; recovery retained.');
         } else {
-          current.applyLocalScene(mergeSceneChanges(draft.base, desired, current.adapter.content()));
+          const before = current.adapter.content();
+          current.applyLocalScene(mergeSceneChanges(draft.base, desired, before));
+          const durable = current.transport.whenDurable(); void durable.catch(() => undefined);
+          appliedImage.current = { scope: scopeKey(scope), owner, transport: current.transport, base: advanceLocalBaseline(draft.base, desired, before), durable };
           await current.transport.flush();
         }
         if (!allowed()) return;
@@ -137,7 +146,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
         if (!allowed()) return;
         if (pending.current !== draft) { repeat = true; return; }
         if (!completed) throw conflict();
-        pending.current = null;
+        pending.current = null; appliedImage.current = null;
       }
       setUploads(0); setUploadError('');
     } catch (error) { if (allowed()) setUploadError(error instanceof Error ? error.message : 'Upload failed. Bytes retained.'); }
@@ -192,15 +201,27 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     const missing = Object.values(files.current).filter(file => !refs.current[file.id] && file.dataURL?.startsWith('data:') && desired.elements.some(e => e.type === 'image' && e.fileId === file.id));
     try {
       if (missing.length || pending.current) {
-        const draft: ImageDraft = { base: pending.current?.base ?? renderedContent, desired };
+        const prior = appliedImage.current;
+        const applied = pending.current && prior && assetScope && prior.scope === scopeKey(assetScope) && prior.owner === owner && prior.transport === transport ? prior : null;
+        const draft: ImageDraft = { base: pending.current?.base ?? renderedContent, desired, ...((applied || pending.current?.pendingBaseline) ? { pendingBaseline: true } : {}) };
         pending.current = draft;
         if (!assetScope) return;
-        draft.revision = await offlineStore.reserveImageDraft(assetScope, draft);
-        for (const file of missing) {
-          const blob = await (await fetch(file.dataURL!)).blob();
-          const item: PendingBlob = { scope: assetScope, id: file.id, mimeType: file.mimeType, created: file.created, blob, draft };
-          await offlineStore.putImageBlob(item, draft.revision);
-        }
+        const preparation = (async () => {
+          draft.revision = await offlineStore.reserveImageDraft(assetScope, draft);
+          for (const file of missing) {
+            const blob = await (await fetch(file.dataURL!)).blob();
+            const item: PendingBlob = { scope: assetScope, id: file.id, mimeType: file.mimeType, created: file.created, blob, draft };
+            await offlineStore.putImageBlob(item, draft.revision);
+          }
+          if (applied) {
+            await applied.durable;
+            if (!stillCurrent()) return;
+            if (!await offlineStore.rebaseImageDraft(assetScope, draft.revision, applied.base)) throw new Error('A newer image draft exists. Recovery retained; export recovery and reopen the scene.');
+            draft.base = applied.base; delete draft.pendingBaseline;
+          }
+        })();
+        preparing.current.set(draft, preparation);
+        await preparation;
         if (stillCurrent()) { setUploads(missing.length); void retryUploads(); }
       } else if (state.status === 'legacy') {
         await offlineStore.saveDraft(legacyScope, desired);

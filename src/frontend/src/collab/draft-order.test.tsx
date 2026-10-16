@@ -27,7 +27,7 @@ it.each(['initial-only', 'closed', 'same-scope-reopen', 'different-principal'])(
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ blob: async () => { if (++conversions === 1) await oldGate; return new ByteBlob([url.includes('other') ? 'other-bytes' : 'original-bytes'], { type: 'image/png' }); } })));
   vi.mocked(uploadBlob).mockImplementation(() => new Promise(() => {}));
   function controller(target = scope) {
-    const adapter = new ExcalidrawAdapter(), transport = { scope: target, state: { status: 'synced', canEdit: true, pending: 0, recovery: false }, isActive: () => true, flush: async () => {}, sendAwareness: () => {} };
+    const adapter = new ExcalidrawAdapter(), transport = { scope: target, state: { status: 'synced', canEdit: true, pending: 0, recovery: false }, isActive: () => true, flush: async () => {}, whenDurable: async () => {}, sendAwareness: () => {} };
     mock.controller = { adapter, transport, state: transport.state, content: adapter.content(), legacy: null, sceneRef: target, undo: createLocalUndo(adapter.doc), principal: { current: { kind: 'user', id: target.principalId } }, applyLocalScene: (content: SceneContent) => adapter.applyLocalScene(content), post: vi.fn() };
     return adapter;
   }

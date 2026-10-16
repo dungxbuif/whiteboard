@@ -2,7 +2,7 @@ import * as Y from 'yjs';
 import type { SceneContent } from '@collab/contracts';
 export type PendingScope = { principalId: string; workspaceId: string; sceneId: string; documentId: string };
 export type PendingUpdate = { scope: PendingScope; requestId: string; update: Uint8Array; created: number; sent?: boolean };
-export type ImageDraft = { base: SceneContent; desired: SceneContent; revision?: number };
+export type ImageDraft = { base: SceneContent; desired: SceneContent; revision?: number; pendingBaseline?: boolean };
 type DraftRecord = { scope: PendingScope; content?: SceneContent; imageDraft?: ImageDraft; revision?: number };
 export type PendingBlob = { scope: PendingScope; id: string; blob: Blob; mimeType: string; created: number; draft?: ImageDraft };
 export const scopeKey = (s: PendingScope) => JSON.stringify([s.principalId, s.workspaceId, s.sceneId, s.documentId]);
@@ -87,6 +87,17 @@ export class OfflineStore {
       const blobs = store.transaction.objectStore('blobs'), id = key(item.scope, item.id);
       const existing = await request(blobs.get(id)) as PendingBlob | undefined;
       await request(blobs.put({ ...(existing ?? item), draft: latest.imageDraft }, id));
+    });
+  }
+  async rebaseImageDraft(scope: PendingScope, revision: number, base: SceneContent): Promise<boolean> {
+    return this.transaction(['drafts', 'blobs'], 'readwrite', async store => {
+      const latest = await request(store.get(scopeKey(scope))) as DraftRecord | undefined;
+      if (latest?.revision !== revision || !latest.imageDraft) return false;
+      const imageDraft = { ...latest.imageDraft, base }; delete imageDraft.pendingBaseline;
+      await request(store.put({ ...latest, imageDraft }, scopeKey(scope)));
+      const blobs = store.transaction.objectStore('blobs');
+      for (const row of await request(blobs.getAll()) as PendingBlob[]) if (scopeKey(row.scope) === scopeKey(scope)) await request(blobs.put({ ...row, draft: imageDraft }, key(scope, row.id)));
+      return true;
     });
   }
   async isImageDraftCurrent(scope: PendingScope, revision: number): Promise<boolean> {

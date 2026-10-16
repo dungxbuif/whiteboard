@@ -33,7 +33,7 @@ it.each(['during-put', 'during-flush'])('collab active same-scope conflict stops
   }));
   function controller(first: boolean) {
     const adapter = new ExcalidrawAdapter();
-    const transport = { scope, state: { status: 'synced', canEdit: true, pending: 0, recovery: false }, isActive: () => !first || firstActive, flush: async () => { if (first) { reachedFlush.resolve(); await flush.promise; } }, sendAwareness: () => {}, retry: () => {} };
+    const transport = { scope, state: { status: 'synced', canEdit: true, pending: 0, recovery: false }, isActive: () => !first || firstActive, flush: async () => { if (first) { reachedFlush.resolve(); await flush.promise; } }, whenDurable: async () => {}, sendAwareness: () => {}, retry: () => {} };
     const applyLocalScene = vi.fn((content: SceneContent) => adapter.applyLocalScene(content));
     mock.controller = { adapter, transport, state: transport.state, content: adapter.content(), legacy: null, sceneRef: scope, undo: createLocalUndo(adapter.doc), principal: { current: { kind: 'user', id: scope.principalId } }, applyLocalScene, post: async () => ({ urls: { file: { assetId: 'stored', uploadUrl: `https://assets.test/${first ? 'first' : 'second'}`, headers: { 'Content-Type': 'image/png' } } } }) };
     return { adapter, applyLocalScene };

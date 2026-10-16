@@ -38,3 +38,7 @@ For API consumers, see the internal [API reference](../architecture/API.md). An 
 The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](../architecture/BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
 
 For editing states, local undo, image retries and retained offline work, see [browser collaboration and recovery](../../src/frontend/public/docs/browser-collaboration.md).
+
+### Interrupted image preparation
+
+Moving an image while its upload or save is pending preserves the latest position and independent remote edits. If the canvas closes or local storage fails before image preparation finishes, automatic image replay pauses. The browser keeps the original draft and image bytes and shows a recovery message after reopening. Choose **Export recovery** and keep the download before clearing browser data; reopening or pressing Retry does not resolve this incomplete preparation automatically. Normally completed preparation resumes automatically after reload. Recovery exports include `blobs[].draft.pendingBaseline=true` for this interrupted case, together with the retained draft and encoded image bytes.

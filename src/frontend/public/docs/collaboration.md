@@ -80,3 +80,7 @@ See [browser collaboration and recovery](browser-collaboration.md) for scoped qu
 The current branch includes a tested recovery procedure for a verified replacement scene with a new link. Your original queued edits stay associated with their original scene; they are not automatically replayed into the replacement. Keep a downloaded recovery copy and ask the workspace owner which link to use.
 
 Scenes containing images/assets or scene-specific access overrides require an operator mapping procedure before replacement. The bounded rehearsal refuses those cases. This is not an automatic restore button, version-history feature, or proof of a production backup restore. Production rollout remains pending.
+
+### Interrupted image preparation
+
+Moving an image while its upload or save is pending preserves the latest position and independent remote edits. If the canvas closes or local storage fails before image preparation finishes, automatic image replay pauses. The browser keeps the original draft and image bytes and shows a recovery message after reopening. Choose **Export recovery** and keep the download before clearing browser data; reopening or pressing Retry does not resolve this incomplete preparation automatically. Normally completed preparation resumes automatically after reload. Recovery exports include `blobs[].draft.pendingBaseline=true` for this interrupted case, together with the retained draft and encoded image bytes.
