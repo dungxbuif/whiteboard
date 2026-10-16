@@ -17,7 +17,7 @@ describe('bounded native renderer',()=>{
 
 test('kills a non-cooperative worker and rejects concurrent jobs',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'renderer-test-'));const path=join(dir,'spin.cjs');await writeFile(path,'process.on("message",()=>{while(true){}})');let pid=0;
- try{const worker=new RenderWorker({deadlineMs:150,childPath:path,onProcess:p=>pid=p});const running=worker.compileMermaid('flowchart LR\nA');await expect(worker.compileMermaid('flowchart LR\nB')).rejects.toMatchObject({code:'RENDER_BUSY'});await expect(running).rejects.toMatchObject({code:'RENDER_TIMEOUT'});await new Promise(resolve=>setTimeout(resolve,30));expect(()=>process.kill(pid,0)).toThrow();}finally{await rm(dir,{recursive:true,force:true});}
+ try{const worker=new RenderWorker({deadlineMs:2000,childPath:path,onProcess:p=>pid=p});const running=worker.compileMermaid('flowchart LR\nA');await expect(worker.compileMermaid('flowchart LR\nB')).rejects.toMatchObject({code:'RENDER_BUSY'});await expect(running).rejects.toMatchObject({code:'RENDER_TIMEOUT'});await new Promise(resolve=>setTimeout(resolve,30));expect(()=>process.kill(pid,0)).toThrow();}finally{await rm(dir,{recursive:true,force:true});}
 });
 test('embeds bundled sketch fonts and Unicode multiline labels',async()=>{
  const diagram=await compileMermaid('flowchart TB\nA[Tiếng Việt 日本語 🚀] --> B[Second line]',{theme:'sketch'});const result=await new RenderWorker().render({elements:diagram.elements,appState:{},files:{}},'svg',{});const svg=result.bytes.toString();expect(svg).toContain('Tiếng Việt');expect(svg).toContain('日本語');expect(svg).toContain('@font-face');expect(svg).toMatch(/data:(application|font)\//);expect(svg).not.toContain('https://esm.sh');
@@ -50,7 +50,7 @@ test('official conversion keeps multiline text inside its native container and r
 },15000);
 
 test('deadline kills Chromium even when its renderer JavaScript never yields',async()=>{
- const dir=await mkdtemp(join(tmpdir(),'browser-timeout-')),path=join(dir,'spin.mjs'),pidfile=join(dir,'browser.pid');
- await writeFile(path,`import {chromium} from ${JSON.stringify(import.meta.resolve('playwright'))};import{writeFileSync}from'node:fs';process.once('message',async()=>{const server=await chromium.launchServer();writeFileSync(${JSON.stringify(pidfile)},String(server.process().pid));process.send({kind:'browser',pid:server.process().pid});const browser=await chromium.connect(server.wsEndpoint());const page=await browser.newPage();await page.evaluate(()=>{while(true){}});});`);
- try{const worker=new RenderWorker({deadlineMs:2000,childPath:path});await expect(worker.compileMermaid('flowchart LR\nA')).rejects.toMatchObject({code:'RENDER_TIMEOUT'});const pid=Number(await readFile(pidfile,'utf8'));await new Promise(r=>setTimeout(r,100));expect(()=>process.kill(pid,0)).toThrow();}finally{await rm(dir,{recursive:true,force:true});}
+ const dir=await mkdtemp(join(tmpdir(),'browser-timeout-')),path=join(dir,'spin.mjs'),marker=join(dir,'loop-started');let browserPid=0;
+ await writeFile(path,`import {chromium} from ${JSON.stringify(import.meta.resolve('playwright'))};import{writeFileSync}from'node:fs';process.once('message',async({browserEndpoint})=>{const browser=await chromium.connectOverCDP(browserEndpoint);const page=await browser.newPage();writeFileSync(${JSON.stringify(marker)},'started');await page.evaluate(()=>{while(true){}});});`);
+ try{const worker=new RenderWorker({deadlineMs:3000,childPath:path,onBrowserProcess:pid=>browserPid=pid});await expect(worker.compileMermaid('flowchart LR\nA')).rejects.toMatchObject({code:'RENDER_TIMEOUT'});expect(await readFile(marker,'utf8')).toBe('started');expect(()=>process.kill(browserPid,0)).toThrow();}finally{await rm(dir,{recursive:true,force:true});}
 },10000);

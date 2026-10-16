@@ -1,5 +1,10 @@
 import {validateRasterAsset} from './render-assets.js';
-import {fork} from 'node:child_process';
+import {fork,spawn,type ChildProcess} from 'node:child_process';
+import {mkdtemp,mkdir,readFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {setTimeout as delay} from 'node:timers/promises';
+import {chromium} from 'playwright';
 import {fileURLToPath} from 'node:url';
 import {validateSceneContent,type SceneContent} from '@collab/contracts';
 import {validateDiagram,type CompiledDiagram} from '@collab/diagram-kit';
@@ -10,12 +15,43 @@ export type RenderedArtifact={mimeType:string;bytes:Buffer};
 export class RenderError extends Error {constructor(public code:string,message:string){super(message);this.name='RenderError';}}
 export type RenderJob={kind:'mermaid';source:string}|{kind:'diagram';input:unknown}|{kind:'render';scene:SceneContent;format:'svg'|'png';assets:Record<string,ResolvedAsset>};
 const childPath=fileURLToPath(new URL('../dist/render-child.js',import.meta.url));
-function killGroup(pid:number|undefined){if(!pid)return;try{process.kill(-pid,'SIGKILL');}catch{try{process.kill(pid,'SIGKILL');}catch{}}}
+function signalGroup(child:ChildProcess,signal:NodeJS.Signals){
+ if(!child.pid)return;
+ try{process.kill(-child.pid,signal);}catch{try{child.kill(signal);}catch{}}
+}
+function groupAlive(child:ChildProcess):boolean{
+ if(!child.pid)return false;
+ try{process.kill(-child.pid,0);return true;}catch(error:any){return error.code!=='ESRCH';}
+}
+type OwnedProcess={child:ChildProcess;closed:Promise<void>;error?:Error};
+function own(child:ChildProcess):OwnedProcess{
+ const owned:OwnedProcess={child,closed:new Promise(resolve=>child.once('close',()=>resolve()))};
+ child.on('error',error=>{owned.error=error;});
+ return owned;
+}
+export type RenderWorkerOptions={
+ deadlineMs?:number;childPath?:string;browserExecutable?:string;
+ onProcess?:(pid:number)=>void;onBrowserProcess?:(pid:number)=>void;
+ onTempDirectory?:(directory:string)=>void;
+};
+// These flags target the pinned Playwright Chromium; E2 must verify the final
+// nonroot image. No caller controls flags, profile paths or the CDP endpoint.
+function browserArgs(profile:string):string[]{return [
+ '--headless','--no-sandbox','--disable-dev-shm-usage','--disable-background-networking',
+ '--disable-component-update','--disable-client-side-phishing-detection','--disable-default-apps',
+ '--disable-extensions','--disable-sync','--disable-breakpad','--disable-crash-reporter',
+ '--disable-features=MediaRouter,OptimizationHints,DialMediaRouteProvider,Translate',
+ '--no-first-run','--no-default-browser-check','--metrics-recording-only',
+ '--password-store=basic','--use-mock-keychain','--force-color-profile=srgb',
+ '--remote-debugging-address=127.0.0.1','--remote-debugging-port=0',
+ '--no-startup-window',`--user-data-dir=${profile}`,
+ ];}
+
 
 /** One job per instance; there is deliberately no unbounded in-memory queue. */
 export class RenderWorker {
  private busy=false;
- constructor(private readonly options:{deadlineMs?:number;childPath?:string;onProcess?:(pid:number)=>void}={}){}
+ constructor(private readonly options:RenderWorkerOptions={}){}
  async compileDiagram(input:unknown):Promise<CompiledDiagram>{
   if(!validateDiagram(input).valid)throw new RenderError('INVALID_INPUT','Invalid native diagram input.');
   return this.run({kind:'diagram',input}) as Promise<CompiledDiagram>;
@@ -49,15 +85,75 @@ export class RenderWorker {
  private async run(job:RenderJob):Promise<unknown>{
   if(this.busy)throw new RenderError('RENDER_BUSY','Renderer is busy; retry after the current job.');
   this.busy=true;
-  return new Promise((resolve,reject)=>{
-   const child=fork(this.options.childPath??childPath,[],{detached:true,stdio:['ignore','ignore','ignore','ipc'],execArgv:['--max-old-space-size=256'],env:{PATH:process.env.PATH,HOME:process.env.HOME,NODE_ENV:'production',PLAYWRIGHT_BROWSERS_PATH:process.env.PLAYWRIGHT_BROWSERS_PATH}});
-   let browserPid:number|undefined,settled=false;
-   const finish=(error?:Error,result?:unknown)=>{if(settled)return;settled=true;clearTimeout(timer);killGroup(browserPid);killGroup(child.pid);this.busy=false;error?reject(error):resolve(result);};
-   const timer=setTimeout(()=>finish(new RenderError('RENDER_TIMEOUT','Rendering exceeded its wall deadline; worker terminated.')),Math.min(this.options.deadlineMs??RENDER_LIMITS.deadlineMs,RENDER_LIMITS.deadlineMs));
-   this.options.onProcess?.(child.pid!);
-   child.on('message',(message:any)=>{if(message.kind==='browser'){browserPid=message.pid;return;}if(message.error)finish(new RenderError(message.error.code??'RENDER_FAILED',message.error.message));else finish(undefined,message.result);});
-   child.on('error',error=>finish(error));child.on('exit',()=>finish(new RenderError('RENDER_FAILED','Worker exited before completing.')));
-   child.send(job,error=>{if(error)finish(error);});
-  });
+  const owned:OwnedProcess[]=[];
+  const abort=new AbortController();
+  const deadlineMs=Math.max(1,Math.min(this.options.deadlineMs??RENDER_LIMITS.deadlineMs,RENDER_LIMITS.deadlineMs));
+  let directory:string|undefined,result:unknown,failure:unknown,timedOut=false;
+  const timer=setTimeout(()=>{
+   timedOut=true;abort.abort();
+   for(const process of owned)signalGroup(process.child,'SIGKILL');
+  },deadlineMs);
+  try{
+   directory=await mkdtemp(join(tmpdir(),'whiteboard-render-'));
+   this.options.onTempDirectory?.(directory);
+   const profile=join(directory,'profile');await mkdir(profile,{mode:0o700});
+   abort.signal.throwIfAborted();
+   const env={PATH:process.env.PATH,HOME:directory,TMPDIR:directory,TMP:directory,TEMP:directory,
+    NODE_ENV:'production',PLAYWRIGHT_BROWSERS_PATH:process.env.PLAYWRIGHT_BROWSERS_PATH};
+   // spawn returns the process handle synchronously, before browser startup.
+   const browser=own(spawn(this.options.browserExecutable??chromium.executablePath(),browserArgs(profile),{
+    detached:true,stdio:'ignore',env,
+   }));
+   owned.push(browser);if(browser.child.pid)this.options.onBrowserProcess?.(browser.child.pid);
+   let endpoint:string|undefined;
+   while(!endpoint){
+    abort.signal.throwIfAborted();
+    if(browser.error||browser.child.exitCode!==null||browser.child.signalCode!==null)throw new RenderError('RENDER_FAILED','Browser exited during startup.');
+    try{
+     const [port,path]= (await readFile(join(profile,'DevToolsActivePort'),'utf8')).trim().split('\n');
+     if(!/^\d+$/.test(port)||Number(port)<1||Number(port)>65535||!/^\/devtools\/browser\/[a-zA-Z0-9-]+$/.test(path))throw new RenderError('RENDER_FAILED','Invalid browser startup endpoint.');
+     endpoint=`ws://127.0.0.1:${port}${path}`;
+    }catch(error:any){if(error.code!=='ENOENT')throw error;}
+    if(!endpoint)await delay(10,undefined,{signal:abort.signal});
+   }
+   abort.signal.throwIfAborted();
+   const worker=own(fork(this.options.childPath??childPath,[],{
+    detached:true,stdio:['ignore','ignore','ignore','ipc'],execArgv:['--max-old-space-size=256'],env,
+   }));
+   owned.push(worker);if(worker.child.pid)this.options.onProcess?.(worker.child.pid);
+   result=await new Promise((resolve,reject)=>{
+    worker.child.on('message',(message:any)=>{
+     if(message.error)reject(new RenderError(message.error.code??'RENDER_FAILED',message.error.message));
+     else if(Object.hasOwn(message,'result'))resolve(message.result);
+    });
+    worker.child.once('error',reject);
+    worker.child.once('close',()=>reject(new RenderError('RENDER_FAILED','Worker exited before completing.')));
+    worker.child.send!({job,browserEndpoint:endpoint},error=>{if(error)reject(error);});
+   });
+  }catch(error){failure=error;}
+  finally{
+   // Normal completion closes Chrome through CDP in the child. SIGTERM handles
+   // failures before connection; grace is bounded by the same external deadline.
+   for(const process of owned)signalGroup(process.child,timedOut?'SIGKILL':'SIGTERM');
+   const escalation=setTimeout(()=>{for(const process of owned)signalGroup(process.child,'SIGKILL');},250);
+   await Promise.all(owned.map(process=>process.closed));
+   // A reaped browser leader can leave helpers exiting briefly in its group.
+   // Keep the slot and cleanup watchdog until those descendants are gone too.
+   const reapDeadline=performance.now()+1000;
+   while(owned.some(process=>groupAlive(process.child))&&performance.now()<reapDeadline)await delay(5);
+   clearTimeout(escalation);
+   try{
+    if(owned.some(process=>groupAlive(process.child)))throw new Error('Process group did not exit.');
+    if(directory)await rm(directory,{recursive:true,force:true,maxRetries:2,retryDelay:10});
+    this.busy=false;
+   }catch{
+    // Fail closed: never admit another job after incomplete storage cleanup.
+    failure=new RenderError('RENDER_FAILED','Renderer process or storage cleanup failed; restart the service.');
+   }
+   clearTimeout(timer);
+  }
+  if(timedOut)throw new RenderError('RENDER_TIMEOUT','Rendering exceeded its wall deadline; owned processes terminated.');
+  if(failure)throw failure;
+  return result;
  }
 }

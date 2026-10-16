@@ -70,3 +70,10 @@ Root installed KaTeX **0.18.2** through the override and `npm ls katex --all` co
 The font manifest pins 234 upstream Excalidraw 0.18.1 WOFF2 files by SHA-256 and the Vite build verifies every byte. Notices and primary-source provenance are in `src/mcp/licenses/README.md`. In particular, the bundled Liberation Sans metadata is the legacy Ascender GPL-2.0-with-font-exception font, not assumed to be the newer OFL release. No third-party artwork was imported. Official export embeds subset fonts in SVG and loads bundled fonts before PNG rasterization.
 
 Tests confirm hard termination of both a noncooperative Node worker and a real Chromium renderer executing an infinite loop, exact browser resource allowlisting, metadata/loopback/external/file denial, native assets and export MIME, current authority and revocation over the actual Go/Node/HTTP stack. The final D4 report records commands, counts and deployment limitations; E2 owns container-build and proxy proof.
+
+
+### D4 lifecycle review correction
+
+Independent review reproduced two gaps in worker-owned Playwright `launchServer`: Chromium starts detached before its PID becomes available, and unconditional success SIGKILL bypasses profile/artifact cleanup. The parent now directly spawns `chromium.executablePath()` with fixed headless/loopback-CDP flags and owns the handle synchronously. Parent-created per-job HOME/TMP/profile storage contains both Chromium and Playwright connection artifacts. The child uses `connectOverCDP` and normal `Browser.close`; the parent watches the full job, reaps both processes, waits for descendant process groups, and removes only that exact job directory. Cleanup failure keeps the worker unavailable. No arbitrary browser URL, executable or flags are exposed through MCP.
+
+The tradeoff is explicit integration responsibility for fixed Chromium launch flags, tested against installed Playwright 1.60.0 Chromium and requiring the final nonroot E2 image smoke. Normal rendering, native fonts, network-denial and current-authority tests remain applicable; a successful active-render timeout alone no longer substitutes for startup-stall and temporary-storage cleanup proof.
