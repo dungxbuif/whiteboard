@@ -53,29 +53,31 @@ const (
 )
 
 type SceneAsset struct {
-	ID            uuid.UUID
-	WorkspaceID   uuid.UUID
-	SceneID       *uuid.UUID
-	UploadedBy    *uuid.UUID
-	AssetKind     SceneAssetKind
-	FileID        *string
-	StorageBucket string
-	StorageKey    string
-	MimeType      string
-	ByteSize      int64
-	SHA256        *string
-	Width         *int
-	Height        *int
-	PresignedURL  *string
-	URLExpiresAt  *time.Time
-	DeletedAt     *time.Time
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID                    uuid.UUID
+	WorkspaceID           uuid.UUID
+	SceneID               *uuid.UUID
+	UploadedBy            *uuid.UUID
+	UploadedPrincipalID   string
+	UploadedPrincipalType string
+	AssetKind             SceneAssetKind
+	FileID                *string
+	StorageBucket         string
+	StorageKey            string
+	MimeType              string
+	ByteSize              int64
+	SHA256                *string
+	Width                 *int
+	Height                *int
+	PresignedURL          *string
+	URLExpiresAt          *time.Time
+	DeletedAt             *time.Time
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type SceneAssetRepository interface {
 	Create(ctx Context, asset *SceneAsset) error
-	GetByFileIDs(ctx Context, workspaceID uuid.UUID, fileIDs []string) ([]SceneAsset, error)
+	GetByFileIDs(ctx Context, workspaceID, sceneID uuid.UUID, fileIDs []string) ([]SceneAsset, error)
 	UpdatePresignedURL(ctx Context, id uuid.UUID, url string, expiresAt time.Time) error
 }
 
@@ -91,19 +93,20 @@ type AssetUsecase interface {
 }
 
 type AssetUploadRequest struct {
-	FileID   string  `json:"fileId" validate:"required"`
+	FileID   string  `json:"fileId" validate:"required,max=128"`
 	MimeType string  `json:"mimeType" validate:"required"`
-	ByteSize int64   `json:"byteSize" validate:"gte=0"`
+	ByteSize int64   `json:"byteSize" validate:"gt=0,lte=10485760"`
 	SHA256   *string `json:"sha256"`
 	Width    *int    `json:"width"`
 	Height   *int    `json:"height"`
 }
 
 type AssetUploadResponse struct {
-	AssetID    uuid.UUID `json:"assetId"`
-	UploadUrl  string    `json:"uploadUrl"`
-	StorageKey string    `json:"storageKey"`
-	ExpiresAt  time.Time `json:"expiresAt"`
+	AssetID    uuid.UUID         `json:"assetId"`
+	UploadUrl  string            `json:"uploadUrl"`
+	StorageKey string            `json:"storageKey"`
+	ExpiresAt  time.Time         `json:"expiresAt"`
+	Headers    map[string]string `json:"headers,omitempty"`
 }
 
 type AssetViewResponse struct {

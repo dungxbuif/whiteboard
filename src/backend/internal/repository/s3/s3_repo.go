@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"errors"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -53,4 +54,15 @@ func (r *s3Repository) Delete(ctx domain.Context, bucket, key string) error {
 		Key:    aws.String(key),
 	})
 	return err
+}
+
+func (r *s3Repository) PresignUploadConstrained(ctx domain.Context, bucket, key, mime string, size int64, expires time.Duration) (string, map[string]string, error) {
+	if expires < time.Second || expires > domain.AssetCapabilityLifetime {
+		return "", nil, errors.New("upload URL lifetime must be between one and sixty seconds")
+	}
+	req, e := r.presignClient.PresignPutObject(ctx, &s3.PutObjectInput{Bucket: aws.String(bucket), Key: aws.String(key), ContentType: aws.String(mime), ContentLength: aws.Int64(size)}, func(o *s3.PresignOptions) { o.Expires = expires })
+	if e != nil {
+		return "", nil, e
+	}
+	return req.URL, map[string]string{"Content-Type": mime}, nil
 }

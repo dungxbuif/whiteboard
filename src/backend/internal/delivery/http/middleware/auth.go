@@ -64,7 +64,13 @@ func AuthMiddleware(secret []byte) func(http.Handler) http.Handler {
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), domain.ContextKeyUserID, userID)
+			expiry, e := claims.GetExpirationTime()
+			if e != nil || expiry == nil {
+				writeAuthenticationError(w, r)
+				return
+			}
+			ctx := context.WithValue(r.Context(), domain.ContextKeyCredentialExpiry, expiry.Time)
+			ctx = context.WithValue(ctx, domain.ContextKeyUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

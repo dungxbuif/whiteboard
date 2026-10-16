@@ -125,6 +125,13 @@ func newRouter(
 	}
 
 	router.Route("/api/v1", func(r chi.Router) {
+		if assetHandler != nil && assetHandler.Capabilities != nil {
+			cap := assetHandler.Capabilities
+			r.With(deliverymiddleware.InvitationBodyMiddleware).Method(http.MethodPost, "/scenes/{id}/assets/upload-capability", cap.UploadHandler(authMiddleware))
+			r.With(deliverymiddleware.InvitationBodyMiddleware).Post("/public/scenes/{id}/assets/presign-upload", cap.PublicUpload)
+			r.With(deliverymiddleware.InvitationBodyMiddleware).Post("/public/scenes/{id}/assets/presign-view", cap.PublicView)
+			r.Get("/realtime/config", cap.RealtimeConfig)
+		}
 		r.Post("/auth/login", authHandler.PasswordLogin)
 		if invitationHandler != nil {
 			r.With(deliverymiddleware.InvitationBodyMiddleware).Post("/invitations/register", invitationHandler.Register)
@@ -157,7 +164,7 @@ func newRouter(
 				r.With(deliverymiddleware.InvitationBodyMiddleware).Post("/invitations/accept", invitationHandler.Accept)
 			}
 			r.Get("/users/me", authHandler.Me)
-			if realtimeConfigHandler != nil {
+			if realtimeConfigHandler != nil && (assetHandler == nil || assetHandler.Capabilities == nil) {
 				r.Get("/realtime/config", realtimeConfigHandler.ServeHTTP)
 			}
 			if aiHandler != nil {

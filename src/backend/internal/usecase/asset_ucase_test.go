@@ -23,7 +23,7 @@ func (m *mockSceneAssetRepo) Create(_ domain.Context, asset *domain.SceneAsset) 
 	return nil
 }
 
-func (m *mockSceneAssetRepo) GetByFileIDs(_ domain.Context, workspaceID uuid.UUID, fileIDs []string) ([]domain.SceneAsset, error) {
+func (m *mockSceneAssetRepo) GetByFileIDs(_ domain.Context, workspaceID, sceneID uuid.UUID, fileIDs []string) ([]domain.SceneAsset, error) {
 	var result []domain.SceneAsset
 	for _, asset := range m.assets {
 		if asset.WorkspaceID == workspaceID && asset.FileID != nil {
@@ -179,4 +179,23 @@ func TestAssetAccessCannotReadOtherSceneFiles(t *testing.T) {
 	if len(result) != 0 {
 		t.Fatalf("other scene file leaked: %+v", result)
 	}
+}
+
+func TestPublicUploadCapabilityValidation(t *testing.T) {
+	for _, r := range []domain.AssetUploadRequest{{FileID: "x", MimeType: "text/html", ByteSize: 1}, {FileID: "x", MimeType: "image/png", ByteSize: 0}, {FileID: "x", MimeType: "image/png", ByteSize: 10485761}, {FileID: "", MimeType: "image/png", ByteSize: 1}} {
+		if e := validateAssets([]domain.AssetUploadRequest{r}); e == nil {
+			t.Errorf("accepted invalid upload: %+v", r)
+		}
+	}
+	if e := validateAssets(nil); e == nil {
+		t.Error("accepted empty upload batch")
+	}
+	if e := validateAssets([]domain.AssetUploadRequest{{FileID: "same", MimeType: "image/png", ByteSize: 1}, {FileID: "same", MimeType: "image/png", ByteSize: 1}}); e == nil {
+		t.Error("accepted duplicate file IDs")
+	}
+}
+
+func (m *mockS3Repo) PresignUploadConstrained(c domain.Context, b, k, mime string, n int64, ttl time.Duration) (string, map[string]string, error) {
+	u, e := m.PresignUpload(c, b, k, ttl)
+	return u, map[string]string{"Content-Type": mime}, e
 }

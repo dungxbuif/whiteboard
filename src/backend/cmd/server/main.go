@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -29,28 +31,32 @@ import (
 )
 
 type config struct {
-	Addr             string
-	DatabaseURL      string
-	JWTSecret        string
-	CollabJWTSecret  string
-	CasbinModelPath  string
-	S3Endpoint       string
-	S3AccessKey      string
-	S3SecretKey      string
-	S3Bucket         string
-	S3Region         string
-	FrontendURL      string
-	AIAPIKey         string
-	AIBaseURL        string
-	AIModelFast      string
-	AIModelReasoning string
-	TURNURL          string
-	TURNUsername     string
-	TURNPassword     string
-	TURNAuthSecret   string
+	Addr                   string
+	DatabaseURL            string
+	JWTSecret              string
+	CollabJWTSecret        string
+	AuthorityServiceSecret string
+	MutationGrantSecret    string
+	AuthorityListenAddr    string
+	CasbinModelPath        string
+	S3Endpoint             string
+	S3AccessKey            string
+	S3SecretKey            string
+	S3Bucket               string
+	S3Region               string
+	FrontendURL            string
+	AIAPIKey               string
+	AIBaseURL              string
+	AIModelFast            string
+	AIModelReasoning       string
+	TURNURL                string
+	TURNUsername           string
+	TURNPassword           string
+	TURNAuthSecret         string
 }
 
 const defaultHTTPAddr = ":8080"
+const defaultAuthorityAddr = "127.0.0.1:8081"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -112,7 +118,21 @@ func main() {
 	sceneUsecase := usecase.NewSceneUsecase(sceneRepo, folderRepo)
 	searchUsecase := usecase.NewSearchUsecase(searchRepo)
 	scenePermissionUsecase := usecase.NewScenePermissionUsecase(scenePermissionRepo, sceneRepo)
-	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, 1*time.Hour)
+	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, domain.AssetCapabilityLifetime)
+	capabilities, err := usecase.NewCapabilityService(accessService, shareLinkRepo, assetUsecase, []byte(cfg.MutationGrantSecret))
+	if err != nil {
+		logger.Error("failed to configure mutation authority", "error", err)
+		os.Exit(1)
+	}
+	capabilityHandler, err := handler.NewCapabilityHandler(capabilities, rooms, accessService, assetUsecase, []byte(cfg.AuthorityServiceSecret))
+	if err != nil {
+		logger.Error("failed to configure private authority", "error", err)
+		os.Exit(1)
+	}
+	if err = capabilityHandler.SetTURNConfig(cfg.TURNURL, cfg.TURNAuthSecret); err != nil {
+		logger.Error("failed to configure scoped TURN", "error", err)
+		os.Exit(1)
+	}
 	aiRepo := openairepo.New(cfg.AIAPIKey, cfg.AIBaseURL, cfg.AIModelFast)
 	aiUsecase := usecase.NewAIUsecase(aiRepo, cfg.AIModelFast, cfg.AIModelReasoning)
 
@@ -126,6 +146,8 @@ func main() {
 	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase, shareLinks)
 	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, handler.NewRoomHandler(rooms, accessService))
 	assetHandler := handler.NewAssetHandler(assetUsecase)
+	assetHandler.SetCapabilityService(capabilities)
+	assetHandler.Capabilities = capabilityHandler
 	aiHandler := handler.NewAIHandler(aiUsecase)
 	realtimeServer, err := realtime.NewServer([]byte(cfg.JWTSecret))
 	if err != nil {
@@ -154,6 +176,18 @@ func main() {
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
+	privateServer := &http.Server{Addr: cfg.AuthorityListenAddr, Handler: capabilityHandler.AuthorityHandler(), ReadHeaderTimeout: domain.DefaultReadHeaderTimeout, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	privateListener, err := net.Listen("tcp", cfg.AuthorityListenAddr)
+	if err != nil {
+		logger.Error("failed to bind private authority", "error", err)
+		os.Exit(1)
+	}
+	go func() {
+		if e := privateServer.Serve(privateListener); e != nil && e != http.ErrServerClosed {
+			logger.Error("private authority stopped", "error", e)
+			os.Exit(1)
+		}
+	}()
 	logger.Info("starting server", "addr", cfg.Addr)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("server stopped", "error", err)
@@ -166,6 +200,8 @@ func loadConfig() (config, error) {
 		"DATABASE_URL",
 		"JWT_SECRET",
 		"COLLAB_JWT_SECRET",
+		"AUTHORITY_SERVICE_SECRET",
+		"MUTATION_GRANT_SECRET",
 		"CASBIN_MODEL_PATH",
 		"S3_ENDPOINT",
 		"S3_ACCESS_KEY",
@@ -184,30 +220,56 @@ func loadConfig() (config, error) {
 		return config{}, fmt.Errorf("COLLAB_JWT_SECRET must contain at least 32 bytes and differ from JWT_SECRET")
 	}
 
+	secrets := []string{os.Getenv("JWT_SECRET"), os.Getenv("COLLAB_JWT_SECRET")}
+	for _, key := range []string{"AUTHORITY_SERVICE_SECRET", "MUTATION_GRANT_SECRET"} {
+		value := os.Getenv(key)
+		if len(value) < 32 {
+			return config{}, fmt.Errorf("%s must contain at least 32 bytes", key)
+		}
+		for _, prior := range secrets {
+			if prior == value {
+				return config{}, fmt.Errorf("%s must use a distinct secret", key)
+			}
+		}
+		secrets = append(secrets, value)
+	}
+	authorityAddr := getEnv("AUTHORITY_LISTEN_ADDR", defaultAuthorityAddr)
+	host, port, e := net.SplitHostPort(authorityAddr)
+	ip := net.ParseIP(host)
+	n, pe := strconv.Atoi(port)
+	if e != nil || pe != nil || n < 1 || n > 65535 || ip == nil || (!ip.IsLoopback() && !ip.IsPrivate()) {
+		return config{}, fmt.Errorf("AUTHORITY_LISTEN_ADDR must bind an explicit loopback or private IP and valid port")
+	}
+	if os.Getenv("TURN_URL") != "" && len(os.Getenv("TURN_AUTH_SECRET")) < 32 {
+		return config{}, fmt.Errorf("TURN_URL requires TURN_AUTH_SECRET of at least 32 bytes")
+	}
 	frontend, err := url.Parse(os.Getenv("FRONTEND_URL"))
 	if err != nil || frontend.Hostname() == "" || (frontend.Scheme != "https" && frontend.Scheme != "http") || frontend.User != nil || frontend.RawQuery != "" || frontend.ForceQuery || frontend.Fragment != "" || (frontend.Path != "" && frontend.Path != "/") {
 		return config{}, fmt.Errorf("FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
 	}
 	return config{
-		Addr:             getEnv("HTTP_ADDR", defaultHTTPAddr),
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		JWTSecret:        os.Getenv("JWT_SECRET"),
-		CollabJWTSecret:  os.Getenv("COLLAB_JWT_SECRET"),
-		CasbinModelPath:  os.Getenv("CASBIN_MODEL_PATH"),
-		S3Endpoint:       os.Getenv("S3_ENDPOINT"),
-		S3AccessKey:      os.Getenv("S3_ACCESS_KEY"),
-		S3SecretKey:      os.Getenv("S3_SECRET_KEY"),
-		S3Bucket:         os.Getenv("S3_BUCKET"),
-		S3Region:         getEnv("S3_REGION", "auto"),
-		FrontendURL:      os.Getenv("FRONTEND_URL"),
-		AIAPIKey:         os.Getenv("AI_API_KEY"),
-		AIBaseURL:        getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
-		AIModelFast:      getEnv("AI_MODEL_FAST", "deepseek-chat"),
-		AIModelReasoning: getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
-		TURNURL:          os.Getenv("TURN_URL"),
-		TURNUsername:     os.Getenv("TURN_USERNAME"),
-		TURNPassword:     os.Getenv("TURN_PASSWORD"),
-		TURNAuthSecret:   os.Getenv("TURN_AUTH_SECRET"),
+		Addr:                   getEnv("HTTP_ADDR", defaultHTTPAddr),
+		DatabaseURL:            os.Getenv("DATABASE_URL"),
+		JWTSecret:              os.Getenv("JWT_SECRET"),
+		CollabJWTSecret:        os.Getenv("COLLAB_JWT_SECRET"),
+		AuthorityServiceSecret: os.Getenv("AUTHORITY_SERVICE_SECRET"),
+		MutationGrantSecret:    os.Getenv("MUTATION_GRANT_SECRET"),
+		AuthorityListenAddr:    authorityAddr,
+		CasbinModelPath:        os.Getenv("CASBIN_MODEL_PATH"),
+		S3Endpoint:             os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:            os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:            os.Getenv("S3_SECRET_KEY"),
+		S3Bucket:               os.Getenv("S3_BUCKET"),
+		S3Region:               getEnv("S3_REGION", "auto"),
+		FrontendURL:            os.Getenv("FRONTEND_URL"),
+		AIAPIKey:               os.Getenv("AI_API_KEY"),
+		AIBaseURL:              getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
+		AIModelFast:            getEnv("AI_MODEL_FAST", "deepseek-chat"),
+		AIModelReasoning:       getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
+		TURNURL:                os.Getenv("TURN_URL"),
+		TURNUsername:           os.Getenv("TURN_USERNAME"),
+		TURNPassword:           os.Getenv("TURN_PASSWORD"),
+		TURNAuthSecret:         os.Getenv("TURN_AUTH_SECRET"),
 	}, nil
 }
 

@@ -54,3 +54,15 @@ Migration 000007 retains UUID primary keys and adds nullable unique `public_id` 
 `collab_bump_acl(workspace_uuid, scene_uuid_or_null, subject_uuid_or_null, event_text)` is the shared SQL helper for future invite/share/agent grant mutations. It increments the workspace version, writes `acl_audit_events`, and publishes commit-bound `acl_changed` JSON with `workspaceId` and decimal-string `aclVersion`. Call under the workspace authority lock and transaction; the helper is not a replacement for permission validation. Existing triggers cover workspace membership, scene overrides, scene deletion/restoration, and user/workspace soft-delete changes. New workspace inserts create their owner membership automatically.
 
 79 backend tests passed using disposable PostgreSQL 15, including actual up/down migrations and two-connection lock/rollback proof. Deployment and data backup remain release work.
+
+## A2 invitation schema (implemented and reviewed; release pending)
+
+Migration `000011_workspace_invitations` stores workspace/email/role/inviter, a unique SHA-256 token hash, creation/expiry and consumed/revoked timestamps. Invites only grant editor/viewer; tokens are never recovered by listing. The workspace is locked before the invitation row, and account creation, default personal workspace, invited membership and consumption commit or roll back together.
+
+Version 11 follows reserved share-link, collab and agent migrations 8–10. Ship the complete v2 migration stream together from production version 6; do not apply 11 early and add lower versions afterward. A2 isolated fixtures explicitly apply 1–7 and 11. [Invitation behavior](../user/collaboration.md), [proof](../work/verification/collaboration-v2.md).
+
+## A4 scene asset capabilities (backend verified; deployment pending)
+
+`scene_assets` remains scene-owned. Migration 000012 adds `uploaded_principal_id` and `uploaded_principal_type` for guest audit while `uploaded_by` remains nullable and references real users only. Active file IDs are unique within `(workspace_id,scene_id,file_id)`; metadata reads require both workspace and scene. Grants are transient signed decisions, not durable ACL truth. [Authority protocol](mutation-authority.md) defines workspace-lock/version validation and revocation proof. Verification uses isolated PostgreSQL schemas and tests public guest uploads, scene isolation, and revoke races.
+
+Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene. Down migration recreates the legacy unique index first and intentionally fails if two scenes share a live file ID; operators must resolve collisions explicitly. It never deletes user assets to make rollback fit. User-principal audit strings survive user deletion; `uploaded_by` can become NULL through its existing foreign key. Historical rows without uploader keep nullable principal audit fields. Public rows require guest identity and nullable user UUID. No new durable capability table is introduced.

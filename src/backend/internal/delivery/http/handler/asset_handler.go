@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -11,7 +12,9 @@ import (
 )
 
 type AssetHandler struct {
+	Capabilities *CapabilityHandler
 	access       domain.AccessService
+	capabilities domain.CapabilityService
 	assetUsecase domain.AssetUsecase
 }
 
@@ -68,9 +71,18 @@ func (h *AssetHandler) PresignUpload(w http.ResponseWriter, r *http.Request) {
 	if !h.authorize(w, r, workspaceID, sceneID, true) {
 		return
 	}
-	resp, err := h.assetUsecase.PresignUpload(ctx, workspaceID, userID, sceneID, req.Assets)
+	var resp map[string]domain.AssetUploadResponse
+	if h.capabilities != nil {
+		principal := domain.UserPrincipal(userID)
+		principal.CredentialExpiresAt, _ = ctx.Value(domain.ContextKeyCredentialExpiry).(time.Time)
+		grant, e := h.capabilities.CreateAssetCapability(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: sceneID}, req.Assets)
+		err = e
+		resp = grant.URLs
+	} else {
+		resp, err = h.assetUsecase.PresignUpload(ctx, workspaceID, userID, sceneID, req.Assets)
+	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		capabilityError(w, r, err)
 		return
 	}
 
@@ -113,7 +125,7 @@ func (h *AssetHandler) PresignView(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.assetUsecase.PresignView(ctx, workspaceID, sceneID, req.FileIDs)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		capabilityError(w, r, err)
 		return
 	}
 
@@ -141,3 +153,5 @@ func (h *AssetHandler) authorize(w http.ResponseWriter, r *http.Request, workspa
 	}
 	return true
 }
+
+func (h *AssetHandler) SetCapabilityService(c domain.CapabilityService) { h.capabilities = c }

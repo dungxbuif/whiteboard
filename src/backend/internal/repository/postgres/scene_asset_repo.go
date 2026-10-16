@@ -21,10 +21,10 @@ func (r *sceneAssetRepository) Create(ctx domain.Context, asset *domain.SceneAss
 	return accessDB(ctx, r.db).Create(asset).Error
 }
 
-func (r *sceneAssetRepository) GetByFileIDs(ctx domain.Context, workspaceID uuid.UUID, fileIDs []string) ([]domain.SceneAsset, error) {
+func (r *sceneAssetRepository) GetByFileIDs(ctx domain.Context, workspaceID, sceneID uuid.UUID, fileIDs []string) ([]domain.SceneAsset, error) {
 	var assets []domain.SceneAsset
 	err := accessDB(ctx, r.db).
-		Where("workspace_id = ? AND file_id IN ? AND deleted_at IS NULL", workspaceID, fileIDs).
+		Where("workspace_id = ? AND scene_id = ? AND file_id IN ? AND deleted_at IS NULL", workspaceID, sceneID, fileIDs).
 		Find(&assets).Error
 	if err != nil {
 		return nil, err
