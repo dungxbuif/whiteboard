@@ -29,3 +29,20 @@ it('collab checkpoint and pending bytes commit together, and batch retries prese
   expect(batch?.sent).toBe(true); expect(Array.from((await store.nextBatch(scope, 1000000))!.update)).toEqual(Array.from(batch!.update));
   expect((await store.nextBatch(scope, 1000000))!.requestId).toBe(batch!.requestId);
 });
+
+it('collab image revisions survive store reopen and reject stale cleanup or resurrection', async () => {
+  const name = crypto.randomUUID(), first = new OfflineStore(name), reopened = new OfflineStore(name);
+  const base = { elements: [], appState: {}, files: {} };
+  const old = { base, desired: { ...base, appState: { gridSize: 10 } } }, latest = { base, desired: { ...base, appState: { gridSize: 20 } } };
+  const one = await first.reserveImageDraft(scope, old), two = await reopened.reserveImageDraft(scope, latest);
+  const item = { scope, id: 'file', blob: new Blob(['bytes']), mimeType: 'image/png', created: 1, draft: old };
+  await first.putImageBlob(item, one);
+  expect((await reopened.blobs(scope))[0].draft?.desired).toEqual(latest.desired);
+  expect(await first.completeImageDraft(scope, one, ['file'])).toBe(false);
+  expect(await reopened.blobs(scope)).toHaveLength(1);
+  expect(await reopened.completeImageDraft(scope, two, ['file'])).toBe(true);
+  await first.putImageBlob(item, one);
+  expect(await reopened.blobs(scope)).toHaveLength(0);
+  expect(await reopened.draft(scope)).toBeUndefined();
+  expect(await first.reserveImageDraft(scope, latest)).toBeGreaterThan(two);
+});

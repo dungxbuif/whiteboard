@@ -3,7 +3,7 @@ import '@excalidraw/excalidraw/index.css';
 import type { AssetReference, NativeElement, SceneContent } from '@collab/contracts';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { CollabProvider, useCollab } from '@/collab/provider';
-import { offlineStore, scopeKey, type PendingBlob } from '@/collab/offline-store';
+import { offlineStore, scopeKey, type PendingBlob, type ImageDraft } from '@/collab/offline-store';
 import { uploadBlob, type UploadGrant } from '@/collab/assets';
 import { mergeSceneChanges } from '@/collab/scene-diff';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
   const [uploadError, setUploadError] = useState(''); const [uploads, setUploads] = useState(0);
   const files = useRef<Record<string, CanvasFile>>({});
   const refs = useRef<Record<string, AssetReference>>({});
-  const pending = useRef<{ base: SceneContent; desired: SceneContent } | null>(null);
+  const pending = useRef<ImageDraft | null>(null);
   const lastNative = useRef<SceneContent | null>(null);
   const localProjection = useRef<string | null>(null);
   const lifetime = useRef(0);
@@ -96,6 +96,8 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     uploading.current = true; let repeat = false;
     try {
       const rows = await offlineStore.blobs(scope); if (!allowed()) return; setUploads(rows.length);
+      // Upgrade retained pre-revision recovery before any upload/cleanup.
+      if (pending.current && pending.current.revision === undefined) { pending.current.revision = await offlineStore.reserveImageDraft(scope, pending.current); if (!allowed()) return; }
       for (const item of rows) {
         if (!allowed()) return;
         const guest = current.principal.current.kind === 'public';
@@ -120,8 +122,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
         }
         if (!allowed()) return;
         if (pending.current !== draft) { repeat = true; return; }
-        if (isLegacy) await offlineStore.removeDraft(scope);
-        for (const item of rows) { if (!allowed()) return; await offlineStore.removeBlob(scope, item.id); }
+        if (draft.revision === undefined || !await offlineStore.completeImageDraft(scope, draft.revision, rows.map(item => item.id))) { repeat = true; return; }
         if (!allowed()) return;
         pending.current = null;
       }
@@ -178,16 +179,15 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     const missing = Object.values(files.current).filter(file => !refs.current[file.id] && file.dataURL?.startsWith('data:') && desired.elements.some(e => e.type === 'image' && e.fileId === file.id));
     try {
       if (missing.length || pending.current) {
-        const draft = { base: pending.current?.base ?? renderedContent, desired };
+        const draft: ImageDraft = { base: pending.current?.base ?? renderedContent, desired };
         pending.current = draft;
         if (!assetScope) return;
-        if (state.status === 'legacy') await offlineStore.saveDraft(assetScope, desired);
+        draft.revision = await offlineStore.reserveImageDraft(assetScope, draft);
         for (const file of missing) {
           const blob = await (await fetch(file.dataURL!)).blob();
           const item: PendingBlob = { scope: assetScope, id: file.id, mimeType: file.mimeType, created: file.created, blob, draft };
-          await offlineStore.putBlob(item);
+          await offlineStore.putImageBlob(item, draft.revision);
         }
-        for (const item of await offlineStore.blobs(assetScope)) await offlineStore.putBlob({ ...item, draft });
         if (stillCurrent()) { setUploads(missing.length); void retryUploads(); }
       } else if (state.status === 'legacy') {
         await offlineStore.saveDraft(legacyScope, desired);

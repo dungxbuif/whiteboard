@@ -2,7 +2,9 @@ import * as Y from 'yjs';
 import type { SceneContent } from '@collab/contracts';
 export type PendingScope = { principalId: string; workspaceId: string; sceneId: string; documentId: string };
 export type PendingUpdate = { scope: PendingScope; requestId: string; update: Uint8Array; created: number; sent?: boolean };
-export type PendingBlob = { scope: PendingScope; id: string; blob: Blob; mimeType: string; created: number; draft?: { base: SceneContent; desired: SceneContent } };
+export type ImageDraft = { base: SceneContent; desired: SceneContent; revision?: number };
+type DraftRecord = { scope: PendingScope; content?: SceneContent; imageDraft?: ImageDraft; revision?: number };
+export type PendingBlob = { scope: PendingScope; id: string; blob: Blob; mimeType: string; created: number; draft?: ImageDraft };
 export const scopeKey = (s: PendingScope) => JSON.stringify([s.principalId, s.workspaceId, s.sceneId, s.documentId]);
 const key = (scope: PendingScope, id: string) => JSON.stringify([scopeKey(scope), id]);
 const request = <T>(req: IDBRequest<T>) => new Promise<T>((resolve, reject) => { req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error); });
@@ -62,9 +64,41 @@ export class OfflineStore {
     const scopes = rows.map(row => row.scope as PendingScope).filter(scope => scope.principalId === principalId && scope.workspaceId === workspaceId && scope.sceneId === sceneId);
     return scopes.filter((scope, i) => scopes.findIndex(other => scopeKey(other) === scopeKey(scope)) === i);
   }
-  async saveDraft(scope: PendingScope, content: SceneContent): Promise<void> { await this.transaction('drafts', 'readwrite', async store => { await request(store.put({ scope, content }, scopeKey(scope))); }); }
+  async saveDraft(scope: PendingScope, content: SceneContent): Promise<void> { await this.transaction('drafts', 'readwrite', async store => { const old = await request(store.get(scopeKey(scope))) as DraftRecord | undefined; await request(store.put({ ...old, scope, content }, scopeKey(scope))); }); }
   async draft(scope: PendingScope): Promise<SceneContent | undefined> { return this.transaction('drafts', 'readonly', async store => (await request(store.get(scopeKey(scope))))?.content); }
-  async removeDraft(scope: PendingScope): Promise<void> { await this.transaction('drafts', 'readwrite', async store => { await request(store.delete(scopeKey(scope))); }); }
+  async removeDraft(scope: PendingScope): Promise<void> { await this.transaction('drafts', 'readwrite', async store => { const old = await request(store.get(scopeKey(scope))) as DraftRecord | undefined; if (old?.revision !== undefined) await request(store.put({ scope, revision: old.revision }, scopeKey(scope))); else await request(store.delete(scopeKey(scope))); }); }
+  // Reserve callback order before slow Blob conversion, across every mount of this scope.
+  async reserveImageDraft(scope: PendingScope, draft: ImageDraft): Promise<number> {
+    return this.transaction(['drafts', 'blobs'], 'readwrite', async store => {
+      const previous = await request(store.get(scopeKey(scope))) as DraftRecord | undefined;
+      const revision = (previous?.revision ?? 0) + 1, latest = { ...draft, revision };
+      await request(store.put({ scope, content: latest.desired, imageDraft: latest, revision }, scopeKey(scope)));
+      const blobs = store.transaction.objectStore('blobs');
+      for (const row of await request(blobs.getAll()) as PendingBlob[]) if (scopeKey(row.scope) === scopeKey(scope)) await request(blobs.put({ ...row, draft: latest }, key(scope, row.id)));
+      return revision;
+    });
+  }
+  async putImageBlob(item: PendingBlob, revision: number): Promise<void> {
+    await this.transaction(['drafts', 'blobs'], 'readwrite', async store => {
+      const latest = await request(store.get(scopeKey(item.scope))) as DraftRecord | undefined;
+      if (latest?.revision === undefined || latest.revision < revision) throw new Error('Image recovery revision unavailable');
+      // A successful commit retains its revision as a tombstone. Late bytes cannot resurrect it.
+      if (!latest.imageDraft) return;
+      const blobs = store.transaction.objectStore('blobs'), id = key(item.scope, item.id);
+      const existing = await request(blobs.get(id)) as PendingBlob | undefined;
+      await request(blobs.put({ ...(existing ?? item), draft: latest.imageDraft }, id));
+    });
+  }
+  async completeImageDraft(scope: PendingScope, revision: number, ids: string[]): Promise<boolean> {
+    return this.transaction(['drafts', 'blobs'], 'readwrite', async store => {
+      const latest = await request(store.get(scopeKey(scope))) as DraftRecord | undefined;
+      if (latest?.revision !== revision) return false;
+      await request(store.put({ scope, revision }, scopeKey(scope)));
+      const blobs = store.transaction.objectStore('blobs');
+      for (const id of ids) await request(blobs.delete(key(scope, id)));
+      return true;
+    });
+  }
   async putBlob(item: PendingBlob): Promise<void> { await this.transaction('blobs', 'readwrite', async store => { await request(store.put(item, key(item.scope, item.id))); }); }
   async blobs(scope: PendingScope): Promise<PendingBlob[]> { return this.transaction('blobs', 'readonly', async store => (await request(store.getAll()) as PendingBlob[]).filter(row => scopeKey(row.scope) === scopeKey(scope))); }
   async removeBlob(scope: PendingScope, id: string): Promise<void> { await this.transaction('blobs', 'readwrite', async store => { await request(store.delete(key(scope, id))); }); }
