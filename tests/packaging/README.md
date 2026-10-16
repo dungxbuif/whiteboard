@@ -1,0 +1,41 @@
+# E2 isolated packaging proof
+
+Build from repository root using the root workspace lock:
+
+```sh
+rtk docker build -f src/collab/Dockerfile -t whiteboard-e2-collab:local .
+rtk docker build -f src/mcp/Dockerfile -t whiteboard-e2-mcp:local .
+rtk docker build -f src/frontend/Dockerfile -t whiteboard-e2-frontend:local .
+rtk node tests/packaging/smoke.mjs
+```
+
+The smoke requires installed root workspace dependencies on the invoking host.
+It uses unique names, a disposable PostgreSQL container, an isolated bridge,
+audit volume, and a random loopback-only frontend port, then cleans them up in
+finally. Never pass a production database URL. Actual compiled collab/MCP
+services and the nginx image are tested; Go authorization is a signed fixture
+and MCP upstream is a loopback HTTP fixture. E3 owns full real Go/private-network
+and release-source proof. The smoke exercises native PNG generation inside the
+production renderer resource/security settings, authenticated export/download,
+MCP SDK+SSE, WebSocket ready, origins, route denial, users, and audit permissions.
+
+## Cross-network TURN diagnostic
+
+`turn-proof.mjs` uses local Playwright and an operator-provided SSH tunnel at
+127.0.0.1:19223 to a disposable gateway Chromium CDP listener127.0.0.1:19222.
+Use the pinned Playwright1.60.0 image with init, memory1GiB and pids256. Keep CDP
+loopback-only, verify with ss, and remove only that QA container+tunnel afterward.
+The script mints a ten-minute credential over saved VM100 SSH using the deployed
+backend secret; no shared secret or short-lived credential is logged. Two
+browsers send440Hz generated audio with relay-only ICE. It reports selected pair
+candidate types/ports and received bytes/packets/energy; no physical microphone.
+
+```sh
+rtk node tests/packaging/turn-proof.mjs
+# Diagnostic only when hostname fails: result explicitly records overridden URL.
+rtk env TURN_PROOF_URL=turn:103.82.21.202:5349 node tests/packaging/turn-proof.mjs
+```
+
+The recorded2026-10-16 local network is Mac10.10.0.10/WAN117.1.89.250; gateway
+WAN103.82.21.202. Revalidate those labels for subsequent runs. A direct-IP success
+is not proof that the configured hostname resolves or connects correctly.

@@ -21,10 +21,18 @@ services:
     environment:
       CASBIN_MODEL_PATH: /app/configs/casbin_model.conf
       HTTP_ADDR: :8080
+      AUTHORITY_LISTEN_ADDR: 172.29.240.2:8081
+      COLLAB_INTERNAL_URL: http://172.29.240.3:8083
+      COLLAB_JWT_SECRET: ${COLLAB_JWT_SECRET:?dedicated room secret required}
+      AUTHORITY_SERVICE_SECRET: ${AUTHORITY_SERVICE_SECRET:?dedicated authority secret required}
+      MUTATION_GRANT_SECRET: ${MUTATION_GRANT_SECRET:?dedicated grant secret required}
+      COLLAB_INTERNAL_SECRET: ${COLLAB_INTERNAL_SECRET:?dedicated command secret required}
     networks:
-      - homelab-net
-      - whiteboard-app
-      - edge-http-net
+      homelab-net: {}
+      whiteboard-app: {}
+      edge-http-net: {}
+      authority:
+        ipv4_address: 172.29.240.2
     depends_on:
       db-migrate:
         condition: service_completed_successfully
@@ -36,15 +44,96 @@ services:
       timeout: 3s
       retries: 6
 
+  collab:
+    container_name: whiteboard-collab
+    build:
+      context: .
+      dockerfile: src/collab/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?database required}
+      COLLAB_JWT_SECRET: ${COLLAB_JWT_SECRET:?dedicated room secret required}
+      AUTHORITY_SERVICE_SECRET: ${AUTHORITY_SERVICE_SECRET:?dedicated authority secret required}
+      MUTATION_GRANT_SECRET: ${MUTATION_GRANT_SECRET:?dedicated grant secret required}
+      COLLAB_INTERNAL_SECRET: ${COLLAB_INTERNAL_SECRET:?dedicated command secret required}
+      AUTHORITY_URL: http://172.29.240.2:8081
+      COLLAB_HOST: 0.0.0.0
+      COLLAB_INTERNAL_HOST: 172.29.240.3
+      COLLAB_ALLOWED_ORIGINS: ${FRONTEND_URL:?exact public origin required}
+      COLLAB_V2_ENABLED: ${COLLAB_V2_ENABLED:-false}
+    networks:
+      homelab-net: {}
+      whiteboard-app: {}
+      authority:
+        ipv4_address: 172.29.240.3
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 1g
+    pids_limit: 128
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp:size=64m,mode=1777]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8082/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  mcp:
+    container_name: whiteboard-mcp
+    build:
+      context: .
+      dockerfile: src/mcp/Dockerfile
+    restart: unless-stopped
+    init: true
+    environment:
+      WHITEBOARD_API_URL: ${WHITEBOARD_API_URL:?HTTPS public API origin required}
+      WHITEBOARD_PUBLIC_URL: ${FRONTEND_URL:?exact public origin required}
+      MCP_ALLOWED_ORIGINS: ${FRONTEND_URL:?exact public origin required}
+      MCP_BIND_HOST: 0.0.0.0
+      PORT: 3002
+      MCP_AUDIT_PATH: /var/lib/whiteboard-mcp/audit.jsonl
+    volumes:
+      - mcp-audit:/var/lib/whiteboard-mcp
+    networks:
+      - whiteboard-app
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 2g
+    pids_limit: 256
+    shm_size: 256m
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp:size=512m,mode=1777]
+    healthcheck:
+      # Unauthenticated /mcp proves the adapter is listening without credentials.
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3002/mcp').then(r=>process.exit(r.status===401?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
   frontend:
     container_name: whiteboard-frontend
     build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: src/frontend/Dockerfile
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
+      collab:
+        condition: service_healthy
+      mcp:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: [/tmp:size=64m,mode=1777]
     networks:
       - homelab-net
       - whiteboard-app
@@ -54,7 +143,15 @@ services:
       timeout: 3s
       retries: 6
 
+volumes:
+  mcp-audit:
+
 networks:
+  authority:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.29.240.0/28
   homelab-net:
     external: true
   whiteboard-app:
