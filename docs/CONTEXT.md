@@ -10,9 +10,9 @@ updated: 2026-10-16
 
 ## Current Focus
 
-- **Active Phase:** Detail Design — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
-- **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are in review; runtime is still the existing v1 release.
-- **Next Work:** Review execution plans, then implement the dependency slices. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
+- **Active Phase:** Execution & Test — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
+- **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are authorized and executing; runtime is still the existing v1 release.
+- **Next Work:** C1 is locally verified. Agents implement A1, B1 and D2; continue dependency slices and integrate before deployment. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
 
 ## Project
 
@@ -43,7 +43,9 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 ## Recent Changes
 
-- 2026-10-16: Recorded approved v2 design and five implementation slices (17 tasks), with tests, dependencies, documentation targets, canary and rollback; organization-specific scope remains explicit pending clarification. No v2 runtime code shipped.
+- 2026-10-16: Implementation started in codex/collaboration-v2. User removed the monochrome override; preserve the old dashboard's complete style, including colored accents. Baseline: 59 Go tests and 19 frontend unit tests passed.
+
+- 2026-10-16: Recorded approved v2 design and five implementation slices (17 tasks), with tests, dependencies, documentation targets, canary and rollback; user confirmed org means workspace. No v2 runtime code shipped.
 
 - 2026-07-15: Completed EXC-013 S3 assets backend, caching logic, frontend hook, and tests.
 - 2026-07-15: Approved EXC-013 S3 assets detail design and moved to in_progress.

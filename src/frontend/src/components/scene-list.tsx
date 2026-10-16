@@ -1,8 +1,8 @@
-import { FilePenLine, Star } from "lucide-react";
+import { Star } from "lucide-react";
 
 import { SceneActions } from "@/components/scene-actions";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScenePreview } from "@/components/dashboard/scene-preview";
 import { navigate } from "@/lib/router";
 import useSceneStore from "@/store/scene-store";
 import useWorkspaceStore from "@/store/workspace-store";
@@ -27,19 +27,15 @@ export function SceneList() {
       {scenes.length > 0 ? (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-4">
           {scenes.map((scene) => (
-            <Card key={scene.id}>
-              <CardHeader className="space-y-4">
-                <div className="flex items-center justify-between text-muted-foreground">
-                  <FilePenLine size={18} aria-hidden="true" />
+            <article key={scene.id} className="group relative overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md">
+              <ScenePreview content={scene.content} />
+              <div className="grid gap-3 p-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  {scene.isStarred ? <Star className="shrink-0 fill-current text-amber-500" size={15} aria-label="Starred" /> : null}
+                  <h3 className="min-w-0 flex-1 truncate text-sm font-medium" title={scene.title}>{scene.title}</h3>
                   <SceneActions scene={scene} />
                 </div>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  {scene.isStarred ? <Star className="fill-current text-amber-500" size={15} aria-label="Starred" /> : null}
-                  {scene.title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 text-sm text-muted-foreground">
-                <span>Version {scene.contentVersion}</span>
+                <span className="text-xs text-muted-foreground">Version {scene.contentVersion}</span>
                 <Button
                   onClick={() => {
                     openScene(scene);
@@ -48,8 +44,8 @@ export function SceneList() {
                   type="button"
                   variant="outline"
                 >Open</Button>
-              </CardContent>
-            </Card>
+              </div>
+            </article>
           ))}
         </div>
       ) : null}

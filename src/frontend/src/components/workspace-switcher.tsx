@@ -21,16 +21,12 @@ import {
 import useWorkspaceStore from "@/store/workspace-store";
 
 export function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspaceId, setActiveWorkspaceId, fetchWorkspaces } = useWorkspaceStore();
+  const { workspaces, activeWorkspaceId, setActiveWorkspaceId } = useWorkspaceStore();
   const createWorkspace = useWorkspaceStore((state) => state.createWorkspace);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [workspaceName, setWorkspaceName] = React.useState("");
   const [createError, setCreateError] = React.useState("");
   const [isCreating, setIsCreating] = React.useState(false);
-
-  React.useEffect(() => {
-    fetchWorkspaces();
-  }, [fetchWorkspaces]);
 
   const activeWorkspace = Array.isArray(workspaces) ? workspaces.find((w) => w.id === activeWorkspaceId) : null;
 
@@ -42,11 +38,11 @@ export function WorkspaceSwitcher() {
           variant="ghost"
           size="sm"
           role="combobox"
-          className="w-full justify-between px-2 font-bold hover:bg-accent"
+          className="h-14 w-full justify-between px-2 font-medium hover:bg-accent"
         >
           <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex h-6 w-6 items-center justify-center rounded-sm border bg-background">
-              <Folder className="h-4 w-4" />
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-background">
+              <span aria-hidden="true" className="text-xs font-semibold">{(activeWorkspace?.name || "W").slice(0, 2).toUpperCase()}</span>
             </div>
             <span className="truncate">{activeWorkspace?.name || "Select Workspace"}</span>
           </div>
@@ -60,9 +56,9 @@ export function WorkspaceSwitcher() {
             onClick={() => setActiveWorkspaceId(workspace.id)}
             className="flex items-center justify-between"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <Folder className="h-4 w-4" />
-              <span>{workspace.name}</span>
+              <span className="truncate">{workspace.name}</span>
             </div>
             {activeWorkspaceId === workspace.id && <Check className="h-4 w-4" />}
           </DropdownMenuItem>

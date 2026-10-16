@@ -1,14 +1,14 @@
 ---
 artifact_type: phase
 id: COLLAB-V2
-status: in_review
+status: in_progress
 owner: shared
 updated: 2026-10-16
 ---
 
 # Collaboration v2, legacy dashboard and native MCP
 
-Design approved by user; implementation plans in review. No runtime implementation in this phase has started.
+Design and implementation approved by user. C1 is implemented and under final verification in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
 
 ## Trace
 
@@ -23,10 +23,10 @@ Design approved by user; implementation plans in review. No runtime implementati
 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
-| A | A1–A4 | authoritative ACL, invites, public sessions, capabilities | in_review |
-| B | B1–B4 | durable CRDT, offline editing, presence/follow/voice | in_review |
-| C | C1–C2 | legacy dashboard style and management flows | in_review |
-| D | D1–D4 | scoped MCP, editable diagram catalog, export | in_review |
+| A | A1–A4 | A1 implementing; remaining tasks pending | in_progress |
+| B | B1–B4 | B1 implementing; remaining tasks pending | in_progress |
+| C | C1–C2 | C1 implemented; C2 pending A | in_progress |
+| D | D1–D4 | D2 implementing; remaining tasks pending | in_progress |
 | E | E1–E3 | integration/load proof, VM100 canary/rollback, docs | in_review |
 
 Task identifiers in the subsystem plans are the bounded execution work items;
@@ -43,9 +43,8 @@ docs reconciliation and commit. No additional ticket duplication is required.
 - Verify browser, API, database and collab together, then deploy/observe on VM100 with tested rollback.
 - Human and agent-readable docs reconciled to actual shipped behavior.
 
-Organization hierarchy remains a separate open domain question: current code
-has workspace ownership/membership only. This blocks org-specific tools, not
-workspace/MCP planning. Do not silently equate org and workspace.
+User explicitly confirmed that org means workspace. Implement workspace
+ownership/membership and MCP tools; no separate organization hierarchy.
 Enterprise parity P1/P2 candidates remain separate from these delivery slices.
 
 ## Planning verification — 2026-10-16

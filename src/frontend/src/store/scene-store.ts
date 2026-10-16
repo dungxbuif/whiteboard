@@ -50,7 +50,7 @@ interface SceneState {
   saveStatus: SaveStatus;
   error: string | null;
   fetchScenes: (workspaceId: string, folderId: string | null) => Promise<void>;
-  createScene: (workspaceId: string, folderId: string | null, title?: string) => Promise<Scene>;
+  createScene: (workspaceId: string, folderId: string | null, title?: string, content?: SceneContent) => Promise<Scene>;
   openScene: (scene: Scene) => void;
   openSceneById: (workspaceId: string, sceneId: string) => Promise<void>;
   closeScene: () => Promise<void>;
@@ -133,10 +133,10 @@ const useSceneStore = create<SceneState>((set, get) => {
       }
     },
 
-    createScene: async (workspaceId, folderId, title = "Untitled scene") => {
+    createScene: async (workspaceId, folderId, title = "Untitled scene", content = EMPTY_SCENE_CONTENT) => {
       const response = await api.post<Scene>(
         "/scenes/",
-        { title, folderId, content: EMPTY_SCENE_CONTENT },
+        { title, folderId, content },
         { headers: workspaceHeaders(workspaceId) },
       );
       set((state) => ({ scenes: [response.data, ...state.scenes], activeScene: response.data }));

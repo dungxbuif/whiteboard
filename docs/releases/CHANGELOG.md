@@ -12,6 +12,8 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Dashboard C1 (branch only, not deployed): ported original dashboard colors and layout; responsive navigation, scoped light/dark portals, native previews and validated scene import. [Guide](../user/dashboard.md), [verification](../work/verification/collaboration-v2.md).
+
 - Planning only (2026-10-16): approved collaboration-v2/legacy-dashboard design and prepared [five implementation plans](../superpowers/plans/2026-10-16-collaboration-v2.md), covering ACL, durable Yjs, scoped MCP and editable diagrams. These features are not yet shipped.
 
 - Release candidate: [Whiteboard VM100 — 2026-10-15](2026-10-15-whiteboard-vm100.md). Automated checks and live public-share verification passed; human secret-rotation, backup/restore, rollback, voice, and AI gates remain documented in the release checklist.

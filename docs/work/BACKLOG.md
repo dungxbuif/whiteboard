@@ -91,11 +91,11 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 | ID | Type | Lane | Status | Scope | Next artifact |
 | --- | --- | --- | --- | --- | --- |
-| COLLAB-V2 | phase | high-risk | in_review | Approved legacy dashboard, ACL/invites/public edit, Yjs/custom socket, native MCP and diagram catalog | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
+| COLLAB-V2 | phase | high-risk | in_progress | Approved legacy dashboard, ACL/invites/public edit, Yjs/custom socket, native MCP and diagram catalog | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
 
-Design approval recorded; implementation has not started. Task IDs A1–E3 are
-defined in the subsystem plans. Org domain and actual NetBird/TURN topology
-remain explicit scope/preflight items rather than assumed implementation.
+Design and implementation authorized; C1 dashboard is verified locally. Task IDs A1–E3 are
+defined in the subsystem plans. User confirmed org means workspace. Actual NetBird/TURN topology remains
+a release preflight item rather than an assumed implementation.
 
 ### Epic E01: Self-hosted Dashboard
 

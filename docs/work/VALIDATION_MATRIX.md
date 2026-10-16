@@ -82,12 +82,11 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | --- | --- | --- | --- | --- |
 | V2-ACCESS | A1–A4 | role/tenant negatives, migration, concurrent invite acceptance, scope/revoke | planned | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
 | V2-SYNC | B1–B4 | malformed protocol, durable ACK/replay, convergence, offline revocation, voice cap | planned | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
-| V2-DASH | C1–C2 | old/new visual comparison, mobile/keyboard and access/browser workflows | planned | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
+| V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 access workflows pending | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
 | V2-MCP | D1–D4 | scopes, discovery, all preset fixtures, stale/retry mutations, export isolation | planned | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
 | V2-RELEASE | E1–E3 | real-stack E2E/load, host inventory, cross-network audio, restore/rollback, docs | planned | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
 
-No v2 execution results exist yet. [Phase](phases/PHASE-COLLAB-V2.md) records
-planning-only review; existing v1 evidence is not reused as v2 proof.
+C1 execution evidence: [verification](verification/collaboration-v2.md). Remaining v2 slices are in progress; existing v1 evidence is not reused as v2 proof.
 
 ## Rules
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go, GORM, Casbin v3, PostgreSQL, JWT, bcrypt.
 
-**Spec:** [Approved collaboration design](../specs/2026-10-15-collaboration-v2-design.md); approved in conversation by “xác nhận”; implementation has not started.
+**Spec:** [Approved collaboration design](../specs/2026-10-15-collaboration-v2-design.md); approved in conversation by “xác nhận”; implementation authorized by the user on 2026-10-16.
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - Invitation links: single-use, email-bound, seven-day expiry. Room JWT: ten minutes.
 - Update frame: 1 MiB; materialized document: 25 MiB; 120 updates/minute/principal.
 - Snapshot: first of 100 updates or five seconds. Voice: ten active participants; no product-level data-participant cap.
-- Dashboard follows `references/devtool` styling; monochrome applies to dashboard only. Scene components retain native library styling.
+- Dashboard follows `references/devtool` styling; reuse its original colors and tokens without a monochrome override. Scene components retain native library styling.
 - Retain TypeScript 7 toolchain, password login, default workspace provisioning, and OpenAI-compatible provider boundary.
 - Every task updates its affected docs before implementation and reconciles them with verified behavior before commit.
 

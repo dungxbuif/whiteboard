@@ -1,18 +1,14 @@
-import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { PasswordLogin } from "@/components/admin-login";
-import { FolderBreadcrumbs } from "@/components/folder-breadcrumbs";
 import { FolderList } from "@/components/folder-list";
-import { FolderTree } from "@/components/folder-tree";
 import { SceneList } from "@/components/scene-list";
-import { SearchBar } from "@/components/search-bar";
 import { SearchResults } from "@/components/search-results";
 import { PublicView } from "@/components/public-view";
-import { Button } from "@/components/ui/button";
 import { ExcalidrawWrapper } from "@/components/whiteboard/excalidraw-wrapper";
-import { WorkspaceSwitcher } from "@/components/workspace-switcher";
-import { navigate, usePathname } from "@/lib/router";
+import { usePathname } from "@/lib/router";
 import useAuthStore from "@/store/auth-store";
 import useFolderStore from "@/store/folder-store";
 import useSceneStore from "@/store/scene-store";
@@ -38,7 +34,6 @@ function App() {
   const resetFolders = useFolderStore((state) => state.reset);
   const activeScene = useSceneStore((state) => state.activeScene);
   const fetchScenes = useSceneStore((state) => state.fetchScenes);
-  const createScene = useSceneStore((state) => state.createScene);
   const openSceneById = useSceneStore((state) => state.openSceneById);
   const resetScenes = useSceneStore((state) => state.reset);
   const searchView = useSearchStore((state) => state.view);
@@ -108,50 +103,16 @@ function App() {
   }
   if (activeScene) return <ExcalidrawWrapper />;
 
-  const activeWorkspace = workspaces.find((workspace) => workspace.id === activeWorkspaceId);
-
   return (
-    <main className="grid min-h-screen grid-cols-[248px_minmax(0,1fr)] bg-background max-md:grid-cols-1">
-      <aside className="flex flex-col gap-6 border-r bg-card px-4 py-6 max-md:border-b max-md:border-r-0" aria-label="Workspace navigation">
-        <WorkspaceSwitcher />
-        <div className="max-h-[calc(100vh-7rem)] overflow-y-auto pr-2 max-md:max-h-none">
-          <FolderTree />
-        </div>
-      </aside>
-
-      <section className="grid content-start gap-7 p-7 max-sm:p-4">
-        <FolderBreadcrumbs />
-        <header className="flex items-center justify-between gap-5 max-md:flex-col max-md:items-stretch">
-          <div>
-            <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Workspace</p>
-            <h1 className="text-3xl font-semibold leading-tight">{activeWorkspace?.name || "Select Workspace"}</h1>
-          </div>
-          <div className="flex items-center gap-3 max-md:flex-col max-md:items-stretch">
-            <SearchBar workspaceId={activeWorkspaceId} />
-            <Button
-              disabled={!activeWorkspaceId}
-              onClick={() => {
-                if (activeWorkspaceId) {
-                  void createScene(activeWorkspaceId, currentFolderId).then((scene) => {
-                    navigate(`/w/${activeWorkspaceId}/scenes/${scene.id}`);
-                  });
-                }
-              }}
-              type="button"
-            >
-              <Plus size={16} aria-hidden="true" /> New scene
-            </Button>
-          </div>
-        </header>
-
+    <DashboardShell>
+      <DashboardHeader />
         {searchView !== "all" || searchQuery.trim() ? <SearchResults /> : (
           <>
             <FolderList />
             <SceneList />
           </>
         )}
-      </section>
-    </main>
+    </DashboardShell>
   );
 }
 

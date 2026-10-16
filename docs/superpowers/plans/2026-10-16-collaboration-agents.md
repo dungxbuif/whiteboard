@@ -17,7 +17,7 @@
 - Roles: owner/editor/viewer; management owner-only. Invite TTL seven days, single-use/email-bound. Room JWT ten minutes.
 - Update frame 1 MiB; document 25 MiB; 120 updates/minute/principal; snapshot at 100 updates or five seconds.
 - Ten voice participants; no product-level data cap. Retain TypeScript 7 and password/default-workspace provisioning.
-- Dashboard copies old shadcn styling with monochrome tokens. Scene components retain native style.
+- Dashboard copies old shadcn styling with its original colors and tokens. Scene components retain native style.
 
 ## Review Focus
 

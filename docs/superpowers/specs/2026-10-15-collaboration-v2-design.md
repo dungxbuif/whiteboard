@@ -79,9 +79,8 @@ for collaboration transport.
 11. The dashboard visual source of truth is the old dashboard in
    `references/devtool`: its shadcn sidebar, workspace switcher, search,
    collection/folder navigation, user footer, cards, spacing, dialogs, and
-   light/dark token structure are ported faithfully. Dashboard/admin
-   collaboration controls may use the black/white `monochrome` variant within
-   that system. Scene/Excalidraw components retain their current/native style.
+   light/dark token structure are ported faithfully, including original colors
+   and accents. The user removed the monochrome override on 2026-10-16. Scene/Excalidraw components retain their current/native style.
 12. Agents can discover workspaces and scenes, create scenes, and generate
    native Excalidraw diagrams through an authenticated MCP server. MCP writes
    use the same ACL, Yjs transaction, persistence, and audit path as browser
@@ -474,9 +473,9 @@ file metadata/reference; `dataURL` and storage credentials never enter the
 document update log. Public edit links receive the same capability policy as
 member editors.
 
-Dashboard/admin components use shadcn/ui and a black/white `monochrome`
-variant, following the old dashboard's sidebar/workspace/search/card visual
-language. Scene/Excalidraw tools retain their current/native style. State
+Dashboard/admin components reuse the old shadcn/ui dashboard's original
+colors, accents, typography and sidebar/workspace/search/card visual language.
+No monochrome override is applied (user clarification, 2026-10-16). Scene/Excalidraw tools retain their current/native style. State
 labels and icons must remain understandable without color alone.
 
 ## Security and operational limits
@@ -522,7 +521,7 @@ labels and icons must remain understandable without color alone.
 ### Frontend and browser
 
 - Unit tests cover Yjs-to-Excalidraw diffing, remote loop guard, IndexedDB queue,
-  replay ordering, public display name, permission UI, and monochrome states.
+  replay ordering, public display name, permission UI, and legacy theme states.
 - Visual browser checks compare the dashboard port against the old reference
   for sidebar collapse, workspace switching, search, collection/folder
   navigation, scene cards, dialogs, user footer, responsive layout, and theme
@@ -557,7 +556,7 @@ The implementation plan will split work into independently testable slices:
 2. Node/TypeScript custom WebSocket server and Yjs persistence adapter.
 3. Frontend Yjs provider, Excalidraw adapter, IndexedDB replay, and native-style
    scene integration.
-4. Dashboard shadcn monochrome invite/member/share management UI.
+4. Dashboard invite/member/share management UI using the original legacy style.
 5. Dashboard visual parity port from `references/devtool`, including sidebar,
    workspace switcher, search, collection/folder navigation, user footer,
    cards, dialogs, responsive collapse, and theme tokens.
