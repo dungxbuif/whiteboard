@@ -45,7 +45,7 @@ type capabilityStorage struct {
 	fail bool
 }
 
-func (s capabilityStorage) PresignUploadConstrained(_ domain.Context, b, k, m string, n int64, ttl time.Duration) (string, map[string]string, error) {
+func (s capabilityStorage) PresignUploadConstrained(_ domain.Context, b, k, m string, n int64, deadline time.Time) (string, map[string]string, error) {
 	if s.fail {
 		return "", nil, errors.New("storage unavailable")
 	}
@@ -281,6 +281,10 @@ func TestPublicUploadCapabilityHTTP(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("public upload %d %s", code, raw)
 	}
+	code, raw = request(api.URL, "POST", "/api/v1/scenes/"+ref.SceneID.String()+"/assets/upload-capability", session.Token, map[string]any{"assets": []domain.AssetUploadRequest{{FileID: "http-file", MimeType: "image/jpeg", ByteSize: 7}}})
+	if code != 409 || !bytes.Contains(raw, []byte("ASSET_CONFLICT")) || bytes.Contains(raw, []byte("uploadUrl")) {
+		t.Fatalf("metadata conflict response %d %s", code, raw)
+	}
 	login, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": owner.String(), "exp": time.Now().Add(time.Minute).Unix()}).SignedString([]byte(strings.Repeat("l", 32)))
 	code, raw = request(api.URL, "POST", "/api/v1/scenes/"+ref.SceneID.String()+"/assets/upload-capability", login, map[string]any{"assets": []domain.AssetUploadRequest{{FileID: "login-file", MimeType: "image/jpeg", ByteSize: 7}}})
 	if code != 200 {
@@ -313,5 +317,66 @@ func TestPublicUploadCapabilityHTTP(t *testing.T) {
 	code, _ = request(api.URL, "GET", "/api/v1/realtime/config", room.Token, nil)
 	if code < 400 {
 		t.Fatal("revoked TURN admitted")
+	}
+}
+
+func TestPublicUploadCapabilityRenewal(t *testing.T) {
+	repo, _, _, access, owner, ref := publicLinkFixture(t)
+	up, e := os.ReadFile("../../../migrations/000012_scene_asset_capabilities.up.sql")
+	if e != nil {
+		t.Fatal(e)
+	}
+	mustExec(t, repo.db, string(up))
+	assets := usecase.NewAssetUsecase(NewSceneRepository(repo.db), NewSceneAssetRepository(repo.db), capabilityStorage{}, "assets", time.Minute)
+	caps, _ := usecase.NewCapabilityService(access, repo, assets, []byte(strings.Repeat("g", 32)))
+	p := domain.UserPrincipal(owner)
+	p.CredentialExpiresAt = time.Now().Add(4 * time.Second)
+	hash := strings.Repeat("a", 64)
+	width, height := 100, 200
+	req := []domain.AssetUploadRequest{{FileID: "renew", MimeType: "image/png", ByteSize: 7, SHA256: &hash, Width: &width, Height: &height}}
+	first, e := caps.CreateAssetCapability(context.Background(), p, ref, req)
+	if e != nil {
+		t.Fatal(e)
+	}
+	p.CredentialExpiresAt = time.Now().Add(time.Minute)
+	second, e := caps.CreateAssetCapability(context.Background(), p, ref, req)
+	if e != nil {
+		t.Fatalf("same file cannot renew upload capability: %v", e)
+	}
+	if !second.URLs["renew"].ExpiresAt.After(first.URLs["renew"].ExpiresAt) {
+		t.Fatal("renewed parent credential did not refresh asset deadline")
+	}
+	if first.URLs["renew"].AssetID != second.URLs["renew"].AssetID || first.URLs["renew"].StorageKey != second.URLs["renew"].StorageKey {
+		t.Fatal("renewal replaced existing asset identity")
+	}
+	for _, field := range []string{"mime", "size", "hash", "width", "height"} {
+		bad := req[0]
+		switch field {
+		case "mime":
+			bad.MimeType = "image/jpeg"
+		case "size":
+			bad.ByteSize++
+		case "hash":
+			bad.SHA256 = nil
+		case "width":
+			bad.Width = nil
+		case "height":
+			bad.Height = nil
+		}
+		if g, e := caps.CreateAssetCapability(context.Background(), p, ref, []domain.AssetUploadRequest{bad}); !errors.Is(e, domain.ErrAssetConflict) || len(g.URLs) != 0 {
+			t.Errorf("conflicting %s did not return typed conflict: %v", field, e)
+		}
+	}
+	var count int64
+	repo.db.Table("scene_assets").Where("workspace_id=? AND scene_id=?", ref.WorkspaceID, ref.SceneID).Count(&count)
+	if count != 1 {
+		t.Fatalf("renewal left %d rows", count)
+	}
+	var row domain.SceneAsset
+	if e = repo.db.First(&row, "id=?", first.URLs["renew"].AssetID).Error; e != nil {
+		t.Fatal(e)
+	}
+	if row.MimeType != "image/png" || row.ByteSize != 7 || row.UploadedPrincipalID != p.ID || row.SHA256 == nil || *row.SHA256 != hash {
+		t.Fatalf("conflict modified original metadata: %+v", row)
 	}
 }

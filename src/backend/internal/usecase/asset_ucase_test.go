@@ -195,7 +195,125 @@ func TestPublicUploadCapabilityValidation(t *testing.T) {
 	}
 }
 
-func (m *mockS3Repo) PresignUploadConstrained(c domain.Context, b, k, mime string, n int64, ttl time.Duration) (string, map[string]string, error) {
-	u, e := m.PresignUpload(c, b, k, ttl)
+func (m *mockS3Repo) PresignUploadConstrained(c domain.Context, b, k, mime string, n int64, deadline time.Time) (string, map[string]string, error) {
+	u, e := m.PresignUpload(c, b, k, time.Until(deadline))
 	return u, map[string]string{"Content-Type": mime}, e
+}
+
+type delayedAssetScene struct {
+	domain.SceneRepository
+	scene *domain.Scene
+	delay time.Duration
+}
+
+func (r delayedAssetScene) FindByID(domain.Context, uuid.UUID, uuid.UUID) (*domain.Scene, error) {
+	time.Sleep(r.delay)
+	return r.scene, nil
+}
+
+type delayedAssetRows struct {
+	*mockSceneAssetRepo
+	delay time.Duration
+}
+
+func (r delayedAssetRows) GetByFileIDs(c domain.Context, w, s uuid.UUID, ids []string) ([]domain.SceneAsset, error) {
+	time.Sleep(r.delay)
+	return r.mockSceneAssetRepo.GetByFileIDs(c, w, s, ids)
+}
+
+type deadlineAssetSigner struct {
+	mockS3Repo
+	observed time.Time
+	calls    int
+}
+
+func (s *deadlineAssetSigner) PresignUploadConstrained(_ domain.Context, _, _, _ string, _ int64, deadline time.Time) (string, map[string]string, error) {
+	s.observed = deadline
+	s.calls++
+	return "upload", nil, nil
+}
+func (s *deadlineAssetSigner) PresignDownloadUntil(_ domain.Context, _, _ string, deadline time.Time) (string, error) {
+	s.observed = deadline
+	s.calls++
+	return "view", nil
+}
+func TestAssetAbsoluteDeadline(t *testing.T) {
+	for _, mode := range []string{"upload", "view", "cache"} {
+		t.Run(mode, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			file := "deadline"
+			id := uuid.New()
+			deadline := time.Now().Add(8 * time.Second).Truncate(time.Second)
+			row := &domain.SceneAsset{ID: id, WorkspaceID: ref.WorkspaceID, SceneID: &ref.SceneID, FileID: &file, MimeType: "image/png", ByteSize: 7, StorageBucket: "assets", StorageKey: "existing"}
+			if mode == "cache" {
+				cached := "cached"
+				expires := deadline.Add(time.Second)
+				row.PresignedURL = &cached
+				row.URLExpiresAt = &expires
+			}
+			rows := &mockSceneAssetRepo{assets: map[uuid.UUID]*domain.SceneAsset{id: row}}
+			signer := &deadlineAssetSigner{}
+			scene := delayedAssetScene{scene: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID}}
+			var repo domain.SceneAssetRepository = rows
+			if mode == "upload" {
+				scene.delay = 1200 * time.Millisecond
+			} else {
+				repo = delayedAssetRows{rows, 1200 * time.Millisecond}
+			}
+			u := NewAssetUsecase(scene, repo, signer, "assets", time.Minute)
+			if mode == "upload" {
+				result, e := u.PresignPrincipalUpload(context.Background(), domain.UserPrincipal(uuid.New()), ref, []domain.AssetUploadRequest{{FileID: "new", MimeType: "image/png", ByteSize: 7}}, deadline)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if result["new"].ExpiresAt.After(deadline) {
+					t.Errorf("upload expiry %s exceeds authorization %s", result["new"].ExpiresAt, deadline)
+				}
+			} else {
+				result, e := u.PresignScopedView(context.Background(), ref, []string{file}, deadline)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if result[file].ExpiresAt.After(deadline) {
+					t.Errorf("view expiry %s exceeds authorization %s", result[file].ExpiresAt, deadline)
+				}
+			}
+			if !signer.observed.IsZero() && signer.observed.After(deadline) {
+				t.Errorf("signer lifetime %s exceeds authorization %s", signer.observed, deadline)
+			}
+		})
+	}
+}
+
+func (m *mockS3Repo) PresignDownloadUntil(c domain.Context, b, k string, deadline time.Time) (string, error) {
+	return m.PresignDownload(c, b, k, time.Until(deadline))
+}
+
+func TestAssetAbsoluteDeadlineExpiredDuringRead(t *testing.T) {
+	for _, mode := range []string{"upload", "view"} {
+		t.Run(mode, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			file := "expired"
+			id := uuid.New()
+			deadline := time.Now().Add(2 * time.Second)
+			rows := &mockSceneAssetRepo{assets: map[uuid.UUID]*domain.SceneAsset{id: {ID: id, WorkspaceID: ref.WorkspaceID, SceneID: &ref.SceneID, FileID: &file}}}
+			signer := &deadlineAssetSigner{}
+			scene := delayedAssetScene{scene: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID}, delay: 2100 * time.Millisecond}
+			u := NewAssetUsecase(scene, rows, signer, "assets", time.Minute)
+			if mode == "upload" {
+				g, e := u.PresignPrincipalUpload(context.Background(), domain.UserPrincipal(uuid.New()), ref, []domain.AssetUploadRequest{{FileID: "new", MimeType: "image/png", ByteSize: 7}}, deadline)
+				if e == nil || len(g) != 0 {
+					t.Fatal("read returned expired upload capability")
+				}
+			} else {
+				g, e := u.PresignScopedView(context.Background(), ref, []string{file}, deadline)
+				if e == nil || len(g) != 0 {
+					t.Fatal("read returned expired view capability")
+				}
+			}
+			if signer.calls != 0 {
+				t.Fatal("expired authority reached signing")
+			}
+		})
+	}
 }

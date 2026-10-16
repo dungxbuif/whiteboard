@@ -40,6 +40,10 @@ func NewCapabilityHandler(c domain.CapabilityService, r RoomTokenVerifier, a dom
 	return &CapabilityHandler{capabilities: c, rooms: r, access: a, assets: u, serviceSecret: append([]byte(nil), secret...)}, nil
 }
 func capabilityError(w http.ResponseWriter, r *http.Request, e error) {
+	if errors.Is(e, domain.ErrAssetConflict) {
+		writeSharingError(w, r, http.StatusConflict, "ASSET_CONFLICT", "File ID already has incompatible image metadata")
+		return
+	}
 	if errors.Is(e, domain.ErrInvalidCapability) {
 		writeSharingError(w, r, http.StatusBadRequest, "INVALID_INPUT", "Invalid capability request")
 		return
@@ -168,7 +172,7 @@ func (h *CapabilityHandler) PublicView(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			return e
 		}
-		result, e = viewer.PresignScopedView(c, identity.SceneRef, in.FileIDs, time.Until(expires))
+		result, e = viewer.PresignScopedView(c, identity.SceneRef, in.FileIDs, expires)
 		return e
 	})
 	if e != nil {

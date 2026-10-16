@@ -19,6 +19,7 @@ const (
 )
 
 var ErrInvalidCapability = errors.New("invalid capability request")
+var ErrAssetConflict = errors.New("file ID already has incompatible asset metadata")
 
 type SceneMutation struct {
 	WorkspaceID      string `json:"workspaceId" validate:"required,uuid"`
@@ -53,14 +54,18 @@ type CapabilityService interface {
 	CreateAssetCapability(Context, Principal, SceneRef, []AssetUploadRequest) (AssetGrant, error)
 }
 type ScopedUploadRepository interface {
-	PresignUploadConstrained(Context, string, string, string, int64, time.Duration) (string, map[string]string, error)
+	PresignUploadConstrained(Context, string, string, string, int64, time.Time) (string, map[string]string, error)
 }
 type PrincipalAssetUploader interface {
-	PresignPrincipalUpload(Context, Principal, SceneRef, []AssetUploadRequest, time.Duration) (map[string]AssetUploadResponse, error)
+	PresignPrincipalUpload(Context, Principal, SceneRef, []AssetUploadRequest, time.Time) (map[string]AssetUploadResponse, error)
 }
 
 type ScopedAssetViewer interface {
-	PresignScopedView(Context, SceneRef, []string, time.Duration) (map[string]AssetViewResponse, error)
+	PresignScopedView(Context, SceneRef, []string, time.Time) (map[string]AssetViewResponse, error)
 }
 
 const ContextKeyCredentialExpiry = "credential_expiry"
+
+type ScopedDownloadRepository interface {
+	PresignDownloadUntil(Context, string, string, time.Time) (string, error)
+}

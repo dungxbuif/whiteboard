@@ -146,7 +146,7 @@ func (s *CapabilityService) CreateAssetCapability(ctx domain.Context, p domain.P
 		if d.Access != domain.AccessEdit {
 			return domain.ErrAccessDenied
 		}
-		urls, e := s.assets.PresignPrincipalUpload(ctx, p, ref, requests, time.Until(expires))
+		urls, e := s.assets.PresignPrincipalUpload(ctx, p, ref, requests, expires)
 		if e != nil {
 			return e
 		}
