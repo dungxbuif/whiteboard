@@ -1,6 +1,6 @@
 # Native diagram compiler dependency decision
 
-Status: D2 compiler implemented and verified locally; integration/browser release proof pending D3/D4/E1. Trace: [D plan](../superpowers/plans/2026-10-16-collaboration-agents.md), [phase](../work/phases/PHASE-COLLAB-V2.md).
+Status: D2 compiler and D3/D4 integration/browser paths implemented and verified locally; production release remains gated by E1/E2. D2 sections below retain historical investigation evidence; the final D4 section records current browser findings. Trace: [D plan](../superpowers/plans/2026-10-16-collaboration-agents.md), [phase](../work/phases/PHASE-COLLAB-V2.md).
 
 ## Behavior and boundary
 
@@ -54,3 +54,19 @@ Sequence and user-journey retain their conventional ordered orientation (partici
 Reviewed primary repository documentation for [yctimlin/mcp_excalidraw](https://github.com/yctimlin/mcp_excalidraw), [debu-sinha/excalidraw-mcp-server](https://github.com/debu-sinha/excalidraw-mcp-server), [excaliwow/mcp](https://github.com/excaliwow/mcp), and [hangarbay/excalidraw.mcp](https://github.com/hangarbay/excalidraw.mcp). They provide useful element CRUD, live canvas, browser conversion and export interface references. No community service/runtime code was imported: this application's Go authority, shared revision/grant path and offline persistence remain mandatory. Hosted client wrappers do not establish that a hosted application's backend is reusable public source. Only pinned ELK is a new D2 runtime dependency; native integration uses the existing Excalidraw element contract.
 
 Current workspace patch versions and later audit findings are recorded in [E1 dependency remediation](../work/verification/collaboration-dependencies.md). The D2 audit above is historical evidence, not the current release result. E1 browser probes found class/ER native fallback limitations in the current upstream adapter; D4 must reject raster fallback or implement a verified native path.
+
+## D4 intended dependency and process boundary — 2026-10-16
+
+Renderer uses the installed Excalidraw 0.18.1 official browser exporter and Playwright 1.60.0, bundled with Vite 7.3.5. Diagram-kit will emit Node ESM with .js local import specifiers so the private service uses built packages. No runtime plugin is loaded. Current curated shape provenance remains in curated-libraries.json.
+
+The [KaTeX maintainer advisory](https://github.com/KaTeX/KaTeX/security/advisories/GHSA-238p-pmpm-9mq7) identifies versions >=0.11.0,<0.18.2 and confirms 0.18.2 fixes inherited settings/metadata/namespaces. Registry lookup on 2026-10-16 confirms 0.18.2 and integrity sha512-3snve4y0SXTMequLim1FMiPvLGElySam0blN5xQZBqEY3lOJz1TnuaaiugnBZBqHzlSAGmFTYL7MCQkORuLKCA==. Root installer will override the externally imported core dependency; standalone Mermaid distributions with vendored KaTeX are excluded. Planned proof includes normal math and inherited trust plus resource/link payloads, prototype cleanup, Mermaid configuration rejection and native editable fixtures. Compatibility is not yet claimed.
+
+## D4 implementation evidence
+
+The build now emits diagram-kit ESM/declarations with `.js` import specifiers and succeeds under ordinary Node ESM. The renderer uses the pinned official Excalidraw converter/exporter in real Chromium. Restricted Mermaid remains the D2 native parser: upstream adapter fixtures are compatibility/security probes, not permission to widen its syntax or introduce image fallback. A visual regression exposed the skeleton converter's alignment-anchor interpretation of complete native text. The renderer now retains original label-box centers, fits measured text within them, and preserves stable IDs/version/versionNonce/seed/updated; repeated typed input is byte-equivalent. The saved multilingual PNG shows complete Vietnamese/Japanese labels and native connectors.
+
+Root installed KaTeX **0.18.2** through the override and `npm ls katex --all` confirms the resolved version. Real-browser tests prove normal math and native flowchart/sequence/math adapter fixtures, inherited `trust` settings and polluted Object.prototype trust with explicit cleanup, hostile URL/image/background commands, and denial of raw unsafe output. These fixtures exercise the externally imported core KaTeX path; vendored standalone Mermaid distributions are excluded. This addresses GHSA-238p-pmpm-9mq7 on this path, not a claim that every dependency is vulnerability-free. The remaining root audit result is tracked separately in the dependency ledger.
+
+The font manifest pins 234 upstream Excalidraw 0.18.1 WOFF2 files by SHA-256 and the Vite build verifies every byte. Notices and primary-source provenance are in `src/mcp/licenses/README.md`. In particular, the bundled Liberation Sans metadata is the legacy Ascender GPL-2.0-with-font-exception font, not assumed to be the newer OFL release. No third-party artwork was imported. Official export embeds subset fonts in SVG and loads bundled fonts before PNG rasterization.
+
+Tests confirm hard termination of both a noncooperative Node worker and a real Chromium renderer executing an infinite loop, exact browser resource allowlisting, metadata/loopback/external/file denial, native assets and export MIME, current authority and revocation over the actual Go/Node/HTTP stack. The final D4 report records commands, counts and deployment limitations; E2 owns container-build and proxy proof.

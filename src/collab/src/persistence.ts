@@ -78,7 +78,7 @@ export class Persistence extends EventEmitter {
   if(!revision(cursor)||!Number.isInteger(limit)||limit<1||limit>50)throw new CollabError('INVALID_UPDATE','Invalid activity page',400);
   const decision=await this.authority.verifyDecision(grant,{...ref,action:'scene:read',payloadHash:hash(new Uint8Array())});
   return this.transaction(ref,decision,async client=>{
-   const rows=(await client.query('SELECT sequence::text,request_id AS "requestId",principal_type AS "principalType",action,created_at AS "createdAt" FROM collab_mutation_audit WHERE workspace_id=$1 AND scene_id=$2 AND sequence>$3 ORDER BY sequence LIMIT $4',[ref.workspaceId,ref.sceneId,cursor,limit+1])).rows;
+   const rows=(await client.query('SELECT sequence::text,request_id AS "requestId",principal_type AS "principalType",action,created_at AS "createdAt" FROM collab_mutation_audit AS activity WHERE workspace_id=$1 AND scene_id=$2 AND sequence>$3 ORDER BY activity.sequence LIMIT $4',[ref.workspaceId,ref.sceneId,cursor,limit+1])).rows;
    return {items:rows.slice(0,limit),...(rows.length>limit?{nextCursor:rows[limit-1].sequence}:{})};
   });
  }
@@ -158,7 +158,7 @@ export class Persistence extends EventEmitter {
   return this.transaction(ref,undefined,async client=>{
    const {row,doc}=await this.load(client,ref,true);
    try{
-    const updates=(await client.query('SELECT sequence::text,update_bytes FROM collab_updates WHERE scene_id=$1 ORDER BY sequence',[ref.sceneId])).rows.map(r=>({sequence:r.sequence,bytes:r.update_bytes.toString('base64'),hash:hash(r.update_bytes)}));
+    const updates=(await client.query('SELECT sequence::text,update_bytes FROM collab_updates AS updates WHERE scene_id=$1 ORDER BY updates.sequence',[ref.sceneId])).rows.map(r=>({sequence:r.sequence,bytes:r.update_bytes.toString('base64'),hash:hash(r.update_bytes)}));
     return {format:1,...ref,documentId:row.document_id,sequence:row.sequence,promotionCheckpoint:{content:row.legacy_content,contentVersion:row.legacy_content_version},snapshotSequence:row.snapshot_sequence,snapshot:row.snapshot.toString('base64'),snapshotHash:hash(row.snapshot),updates,receipts:(await client.query('SELECT * FROM collab_receipts WHERE scene_id=$1 ORDER BY sequence',[ref.sceneId])).rows,audit:(await client.query('SELECT * FROM collab_mutation_audit WHERE scene_id=$1 ORDER BY sequence',[ref.sceneId])).rows,content:materializeScene(doc)};
    }finally{doc.destroy();}
   });

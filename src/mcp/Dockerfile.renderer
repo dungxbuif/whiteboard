@@ -1,0 +1,26 @@
+# Build from src/, using the one root workspace lock.
+FROM node:24.19.0-bookworm-slim AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package.json
+COPY collab/package.json collab/package.json
+COPY mcp/package.json mcp/package.json
+COPY packages/collab-contracts/package.json packages/collab-contracts/package.json
+COPY packages/diagram-kit/package.json packages/diagram-kit/package.json
+RUN npm ci --ignore-scripts --no-audit
+COPY packages packages
+COPY mcp mcp
+RUN npm run build --workspace ./packages/collab-contracts && npm run build --workspace ./packages/diagram-kit && npm run build --workspace ./mcp
+RUN npm prune --omit=dev --ignore-scripts --no-audit
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
+ENV NODE_ENV=production PLAYWRIGHT_BROWSERS_PATH=/ms-playwright MCP_BIND_HOST=0.0.0.0 PORT=3002
+WORKDIR /app
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages/collab-contracts ./packages/collab-contracts
+COPY --from=build /app/packages/diagram-kit ./packages/diagram-kit
+COPY --from=build /app/mcp/package.json ./mcp/package.json
+COPY --from=build /app/mcp/dist ./mcp/dist
+COPY --from=build /app/mcp/render-dist ./mcp/render-dist
+USER pwuser
+EXPOSE 3002
+CMD ["node","mcp/dist/http.js"]

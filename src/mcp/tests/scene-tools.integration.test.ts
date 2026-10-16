@@ -82,6 +82,27 @@ it('applies real MCP → Go → Node mutations with durable receipts, scopes, ac
   const activity=await call(read,'get_scene_activity',{sceneRef:f.ref,limit:2});expect(activity.items).toHaveLength(2);expect(activity.nextCursor).toBe('2');expect(JSON.stringify(activity)).not.toMatch(/payloadHash|principalId|grant|elements|wb_agent/);expect((await call(read,'get_scene_activity',{sceneRef:f.ref,cursor:activity.nextCursor,limit:2})).items).toHaveLength(2);
   const route=f.api+`/api/v1/agent/workspaces/${f.ref.workspaceId}/scenes/${f.ref.sceneId}`;
   expect((await fetch(route+'/export-projection',{headers:{authorization:'Bearer '+f.keys.export}})).status).toBe(200);expect((await fetch(route,{headers:{authorization:'Bearer '+f.keys.export}})).status).toBe(403);expect((await fetch(route+'/export-projection',{headers:{authorization:'Bearer '+f.keys.read}})).status).toBe(403);
+  const exporter=await connect(f.keys.export);
+  await expect(call(read,'export_scene',{sceneRef:f.ref,format:'json'})).rejects.toThrow('ACCESS_DENIED');
+  const base='http://127.0.0.1:'+(mcp!.address() as {port:number}).port;
+  const grants=[];
+  for(const format of ['json','svg','png']){
+    const artifact=await call(exporter,'export_scene',{sceneRef:f.ref,format});grants.push(artifact);
+    expect(artifact.revision).toBe('4');expect(artifact.url).toBe(base+'/mcp/artifacts/'+artifact.id);
+    const response=await fetch(artifact.url,{headers:{authorization:'Bearer '+f.keys.export}});expect(response.status).toBe(200);expect(response.headers.get('content-type')).toBe(artifact.mimeType);
+    const bytes=Buffer.from(await response.arrayBuffer());if(format==='json')expect(JSON.parse(bytes.toString()).type).toBe('excalidraw');else if(format==='svg')expect(bytes.toString()).toContain('<svg');else expect(bytes.subarray(0,8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect((await fetch(artifact.url)).status).toBe(401);
+    expect((await fetch(artifact.url,{headers:{authorization:'Bearer '+f.keys.read}})).status).toBe(404);
+  }
+  // The stdio adapter's remote export method uses only its bearer key and public endpoint.
+  const remote=new GoClient(f.api,f.keys.export,undefined,base);const forwarded=await remote.remoteExport({sceneRef:f.ref,format:'json'});
+  expect(forwarded.url).toBe(base+'/mcp/artifacts/'+forwarded.id);
+  await pool.query('UPDATE agent_keys SET scopes=$1 WHERE id=$2',[JSON.stringify(["scene:read"]),f.keyIds.export]);
+  expect((await fetch(grants[0].url,{headers:{authorization:'Bearer '+f.keys.export}})).status).toBe(403);
+  await expect(remote.remoteExport({sceneRef:f.ref,format:'json'})).rejects.toMatchObject({code:'ACCESS_DENIED'});
+  await pool.query('UPDATE agent_keys SET scopes=$1,revoked_at=now() WHERE id=$2',[JSON.stringify(["scene:export"]),f.keyIds.export]);
+  expect((await fetch(grants[0].url,{headers:{authorization:'Bearer '+f.keys.export}})).status).toBe(401);
+  await expect(call(exporter,'export_scene',{sceneRef:f.ref,format:'json'})).rejects.toThrow();
   const counts=(await pool.query('SELECT count(*) FROM collab_mutation_audit')).rows[0].count;
   await call(write,'generate_diagram',{...args,requestId:'dry-after',expectedSequence:'4',dryRun:true});expect((await pool.query('SELECT count(*) FROM collab_mutation_audit')).rows[0].count).toBe(counts);
   socket.close();await runtime.close();runtime=await startServer(new Persistence(pool,authority,{promoteV2:true}),config);
@@ -90,7 +111,7 @@ it('applies real MCP → Go → Node mutations with durable receipts, scopes, ac
   const createdRef={workspaceId:f.ref.workspaceId,sceneId:created.id};
   const createdDiagram=await call(full,'generate_diagram',{...args,sceneRef:createdRef,instanceId:'created-via-go',requestId:'created-diagram'});
   expect(createdDiagram.receipt.sequence).toBe('1');expect((await call(full,'get_scene',createdRef)).content.elements.map((e:any)=>e.id)).toEqual(createdDiagram.createdIds);
-  expect(createdDiagram.sceneUrl).toContain(`/w/${f.ref.workspaceId}/scenes/${created.id}`);
+  expect(createdDiagram.sceneUrl).toBe(base+`/w/${f.ref.workspaceId}/scenes/${created.id}`);
   await expect(call(full,'patch_elements',{sceneRef:f.ref,requestId:'immutable-id',expectedSequence:'4',patches:[{id,fields:{id:'changed-id'}}]})).rejects.toThrow('INVALID_UPDATE');
   // A second key cannot claim the first key's receipt; revoked keys cannot replay.
   await expect(call(full,'generate_diagram',args)).rejects.toThrow('REQUEST_ID_REUSED');
@@ -115,3 +136,42 @@ it('applies real MCP → Go → Node mutations with durable receipts, scopes, ac
  }
  expect(child.exitCode,logs).toBe(0);
 },60000);
+
+import {fixture,signed,grantSecret} from '../../collab/tests/fixture.js';
+it('paginates durable activity numerically across 9 and 99 without omissions',async()=>{
+ const f=await fixture();const store=new Persistence(f.pool,f.authority,{promoteV2:true});
+ try{
+  for(let sequence=0;sequence<102;sequence++){
+   const requestId=`page-${sequence+1}`;const bytes=Buffer.from(JSON.stringify({...f.ref,requestId,expectedSequence:String(sequence),commands:[{op:'add',elements:[]}]}));
+   const decision=await f.authority.decide(f.principal.roomToken,f.ref,'scene:command',requestId,bytes,String(sequence));
+   await store.applyCommands(await signed(decision,grantSecret),bytes);
+  }
+  let cursor='0';const sequences:string[]=[];
+  do{
+   const decision=await f.authority.decide(f.principal.roomToken,f.ref,'scene:read','activity-page',new Uint8Array());
+   const page=await store.readActivity(await signed(decision,grantSecret),f.ref,cursor,7) as {items:{sequence:string}[];nextCursor?:string};
+   sequences.push(...page.items.map(item=>item.sequence));cursor=page.nextCursor??'';
+  }while(cursor);
+  expect(sequences).toEqual(Array.from({length:102},(_,i)=>String(i+1)));
+  expect(new Set(sequences).size).toBe(102);
+  const recovery=await store.exportRecovery(f.ref) as {updates:{sequence:string}[]};
+  expect(recovery.updates.map(update=>update.sequence)).toEqual(sequences);
+ }finally{await f.close();}
+},30000);
+it('uses the trusted frontend origin through audited client copies and routes remote exports there',async()=>{
+ const seen:string[]=[];const api=createServer((req,res)=>{seen.push('api:'+req.url);res.end(JSON.stringify({principalId:'agent:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',keyId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'}))});
+ const frontend=createServer((req,res)=>{seen.push('public:'+req.url);res.end(JSON.stringify({id:'artifact'}))});
+ await new Promise<void>(r=>api.listen(0,'127.0.0.1',r));await new Promise<void>(r=>frontend.listen(0,'127.0.0.1',r));
+ const apiURL='http://127.0.0.1:'+(api.address() as {port:number}).port,publicURL='http://127.0.0.1:'+(frontend.address() as {port:number}).port;
+ const ref={workspaceId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',sceneId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'};
+ try{
+  const missing=new GoClient(apiURL,'test').forCall('11111111-1111-4111-8111-111111111111');
+  expect(()=>missing.sceneURL(ref)).toThrow('WHITEBOARD_PUBLIC_URL required');
+  for(const origin of ['https://user:password@frontend.example','https://frontend.example/path','http://frontend.example','https://frontend.example?private=1'])expect(()=>new GoClient(apiURL,'test',undefined,origin)).toThrow();
+  const client=new GoClient(apiURL,'test',undefined,publicURL).forCall('11111111-1111-4111-8111-111111111111');
+  expect(client.sceneURL(ref)).toBe(publicURL+`/w/${ref.workspaceId}/scenes/${ref.sceneId}`);
+  expect(client.artifactURL('artifact')).toBe(publicURL+'/mcp/artifacts/artifact');
+  await client.authenticate();await client.remoteExport({sceneRef:ref,format:'json'});
+  expect(seen).toEqual(['api:/api/v1/agent/auth','public:/mcp/exports']);
+ }finally{for(const server of [api,frontend])await new Promise<void>(r=>{server.closeAllConnections();server.close(()=>r())});}
+});

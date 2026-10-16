@@ -1,6 +1,6 @@
 # Editable diagram catalog
 
-Collaboration v2 includes a local diagram compiler. It creates editable shapes, labels and connectors; no AI provider key is needed. Runtime/MCP integration is delivered separately from this package.
+Collaboration v2 includes a local diagram compiler. It creates editable shapes, labels and connectors; no AI provider key is needed. The collaboration-v2 branch also exposes the compiler through MCP. Production availability follows the release gate.
 
 Choose a preset with `listDiagramTypes()`, fetch its data schema and example with `getDiagramTemplate(id)`, validate with `validateDiagram(input)`, then call `await compileDiagram(input)`.
 
@@ -30,8 +30,16 @@ Use the discovered schema for the exact allowed values. Unknown properties are r
 
 Validation errors include a code, JSON path and corrective message. Missing endpoints and duplicate semantic IDs are errors. Graph cycles generate a warning and remain drawable; parent cycles in tree presets are rejected. Long labels wrap and produce a warning. Unicode is retained. Limits are 500 nodes, 1,000 edges, 50,000 JSON characters and 2,000 characters per label.
 
-Mermaid support is intentionally a small native subset: simple flowchart node declarations/connections and sequence participants/messages. Unsupported directives, HTML, styling, diagrams or grammar produce `UNSUPPORTED_NATIVE_DIAGRAM` with a typed preset alternative. There is no image fallback. Full exports and browser rendering are separate D4 work.
+Mermaid support is intentionally a small native subset: simple flowchart node declarations/connections and sequence participants/messages. Unsupported directives, HTML, styling, diagrams or grammar produce `UNSUPPORTED_NATIVE_DIAGRAM` with a typed preset alternative. There is no image fallback. The browser renderer uses the same native subset.
 
-Agent-readable source: this Markdown file is mirrored at `/docs/diagram-catalog.md`. Planned MCP discovery: `list_diagram_types`, `get_diagram_template`, `validate_diagram`; resources `whiteboard://diagrams/catalog` and `whiteboard://diagrams/{id}/schema`. Do not assume those tools are live merely because this compiler package is installed.
+Agent-readable source: this Markdown file is mirrored at `/docs/diagram-catalog.md`. MCP discovery: `list_diagram_types`, `get_diagram_template`, `validate_diagram`; resources `whiteboard://diagrams/catalog` and `whiteboard://diagrams/{id}/schema`. The HTTP/stdio adapter must be deployed and configured before these tools are available.
 
-Verification: 40 compiler tests pass locally, including all 19 presets, three themes, both direction settings and long actor names across journey rows. Browser rendering, live scene persistence and exports require the D3/D4/E1 integration checks before release.
+Compiler and browser integration tests cover all 19 presets, three themes, both direction settings, long actor names, Unicode labels and durable scene persistence. Production release remains gated separately.
+
+## Compile and export
+
+`compile_mermaid({source})` returns editable native elements without saving a scene. `generate_diagram` creates or appends a typed preset using current scoped scene authority. Unsupported Mermaid syntax returns `UNSUPPORTED_NATIVE_DIAGRAM` with a typed catalog alternative; it never silently creates a picture. Browser font measurements fit labels inside their native boxes while preserving their IDs and text.
+
+`export_scene({sceneRef:{workspaceId,sceneId},format:"json"})` supports `json`, `svg` and `png`. JSON is a portable editable Excalidraw file. SVG and PNG retain native fonts and authorized PNG/JPEG/GIF/WebP image assets. Unsupported legacy SVG/AVIF assets fail explicitly. Export requires `scene:export`; `scene:read` does not grant it.
+
+The response contains `id`, `mimeType`, `expiresAt`, `url` and decimal-string `revision`. Download with the same bearer key within five minutes; access is checked again at download. The URL alone does not grant access. Server restarts clear temporary exports, so create a new export if an old URL is unavailable. Rendering is limited to 10 seconds, 50,000 source characters, 500 nodes, 1,000 edges, 4,096 pixels per axis and 20 MiB per artifact. Oversized jobs return an explicit error. See [agent setup](./mcp.md) for transport configuration and download examples.

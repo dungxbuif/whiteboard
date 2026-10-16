@@ -5,10 +5,12 @@ export type AgentIdentity = { principalId: string; keyId: string };
 
 export class GoClient {
   private readonly base: URL;
+  private readonly publicBase?: URL;
   private verifiedIdentity?: AgentIdentity;
 
-  constructor(url: string, private readonly key: string, private readonly correlationId?: string) {
+  constructor(url: string, private readonly key: string, private readonly correlationId?: string, publicURL?: string) {
     this.base = apiBase(url);
+    this.publicBase = publicURL === undefined ? undefined : apiBase(publicURL);
   }
 
   get identity(): AgentIdentity | undefined {
@@ -22,16 +24,28 @@ export class GoClient {
   }
 
   forCall(correlationId: string): GoClient {
-    const client = new GoClient(this.base.origin, this.key, correlationId);
+    const client = new GoClient(this.base.origin, this.key, correlationId, this.publicBase?.origin);
     client.verifiedIdentity = this.verifiedIdentity;
     return client;
   }
 
-  sceneURL(ref:{workspaceId:string;sceneId:string}):string {return new URL(`/w/${ref.workspaceId}/scenes/${ref.sceneId}`,this.base).href;}
+  private frontendBase():URL {
+    if(!this.publicBase)throw new Error('WHITEBOARD_PUBLIC_URL required for public links and remote exports');
+    return this.publicBase;
+  }
 
-  async request(path: string, method = 'GET', body?: unknown): Promise<Record<string, unknown>> {
-    if (!path.startsWith('/api/v1/agent/')) throw new Error('Invalid agent API path');
-    const response = await fetch(new URL(path, this.base), {
+  sceneURL(ref:{workspaceId:string;sceneId:string}):string {return new URL(`/w/${ref.workspaceId}/scenes/${ref.sceneId}`,this.frontendBase()).href;}
+
+  artifactURL(id:string):string {return new URL(`/mcp/artifacts/${id}`,this.frontendBase()).href;}
+  async remoteExport(input:unknown):Promise<Record<string,unknown>> {return this.requestJSON('/mcp/exports','POST',input,256*1024,true);}
+  async exportRequest(path:string):Promise<Record<string,unknown>> {
+    if(!/\/export-(projection$|assets\/)/.test(path))throw new Error('Invalid export path');
+    return this.requestJSON(path,'GET',undefined,26*1024*1024);
+  }
+  async request(path: string, method = 'GET', body?: unknown): Promise<Record<string, unknown>> {return this.requestJSON(path,method,body,256*1024);}
+  private async requestJSON(path:string,method:string,body:unknown,maxBytes:number,remoteExport=false):Promise<Record<string,unknown>> {
+    if (!(path.startsWith('/api/v1/agent/') || remoteExport&&path==='/mcp/exports')) throw new Error('Invalid agent API path');
+    const response = await fetch(new URL(path, remoteExport ? this.frontendBase() : this.base), {
       method,
       headers: {
         Authorization: `Bearer ${this.key}`,
@@ -40,7 +54,7 @@ export class GoClient {
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       redirect: 'error',
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(remoteExport?30000:10000),
     });
     if (!response.ok) {
       let upstreamCode:string|undefined;
@@ -64,7 +78,7 @@ export class GoClient {
         const part = await reader.read();
         if (part.done) break;
         size += part.value.byteLength;
-        if (size > 256 * 1024) throw new AccessError(413, 'PROJECTION_TOO_LARGE');
+        if (size > maxBytes) throw new AccessError(413, 'PROJECTION_TOO_LARGE');
         chunks.push(part.value);
       }
     } finally {

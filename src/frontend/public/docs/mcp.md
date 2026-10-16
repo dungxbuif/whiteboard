@@ -3,7 +3,8 @@
 Status: collaboration v2 implementation; deployment pending.
 
 - Scopes are independent: `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, `scene:export`.
-- Configure `WHITEBOARD_API_URL`, `WHITEBOARD_AGENT_KEY`, and a unique absolute `MCP_AUDIT_PATH`. Never give remote adapters internal service secrets.
+- Build from `src/` in order: `npm run build --workspace ./packages/collab-contracts`, `npm run build --workspace ./packages/diagram-kit`, then `npm run build --workspace ./mcp` (includes export renderer).
+- Configure `WHITEBOARD_API_URL` for Go, `WHITEBOARD_PUBLIC_URL` for the public frontend/reverse-proxy serving `/w/...` and `/mcp/...`, `WHITEBOARD_AGENT_KEY`, and a unique absolute `MCP_AUDIT_PATH`. Both origins require HTTPS remotely (loopback HTTP is allowed), with no credentials, path, query or fragment. Scene/artifact links and remote exports use the public origin; it does not fall back to the API origin. Never give remote adapters internal service secrets.
 - Discover with `list_diagram_types`, `get_diagram_template({preset})`, `validate_diagram({preset,data,instanceId,...})`. Catalog/schema resources provide structured inputs.
 - `generate_diagram({sceneRef:{workspaceId,sceneId},preset,data,instanceId,requestId,expectedSequence,dryRun})` compiles native elements and submits one durable mutation, or returns a preview when dryRun is true.
 - `patch_elements({sceneRef,patches:[{id,fields}],requestId,expectedSequence})` patches targeted fields.
@@ -15,3 +16,21 @@ Status: collaboration v2 implementation; deployment pending.
 - Dry-run compiles without changing revision. No permission/key/share-management tools are exposed.
 
 Read the human agent guide for setup, scopes, audit retention and failure handling. Real MCP → Go → Node → PostgreSQL integration, live socket convergence and restart are verified in D3. Rendered browser/deployment verification remains a release gate.
+
+## Export a scene
+
+Call `compile_mermaid({"source":"flowchart LR\nA[Start] --> B[Finish]"})` for editable native elements without saving. The supported flowchart/sequence subset is documented in [the diagram catalog](./diagram-catalog.md). Other syntax returns `UNSUPPORTED_NATIVE_DIAGRAM` with a typed preset alternative.
+
+Call `export_scene({"sceneRef":{"workspaceId":"<workspace UUID>","sceneId":"<scene UUID>"},"format":"png"})` for `png`, `svg` or editable `json`. The key needs `scene:export` for that scene; read access alone is insufficient. The response includes an absolute `url`, `id`, `mimeType`, `expiresAt` and a decimal-string `revision` for the exported durable snapshot.
+
+Download the returned URL with the same key:
+
+```sh
+curl --fail --header "Authorization: Bearer $WHITEBOARD_AGENT_KEY" "$EXPORT_URL" --output scene.png
+```
+
+Do not share the bearer key. A URL without authentication will not download the file. Downloads expire within five minutes and immediately respect key, membership, target or export-scope revocation. Temporary exports disappear when the adapter restarts; create another export if needed. Use `.excalidraw` for JSON and `.svg` for SVG downloads.
+
+Stdio forwards exports to authenticated `POST /mcp/exports` at `WHITEBOARD_PUBLIC_URL`; the HTTP service returns its temporary download URL. When Go is served through the frontend reverse proxy, set both URL variables to that public origin; otherwise keep the separately configured trusted HTTPS API origin. HTTP deployment may set `WHITEBOARD_API_URL` to private Go, but must set `WHITEBOARD_PUBLIC_URL` to the frontend origin serving scene and `/mcp` routes. No internal service secrets are required by clients.
+
+Rendering is bounded to 10 seconds, 50,000 input characters, 500 nodes/1,000 edges, 4,096 pixels per axis and 20 MiB per artifact. PNG/JPEG/GIF/WebP assets are embedded after authorization; unsupported legacy SVG/AVIF, missing images or excessive dimensions fail explicitly. Shrink the scene or split a large diagram before retrying a limit error. A busy renderer asks you to retry after the active job. Generated elements always remain native; raster output is only the explicitly requested PNG export.

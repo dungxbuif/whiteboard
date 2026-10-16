@@ -175,6 +175,7 @@ func main() {
 
 	agents := usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService)
 	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
+	agentHandler.SetExportAssets(usecase.NewExportAssets(agents, sceneAssetRepo, s3Repo.(domain.ExportObjectReader)))
 	if cfg.CollabInternalURL != "" {
 		remote, e := collabrepo.NewAgentClient(cfg.CollabInternalURL, cfg.CollabInternalSecret)
 		if e != nil {

@@ -9,6 +9,8 @@ import { AccessError, bearer, checkOrigin } from './auth.js';
 import { AuditJournal, runAuditedTool } from './audit.js';
 import {sceneTools,callSceneTool} from './scene-tools.js';
 import {diagramTools,callDiagramTool,diagramResources,readDiagramResource} from './diagram-tools.js';
+import {ExportService} from './export-tools.js';
+import {exportTools,callExportTool,exportAuthority,renderAccessError} from './export-api.js';
 import { auditToolEnvelopes } from './transport-audit.js';
 
 const page = { cursor: z.uuid().optional(), limit: z.number().int().min(1).max(50).default(50) };
@@ -36,11 +38,11 @@ const tools: Tool[] = Object.entries(schemas).map(([name, schema]) => ({
   },
 }));
 
-export function createMcpServer(client: GoClient, audit: AuditJournal): Server {
+export function createMcpServer(client: GoClient, audit: AuditJournal, exports?:ExportService, publicURL?:string): Server {
   const server = new Server({ name: 'whiteboard', version: '0.1.0' }, { capabilities: { tools: {}, resources: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     await client.authenticate();
-    return { tools: [...tools,...sceneTools,...diagramTools] };
+    return { tools: [...tools,...sceneTools,...diagramTools,...exportTools] };
   });
   server.setRequestHandler(ListResourcesRequestSchema, async()=>{await client.authenticate();return {resources:diagramResources()};});
   server.setRequestHandler(ReadResourceRequestSchema, async request=>{await client.authenticate();return {contents:[{uri:request.params.uri,mimeType:'application/json',text:JSON.stringify(readDiagramResource(request.params.uri))}]};});
@@ -75,7 +77,7 @@ export function createMcpServer(client: GoClient, audit: AuditJournal): Server {
             break;
           }
           default: {
-            const extra=await callSceneTool(name,args,api)??await callDiagramTool(name,args,api);
+            const extra=await callSceneTool(name,args,api)??await callDiagramTool(name,args,api)??await callExportTool(name,args,api,exports,publicURL);
             if(!extra)throw new AccessError(400,'UNKNOWN_TOOL');
             result=extra;
           }
@@ -97,7 +99,7 @@ export function createMcpServer(client: GoClient, audit: AuditJournal): Server {
       const code = error instanceof AccessError ? error.code : 'UPSTREAM_UNAVAILABLE';
       const message = code === 'AUDIT_COMPLETION_UNCERTAIN'
         ? `${code}: retain the exact mutation request ID and arguments; inspect authoritative state before retrying creation.`
-        : code === 'CONFLICT' ? 'CONFLICT: read the current scene and deliberately submit a new requestId with its sequence; do not blindly retry stale patches.' : code;
+        : code === 'UNSUPPORTED_NATIVE_DIAGRAM' ? 'UNSUPPORTED_NATIVE_DIAGRAM: use get_diagram_template for flowchart, sequence, erd or class and generate_diagram with its typed native data.' : code === 'CONFLICT' ? 'CONFLICT: read the current scene and deliberately submit a new requestId with its sequence; do not blindly retry stale patches.' : code;
       return {
         isError: true,
         content: [{ type: 'text', text: message }],
@@ -136,23 +138,41 @@ function toolCall(parsed: unknown): { name: string; args: Record<string, unknown
   return { name: message.params.name, args: args && typeof args === 'object' && !Array.isArray(args) ? args as Record<string, unknown> : {} };
 }
 
-export function createMcpHTTP(options: { apiURL: string; allowedOrigins: string[]; audit: AuditJournal }): HTTPServer {
+export function createMcpHTTP(options: { apiURL: string; allowedOrigins: string[]; audit: AuditJournal; publicURL?:string }): HTTPServer {
   const sessions = new Map<string, Session>();
+  const exports = new ExportService();
+  const publicURL=()=>options.publicURL??`http://127.0.0.1:${(http.address() as {port:number}).port}`;
   const http = createServer(async (req, res) => {
     let parsed: unknown;
     let api: GoClient | undefined;
     let routed = false;
     try {
-      if (req.url !== '/mcp') { fail(res, 404, 'NOT_FOUND'); return; }
+      const artifact=/^\/mcp\/artifacts\/([0-9a-f-]{36})$/.exec(req.url??'');
+      if (req.url !== '/mcp' && req.url!=='/mcp/exports' && !artifact) { fail(res, 404, 'NOT_FOUND'); return; }
       checkOrigin(req, options.allowedOrigins);
       const key = bearer(req);
+      if(req.url==='/mcp/exports'||artifact){
+        api=new GoClient(options.apiURL,key,undefined,publicURL());await api.authenticate();
+        if(req.url==='/mcp/exports'&&req.method==='POST'){
+          const input=await body(req) as Record<string,unknown>;
+          const result=await runAuditedTool(api,options.audit,'export_scene',input,async client=> (await callExportTool('export_scene',input,client,exports,publicURL()))!);
+          res.writeHead(200,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(result));return;
+        }
+        if(artifact&&req.method==='GET'){
+          const result=await runAuditedTool(api,options.audit,'export_scene',{},async client=>{
+            try{return await exports.download(exportAuthority(client),artifact[1]);}catch(e){renderAccessError(e);}
+          });
+          res.writeHead(200,{'Content-Type':result.mimeType,'Content-Length':result.bytes.length,'Content-Disposition':`attachment; filename="scene.${result.mimeType==='image/png'?'png':result.mimeType==='image/svg+xml'?'svg':'excalidraw'}"`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; sandbox"}).end(result.bytes);return;
+        }
+        fail(res,405,'METHOD_NOT_ALLOWED');return;
+      }
       if (req.method === 'POST') parsed = await body(req);
       const id = req.headers['mcp-session-id'];
       if (Array.isArray(id)) throw new AccessError(400, 'INVALID_SESSION');
       const existing = id ? sessions.get(id) : undefined;
       // Reuse prior verified identity only when this request proves possession
       // of the same credential. A session ID alone cannot attribute a denial.
-      api = existing?.client.matchesCredential(key) ? existing.client : new GoClient(options.apiURL, key);
+      api = existing?.client.matchesCredential(key) ? existing.client : new GoClient(options.apiURL, key,undefined,publicURL());
       const identity = await api.authenticate();
       for (const [sessionId, session] of sessions) {
         if (session.expires <= Date.now()) {
@@ -171,7 +191,7 @@ export function createMcpHTTP(options: { apiURL: string; allowedOrigins: string[
       if (req.method !== 'POST' || !isInitializeRequest(parsed)) throw new AccessError(400, 'INITIALIZE_REQUIRED');
       if (sessions.size >= 1000) throw new AccessError(503, 'SESSION_LIMIT');
       const client = api;
-      const server = createMcpServer(client, options.audit);
+      const server = createMcpServer(client, options.audit,exports,publicURL());
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: randomUUID,
         enableJsonResponse: true,

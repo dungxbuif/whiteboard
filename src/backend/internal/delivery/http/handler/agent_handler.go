@@ -16,16 +16,18 @@ import (
 )
 
 type AgentHandler struct {
-	agents *usecase.AgentService
-	rooms  domain.RoomService
-	access domain.AccessService
-	bridge *usecase.AgentBridge
+	agents       *usecase.AgentService
+	rooms        domain.RoomService
+	access       domain.AccessService
+	bridge       *usecase.AgentBridge
+	exportAssets *usecase.ExportAssets
 }
 
 func NewAgentHandler(a *usecase.AgentService, r domain.RoomService, access domain.AccessService) *AgentHandler {
 	return &AgentHandler{agents: a, rooms: r, access: access}
 }
-func (h *AgentHandler) SetBridge(b *usecase.AgentBridge) { h.bridge = b }
+func (h *AgentHandler) SetExportAssets(s *usecase.ExportAssets) { h.exportAssets = s }
+func (h *AgentHandler) SetBridge(b *usecase.AgentBridge)        { h.bridge = b }
 func agentError(w http.ResponseWriter, r *http.Request, e error) {
 	var remote *domain.AgentCollabError
 	switch {
@@ -284,6 +286,25 @@ func (h *AgentHandler) Routes() http.Handler {
 			return
 		}
 		out, e := h.bridge.Projection(r.Context(), agentPrincipal(r), ref, true)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		writeJSONResponse(w, 200, out)
+	})
+	r.Get("/workspaces/{workspaceId}/scenes/{sceneId}/export-assets/{fileId}", func(w http.ResponseWriter, r *http.Request) {
+		ref, e := agentRef(r)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		if h.exportAssets == nil {
+			writeSharingError(w, r, 503, "UNAVAILABLE", "Export assets unavailable")
+			return
+		}
+		out, e := h.agents.RunAuditedRemoteOperation(r.Context(), agentPrincipal(r), "export_scene", ref, func(ctx domain.Context) (any, error) {
+			return h.exportAssets.Get(ctx, agentPrincipal(r), ref, chi.URLParam(r, "fileId"), r.URL.Query().Get("assetId"))
+		})
 		if e != nil {
 			agentError(w, r, e)
 			return

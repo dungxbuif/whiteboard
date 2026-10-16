@@ -2,10 +2,10 @@ import {AuditJournal} from './audit.js';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {execFileSync,spawn} from 'node:child_process';
+import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
-import {describe,it,expect,afterEach,beforeAll} from 'vitest';
+import {describe,it,expect,afterEach} from 'vitest';
 import {createServer,type Server} from 'node:http';
 import {Client} from '@modelcontextprotocol/sdk/client/index.js';
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -21,14 +21,13 @@ async function fixture(){let revoked=false;const seen:string[]=[];const correlat
 async function connect(base:string,key='test-key-a'){const client=new Client({name:'test',version:'1.0'});clients.push(client);const transport=new StreamableHTTPClientTransport(new URL(base+'/mcp'),{requestInit:{headers:{Authorization:`Bearer ${key}`}}});await client.connect(transport);return {client,transport}}
 describe('MCP HTTP lifecycle',()=>{
  it('authenticates every call and rejects bad origins',async()=>{const f=await fixture();expect((await fetch(f.base+'/mcp',{method:'POST'})).status).toBe(401);expect((await fetch(f.base+'/mcp',{headers:{Authorization:'Bearer test-key-a',Origin:'https://evil.example'}})).status).toBe(403)});
- it('initializes, discovers tools, returns tenant page without totals, and rejects revoked keys',async()=>{const f=await fixture();const {client}=await connect(f.base);const tools=await client.listTools();expect(tools.tools.map(t=>t.name).sort()).toEqual(['create_scene','delete_elements','generate_diagram','get_diagram_template','get_scene','get_scene_activity','list_diagram_types','list_scenes','list_workspaces','patch_elements','validate_diagram']);const result=await client.callTool({name:'list_workspaces',arguments:{limit:50}});expect(result.isError).not.toBe(true);expect(JSON.stringify(result)).toContain('Allowed');expect(JSON.stringify(result)).not.toContain('total');expect(f.seen.some(p=>p.includes('limit=50'))).toBe(true);f.revoke();await expect(client.listTools()).rejects.toThrow()});
+ it('initializes, discovers tools, returns tenant page without totals, and rejects revoked keys',async()=>{const f=await fixture();const {client}=await connect(f.base);const tools=await client.listTools();expect(tools.tools.map(t=>t.name).sort()).toEqual(['compile_mermaid','create_scene','delete_elements','export_scene','generate_diagram','get_diagram_template','get_scene','get_scene_activity','list_diagram_types','list_scenes','list_workspaces','patch_elements','validate_diagram']);const result=await client.callTool({name:'list_workspaces',arguments:{limit:50}});expect(result.isError).not.toBe(true);expect(JSON.stringify(result)).toContain('Allowed');expect(JSON.stringify(result)).not.toContain('total');expect(f.seen.some(p=>p.includes('limit=50'))).toBe(true);f.revoke();await expect(client.listTools()).rejects.toThrow()});
  it('binds session to authenticated principal',async()=>{const f=await fixture();const {transport}=await connect(f.base);const result=await fetch(f.base+'/mcp',{method:'POST',headers:{Authorization:'Bearer test-key-b','Mcp-Session-Id':transport.sessionId!,'Content-Type':'application/json',Accept:'application/json, text/event-stream'},body:JSON.stringify({jsonrpc:'2.0',id:3,method:'tools/list'})});expect(result.status).toBe(403)});
 });
 
 describe('MCP stdio remote adapter',()=>{
- beforeAll(()=>{execFileSync(process.execPath,[fileURLToPath(new URL('../../node_modules/typescript/bin/tsc',import.meta.url)),'-p',fileURLToPath(new URL('../tsconfig.json',import.meta.url))])});
- it('initializes and discovers tools in a subprocess using remote API only',async()=>{const f=await fixture();const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../dist/stdio.js',import.meta.url))],env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:audit().path},stderr:'pipe'});let diagnostics='';transport.stderr?.on('data',chunk=>{diagnostics+=chunk.toString()});const client=new Client({name:'stdio-test',version:'1'});clients.push(client);await client.connect(transport);expect((await client.listTools()).tools).toHaveLength(11);expect((await client.callTool({name:'list_workspaces',arguments:{}})).isError).not.toBe(true);await client.close();expect(diagnostics).not.toContain('test-key-a')});
- it('writes only JSON-RPC MCP frames to stdout',async()=>{const f=await fixture();const child=spawn(process.execPath,[fileURLToPath(new URL('../dist/stdio.js',import.meta.url))],{env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:audit().path},stdio:['pipe','pipe','pipe']});let output='';let stderr='';child.stdout.on('data',chunk=>{output+=chunk.toString()});child.stderr.on('data',chunk=>{stderr+=chunk.toString()});try{child.stdin.write(JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'frames',version:'1'}}})+'\n');await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('No initialization frame')),3000);child.stdout.on('data',()=>{if(output.includes('\n')){clearTimeout(timer);resolve()}})});const frames=output.trim().split('\n').map(line=>JSON.parse(line));expect(frames[0]).toMatchObject({jsonrpc:'2.0',id:1,result:{serverInfo:{name:'whiteboard'}}});expect(output+stderr).not.toContain('test-key-a')}finally{child.kill();await new Promise<void>(r=>child.once('exit',()=>r()))}});
+ it('initializes and discovers tools in a subprocess using remote API only',async()=>{const f=await fixture();const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('../dist/stdio.js',import.meta.url))],env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_PUBLIC_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:audit().path},stderr:'pipe'});let diagnostics='';transport.stderr?.on('data',chunk=>{diagnostics+=chunk.toString()});const client=new Client({name:'stdio-test',version:'1'});clients.push(client);await client.connect(transport);expect((await client.listTools()).tools).toHaveLength(13);expect((await client.callTool({name:'list_workspaces',arguments:{}})).isError).not.toBe(true);await client.close();expect(diagnostics).not.toContain('test-key-a')});
+ it('writes only JSON-RPC MCP frames to stdout',async()=>{const f=await fixture();const child=spawn(process.execPath,[fileURLToPath(new URL('../dist/stdio.js',import.meta.url))],{env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_PUBLIC_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:audit().path},stdio:['pipe','pipe','pipe']});let output='';let stderr='';child.stdout.on('data',chunk=>{output+=chunk.toString()});child.stderr.on('data',chunk=>{stderr+=chunk.toString()});try{child.stdin.write(JSON.stringify({jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'frames',version:'1'}}})+'\n');await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('No initialization frame')),3000);child.stdout.on('data',()=>{if(output.includes('\n')){clearTimeout(timer);resolve()}})});const frames=output.trim().split('\n').map(line=>JSON.parse(line));expect(frames[0]).toMatchObject({jsonrpc:'2.0',id:1,result:{serverInfo:{name:'whiteboard'}}});expect(output+stderr).not.toContain('test-key-a')}finally{child.kill();await new Promise<void>(r=>child.once('exit',()=>r()))}});
 });
 
 it('caps the entire MCP projection response at 256 KiB',async()=>{
@@ -60,9 +59,6 @@ it('journals revoked credentials and unreachable upstream over actual HTTP',asyn
 
 
 describe('SDK envelope audit boundary', () => {
- beforeAll(() => {
-  execFileSync(process.execPath, [fileURLToPath(new URL('../../node_modules/typescript/bin/tsc', import.meta.url)), '-p', fileURLToPath(new URL('../tsconfig.json', import.meta.url))]);
- });
  function assertEnvelopeAudit(journal: AuditJournal, responses: any[]) {
   const raw = readFileSync(journal.path, 'utf8');
   const rows = raw.trim().split('\n').filter(Boolean).map(row => JSON.parse(row));
@@ -100,7 +96,7 @@ describe('SDK envelope audit boundary', () => {
   const f = await fixture();
   const journal = audit();
   const child = spawn(process.execPath, [fileURLToPath(new URL('../dist/stdio.js',import.meta.url))], {
-   env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:journal.path},stdio:['pipe','pipe','pipe'],
+   env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_PUBLIC_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:journal.path},stdio:['pipe','pipe','pipe'],
   });
   let buffer = '';
   let diagnostic = '';
