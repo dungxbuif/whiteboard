@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { GoClient } from './go-client.js';
 import { AccessError, bearer, checkOrigin } from './auth.js';
 import { AuditJournal, runAuditedTool } from './audit.js';
+import { auditToolEnvelopes } from './transport-audit.js';
 
 const page = { cursor: z.uuid().optional(), limit: z.number().int().min(1).max(50).default(50) };
 const workspace = z.object({ workspaceId: z.uuid(), ...page }).strict();
@@ -171,7 +172,7 @@ export function createMcpHTTP(options: { apiURL: string; allowedOrigins: string[
         },
       });
       transport.onclose = () => { if (transport.sessionId) sessions.delete(transport.sessionId); };
-      await server.connect(transport);
+      await server.connect(auditToolEnvelopes(transport, client, options.audit));
       await transport.handleRequest(req, res, parsed);
       if (!transport.sessionId) await server.close();
     } catch (error) {

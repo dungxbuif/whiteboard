@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { GoClient } from './go-client.js';
 import { createMcpServer } from './server.js';
 import { AuditJournal } from './audit.js';
+import { auditToolEnvelopes } from './transport-audit.js';
 
 async function main(): Promise<void> {
   const url = process.env.WHITEBOARD_API_URL;
@@ -14,7 +15,8 @@ async function main(): Promise<void> {
   const api = new GoClient(url, key);
   await api.authenticate();
   const server = createMcpServer(api, audit);
-  await server.connect(new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 1024 * 1024 }));
+  const transport = new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 1024 * 1024 });
+  await server.connect(auditToolEnvelopes(transport, api, audit));
   process.stdin.on('end', () => { void server.close(); });
 }
 main().catch(() => {

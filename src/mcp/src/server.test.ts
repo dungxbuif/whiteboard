@@ -57,3 +57,85 @@ it('journals revoked credentials and unreachable upstream over actual HTTP',asyn
  expect(rows[1]).toMatchObject({keyId:keyA,failureClass:'UNAUTHENTICATED'});
  expect(rows[3]).toMatchObject({keyId:keyA,failureClass:'UPSTREAM_UNAVAILABLE'});
 });
+
+
+describe('SDK envelope audit boundary', () => {
+ beforeAll(() => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../node_modules/typescript/bin/tsc', import.meta.url)), '-p', fileURLToPath(new URL('../tsconfig.json', import.meta.url))]);
+ });
+ function assertEnvelopeAudit(journal: AuditJournal, responses: any[]) {
+  const raw = readFileSync(journal.path, 'utf8');
+  const rows = raw.trim().split('\n').filter(Boolean).map(row => JSON.parse(row));
+  expect(rows).toHaveLength(6);
+  expect(rows.map(row => row.outcome)).toEqual(['started', 'invalid', 'started', 'invalid', 'started', 'success']);
+  for (let i = 0; i < 3; i++) {
+   expect(rows[2*i].correlationId).toBe(rows[2*i+1].correlationId);
+   expect(rows[2*i].keyId).toBe(keyA);
+   const correlation = responses[i].error?.data?.agentCallId ?? responses[i].result?._meta?.agentCallId;
+   expect(correlation).toBe(rows[2*i].correlationId);
+  }
+  expect(new Set(rows.map(row => row.correlationId)).size).toBe(3);
+  expect(raw).not.toContain('private-envelope-content');
+  expect(raw).not.toContain('test-key-a');
+  expect(raw).not.toContain('expected record');
+ }
+ it('audits SDK-rejected HTTP arrays and valid calls exactly once', async () => {
+  const f = await fixture();
+  const { transport } = await connect(f.base);
+  const replies = [];
+  for (const [index, args] of [[], ['private-envelope-content'], {}].entries()) {
+   const response = await fetch(f.base+'/mcp', {
+    method:'POST', headers:{Authorization:'Bearer test-key-a','Mcp-Session-Id':transport.sessionId!, 'Content-Type':'application/json',Accept:'application/json, text/event-stream'},
+    body:JSON.stringify({jsonrpc:'2.0',id:70+index,method:'tools/call',params:{name:'list_workspaces',arguments:args}}),
+   });
+   expect(response.status).toBe(200);
+   replies.push(await response.json());
+  }
+  assertEnvelopeAudit(f.journal, replies);
+  expect(replies[0].error).toMatchObject({code:-32602,message:'INVALID_INPUT'});
+  expect(replies[2].result.isError).not.toBe(true);
+  expect(f.seen.filter(url => url.startsWith('/api/v1/agent/workspaces'))).toHaveLength(1);
+ });
+ it('audits SDK-rejected raw stdio arrays and valid calls exactly once', async () => {
+  const f = await fixture();
+  const journal = audit();
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../dist/stdio.js',import.meta.url))], {
+   env:{WHITEBOARD_API_URL:f.api,WHITEBOARD_AGENT_KEY:'test-key-a',MCP_AUDIT_PATH:journal.path},stdio:['pipe','pipe','pipe'],
+  });
+  let buffer = '';
+  let diagnostic = '';
+  const frames = new Map<number, any>();
+  child.stdout.on('data', chunk => {
+   buffer += chunk.toString();
+   let end;
+   while ((end=buffer.indexOf('\n'))>=0) {
+    const frame = JSON.parse(buffer.slice(0,end));buffer=buffer.slice(end+1);frames.set(frame.id,frame);
+   }
+  });
+  child.stderr.on('data', chunk => { diagnostic += chunk.toString(); });
+  const request = async (id:number,method:string,params:unknown) => {
+   child.stdin.write(JSON.stringify({jsonrpc:'2.0',id,method,params})+'\n');
+   const until = Date.now()+3000;
+   while (!frames.has(id)) {
+    if(Date.now()>until)throw new Error('Missing stdio response');
+    await new Promise(resolve=>setTimeout(resolve,10));
+   }
+   return frames.get(id);
+  };
+  try {
+   await request(1,'initialize',{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'raw-audit',version:'1'}});
+   child.stdin.write(JSON.stringify({jsonrpc:'2.0',method:'notifications/initialized'})+'\n');
+   const replies=[];
+   for(const [index,args] of [[],['private-envelope-content'],{}].entries()) {
+    replies.push(await request(70+index,'tools/call',{name:'list_workspaces',arguments:args}));
+   }
+   assertEnvelopeAudit(journal,replies);
+   expect(replies[0].error).toMatchObject({code:-32602,message:'INVALID_INPUT'});
+   expect(replies[2].result.isError).not.toBe(true);
+   expect(f.seen.filter(url=>url.startsWith('/api/v1/agent/workspaces'))).toHaveLength(1);
+   expect(diagnostic).not.toContain('test-key-a');
+  } finally {
+   child.kill();await new Promise<void>(resolve=>child.once('exit',()=>resolve()));
+  }
+ });
+});
