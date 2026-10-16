@@ -98,20 +98,31 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
       const rows = await offlineStore.blobs(scope); if (!allowed()) return; setUploads(rows.length);
       // Upgrade retained pre-revision recovery before any upload/cleanup.
       if (pending.current && pending.current.revision === undefined) { pending.current.revision = await offlineStore.reserveImageDraft(scope, pending.current); if (!allowed()) return; }
+      const draft = pending.current;
+      const conflict = () => new Error('A newer image draft exists in this scene. Recovery retained; export recovery and reopen the scene.');
+      const currentDraft = async () => {
+        if (!allowed()) return false;
+        if (pending.current !== draft) { repeat = true; return false; }
+        const matches = !draft || (draft.revision !== undefined && await offlineStore.isImageDraftCurrent(scope, draft.revision));
+        if (!allowed()) return false;
+        if (pending.current !== draft) { repeat = true; return false; }
+        if (!matches) throw conflict();
+        return true;
+      };
+      if (!await currentDraft()) return;
       for (const item of rows) {
         if (!allowed()) return;
         const guest = current.principal.current.kind === 'public';
         const reference = await uploadBlob(item, assets => current.post<{ urls: Record<string, UploadGrant> }>(guest ? `/public/scenes/${sceneRef.sceneId}/assets/presign-upload` : '/assets/presign-upload', guest ? { assets } : { sceneId: sceneRef.sceneId, assets }), fetch, allowed);
-        if (!allowed()) return;
+        if (!await currentDraft()) return;
         refs.current[item.id] = reference;
       }
-      if (!allowed()) return;
-      if (pending.current) {
-        const draft = pending.current;
+      if (!await currentDraft()) return;
+      if (draft) {
         const desired = { ...draft.desired, files: { ...draft.desired.files, ...refs.current } };
         if (isLegacy) {
           await offlineStore.saveDraft(scope, desired);
-          if (!allowed()) return;
+          if (!await currentDraft()) return;
           useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired);
           await useSceneStore.getState().flushSave();
           if (!allowed()) return;
@@ -122,8 +133,10 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
         }
         if (!allowed()) return;
         if (pending.current !== draft) { repeat = true; return; }
-        if (draft.revision === undefined || !await offlineStore.completeImageDraft(scope, draft.revision, rows.map(item => item.id))) { repeat = true; return; }
+        const completed = draft.revision !== undefined && await offlineStore.completeImageDraft(scope, draft.revision, rows.map(item => item.id));
         if (!allowed()) return;
+        if (pending.current !== draft) { repeat = true; return; }
+        if (!completed) throw conflict();
         pending.current = null;
       }
       setUploads(0); setUploadError('');

@@ -89,6 +89,12 @@ export class OfflineStore {
       await request(blobs.put({ ...(existing ?? item), draft: latest.imageDraft }, id));
     });
   }
+  async isImageDraftCurrent(scope: PendingScope, revision: number): Promise<boolean> {
+    return this.transaction('drafts', 'readonly', async store => {
+      const latest = await request(store.get(scopeKey(scope))) as DraftRecord | undefined;
+      return latest?.revision === revision && !!latest.imageDraft;
+    });
+  }
   async completeImageDraft(scope: PendingScope, revision: number, ids: string[]): Promise<boolean> {
     return this.transaction(['drafts', 'blobs'], 'readwrite', async store => {
       const latest = await request(store.get(scopeKey(scope))) as DraftRecord | undefined;
