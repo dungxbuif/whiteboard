@@ -17,3 +17,5 @@ A viewer can read the shared scene. An editor must enter a display name before j
 The client exchanges the link and optional password in a POST body, then uses a short-lived scene session. Refreshing before expiry renews the session while the link remains valid; users do not need to re-enter a password every ten minutes during an active session. If the session expires, the link is revoked, or its password changes, exchange the link again with the current password. Legacy password-protected viewers also use POST JSON at their existing public scene path; passwords in query strings are ignored.
 
 API details and agent contracts are in the [A3 API reference](../architecture/API.md#collaboration-a3-public-links-and-room-credentials-implemented-release-pending).
+
+The public viewer sends passwords in POST bodies using a separate HTTP client. A failed public password challenge leaves your normal account signed in; public requests do not attach the account login token. This browser change is verified locally and pending deployment.

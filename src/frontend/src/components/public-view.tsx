@@ -4,14 +4,13 @@ import type { ComponentType } from "react";
 
 import "@excalidraw/excalidraw/index.css";
 
-import api from "@/lib/api";
+import { readPublicScene } from "@/lib/public-api";
+import type { PublicScene } from "@/lib/public-api";
 import { normalizeSceneContent } from "@/lib/scene-content";
-import type { SceneContent } from "@/store/scene-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-type PublicScene = { title: string; content: SceneContent };
 type ExcalidrawModule = typeof import("@excalidraw/excalidraw");
 
 export function PublicView({ token }: { token: string }) {
@@ -24,8 +23,8 @@ export function PublicView({ token }: { token: string }) {
   async function loadScene(candidatePassword = "") {
     setError("");
     try {
-      const response = await api.get<PublicScene>(`/public/scenes/${token}`, candidatePassword ? { params: { password: candidatePassword } } : undefined);
-      setScene({ ...response.data, content: normalizeSceneContent(response.data.content) });
+      const scene = await readPublicScene(token, candidatePassword);
+      setScene({ ...scene, content: normalizeSceneContent(scene.content) });
       setRequiresPassword(false);
     } catch (requestError: any) {
       if (requestError.response?.status === 401) setRequiresPassword(true);

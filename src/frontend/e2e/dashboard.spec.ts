@@ -317,9 +317,41 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByLabel('Share URL')).toHaveValue('http://localhost:5173/p/share-token');
   });
 
+  test('public password errors preserve login and send secrets only in POST body', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('auth_token', 'private-login-token'));
+    const requests: Array<{ method: string; url: string; authorization?: string; body: string | null }> = [];
+    await page.route('**/api/v1/public/scenes/isolated-password**', async (route) => {
+      const request = route.request();
+      requests.push({ method: request.method(), url: request.url(), authorization: request.headers().authorization, body: request.postData() });
+      const password = request.method() === 'POST' ? request.postDataJSON()?.password : new URL(request.url()).searchParams.get('password');
+      if (password !== 'correct horse') {
+        await route.fulfill({ status: 401, json: { code: 'SHARE_PASSWORD_REQUIRED', message: 'Password required', requestId: 'fixture' } });
+        return;
+      }
+      await route.fulfill({ json: { title: 'Isolated protected scene', content: emptySceneContent } });
+    });
+    await page.goto('/p/isolated-password');
+    await expect(page.getByRole('heading', { name: 'Password required' })).toBeVisible();
+    expect.soft(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
+    await page.getByPlaceholder('Share password').fill('wrong password');
+    const failed = page.waitForResponse(response => response.url().includes('/public/scenes/isolated-password') && response.status() === 401);
+    await page.getByRole('button', { name: 'Open shared scene' }).click();
+    await failed;
+    expect.soft(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
+    await page.getByPlaceholder('Share password').fill('correct horse');
+    await page.getByRole('button', { name: 'Open shared scene' }).click();
+    await expect(page.getByRole('heading', { name: 'Isolated protected scene' })).toBeVisible();
+    expect.soft(requests.every(request => request.method === 'POST')).toBe(true);
+    expect.soft(requests.every(request => request.authorization === undefined)).toBe(true);
+    expect.soft(requests.every(request => new URL(request.url).search === '')).toBe(true);
+    expect.soft(requests.some(request => request.body && JSON.parse(request.body).password === 'correct horse')).toBe(true);
+    expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
+  });
+
   test('should prompt for a password on protected public links', async ({ page }) => {
     await page.route('**/api/v1/public/scenes/password-token**', async (route) => {
-      const password = new URL(route.request().url()).searchParams.get('password');
+      expect(route.request().method()).toBe('POST');
+      const password = route.request().postDataJSON()?.password;
       if (password !== 'correct horse') {
         await route.fulfill({ status: 401, json: { passwordRequired: true } });
         return;

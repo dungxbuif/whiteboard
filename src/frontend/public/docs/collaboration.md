@@ -37,10 +37,12 @@ Owner routes require login JWT and X-Workspace-ID. IDs accept UUIDs or public al
 | POST `/scenes/{id}/room-token` | bearer login or scene-session | `{token,expiresAt,sceneSession?}` |
 | POST `/public/scenes/{token}` | legacy `{password}` | read-only scene |
 
-SceneSession: `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. Public access is exactly one scene. Edit guests require a trimmed 1–100 character display name. Passwords require 6–72 UTF-8 bytes. Expiry is a future RFC3339 timestamp. Link metadata never exposes credentials or hashes. Legacy GET ignores password query parameters; use POST JSON.
+SceneSession: `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. Public access is exactly one scene. Edit guests require a trimmed 1–100 character display name. Passwords require at least six characters and at most 72 UTF-8 bytes. Expiry is a future RFC3339 timestamp. Link metadata never exposes credentials or hashes. Legacy GET ignores password query parameters; use POST JSON.
 
 Room refresh validates current membership/link and scene/workspace status. For guests, it returns a renewed sceneSession with the same guest ID; replace both credentials before expiry. Credentials last at most ten minutes and never outlive link expiry. Expired sessions require link/password exchange. Password/link changes invalidate old sessions. A room token is not a login or scene-session token.
 
 Room JWT: HS256 only; iss whiteboard-api; aud whiteboard-collab; purpose room; sub=principalId; principalType user|public; principalId, grantId, displayName, workspaceId, sceneId, access view|edit, aclVersion decimal string, iat/exp/jti. Public grantVersion is the decimal bigint link revision and principalId starts guest:. User grantId is membership:<workspace UUID>:<user UUID>; public grantId is the link UUID. Scene-session aud is whiteboard-scene-session and purpose scene-session. Go and collab require dedicated COLLAB_JWT_SECRET, at least 32 bytes and distinct from JWT_SECRET.
 
 Errors retain `{code,message,requestId}`: 400 invalid input, 401 password/session challenge, 403 forbidden, 404 inaccessible/revoked/expired resource, 413 oversized JSON, 503 unavailable authority. Body limit is 4 KiB. Clients must keep public-session credentials separate from their login credential and must not log them. Browser sharing/editor controls and runtime integration are pending.
+
+Browser credential isolation: public scene reads use POST `/public/scenes/{token}` with JSON `{password?}`, no account Authorization header and no password query. A public401 does not clear `auth_token`. Scene-session credentials remain separate from account login credentials. Locally verified; deployment pending.
