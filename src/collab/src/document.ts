@@ -8,6 +8,37 @@ export class SnapshotHistoryLimitError extends Error {
   constructor(){super('Snapshot history byte limit exceeded; controlled recovery required without discarding queued or acknowledged updates');this.name='SnapshotHistoryLimitError';}
 }
 const roots=['elements','order','appState','files','presentationOrder'];
+const mapRoots=new Set(['elements','appState','files']);
+type ContainerCompartments={_start:Y.Item|null;_map:Map<string,Y.Item>};
+function assertMapShape(map:ContainerCompartments):void {
+  // Public map iterators omit the sequence compartment, including deleted
+  // structs. Yjs persists both compartments regardless of the JS wrapper type.
+  if(map._start!==null)throw new Error('Map contains forbidden sequence content');
+}
+function assertArrayShape(array:ContainerCompartments):void {
+  if(array._map.size!==0)throw new Error('Array contains forbidden keyed content');
+  for(let item=array._start;item!==null;item=item.right){
+    if(item.content instanceof Y.ContentDeleted)continue;
+    if(!(item.content instanceof Y.ContentAny)||item.content.getContent().some(value=>typeof value!=='string'))throw new Error('Array contains forbidden sequence content');
+  }
+}
+function* retainedMapValues<T>(map:Y.Map<T>):Generator<unknown> {
+  for(const latest of map._map.values())for(let item:Y.Item|null=latest;item!==null;item=item.left)yield* item.content.getContent();
+}
+function assertFieldMaps<T>(root:Y.Map<T>):void {
+  // Check historical child containers too: a malicious map added and deleted in
+  // the same update must not hide its sequence structs from live iteration.
+  for(const value of retainedMapValues(root)){
+    if(!(value instanceof Y.Map))throw new Error('Nested field container must be a map');
+    assertMapShape(value);
+    assertJsonMapFields(value);
+  }
+}
+function assertJsonMapFields<T>(map:Y.Map<T>):void {
+  for(const field of retainedMapValues(map)){
+    try{assertSerializable(field);}catch{throw new Error('Nested map fields must be plain JSON');}
+  }
+}
 function fieldMap(value:Record<string,unknown>):Y.Map<unknown> {
   const map=new Y.Map<unknown>();for(const [key,field] of Object.entries(value))map.set(key,structuredClone(field));return map;
 }
@@ -25,6 +56,7 @@ export function createSceneDoc(input:SceneContent):Y.Doc {
   return doc;
 }
 function plainMap(map:Y.Map<unknown>):Record<string,unknown> {
+  assertMapShape(map);
   const value=Object.fromEntries(map.entries());assertSerializable(value);return value;
 }
 function orderedIDs(order:Y.Array<unknown>,known:Set<string>):string[] {
@@ -36,9 +68,15 @@ function orderedIDs(order:Y.Array<unknown>,known:Set<string>):string[] {
   return result;
 }
 export function materializeScene(doc:Y.Doc):SceneContent {
-  for(const key of doc.share.keys())if(!roots.includes(key))throw new Error('Unknown document root');
+  for(const [key,type] of doc.share){
+    if(!roots.includes(key))throw new Error('Unknown document root');
+    if(mapRoots.has(key))assertMapShape(type);else assertArrayShape(type);
+  }
   if(doc.store.pendingStructs||doc.store.pendingDs)throw new Error('Unresolved update dependencies');
   const elements=doc.getMap<Y.Map<unknown>>('elements');
+  assertFieldMaps(elements);
+  assertFieldMaps(doc.getMap('files'));
+  assertJsonMapFields(doc.getMap('appState'));
   const plainElements=new Map<string,Record<string,unknown>>();
   for(const [id,element] of elements){
     if(!(element instanceof Y.Map))throw new Error('Element must be a field map');

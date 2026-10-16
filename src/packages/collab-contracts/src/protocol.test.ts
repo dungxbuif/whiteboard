@@ -28,4 +28,14 @@ describe('binary frame contract',()=>{
     for(const updateId of ['', 'x'.repeat(129), '\ud800'])expect(()=>encodeFrame({channel:3,updateId,payload:new Uint8Array()})).toThrow();
     expect(()=>encodeFrame({channel:3,updateId:'x',payload:new Uint8Array(),room:'other'} as never)).toThrow();
   });
+  it.each([{name:'BOM only',idBytes:[0xef,0xbb,0xbf]},{name:'BOM prefix',idBytes:[0xef,0xbb,0xbf,0x61]}])('rejects $name update ID bytes',({idBytes})=>{
+    const frame=new Uint8Array(8+idBytes.length);
+    frame[0]=1;frame[1]=3;
+    new DataView(frame.buffer).setUint16(2,idBytes.length);
+    frame.set(idBytes,8);
+    expect(()=>decodeFrame(frame)).toThrow(/update ID/i);
+  });
+  it('rejects leading BOM IDs consistently on encoding',()=>{
+    for(const updateId of ['\ufeff','\ufeffa'])expect(()=>encodeFrame({channel:3,updateId,payload:new Uint8Array()})).toThrow(/update ID/i);
+  });
 });

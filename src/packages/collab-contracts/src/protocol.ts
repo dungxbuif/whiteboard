@@ -24,6 +24,9 @@ export function decodeFrame(bytes: Uint8Array): Frame {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const idLength = view.getUint16(2), payloadLength = view.getUint32(4);
   if (idLength < 1 || idLength > 128 || FRAME_HEADER_BYTES + idLength + payloadLength !== bytes.length) throw new Error('Invalid frame length or trailing bytes');
-  const updateId = decoder.decode(bytes.subarray(FRAME_HEADER_BYTES, FRAME_HEADER_BYTES+idLength));
+  const idBytes=bytes.subarray(FRAME_HEADER_BYTES,FRAME_HEADER_BYTES+idLength);
+  const updateId=decoder.decode(idBytes);
+  const canonical=encoder.encode(updateId);
+  if(canonical.length!==idLength||canonical.some((byte,index)=>byte!==idBytes[index]))throw new Error('Invalid noncanonical update ID');
   return {channel:bytes[1] as Frame['channel'],updateId,payload:bytes.slice(FRAME_HEADER_BYTES+idLength)};
 }

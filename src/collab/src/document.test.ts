@@ -128,6 +128,61 @@ describe('scene document validation',()=>{
     await expect(validateCandidate(doc,new Uint8Array([...update,0]))).rejects.toThrow(/trailing/i);
     expect(materializeScene(doc).elements[0].x).toBe(0);
   });
+  it.each(['elements','appState','files'])('rejects hidden sequence content in map root %s',async(root)=>{
+    const current=createSceneDoc(scene([])),before=Y.encodeStateAsUpdate(current);
+    const update=edit(current,c=>c.getText(root).insert(0,'HIDDEN DATA'));
+    await expect(validateCandidate(current,update)).rejects.toThrow(/map.*sequence/i);
+    expect(Y.encodeStateAsUpdate(current)).toEqual(before);
+  });
+  it.each(['order','presentationOrder'])('rejects hidden keyed content in array root %s',async(root)=>{
+    const current=createSceneDoc(scene([])),before=Y.encodeStateAsUpdate(current);
+    const update=edit(current,c=>c.getMap(root).set('hidden','HIDDEN DATA'));
+    await expect(validateCandidate(current,update)).rejects.toThrow(/array.*keyed/i);
+    expect(Y.encodeStateAsUpdate(current)).toEqual(before);
+  });
+  it.each(['element','file'])('rejects hidden sequence content inside nested %s field maps',async(kind)=>{
+    const content=scene();content.files.asset={id:'asset',assetId:'stored-key',created:1,mimeType:'image/png'};
+    const current=createSceneDoc(content),before=Y.encodeStateAsUpdate(current);
+    const update=edit(current,c=>{
+      const map=c.getMap(kind==='element'?'elements':'files').get(kind==='element'?'shape':'asset') as Y.Map<unknown>;
+      Y.Array.prototype.insert.call(map as never,0,['HIDDEN DATA']);
+    });
+    await expect(validateCandidate(current,update)).rejects.toThrow(/map.*sequence/i);
+    expect(Y.encodeStateAsUpdate(current)).toEqual(before);
+  });
+  it.each(['map sequence','array keyed'])('rejects deleted hidden %s structs',async(kind)=>{
+    const current=createSceneDoc(scene([])),before=Y.encodeStateAsUpdate(current);
+    const update=edit(current,c=>{
+      c.gc=false;
+      if(kind==='map sequence'){const text=c.getText('appState');text.insert(0,'HIDDEN DATA');text.delete(0,11);}
+      else {const map=c.getMap('order');map.set('hidden','HIDDEN DATA');map.delete('hidden');}
+    });
+    await expect(validateCandidate(current,update)).rejects.toThrow(/(?:map.*sequence|array.*keyed)/i);
+    expect(Y.encodeStateAsUpdate(current)).toEqual(before);
+  });
+  it.each(['elements','files'])('checks hidden sequence structs in deleted nested %s maps',async(root)=>{
+    const current=createSceneDoc(scene([])),before=Y.encodeStateAsUpdate(current);
+    const update=edit(current,c=>{
+      c.gc=false;
+      const parent=c.getMap(root),map=new Y.Map<unknown>();
+      parent.set('hidden',map);
+      Y.Array.prototype.insert.call(map as never,0,['HIDDEN DATA']);
+      parent.delete('hidden');
+    });
+    await expect(validateCandidate(current,update)).rejects.toThrow(/map.*sequence/i);
+    expect(Y.encodeStateAsUpdate(current)).toEqual(before);
+  });
+  it.each(['appState','order','presentationOrder'])('rejects hidden shared containers removed from %s',async(root)=>{
+    const current=createSceneDoc(scene([])),before=Y.encodeStateAsUpdate(current);
+    const update=edit(current,c=>{
+      c.gc=false;
+      const hidden=new Y.Map<unknown>();
+      if(root==='appState'){const map=c.getMap(root);map.set('hidden',hidden);hidden.set('secret','HIDDEN DATA');map.delete('hidden');}
+      else {const array=c.getArray(root);array.push([hidden]);hidden.set('secret','HIDDEN DATA');array.delete(0,1);}
+    });
+    await expect(validateCandidate(current,update)).rejects.toThrow(/(?:plain JSON|array.*content)/i);
+    expect(Y.encodeStateAsUpdate(current)).toEqual(before);
+  });
   it('fails closed with a recovery code when retained snapshot history exceeds its resource budget',async()=>{
     const doc=new Y.Doc({gc:false});
     doc.getText('retained-history').insert(0,'x'.repeat(MAX_SNAPSHOT_BYTES));
