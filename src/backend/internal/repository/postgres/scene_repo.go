@@ -58,20 +58,23 @@ func (r *SceneRepository) List(ctx context.Context, workspaceID uuid.UUID, folde
 }
 
 func (r *SceneRepository) Update(ctx context.Context, scene *domain.Scene) error {
-	result := accessDB(ctx, r.db).Model(&domain.Scene{}).
-		Where("workspace_id = ? AND id = ?", scene.WorkspaceID, scene.ID).
-		Updates(map[string]interface{}{
-			"title":           scene.Title,
-			"folder_id":       scene.FolderID,
-			"content":         scene.Content,
-			"content_version": gorm.Expr("content_version + 1"),
-			"updated_by":      scene.UpdatedBy,
-			"updated_at":      gorm.Expr("NOW()"),
-		})
+	updates := map[string]interface{}{
+		"title": scene.Title, "folder_id": scene.FolderID, "updated_by": scene.UpdatedBy, "updated_at": gorm.Expr("NOW()"),
+	}
+	query := accessDB(ctx, r.db).Model(&domain.Scene{}).Where("workspace_id = ? AND id = ?", scene.WorkspaceID, scene.ID)
+	if scene.ContentPatch {
+		query = query.Where("writer_mode = ?", "v1")
+		updates["content"] = scene.Content
+		updates["content_version"] = gorm.Expr("content_version + 1")
+	}
+	result := query.Updates(updates)
 	if result.Error != nil {
 		return fmt.Errorf("failed to update scene: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
+		if scene.ContentPatch {
+			return domain.ErrCollabRequired
+		}
 		return fmt.Errorf("failed to update scene: %w", gorm.ErrRecordNotFound)
 	}
 	return nil

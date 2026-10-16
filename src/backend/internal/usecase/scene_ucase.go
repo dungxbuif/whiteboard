@@ -64,6 +64,10 @@ func (u *sceneUsecase) Update(ctx context.Context, workspaceID, userID, id uuid.
 	if err != nil {
 		return nil, err
 	}
+	if content != nil && scene.WriterMode == "v2" {
+		return nil, domain.ErrCollabRequired
+	}
+	scene.ContentPatch = content != nil
 	if title != nil {
 		trimmed := strings.TrimSpace(*title)
 		if trimmed == "" {
@@ -87,7 +91,9 @@ func (u *sceneUsecase) Update(ctx context.Context, workspaceID, userID, id uuid.
 	if err := u.repo.Update(ctx, scene); err != nil {
 		return nil, err
 	}
-	scene.ContentVersion++
+	if content != nil {
+		scene.ContentVersion++
+	}
 	return scene, nil
 }
 

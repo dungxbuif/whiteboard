@@ -2,26 +2,15 @@ package postgres
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"devtool/internal/domain"
 
 	"github.com/google/uuid"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 func TestWorkspaceRepository(t *testing.T) {
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		t.Skip("DATABASE_URL not set, skipping integration test")
-	}
-
-	db, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to connect to database: %v", err)
-	}
+	db := accessTestDB(t, 9)
 
 	repo := NewWorkspaceRepository(db)
 	ctx := context.Background()

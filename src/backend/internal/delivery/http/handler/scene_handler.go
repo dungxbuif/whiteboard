@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"devtool/internal/delivery/http/middleware"
@@ -119,6 +120,10 @@ func (h *SceneHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	scene, err := h.usecase.Update(r.Context(), workspaceID, userID, sceneID, request.Title, folderID, content)
 	if err != nil {
+		if errors.Is(err, domain.ErrCollabRequired) {
+			writeJSONResponse(w, http.StatusConflict, map[string]string{"code": "COLLAB_REQUIRED", "message": "Use collaboration to update scene content", "requestId": r.Header.Get("X-Request-ID")})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

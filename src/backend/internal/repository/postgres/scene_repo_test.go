@@ -3,25 +3,15 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"devtool/internal/domain"
 
 	"github.com/google/uuid"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
 )
 
 func TestSceneRepository(t *testing.T) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		t.Skip("DATABASE_URL not set")
-	}
-	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to connect: %v", err)
-	}
+	db := accessTestDB(t, 9)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -61,6 +51,7 @@ func TestSceneRepository(t *testing.T) {
 	}
 
 	found.Title = "Updated"
+	found.ContentPatch = true
 	found.Content = json.RawMessage(`{"elements":[{"id":"1"}]}`)
 	if err := repo.Update(ctx, found); err != nil {
 		t.Fatalf("update failed: %v", err)

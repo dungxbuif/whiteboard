@@ -9,6 +9,8 @@ import (
 )
 
 type Scene struct {
+	WriterMode     string          `json:"writerMode,omitempty" gorm:"not null;default:v1"`
+	ContentPatch   bool            `json:"-" gorm:"-"`
 	ID             uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	PublicID       *string         `json:"publicId,omitempty"`
 	WorkspaceID    uuid.UUID       `json:"workspaceId" gorm:"type:uuid;not null;index"`
