@@ -15,6 +15,18 @@ shared_fields: [status, linked_decisions]
 - Human owns approved boundaries, constraints, and tradeoff approvals.
 - AI maintains implementation-grounded overview, modules, diagrams, flows, dependencies, and risks.
 
+## Collaboration v2 branch status
+
+Production currently runs v1. The overview and flows below describe that deployed baseline; the v2 implementation is tracked separately until release.
+
+- Go authority now has current workspace roles, scene overrides, short public aliases, workspace row locks and durable ACL invalidation. [Access decision](../decisions/0009-collaboration-access.md).
+- Invitation API creates single-use seven-day links and atomically provisions new accounts with a personal workspace and invited membership. It is implemented with task review in progress; browser controls remain pending.
+- `src/packages/collab-contracts` validates native scene content and binary frames; `src/collab` validates candidates in isolated Yjs workers. The durable WebSocket writer and browser transport remain in implementation. [Protocol](collaboration-protocol.md).
+- `src/packages/diagram-kit` provides 19 editable native presets. Renderer parity, MCP transport and authorized live commands remain pending. [Catalog](../user/diagram-catalog.md).
+- Dashboard styling follows the original reference colors and layout, scoped away from native Excalidraw. [Dashboard guide](../user/dashboard.md).
+
+The [programme](../superpowers/plans/2026-10-16-collaboration-v2.md) defines the remaining contracts; [verification](../work/verification/collaboration-v2.md) distinguishes completed local checks from release gates.
+
 ## Overview
 
 High-performance, self-hosted whiteboard ecosystem using Go Clean Architecture

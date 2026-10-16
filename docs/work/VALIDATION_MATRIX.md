@@ -80,7 +80,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 
 | Requirement | Tasks | Required proof | Status | Plan |
 | --- | --- | --- | --- | --- |
-| V2-ACCESS | A1–A4 | A1 reviewed with 79 backend tests and stalled-body regression; A2 has 15 invitation tests plus origin validation, review pending; public/asset grants remain in progress | in_progress | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
+| V2-ACCESS | A1–A4 | A1 reviewed with 79 backend tests and stalled-body regression; A2 reviewed with 15 invitation tests plus origin validation and shared-clock regression; public/asset grants remain in progress | in_progress | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
 | V2-SYNC | B1–B4 | malformed protocol, durable ACK/replay, convergence, offline revocation, voice cap | in_progress | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
 | V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 access workflows pending | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
 | V2-MCP | D1–D4 | scopes, discovery, all preset fixtures, stale/retry mutations, export isolation | in_progress | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |

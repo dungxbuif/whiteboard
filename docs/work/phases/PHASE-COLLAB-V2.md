@@ -23,7 +23,7 @@ Design and implementation approved by user. C1, A1, B1 and D2 are verified/revie
 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
-| A | A1–A4 | A1 verified; A2 under review; A3 implementing; A4 pending | in_progress |
+| A | A1–A4 | A1/A2 verified; A3/A4 implementing | in_progress |
 | B | B1–B4 | B1 verified; remaining tasks pending | in_progress |
 | C | C1–C2 | C1 implemented; C2 pending A | in_progress |
 | D | D1–D4 | D2 verified; remaining tasks pending | in_progress |

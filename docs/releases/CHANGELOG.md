@@ -12,9 +12,12 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Dependency patch subset (branch only): verified Axios, NanoID, lodash-es, PostCSS and Vitest updates with unchanged dashboard goldens. Remaining dependency/runtime checks are documented in [triage](../work/verification/collaboration-dependencies.md).
+- Public links A3 (branch only, review pending): independent view/edit links, scoped guest sessions, separate room credentials, current permission checks and renewal. Browser/runtime integration remains pending.
+
 - Diagram catalog D2 (branch only): 19 native editable diagram presets, deterministic layout and explicit supported Mermaid subset. Compiler review and 40 tests pass; renderer/export integration remains pending. [Catalog](../user/diagram-catalog.md).
 - Protocol B1 (branch only): strict binary framing and native scene schemas, isolated Yjs candidate validation with bounded resources, malformed/history checks. Durable server/browser integration remains pending. [Evidence](../work/verification/collaboration-v2.md).
-- Invitations A2 (branch only, review pending): owner-created single-use seven-day links, email-bound acceptance and atomic account/default workspace provisioning. Existing account passwords are preserved. [Guide](../user/collaboration.md).
+- Invitations A2 (branch only): owner-created single-use seven-day links, email-bound acceptance and atomic account/default workspace provisioning. Existing account passwords are preserved. [Guide](../user/collaboration.md).
 
 - Access A1 (branch only): current workspace/scene role enforcement, short public aliases retaining UUID links, owner-only membership controls, scene asset isolation and transactional ACL invalidation. Bounded request reads prevent a stalled client from holding authority and blocking revocation. [Evidence](../work/verification/collaboration-v2.md).
 

@@ -52,6 +52,20 @@ Durable PostgreSQL append/ack, refresh/revocation, browser offline replay and co
 
 ## A2 — invitation API and atomic onboarding
 
-Commit `9e1ec91`; task review pending. Fifteen targeted invitation tests pass with disposable PostgreSQL, plus one frontend-origin configuration test. Proof covers concurrent single use, seven-day boundary, email binding, no membership downgrade, atomic account/personal-workspace/invited membership creation, rollback, existing password preservation, generic duplicate-email rejection, owner management and bounded HTTP inputs.
+Commit `9e1ec91` plus fix `873ce82`; task review approved. Fifteen targeted invitation tests pass with disposable PostgreSQL, plus one frontend-origin configuration test. Proof covers concurrent single use, seven-day boundary, email binding, no membership downgrade, atomic account/personal-workspace/invited membership creation, rollback, existing password preservation, generic duplicate-email rejection, owner management and bounded HTTP inputs.
 
 A broad intermediate backend run had 106 passes and two failures in the concurrently developing A3 share-link tests. That run is not a passing integration gate; rerun after A3 wiring. Browser invite controls remain C2, production remains v1. Human [invitation guide](../../user/collaboration.md) and public Markdown API guide describe the branch-only behavior.
+
+A2 review found one date-dependent concurrency test: its two acceptors used different clocks. Both now share one immutable fixture clock. Controller repeated the real PostgreSQL concurrency test (one pass); scoped re-review approved the fix. No production-path finding remained.
+
+## E1 dependency patch subset
+
+Commit `3754f1b` passed task review. Final root clean install and resolved dependency tree agree; runtime 52, contracts 13, diagram 40 and frontend 33 tests pass, as do production/diagram builds and 14 Chromium flows with four unchanged goldens. Audit entries decreased from 29 to 17; [reachability and unresolved checks](collaboration-dependencies.md) remain explicit. KaTeX browser trust, legacy Socket.IO removal and root-workspace Docker parity are still release checks.
+
+Baseline warning follow-ups: Vite reports existing large chunks; Playwright's environment reports NO_COLOR/FORCE_COLOR conflict. These warnings do not fail the verified commands and did not change visual goldens. Their cleanup is separate from dependency remediation; no pristine-output claim is made.
+
+## A3 — independent public links and room tokens
+
+Commit `f6d61b5`, review pending. Sixteen targeted tests pass with actual PostgreSQL and HTTP wiring. Coverage includes migrated legacy links, independent view/edit grants, purpose-separated room credentials, renewal, current membership/link revision, revoke rollback, exact expiry after authority-lock waits, credential-safe logs and POST-only password exchange.
+
+The final broad run had 118 passes and eight failures from concurrent A4 capability stubs. It is not a passing whole-backend integration gate. C2 must replace the old browser query-password request; B2 implements socket revocation/persistence. Production remains v1.
