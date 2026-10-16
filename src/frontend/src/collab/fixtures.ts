@@ -1,0 +1,3 @@
+import type { NativeElement, SceneContent } from '@collab/contracts';
+export const rectangle = (id = 'shape'): NativeElement => ({ id, type: 'rectangle', x: 0, y: 0, width: 100, height: 100, angle: 0, strokeColor: '#111111', backgroundColor: 'transparent', fillStyle: 'solid', strokeWidth: 1, strokeStyle: 'solid', roughness: 1, opacity: 100, groupIds: [], frameId: null, roundness: null, seed: 1, version: 1, versionNonce: 1, index: null, isDeleted: false, boundElements: null, updated: 1, link: null, locked: false });
+export const scene = (elements: NativeElement[] = [rectangle()]): SceneContent => ({ elements, appState: {}, files: {} });

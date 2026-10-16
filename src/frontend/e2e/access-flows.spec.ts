@@ -139,10 +139,13 @@ test('owner creates independent view and edit links with password expiry and rev
   await expect(page.getByRole('button', { name: 'Revoke edit link' })).toBeVisible();
 });
 
-test('public edit asks for display name without persisting guest credentials', async ({ page }) => {
+test('public edit retains same-tab identity across reload and clears only revoked credentials', async ({ page }) => {
+  let exchanges = 0, renewals = 0, revoked = false;
+  await page.route('**/api/v1/scenes/*/room-token', route => { renewals++; return route.fulfill({ status: revoked ? 403 : 503, json: { code: revoked ? 'FORBIDDEN' : 'UNAVAILABLE' } }); });
   await page.addInitScript(() => localStorage.setItem('auth_token', 'private-login-token'));
   await page.route('**/public/scene-session', async route => {
     expect(route.request().headers().authorization).toBeUndefined();
+    exchanges++;
     const input = route.request().postDataJSON();
     if (input.password !== 'secret-pass') return route.fulfill({ status: 401, json: { code: 'SHARE_PASSWORD_REQUIRED' } });
     if (!input.displayName) return route.fulfill({ status: 400, json: { code: 'INVALID_INPUT' } });
@@ -158,6 +161,16 @@ test('public edit asks for display name without persisting guest credentials', a
   await expect(page.getByText('Guest artist', { exact: false })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('guest-credential');
+  await expect.poll(() => renewals).toBeGreaterThan(0);
+  const session = () => page.evaluate(() => JSON.parse(sessionStorage.getItem('devtool:guest-session:edit-token')!).session);
+  expect((await session()).token).toBe('guest-credential');
+  const before = exchanges; await page.reload();
+  await expect(page.getByText('Guest artist', { exact: false })).toBeVisible();
+  expect(exchanges).toBe(before); expect((await session()).principalId).toBe('guest:id');
+  revoked = true; await page.getByRole('button', { name: 'Retry connection / uploads' }).click();
+  await expect(page.getByRole('status')).toContainText('Access revoked');
+  expect((await session()).token).toBe(''); expect((await session()).principalId).toBe('guest:id');
+  expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
 });
 
 

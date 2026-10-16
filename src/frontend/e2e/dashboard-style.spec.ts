@@ -1,9 +1,10 @@
+import { legacyCollabFixture } from './legacy-collab-fixture';
 import { test, expect, type Page } from "@playwright/test";
 
 test.use({ reducedMotion: "reduce" });
 
 const workspace = { id: "workspace-style", name: "Design studio", ownerId: "user-style", role: "owner", createdAt: "2026-10-16T00:00:00Z" };
-const scene = { id: "scene-style", workspaceId: workspace.id, folderId: null, title: "System architecture", access: "edit", owner: true, content: { elements: [], appState: {}, files: {} }, contentVersion: 1, isStarred: true, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z" };
+const scene = { id: "scene-style", workspaceId: workspace.id, folderId: null, title: "System architecture", access: "edit", writerMode: "v1", owner: true, content: { elements: [], appState: {}, files: {} }, contentVersion: 1, isStarred: true, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z" };
 
 async function setup(page: Page, options: { longName?: boolean; empty?: boolean } = {}) {
   let currentScene = scene;
@@ -12,6 +13,7 @@ async function setup(page: Page, options: { longName?: boolean; empty?: boolean 
   await page.route("**/api/v1/workspaces", route => route.fulfill({ json: [{ ...workspace, name: options.longName ? "A very long workspace name for architecture and distributed systems" : workspace.name }] }));
   await page.route("**/api/v1/folders**", route => route.fulfill({ json: [] }));
   await page.route("**/api/v1/scenes**", route => {
+    if (route.request().url().endsWith("/room-token")) return route.fulfill({ json: { token: "fixture-room-token", expiresAt: new Date(Date.now() + 600000).toISOString() } });
     if (route.request().method() === "POST") {
       currentScene = { ...scene, ...route.request().postDataJSON() };
       return route.fulfill({ json: currentScene });
@@ -96,3 +98,5 @@ test("import rejects invalid/oversized files without writes, then creates editab
   await expect(page.getByRole("status")).toHaveText("Saved");
   expect(errors).toEqual([]);
 });
+
+test.beforeEach(async ({ page }) => { await legacyCollabFixture(page); });

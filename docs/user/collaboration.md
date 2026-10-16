@@ -1,6 +1,6 @@
 # Joining and sharing a workspace
 
-Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. Live guest editing and session revocation still require the B3 collaboration adapter and real-stack release verification.
+Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. The B3 adapter has local unit and browser verification; full release acceptance and deployment remain pending.
 
 ## Invite someone
 
@@ -27,8 +27,14 @@ Editors create and change content; viewers have reading controls. A scene overri
 3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata only.
 4. Select **Revoke** beside the link to stop future access. Other links remain independent.
 
-A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then holds a scoped, short-lived scene session in memory. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
+A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then retains the scoped, short-lived scene session in the current tab's sessionStorage so reload preserves its guest identity. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
 
-The current public edit screen shows a read-only snapshot while live collaboration is awaiting its adapter. Actual editing is enabled only after room admission in the B3 integration. Renewal, live revocation, offline replay and real WebSocket verification are release gates, not represented as completed by the management UI tests. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
+The public scene remains read-only until fresh room admission and synchronization. The B3 browser implementation has local protocol, guest reload/revocation UI, and native browser offline-replay verification. It has not been deployed; full public production-path acceptance remains a release gate. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
 
 For API consumers, see the internal [API reference](../architecture/API.md). An agent-readable copy of this guide is served at `/docs/collaboration.md`; the shared `SceneSession` contract is documented in the C2 API section.
+
+## B3 browser integration (implemented; deployment pending)
+
+The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](../architecture/BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
+
+For editing states, local undo, image retries and retained offline work, see [browser collaboration and recovery](../../src/frontend/public/docs/browser-collaboration.md).

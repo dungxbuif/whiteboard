@@ -1,6 +1,6 @@
 # Joining and sharing a workspace
 
-Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. Live guest editing and session revocation still require the B3 collaboration adapter and real-stack release verification.
+Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. The B3 adapter has local unit and browser verification; full release acceptance and deployment remain pending.
 
 ## Invite someone
 
@@ -27,9 +27,9 @@ Editors create and change content; viewers have reading controls. A scene overri
 3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata only.
 4. Select **Revoke** beside the link to stop future access. Other links remain independent.
 
-A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then holds a scoped, short-lived scene session in memory. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
+A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then retains the scoped, short-lived scene session in the current tab's sessionStorage so reload preserves its guest identity. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
 
-The current public edit screen shows a read-only snapshot while live collaboration is awaiting its adapter. Actual editing is enabled only after room admission in the B3 integration. Renewal, live revocation, offline replay and real WebSocket verification are release gates, not represented as completed by the management UI tests. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
+The public scene remains read-only until fresh room admission and synchronization. The B3 browser implementation has local protocol, guest reload/revocation UI, and native browser offline-replay verification. It has not been deployed; full public production-path acceptance remains a release gate. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
 
 Agent API contract: POST `/api/v1/invitations/accept` accepts `{token}` with account bearer. POST `/api/v1/invitations/register` accepts `{token,email,name,password}` without bearer. POST `/api/v1/public/scene-session` accepts `{token,password?,displayName?}` without account bearer and returns `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. POST `/api/v1/public/scenes/:token` accepts `{password?,displayName?}` for the initial snapshot. Use the scoped session bearer only for `/api/v1/scenes/:sceneId/room-token`; never store it as the account login token. Share lists contain `{id,access,active,expiresAt}` only; the create response additionally contains a one-time token. Workspace responses include current `role`; authenticated scene responses include effective `access` and `owner`.
 
@@ -71,3 +71,5 @@ Room renewal validates current membership/link and scene/workspace status. For g
 Room claims: HS256, issuer `whiteboard-api`, audience `whiteboard-collab`, purpose `room`, scene/workspace scope, `principalType`, `principalId`, `grantId`, `displayName`, `access`, decimal-string `aclVersion`, `iat/exp/jti`. Public IDs begin `guest:` and include decimal-string `grantVersion`. Scene-session audience is `whiteboard-scene-session` and purpose is `scene-session`. Go/collab use a dedicated `COLLAB_JWT_SECRET` of at least 32 bytes, distinct from `JWT_SECRET`.
 
 Errors use `{code,message,requestId}`. Invitations: 400 invalid input/link or generic registration rejection; 401 login required; 403 wrong email/prohibited operation; 404 inaccessible workspace; 410 expiry; 413 oversized body; 408 stalled input; 503 unavailable authority. Registration errors do not enumerate accounts. Sharing: 400 invalid input; 401 password/session challenge; 403 forbidden; 404 inaccessible/revoked/expired resource; 413 oversized body; 503 unavailable authority. Invitation/public-link JSON bodies are bounded at 4 KiB; unknown fields/trailing JSON are rejected. Passwords in query strings are ignored. Do not log tokens, passwords or scoped credentials.
+
+See [browser collaboration and recovery](browser-collaboration.md) for scoped queues, local undo, image retries, session lifetime and the single-writer migration policy.

@@ -1,3 +1,4 @@
+import { legacyCollabFixture } from './legacy-collab-fixture';
 import { test, expect } from '@playwright/test';
 
 const screenshotPath = process.env.SCREENSHOT_PATH;
@@ -58,6 +59,7 @@ let mockScenes: Array<{
 
 test.describe('Dashboard E2E Flows', () => {
   test.beforeEach(async ({ page }) => {
+    await legacyCollabFixture(page);
     mockScenes = [];
     await page.route('**/api/v1/auth/login', async (route) => {
       await route.fulfill({ json: { token: 'playwright-token' } });
@@ -86,6 +88,7 @@ test.describe('Dashboard E2E Flows', () => {
     await page.route('**/api/v1/scenes**', async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (url.pathname.endsWith('/room-token')) return route.fulfill({ json: { token: 'fixture-room-token', expiresAt: new Date(Date.now() + 600000).toISOString() } });
       const sceneId = url.pathname.match(/\/scenes\/([^/]+)/)?.[1];
       const body = request.postDataJSON() as Record<string, unknown> | null;
 
@@ -109,7 +112,7 @@ test.describe('Dashboard E2E Flows', () => {
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
         const created = {
           id: 'scene-created',
-          access: 'edit',
+          access: 'edit', writerMode: 'v1',
           owner: true,
           workspaceId: mockWorkspaces[0].id,
           folderId: (body?.folderId as string | null) ?? null,
@@ -250,6 +253,8 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('status')).toHaveText('Saved');
     if (canvasScreenshotPath) await page.screenshot({ path: canvasScreenshotPath, fullPage: false });
 
+    await page.getByTitle('Rectangle — R or 2', { exact: true }).click();
+    await expect(page.getByTitle('Rectangle — R or 2', { exact: true }).locator('input')).toBeChecked();
     const canvas = page.locator('canvas').first();
     await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
@@ -380,3 +385,5 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByText('Read-only')).toBeVisible();
   });
 });
+
+test.beforeEach(async ({ page }) => { await legacyCollabFixture(page); });

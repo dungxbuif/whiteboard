@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import api from "@/lib/api";
+import { writeCollaborativeContent, legacyConflict } from "@/collab/writers";
 
 export const SCENE_SAVE_DEBOUNCE_MS = 750;
 export const EMPTY_SCENE_CONTENT = {
@@ -113,6 +114,11 @@ const useSceneStore = create<SceneState>((set, get) => {
       }));
     } catch (error) {
       if (save.generation !== saveGeneration) return;
+      if ((error as { response?: { data?: { code?: string } } }).response?.data?.code === 'COLLAB_REQUIRED') {
+        set(state => ({ activeScene: state.activeScene?.id === save.sceneId ? { ...state.activeScene, writerMode: 'v2' } : state.activeScene, saveStatus: 'error', error: 'Collaboration is required. Previous edits are retained for recovery.' }));
+        legacyConflict(save.workspaceId, save.sceneId, save.content);
+        throw error;
+      }
       pendingSave = save;
       set({ saveStatus: "error", error: "Scene could not be saved." });
       throw error;
@@ -180,6 +186,10 @@ const useSceneStore = create<SceneState>((set, get) => {
     },
 
     scheduleSave: (workspaceId, sceneId, content) => {
+      if (writeCollaborativeContent(workspaceId, sceneId, content)) return;
+      if (get().activeScene?.id === sceneId && get().activeScene?.writerMode === 'v2') {
+        set({ saveStatus: 'error', error: 'Collaboration connection required; HTTP content writes are disabled.' }); return;
+      }
       saveGeneration += 1;
       pendingSave = { workspaceId, sceneId, content, generation: saveGeneration };
       if (saveTimer) clearTimeout(saveTimer);

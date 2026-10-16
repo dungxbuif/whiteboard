@@ -106,9 +106,7 @@ const useRealtimeStore = create<RealtimeState>((set, get) => ({
       if (!cursor?.userId) return;
       set((state) => ({ cursors: { ...state.cursors, [cursor.userId]: cursor } }));
     });
-    socket.on("scene:update", (message: { data?: RemoteSceneUpdate }) => {
-      if (message?.data) set({ latestSceneUpdate: message.data });
-    });
+    // Scene content is owned by the admitted Yjs transport; legacy sockets carry presence/voice only.
     socket.on("voice:offer", async (message: { data?: { from?: string; to?: string; sdp?: RTCSessionDescriptionInit } }) => {
       const data = message?.data;
       if (!data?.from || data.to && data.to !== socket?.id || !data.sdp) return;
@@ -144,6 +142,7 @@ const useRealtimeStore = create<RealtimeState>((set, get) => ({
   },
 
   publish: (event, payload) => {
+    if (event === "scene:update") return;
     if (!socket || !activeRoom) return;
     socket.emit(event, { ...activeRoom, data: payload });
   },

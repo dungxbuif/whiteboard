@@ -5,7 +5,7 @@ import { PasswordLogin } from '@/components/admin-login';
 import { FolderList } from '@/components/folder-list';
 import { SceneList } from '@/components/scene-list';
 import { SearchResults } from '@/components/search-results';
-import { PublicView, SceneReader } from '@/components/public-view';
+import { PublicView } from '@/components/public-view';
 import { InviteAccept } from '@/components/collaboration/invite-accept';
 import { MemberList } from '@/components/collaboration/member-list';
 import { AgentSettings } from '@/components/collaboration/agent-settings';
@@ -63,7 +63,6 @@ function App() {
   if (routeError) return <main className="grid min-h-screen place-items-center p-6"><p role="alert" className="text-destructive">{routeError}</p><Button onClick={() => navigate('/')}>Back to dashboard</Button></main>;
   if (sceneRoute) {
     if (!activeScene || !workspace || activeScene.workspaceId !== workspace.id || (activeScene.id !== routeScene && activeScene.publicId !== routeScene)) return <main className="grid min-h-screen place-items-center">Loading scene...</main>;
-    if (activeScene.access !== 'edit') return <SceneReader scene={activeScene} onBack={() => navigate('/')} />;
     return <ExcalidrawWrapper key={activeScene.id} />;
   }
   return <DashboardShell>{settingsRoute ? !ready ? <p>Loading workspace...</p> : workspace?.role !== 'owner' ? <p role="alert">Only workspace owners can manage settings.</p> : settingsRoute[2] === 'members' ? <MemberList key={workspace.id} workspaceId={workspace.id} scenes={scenes} /> : <AgentSettings key={workspace.id} workspaceId={workspace.id} isOwner scenes={scenes} /> : <><DashboardHeader />{searchView !== 'all' || searchQuery.trim() ? <SearchResults /> : <><FolderList /><SceneList /></>}</>}</DashboardShell>;

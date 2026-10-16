@@ -6,6 +6,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 - [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
 
+- [Browser collaboration](docs/browser-collaboration.md): branch-only admission, offline recovery, scoped queues, images and local undo.
 - [Workspace invitations](docs/collaboration.md): branch-only invitation API, roles, registration and limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
 

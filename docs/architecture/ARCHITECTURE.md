@@ -20,9 +20,9 @@ shared_fields: [status, linked_decisions]
 Production currently runs v1. The overview and flows below describe that deployed baseline; the v2 implementation is tracked separately until release.
 
 - Go authority now has current workspace roles, scene overrides, short public aliases, workspace row locks and durable ACL invalidation. [Access decision](../decisions/0009-collaboration-access.md).
-- Invitation API creates single-use seven-day links and atomically provisions new accounts with a personal workspace and invited membership. It is implemented with task review in progress; browser controls remain pending.
-- `src/packages/collab-contracts` validates native scene content and binary frames; `src/collab` validates candidates in isolated Yjs workers. The durable WebSocket writer and browser transport remain in implementation. [Protocol](collaboration-protocol.md).
-- `src/packages/diagram-kit` provides 19 editable native presets. Renderer parity, MCP transport and authorized live commands remain pending. [Catalog](../user/diagram-catalog.md).
+- Invitation API creates single-use seven-day links and atomically provisions new accounts with a personal workspace and invited membership. A1–A4 and C2 access/invitation/public-link controls passed task review; full deployed role acceptance remains a release gate.
+- `src/packages/collab-contracts` validates native scene content and binary frames; `src/collab` validates candidates in isolated Yjs workers. The single-owner durable WebSocket writer passed review; the browser transport has local native/offline/reload proof and awaits task review. [Protocol](collaboration-protocol.md).
+- `src/packages/diagram-kit` provides 19 editable native presets. MCP key/audit transports passed review. Authorized live commands and isolated native rendering/export have implementation tests and are in independent review. [Catalog](../user/diagram-catalog.md).
 - Dashboard styling follows the original reference colors and layout, scoped away from native Excalidraw. [Dashboard guide](../user/dashboard.md).
 
 The [programme](../superpowers/plans/2026-10-16-collaboration-v2.md) defines the remaining contracts; [verification](../work/verification/collaboration-v2.md) distinguishes completed local checks from release gates.
@@ -230,3 +230,7 @@ workspace cannot be read or mutated through another workspace context.
 - [0002-post-spec-product-lifecycle.md](../decisions/0002-post-spec-product-lifecycle.md)
 - [0004-sqlite-durable-layer.md](../decisions/0004-sqlite-durable-layer.md)
 - [0007-excalidraw-runtime-dependency.md](../decisions/0007-excalidraw-runtime-dependency.md)
+
+## B3 browser integration (implemented; deployment pending)
+
+The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
