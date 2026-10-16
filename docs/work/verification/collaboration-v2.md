@@ -154,3 +154,6 @@ Recovery slice `403f7c9` passes24tests and compilation; independent review is pe
 
 
 B3 fix3 scoped review now passes both spec and quality (13independent targeted checks); B4 frontend integration is released while the separate image-movement repair remains required. The recovery slice also passes independent spec/quality review with24actual checks. Two nonblocking recovery hardening/coverage suggestions remain for whole-branch triage; full E3 acceptance is still open.
+
+
+E1 runtime repair `f2dd6cf` passed independent spec/quality review:58focused tests and a separate merged-frame-size/convergence probe passed; reviewer verified all650raw ACK/receipt pairs and50converged replicas. Quiet measured ACKp9513.268ms, remote deliveryp95776.186ms, peak runtimeRSS400,424,960bytes on the documented localARM64host. Final error-path capacity adjustment passed149runtime tests after measurement; exact-head load remains required with final E1 acceptance. Current non-load actual-stack browser suite11/13passed; asset viewer fetch and offline-helper cases remain under investigation.

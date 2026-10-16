@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go, PostgreSQL, TypeScript 7, MCP SDK, Excalidraw, Yjs, Docker, Playwright.
 
-**Spec:** [Approved design](../specs/2026-10-15-collaboration-v2-design.md), approved by “xác nhận”; not implemented.
+**Spec:** [Approved design](../specs/2026-10-15-collaboration-v2-design.md), approved by “xác nhận”; implementation authorized and in progress. Production remains v1.
 
 ## Global Constraints
 
@@ -67,6 +67,12 @@
 - [ ] **Step 4 — Browser verification:** use available browser automation on production, securely sign in, test dashboard desktop/mobile/keyboard and native canvas, deep-link refresh, invite, edit/view, live agent write and export. Capture screenshots without secrets; one session is not proof for every role.
 - [ ] **Step 5 — Expand:** health/readiness/error/ack/compaction metrics, load evidence and snapshot equality must pass. Retire v1 only after exit criteria. On failure disable new promotions and follow recovery drill; record outstanding UAT accurately.
 - [ ] **Step 6 — Reconcile and commit:** human and llms docs reflect deployed behavior, source/license notices and P1/P2 backlog. Record exact pass/fail/skipped results. Commit `docs: publish collaboration v2 release and operations`; follow prior merge/release authorization without unrelated changes.
+
+### E3 recovery clarification — approved during execution
+
+The rollback rehearsal uses a new replacement scene UUID with v1 content and a distinct documentId on promotion, while retaining the original trashed/quarantined scene and its durable history. Same-scene writer-mode reset cannot fence the existing binary protocol, which lacks an incoming epoch precondition. The bounded recovery slice `403f7c9` passed independent review and24checks, refusing assets/overrides before mutation. It is not a general production reset CLI. See [recovery runbook](../../operations/collaboration-recovery.md).
+
+A separate full database preflight restore passed on2026-10-17: actual migrator applied7–13from a restored v1version6dump, with final13clean. [Backup evidence](../../work/verification/collaboration-v2-backup.md). Fresh cutover backup, final deployment/canary and complete E3reconciliation remain required.
 
 ## Later milestones
 

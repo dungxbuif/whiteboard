@@ -2,8 +2,9 @@
 
 | Environment | Purpose | URL | Owner | Notes |
 | --- | --- | --- | --- | --- |
-| local | Development and mocked browser verification | `http://localhost:5173` | shared | `src/.env`; Vite proxies API to `:8080` |
-| production | Public self-hosted release | `<public-origin>` | human | Docker Compose; HTTPS termination is required |
+| local | Development and focused browser fixtures | `http://localhost:5173` | shared | Vite proxies API; use the dedicated real-stack harness for acceptance |
+| real-stack test | Disposable actual Go/Node/MCP/PostgreSQL/S3/browser | generated loopback ports | shared | Random test schemas and generated secrets; never production env |
+| production | Public self-hosted release | `https://whiteboard.dungxbuif.com` | shared | VM100 Docker Compose; gateway/Pi5 HTTPS routing; currently v1 |
 
 ## Secrets
 

@@ -93,10 +93,9 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | --- | --- | --- | --- | --- | --- |
 | COLLAB-V2 | phase | high-risk | in_progress | Approved legacy dashboard, ACL/invites/public edit, Yjs/custom socket, native MCP and diagram catalog | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
 
-Design and implementation authorized; C1 dashboard, A1 authority, B1 validation/protocol and D2 diagram compiler are verified and reviewed locally.
-A2 invitations, A3 public links and the E1 dependency patch are reviewed. A4 and D1 fixes are reviewed; B2 startup ownership and C2 settings navigation fixes are reviewed. C2 management/share/routes have 29 browser tests passing. B3 browser integration, D3 durable tools and isolated D4 renderer work are active. Task IDs A1–E3 are defined in the subsystem plans.
-User confirmed org means workspace. Actual NetBird/TURN topology was recorded in Homelab
-commit42cdf59; real two-network audio and full v2 rollout remain unverified.
+Design and implementation authorized. A1–A4, B1–B3, C1/C2, D1–D4 and E2 packaging have passed task reviews. B4 frontend integration and a separate pending-image movement repair are active. E1 runtime performance meets the local50-client target and passed task review; browser acceptance currently11/13with remaining asset/epoch cases being investigated. Bounded replacement-scene recovery is reviewed; full preflight database restore and migrations6→13passed in isolation. Final review, VM100AMD64 images, fresh cutover backup, merge/deployment/public canary remain required.
+
+User confirmed org means workspace. Actual two-network TURN audio passes using the gatewayIP; local hostname DNS still needs correction or the testedIP release setting. See [release checklist](../operations/RELEASE_CHECKLIST.md), [real-stack evidence](verification/collaboration-v2-real-stack.md) and [backup evidence](verification/collaboration-v2-backup.md). Task IDs A1–E3 in the subsystem plans are the active queue; the older epic/ticket tables below preserve v1 planning history and do not represent v2 acceptance.
 
 ### Epic E01: Self-hosted Dashboard
 

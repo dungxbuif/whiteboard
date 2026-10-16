@@ -3,7 +3,7 @@ artifact_type: context
 id: CONTEXT
 status: active
 owner: shared
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Context
@@ -12,7 +12,7 @@ updated: 2026-10-16
 
 - **Active Phase:** Execution & Test — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
 - **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are authorized and executing; runtime is still the existing v1 release.
-- **Next Work:** C1/A1–A4/B1/D2 and the E1 dependency subset are reviewed. D1 scoped keys/MCP audit fixes are reviewed (15 MCP tests, root 173 tests). B2 ownership/startup fixes and C2 navigation fixes are reviewed; C2 has 29 browser/35 unit tests passing. D3 durable agent tools are reviewed. B3 upload/flush and D4 renderer lifecycle review corrections are active; B4 server presence/voice/heartbeat foundations are underway. E2 local packaging and diagnostic cross-network TURN passed, with idle-proxy correction and real-stack release gates outstanding. Production remains v1.
+- **Next Work:** A1–A4, B1–B3, C1/C2, D1–D4 and E2 packaging passed task review. B4 frontend presence/follow/voice and a separate pending-image movement repair are active. E1 runtime performance repair passed local50-client measurement (ACKp9513.27ms, deliveryp95776.19ms) and passed independent review; real browser non-load suite currently11/13passes with two cases under investigation. Bounded replacement-scene recovery is reviewed. Full database preflight backup restored and migrated6→13clean in isolation; fresh cutover backup, final images/review, merge, deployment and public browser canary remain. Production remains v1.
 
 ## Project
 
@@ -31,10 +31,10 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - UUIDs for primary keys (D-02).
 - Single active workspace per session (D-03).
 - Context-based tenancy via middleware (D-04).
-- Last-write-wins for scene persistence (D-06).
+- Legacy v1 uses last-write-wins scene persistence (D-06); promoted v2 scenes use the durable Yjs writer and reject legacy content PATCH.
 - Email/password is the active interactive login path; JWT middleware and authenticated API contracts remain stable. Google OAuth is not required by the runtime.
 - Production v1 uses Socket.IO coordination and HTTP scene PATCH. The v2 branch introduces a single durable Yjs writer; promoted scenes reject HTTP content PATCH. Browser migration and deployment are still pending.
-- Coturn runs on the Homelab gateway at `turn.relayhub.dungxbuif.com:5349`; the app backend mints short-lived TURN REST credentials from `TURN_AUTH_SECRET`.
+- Shared Coturn runs on the gateway. The configured hostname currently resolves incorrectly on the local network; two-network relay/audio passed with `turn:103.82.21.202:5349`. Release configuration will use that verified endpoint until split DNS is corrected and tested. Credentials remain short-lived and API-issued.
 - OpenAI-compatible AI calls are backend-proxied and optional locally when `AI_API_KEY` is absent; DeepSeek is the default target.
 
 ## Blockers
@@ -42,6 +42,8 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Final release sign-off still requires checking and rotating any previously exposed JWT or provider credentials; see [auth secret rotation runbook](operations/auth-secrets-rotation.md).
 
 ## Recent Changes
+
+- 2026-10-17: B3 revision-conflict review closed (`d42dd02`); recovery slice reviewed (`403f7c9`); architecture/backup reconciliation (`0eef886`); bounded worker/fanout performance repair (`f2dd6cf`) reviewed. [Database restore evidence](work/verification/collaboration-v2-backup.md).
 
 - 2026-10-16: A1 authority/aliases/migration committed and reviewed, including a real stalled-request regression protecting owner revocation. B1 workspace/protocol and D2 catalog are implemented under review; frontend33 unit tests/build and14 browser tests pass after dependency migration. [Evidence](work/verification/collaboration-v2.md). Homelab commit42cdf59 records actual topology and recovery of the existing v1 frontend; no v2 deployment.
 

@@ -3,12 +3,12 @@ artifact_type: phase
 id: COLLAB-V2
 status: in_progress
 owner: shared
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Collaboration v2, legacy dashboard and native MCP
 
-Design and implementation approved by user. A1–A4, B1/B2, C1/C2 and D1/D2 are verified/reviewed in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
+Design and implementation approved by user. A1–A4, B1–B3, C1/C2, D1–D4 and E2 packaging are verified/reviewed in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
 
 ## Trace
 
@@ -24,10 +24,10 @@ Design and implementation approved by user. A1–A4, B1/B2, C1/C2 and D1/D2 are 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
 | A | A1–A4 | A1–A4 verified/reviewed | complete |
-| B | B1–B4 | B1/B2 verified and reviewed; B3 browser integration active; B4 pending | in_progress |
+| B | B1–B4 | B1–B3 reviewed; B4 frontend active; separate image-movement acceptance repair active | in_progress |
 | C | C1–C2 | C1/C2 verified and reviewed;29browser/35unit/build pass | complete |
 | D | D1–D4 | D1–D4 verified and reviewed; D4 lifecycle regressions and local nonroot image pass | complete |
-| E | E1–E3 | local packaging/proxy and diagnostic cross-network TURN audio pass; full integration/load/canary/rollback pending | in_progress |
+| E | E1–E3 | E2 reviewed; local50-client load passes, performance reviewed, two browser cases pending; bounded recovery reviewed and DB restore6→13passed; final rollout pending | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;
 each owns files, public interfaces, failing proof, implementation, checks,
