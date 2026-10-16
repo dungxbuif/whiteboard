@@ -101,7 +101,14 @@ func TestInviteExpiryAndEmail(t *testing.T) {
 	}
 }
 func TestConcurrentInviteAccept(t *testing.T) {
-	db, uc, owner, user, w, _ := inviteFixture(t)
+	db, _, owner, user, w, now := inviteFixture(t)
+	fixedNow := *now
+	fixtureClock := func() time.Time { return fixedNow }
+	primaryAccess, e := usecase.NewAccessService(NewAccessRepository(db))
+	if e != nil {
+		t.Fatal(e)
+	}
+	uc := usecase.NewInvitationUsecase(NewInvitationRepository(db), primaryAccess, "https://whiteboard.example.test", fixtureClock)
 	result := inviteFor(t, uc, owner, w, user.String()+"@example.test", domain.WorkspaceRoleEditor)
 	token := inviteToken(t, result)
 	var schema string
@@ -120,7 +127,7 @@ func TestConcurrentInviteAccept(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	second := usecase.NewInvitationUsecase(NewInvitationRepository(other), access, "https://whiteboard.example.test")
+	second := usecase.NewInvitationUsecase(NewInvitationRepository(other), access, "https://whiteboard.example.test", fixtureClock)
 	var successes atomic.Int32
 	var wg sync.WaitGroup
 	start := make(chan struct{})
