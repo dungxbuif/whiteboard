@@ -1,0 +1,4 @@
+import {object,array,id,str} from '../schema';
+import type {JourneyData} from '../types';
+export const journeySchema=object({actors:array(object({id:id(),label:str()}),100,1),stages:array(object({id:id(),label:str(),steps:array(object({id:id(),actor:id(),label:str(),score:{type:'number',minimum:1,maximum:5}},['id','actor','label']),500,1)}),100,1)});
+export const journeyExample:JourneyData={actors:[{id:'customer',label:'Customer'},{id:'support',label:'Support'}],stages:[{id:'discover',label:'Discover',steps:[{id:'find',actor:'customer',label:'Find product',score:4}]},{id:'try',label:'Try',steps:[{id:'onboard',actor:'customer',label:'Create workspace',score:3},{id:'help',actor:'support',label:'Offer guidance',score:5}]},{id:'succeed',label:'Succeed',steps:[{id:'share',actor:'customer',label:'Share first diagram',score:5}]}]};

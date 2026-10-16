@@ -1,0 +1,4 @@
+import {object,array,id,str,enumeration} from '../schema';
+import type {ERData} from '../types';
+export const erdSchema=object({entities:array(object({id:id(),label:str(),fields:array(object({name:str(),type:str(),key:enumeration('PK','FK','UK')},['name','type']),100)}),500,1),relations:array(object({id:id(),from:id(),to:id(),label:str(),cardinality:enumeration('one-to-one','one-to-many','many-to-many')},['id','from','to']),1000)});
+export const erdExample:ERData={entities:[{id:'workspace',label:'Workspace',fields:[{name:'id',type:'uuid',key:'PK'},{name:'name',type:'text'}]},{id:'scene',label:'Scene',fields:[{name:'id',type:'uuid',key:'PK'},{name:'workspace_id',type:'uuid',key:'FK'},{name:'content',type:'jsonb'}]}],relations:[{id:'contains',from:'workspace',to:'scene',label:'contains',cardinality:'one-to-many'}]};

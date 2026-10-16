@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "description": "Original editable skeleton motifs for semantic diagrams; no third-party art or runtime plugins.",
+  "motifs": [
+    {"id":"service","kind":"service","shape":"rectangle","label":"Service","fill":"#d0ebff"},
+    {"id":"actor","kind":"person","shape":"ellipse","label":"Person","fill":"#e5dbff"},
+    {"id":"decision","kind":"decision","shape":"diamond","label":"Approved?","fill":"#fff3bf"},
+    {"id":"store","kind":"database","shape":"rectangle","label":"Database","fill":"#d3f9d8"},
+    {"id":"agent","kind":"agent","shape":"rectangle","label":"Agent","fill":"#ffdeeb"}
+  ]
+}
