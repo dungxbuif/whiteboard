@@ -12,8 +12,13 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Durable runtime B2 (branch only, review pending): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration and deployment remain pending. [Protocol](../architecture/collaboration-protocol.md).
+
+- Agent access D1 (branch only, review pending): workspace-bound scoped keys, HTTP/stdio MCP discovery and scene tools, plus an owner settings component. Dashboard entry and live mutation integration remain in progress. [Agent guide](../user/agents.md).
+- Scoped assets A4 (branch only, reviewed): current scene authority, private signed mutation decisions, guest asset audit and bounded TURN credentials. Asset URL deadlines survive database/signing delays, and compatible uploads can renew without duplicate metadata; conflicting metadata returns 409. [Assets guide](../user/scene-assets.md).
+
 - Dependency patch subset (branch only): verified Axios, NanoID, lodash-es, PostCSS and Vitest updates with unchanged dashboard goldens. Remaining dependency/runtime checks are documented in [triage](../work/verification/collaboration-dependencies.md).
-- Public links A3 (branch only, review pending): independent view/edit links, scoped guest sessions, separate room credentials, current permission checks and renewal. Browser/runtime integration remains pending.
+- Public links A3 (branch only, reviewed): independent view/edit links, scoped guest sessions, separate room credentials, current permission checks and renewal. Browser/runtime integration remains pending.
 
 - Diagram catalog D2 (branch only): 19 native editable diagram presets, deterministic layout and explicit supported Mermaid subset. Compiler review and 40 tests pass; renderer/export integration remains pending. [Catalog](../user/diagram-catalog.md).
 - Protocol B1 (branch only): strict binary framing and native scene schemas, isolated Yjs candidate validation with bounded resources, malformed/history checks. Durable server/browser integration remains pending. [Evidence](../work/verification/collaboration-v2.md).

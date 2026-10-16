@@ -17,16 +17,16 @@ Design and implementation approved by user. C1, A1, B1 and D2 are verified/revie
 - [Backlog](../BACKLOG.md), [roadmap](../ROADMAP.md), [validation](../VALIDATION_MATRIX.md)
 - [Current release checklist](../../operations/RELEASE_CHECKLIST.md), [changelog](../../releases/CHANGELOG.md)
 - [Execution evidence](../verification/collaboration-v2.md).
-- ADRs: 0009 access and0010 Yjs writer created;0011 MCP remains pending;0012 records dashboard presentation.
+- ADRs: 0009 access and0010 Yjs writer created;0011 MCP created;0012 records dashboard presentation.
 
 ## Execution slices
 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
-| A | A1–A4 | A1/A2 verified; A3/A4 implementing | in_progress |
-| B | B1–B4 | B1 verified; remaining tasks pending | in_progress |
-| C | C1–C2 | C1 implemented; C2 pending A | in_progress |
-| D | D1–D4 | D2 verified; remaining tasks pending | in_progress |
+| A | A1–A4 | A1–A4 verified/reviewed | in_progress |
+| B | B1–B4 | B1 verified; B2 committed, review pending; B3/B4 pending | in_progress |
+| C | C1–C2 | C1 implemented; C2 public transport fixed, management UI implementing | in_progress |
+| D | D1–D4 | D2 verified; D1 implemented, review pending; D3/D4 pending | in_progress |
 | E | E1–E3 | host inventory done; integration/load/canary/rollback pending | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;

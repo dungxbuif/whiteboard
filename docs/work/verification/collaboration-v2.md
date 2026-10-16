@@ -66,6 +66,34 @@ Baseline warning follow-ups: Vite reports existing large chunks; Playwright's en
 
 ## A3 — independent public links and room tokens
 
-Commit `f6d61b5`, review pending. Sixteen targeted tests pass with actual PostgreSQL and HTTP wiring. Coverage includes migrated legacy links, independent view/edit grants, purpose-separated room credentials, renewal, current membership/link revision, revoke rollback, exact expiry after authority-lock waits, credential-safe logs and POST-only password exchange.
+Commit `f6d61b5`, task review approved with only a password-limit documentation correction. Sixteen targeted tests pass with actual PostgreSQL and HTTP wiring. Coverage includes migrated legacy links, independent view/edit grants, purpose-separated room credentials, renewal, current membership/link revision, revoke rollback, exact expiry after authority-lock waits, credential-safe logs and POST-only password exchange.
 
 The final broad run had 118 passes and eight failures from concurrent A4 capability stubs. It is not a passing whole-backend integration gate. C2 must replace the old browser query-password request; B2 implements socket revocation/persistence. Production remains v1.
+
+## A4 — scoped asset and mutation authority
+
+Commit `8d45de3` plus fix `7c12e4e`; task review approved after one fix round. Thirty focused tests pass without skips across seven packages: current scene access, public grant expiry/revocation, same-workspace foreign-scene isolation, signed Content-Type/Content-Length, guest uploader audit, private HTTP route isolation and fail-closed secrets. Actual PostgreSQL contention proves authority waits behind revocation then denies; B2 separately owns actual append rejection.
+
+The broad intermediate run has 133 passing and four failing records (including subtests) in D1 incomplete scope and B2 old fixture schema paths. B2 has since moved those fixtures to isolated migration9 schemas; final whole-suite proof remains required. D1 must enable exact-scope agent authority after its own resolver tests. Live object-store PUT, public proxy and cross-network TURN remain E checks.
+
+C2 public transport subset: [browser regression](collaboration-ui.md) reproduces account-token clearing by a public401 and password queries. Commit `b80e804` fixes both; three Chromium flows and production build pass. Full C2 management/share/route review remains pending.
+
+### A4 fix round 1 and current backend integration
+
+Commit `7c12e4e` fixes absolute asset expiry across database/cache/signing work and safe same-file renewal. Delayed database and actual AWS SDK credential-provider tests first reproduced overlong URL lifetimes; the fix checks the actual signed expiry. Real PostgreSQL renewal preserves asset ID/key/original audit and returns 409 for each incompatible immutable metadata field. Independent scoped re-review approved both fixes; zero open findings.
+
+Full Go suite after A4/B2/D1 integration: 158 pass records, zero failures, zero skips, exit 0. Fixtures are disposable local PostgreSQL schemas. This supersedes earlier intermediate broad failures above; it does not prove live object-store PUT or deployment.
+
+## D1 — scoped keys and native MCP transports
+
+Commit `7472b3d`, task review pending. Seven real PostgreSQL agent tests cover independent scopes/current owner/targets, hash-only storage, room and authority grants, HTTP management, audit/log secrecy and the owner-revocation lock race. Official SDK HTTP and stdio tests cover discovery/calls, origin rejection, revoked keys, session principal binding and encoded response limits. Frontend settings tests verify owner gating and one-time secret clearing.
+
+Worker's final root run: 90 collab + 6 MCP + 13 contracts + 40 diagram tests pass; frontend 35 tests and frontend/MCP builds pass. MCP production audit reports zero vulnerabilities; inherited frontend advisories remain in dependency triage. D1 reads the Go materialized snapshot, not current durable sequence; D3 must wire the current durable projection before mutation preconditions. C2 must expose settings in dashboard navigation. No production/MCP-client deployment claim.
+
+## B2 — durable WebSocket runtime
+
+Commit `b9d72ed`, task review pending. Final clean install/root tests pass: runtime 92, MCP 6, contracts 13, diagram 40 (151 total); frontend 35 tests and production build pass. Full Go suite passes with all legacy repository tests moved to guarded isolated PostgreSQL schemas. Existing large-chunk build warning remains.
+
+Forty new runtime tests cover actual database termination with no ACK/broadcast, committed-but-response-lost retry, permanent receipts after compaction, workspace lock races/current ACL/expiry, exact 100-update and five-second compaction, listener loss/readiness recovery, single process ownership, private HTTP isolation/backpressure and a built-server/worker subprocess. Legacy promotion preserves the original JSON/version and resolves images only from same-scene assets; invalid promotion leaves v1 untouched. A valid >64 MiB retained-history recovery export is reconstructed without silently changing document identity.
+
+These tests use actual PostgreSQL and sockets with a controlled Go authority fixture. Full Go+Node+browser convergence/load, actual restore and production remain B3/E gates. Root lock incorporates coordinated D1 dependencies. No v2 deployment performed.
