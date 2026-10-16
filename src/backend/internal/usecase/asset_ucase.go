@@ -99,7 +99,7 @@ func (u *assetUsecase) PresignView(ctx domain.Context, workspaceID, sceneID uuid
 	now := time.Now()
 
 	for _, asset := range assets {
-		if asset.FileID == nil {
+		if asset.FileID == nil || asset.SceneID == nil || *asset.SceneID != sceneID || asset.WorkspaceID != workspaceID || asset.DeletedAt != nil {
 			continue
 		}
 

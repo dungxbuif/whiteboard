@@ -23,7 +23,7 @@ func NewSearchRepository(db *gorm.DB) *SearchRepository {
 func (r *SearchRepository) Search(ctx context.Context, workspaceID uuid.UUID, query string, view string, limit int) ([]domain.SearchItem, error) {
 	items := make([]domain.SearchItem, 0)
 
-	folderQuery := r.db.WithContext(ctx).Model(&domain.Folder{}).Where("workspace_id = ?", workspaceID)
+	folderQuery := accessDB(ctx, r.db).Model(&domain.Folder{}).Where("workspace_id = ?", workspaceID)
 	if view == domain.SearchViewTrash {
 		folderQuery = folderQuery.Unscoped().Where("deleted_at IS NOT NULL")
 	} else {
@@ -51,7 +51,7 @@ func (r *SearchRepository) Search(ctx context.Context, workspaceID uuid.UUID, qu
 		})
 	}
 
-	sceneQuery := r.db.WithContext(ctx).Model(&domain.Scene{}).Where("workspace_id = ?", workspaceID)
+	sceneQuery := accessDB(ctx, r.db).Model(&domain.Scene{}).Where("workspace_id = ?", workspaceID)
 	if view == domain.SearchViewTrash {
 		sceneQuery = sceneQuery.Unscoped().Where("deleted_at IS NOT NULL")
 	} else {

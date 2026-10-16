@@ -18,6 +18,7 @@ const (
 	// Context Keys
 	ContextKeyUserID      = "user_id"
 	ContextKeyWorkspaceID = "workspace_id"
+	ContextKeySceneID     = "scene_id"
 
 	// Folder Constants
 	MaxFolderDepth      = 30

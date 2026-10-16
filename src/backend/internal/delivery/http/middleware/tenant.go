@@ -9,7 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// TenantMiddleware extracts X-Workspace-ID from header, validates it as UUID, and injects it into context.
+// TenantMiddleware injects the canonical workspace UUID. Production first
+// resolves aliases and authorizes membership in CollaborationAccessMiddleware.
 func TenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		workspaceIDStr := r.Header.Get(domain.HeaderWorkspaceID)
@@ -29,10 +30,8 @@ func TenantMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// WorkspaceAccessMiddleware verifies that the authenticated user owns the
-// workspace selected by TenantMiddleware. Parsing a workspace header alone is
-// not authorization: every workspace-scoped route must enforce ownership
-// before reaching its handler.
+// WorkspaceAccessMiddleware is the legacy owner-only guard retained for v1
+// callers. Production uses CollaborationAccessMiddleware for current roles.
 func WorkspaceAccessMiddleware(workspaces domain.WorkspaceRepository) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,18 @@
+DROP TRIGGER user_status_acl ON users;
+DROP TRIGGER workspace_status_acl ON workspaces;
+DROP FUNCTION collab_resource_status_changed();
+DROP TRIGGER workspace_owner_membership ON workspaces;
+DROP FUNCTION collab_owner_membership();
+DROP TRIGGER scene_status_acl ON scenes;
+DROP TRIGGER workspace_members_acl ON workspace_members;
+DROP TRIGGER scene_member_overrides_acl ON scene_member_overrides;
+DROP FUNCTION collab_acl_changed();
+DROP FUNCTION collab_bump_acl(UUID,UUID,UUID,TEXT);
+DROP TABLE acl_audit_events;
+DROP TABLE scene_member_overrides;
+ALTER TABLE scenes DROP CONSTRAINT scenes_workspace_id_id_key;
+ALTER TABLE scenes DROP COLUMN public_id;
+ALTER TABLE workspaces DROP COLUMN public_id, DROP COLUMN acl_version;
+ALTER TABLE workspace_members DROP CONSTRAINT workspace_members_role_check;
+UPDATE workspace_members SET role='member' WHERE role IN ('editor','viewer');
+ALTER TABLE workspace_members ADD CONSTRAINT workspace_members_role_check CHECK(role IN ('owner','member'));

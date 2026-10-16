@@ -12,8 +12,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/casbin/casbin/v3"
-	gormadapter "github.com/casbin/gorm-adapter/v3"
 	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -67,20 +65,10 @@ func main() {
 	}
 	logger.Info("database connection initialized with GORM")
 
-	adapter, err := gormadapter.NewAdapterByDB(db)
+	accessService, err := usecase.NewAccessService(postgresrepo.NewAccessRepository(db), cfg.CasbinModelPath)
 	if err != nil {
-		logger.Error("failed to create casbin adapter", "error", err)
+		logger.Error("failed to create access policy", "error", err)
 		os.Exit(1)
-	}
-
-	enforcer, err := casbin.NewEnforcer(cfg.CasbinModelPath, adapter)
-	if err != nil {
-		logger.Error("failed to create casbin enforcer", "error", err)
-		os.Exit(1)
-	}
-
-	if err := enforcer.LoadPolicy(); err != nil {
-		logger.Warn("failed to load casbin policy", "error", err)
 	}
 
 	// S3 Configuration
@@ -151,7 +139,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithSharingAndWorkspaceAccess(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, middledelivery.WorkspaceAccessMiddleware(workspaceRepo), searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
+		Handler:           httpdelivery.NewRouterWithAccess(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 

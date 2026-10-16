@@ -10,6 +10,7 @@ import (
 
 type Scene struct {
 	ID             uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	PublicID       *string         `json:"publicId,omitempty"`
 	WorkspaceID    uuid.UUID       `json:"workspaceId" gorm:"type:uuid;not null;index"`
 	FolderID       *uuid.UUID      `json:"folderId" gorm:"type:uuid;index"`
 	Title          string          `json:"title" gorm:"not null"`

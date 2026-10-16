@@ -70,6 +70,11 @@ func (h *SceneHandler) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if r.URL.Query().Get("trash") == "true" {
+		for i := range scenes {
+			scenes[i].Content = nil
+		}
+	}
 	writeJSONResponse(w, http.StatusOK, scenes)
 }
 
@@ -165,6 +170,9 @@ func (h *SceneHandler) lifecycleAction(w http.ResponseWriter, r *http.Request, a
 }
 
 func parseURLUUID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	if id, ok := r.Context().Value(domain.ContextKeySceneID).(uuid.UUID); ok {
+		return id, true
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "Invalid scene ID", http.StatusBadRequest)

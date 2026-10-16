@@ -107,7 +107,7 @@ func TestAssetUsecase_PresignView_CacheMissAndHit(t *testing.T) {
 	sceneRepo := &mockSceneRepo{
 		scene: &domain.Scene{ID: sceneID, WorkspaceID: workspaceID},
 	}
-	
+
 	// An asset with expired or nil URL
 	asset := &domain.SceneAsset{
 		ID:            assetID,
@@ -163,5 +163,20 @@ func TestAssetUsecase_PresignView_CacheMissAndHit(t *testing.T) {
 	}
 	if resp2.ViewUrl != expectedUrl {
 		t.Errorf("expected hit url %s, got %s", expectedUrl, resp2.ViewUrl)
+	}
+}
+
+func TestAssetAccessCannotReadOtherSceneFiles(t *testing.T) {
+	workspace, scene, other, assetID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	fileID := "foreign-file"
+	sceneRepo := &mockSceneRepo{scene: &domain.Scene{ID: scene, WorkspaceID: workspace}}
+	assetRepo := &mockSceneAssetRepo{assets: map[uuid.UUID]*domain.SceneAsset{assetID: {ID: assetID, WorkspaceID: workspace, SceneID: &other, FileID: &fileID, StorageKey: "foreign"}}}
+	service := NewAssetUsecase(sceneRepo, assetRepo, &mockS3Repo{}, "bucket", time.Hour)
+	result, err := service.PresignView(context.Background(), workspace, scene, []string{fileID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 0 {
+		t.Fatalf("other scene file leaked: %+v", result)
 	}
 }

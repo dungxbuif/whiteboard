@@ -61,18 +61,14 @@ The frontend toolchain pins TypeScript 7.0.2. TypeScript 7 removed the legacy
 `baseUrl` compiler option, so the app keeps its `@/*` path mapping without that
 option and uses `globalThis` for browser test globals.
 
-Workspace and scene deep-link identifiers remain canonical UUIDs. The legacy
-whiteboard repository has no app-owned short-UUID helper to reuse (its IDs are
-UUIDs; `nanoid` appears only as a transitive dependency), so no unsafe database
-ID migration or new alias scheme was introduced.
+Workspace and scene primary keys remain UUIDs. A1 adds nullable unique public aliases for new resources and accepts either UUID or alias in the workspace header and scene URL. Existing UUID links remain valid. Alias generation ports the old server NanoID alphabet and default length; see [ADR 0009](../decisions/0009-collaboration-access.md). Aliases do not grant permission.
 
 Password accounts are created or rotated with `go run ./cmd/userctl --email ...
 --password ...` (or `/app/userctl` in the backend image). Passwords are stored as
 bcrypt hashes and are never returned by the API. The command also creates a
 `My Workspace` owned by the user when no non-deleted workspace exists.
 
-All workspace-scoped routes require both a valid JWT and an `X-Workspace-ID`
-owned by that user. Public share links use `/p/{token}` and intentionally skip
+The deployed v1 workspace routes use ownership. The A1 implementation replaces this with a valid JWT and current database membership for the workspace selected by `X-Workspace-ID`. Public share links use `/p/{token}` and intentionally skip
 JWT access while enforcing the share permission and optional share password.
 
 ## Versioning
@@ -82,3 +78,17 @@ Phase 1 HTTP contracts are versioned under `/api/v1`.
 ## Linked Decisions
 
 - TBD
+
+## Collaboration A1 branch contract (implemented; release pending)
+
+Approved programme A1 replaces owner-only tenancy with database-backed owner/editor/viewer membership. Editors write; viewers read; owner-only management cannot remove or demote any owner. Scene editor/viewer overrides require membership and affect content only. Workspace and scene UUIDs remain canonical; optional 21-character URL-safe aliases resolve before ACL checks and never grant access. Removed members and deleted resources are denied. Trash metadata/restore is owner-only. Folder mutations require edit access to every descendant scene. Workspace lists contain current memberships; search and scene lists use the same current policy.
+
+Owner routes: GET `/workspaces/{id}/members`, PATCH/DELETE `/workspaces/{id}/members/{userId}`, PUT/DELETE `/scenes/{id}/members/{userId}`. PATCH/PUT accepts `{role:"editor"|"viewer"}`. All routes require login; scene routes retain the workspace header. New policy errors use `{code,message,requestId}`.
+
+Verified on 2026-10-16: 79 backend tests pass with real disposable PostgreSQL enabled, including migration/rollback, aliases, access matrix, removed/soft-deleted members, search/list isolation, protected descendants, owner immutability, audit/version changes, and two-connection write/revoke serialization. Public-session and invitation behavior belongs to A2/A3.
+
+A1 DTOs preserve existing fields and add `publicId?: string` to Workspace/Scene, and `aclVersion: number` to Workspace. Effective role/access is currently internal to `AccessService`; C2 must add an explicit response contract before hiding editor/owner actions. `ownerId` remains the legacy primary owner; membership is the authority. Member GET returns `[{workspaceId,userId,role,createdAt}]`; PATCH/DELETE/override writes return 204. Management body errors return 400; policy failures return the structured error above.
+
+Trash listing is owner-only and scene content is omitted. Scene asset reads filter file IDs to the authorized scene; an existing workspace file ID cannot fetch another scene's asset. Old public share routes and the owner-only v1 Socket.IO adapter remain legacy until A3/B2; no new password query route was added.
+
+The gateway resolves aliases before access checks, holds the workspace row lock through handler completion, and buffers HTTP success until database commit. Authorization failure or handler error rolls back the transaction. New member changes reject every owner target (including self-demotion/last-owner removal). No endpoint promotes another owner or transfers ownership.

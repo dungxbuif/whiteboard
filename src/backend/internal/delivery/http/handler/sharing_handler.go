@@ -9,7 +9,6 @@ import (
 	"devtool/internal/domain"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type SharingHandler struct{ usecase domain.ScenePermissionUsecase }
@@ -25,9 +24,8 @@ func NewSharingHandler(usecase domain.ScenePermissionUsecase) *SharingHandler {
 
 func (h *SharingHandler) Update(w http.ResponseWriter, r *http.Request) {
 	workspaceID, _ := middleware.WorkspaceIDFromContext(r.Context())
-	sceneID, err := uuid.Parse(chi.URLParam(r, "id"))
-	if err != nil {
-		http.Error(w, "Invalid scene id", http.StatusBadRequest)
+	sceneID, ok := parseURLUUID(w, r)
+	if !ok {
 		return
 	}
 	var request ShareSceneRequest

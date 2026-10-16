@@ -3,6 +3,7 @@ package http
 import (
 	"devtool/internal/delivery/http/handler"
 	deliverymiddleware "devtool/internal/delivery/http/middleware"
+	"devtool/internal/domain"
 	"encoding/json"
 	"net/http"
 	nethttp "net/http"
@@ -103,7 +104,14 @@ func newRouter(
 	realtimeHandler nethttp.Handler,
 	aiHandler nethttp.Handler,
 	realtimeConfigHandler nethttp.Handler,
+	accessServices ...domain.AccessService,
 ) nethttp.Handler {
+	var access domain.AccessService
+	var accessHandler *handler.AccessHandler
+	if len(accessServices) > 0 {
+		access = accessServices[0]
+		accessHandler = handler.NewAccessHandler(access)
+	}
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
@@ -122,6 +130,9 @@ func newRouter(
 
 		r.Group(func(r chi.Router) {
 			r.Use(authMiddleware)
+			if access != nil {
+				r.Use(deliverymiddleware.CollaborationAccessMiddleware(access))
+			}
 			if searchHandler != nil {
 				r.Route("/search", func(r chi.Router) {
 					r.Use(deliverymiddleware.TenantMiddleware)
@@ -143,6 +154,11 @@ func newRouter(
 			r.Route("/workspaces", func(r chi.Router) {
 				r.Get("/", workspaceHandler.List)
 				r.Post("/", workspaceHandler.Create)
+				if accessHandler != nil {
+					r.Get("/{id}/members", accessHandler.Members)
+					r.Patch("/{id}/members/{userId}", accessHandler.Member)
+					r.Delete("/{id}/members/{userId}", accessHandler.Member)
+				}
 			})
 
 			r.Route("/folders", func(r chi.Router) {
@@ -169,6 +185,10 @@ func newRouter(
 				r.Post("/", sceneHandler.Create)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", sceneHandler.Get)
+					if accessHandler != nil {
+						r.Put("/members/{userId}", accessHandler.Override)
+						r.Delete("/members/{userId}", accessHandler.Override)
+					}
 					r.Patch("/", sceneHandler.Update)
 					r.Post("/restore", sceneHandler.Restore)
 					r.Post("/star", sceneHandler.SetStar)
@@ -203,4 +223,11 @@ func writeJSON(w nethttp.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+// NewRouterWithAccess is the production router; legacy constructors are retained
+// for v1 tests while the new gateway enforces every scoped HTTP request.
+func NewRouterWithAccess(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler) http.Handler {
+	assets.SetAccessService(access)
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, access)
 }

@@ -18,12 +18,12 @@ func NewSceneAssetRepository(db *gorm.DB) domain.SceneAssetRepository {
 }
 
 func (r *sceneAssetRepository) Create(ctx domain.Context, asset *domain.SceneAsset) error {
-	return r.db.WithContext(ctx).Create(asset).Error
+	return accessDB(ctx, r.db).Create(asset).Error
 }
 
 func (r *sceneAssetRepository) GetByFileIDs(ctx domain.Context, workspaceID uuid.UUID, fileIDs []string) ([]domain.SceneAsset, error) {
 	var assets []domain.SceneAsset
-	err := r.db.WithContext(ctx).
+	err := accessDB(ctx, r.db).
 		Where("workspace_id = ? AND file_id IN ? AND deleted_at IS NULL", workspaceID, fileIDs).
 		Find(&assets).Error
 	if err != nil {
@@ -33,7 +33,7 @@ func (r *sceneAssetRepository) GetByFileIDs(ctx domain.Context, workspaceID uuid
 }
 
 func (r *sceneAssetRepository) UpdatePresignedURL(ctx domain.Context, id uuid.UUID, url string, expiresAt time.Time) error {
-	return r.db.WithContext(ctx).
+	return accessDB(ctx, r.db).
 		Model(&domain.SceneAsset{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
