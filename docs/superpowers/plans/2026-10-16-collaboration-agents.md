@@ -35,12 +35,12 @@
 
 **Interfaces:** Go `CreateAgentKey(ctx,owner,scopes,targets) (KeyOnce,error)`, `AuthenticateAgent(ctx,bearer) (Principal,error)`; owner-only GET/POST/DELETE `/api/v1/workspaces/{id}/agent-keys[/{keyId}]`. MCP `list_workspaces`, `list_scenes`, `get_scene`, `create_scene`; page limit 50, projection cap 500 elements/256 KiB.
 
-- [ ] **Step 1 — Record behavior:** update `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create) with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `TestAgentScopeIntersection`: read-only key cannot write; key for A cannot enumerate B; revoked owner/key denied; DB stores hashes only. `server.test.ts`: initialize/tools/list lifecycle, missing bearer 401, invalid Origin rejected, stdio stdout only MCP frames, pagination doesn't leak other tenants' totals.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- server.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Use server-managed bearer keys for clients supporting explicit headers and a stdio remote proxy with credential in secure config/environment. Do not call PAT support full OAuth compliance: OAuth discovery/PKCE is a separate compatibility extension. Authenticate every HTTP call and bind MCP session to principal. Stdio proxy does not start a local DB. UI uses legacy dashboard style, key shown once, audit stores only key ID. Run Go Agent tests in backend too.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- server.test.ts`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create), stage named files and lockfiles only, commit `feat: expose scoped native MCP scene tools`.
+- [x] **Step 1 — Record behavior:** update `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create) with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `TestAgentScopeIntersection`: read-only key cannot write; key for A cannot enumerate B; revoked owner/key denied; DB stores hashes only. `server.test.ts`: initialize/tools/list lifecycle, missing bearer 401, invalid Origin rejected, stdio stdout only MCP frames, pagination doesn't leak other tenants' totals.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- server.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Use server-managed bearer keys for clients supporting explicit headers and a stdio remote proxy with credential in secure config/environment. Do not call PAT support full OAuth compliance: OAuth discovery/PKCE is a separate compatibility extension. Authenticate every HTTP call and bind MCP session to principal. Stdio proxy does not start a local DB. UI uses legacy dashboard style, key shown once, audit stores only key ID. Run Go Agent tests in backend too.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- server.test.ts`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create), stage named files and lockfiles only, commit `feat: expose scoped native MCP scene tools`.
 
 ### D2: Discoverable native diagram catalog
 
@@ -70,12 +70,12 @@ expect(first.elements.every(e => Number.isFinite(e.x) && Number.isFinite(e.y))).
 
 **Interfaces:** MCP `generate_diagram({sceneRef,preset,data,instanceId,requestId,expectedSequence,dryRun})`, `patch_elements({sceneRef,patches,requestId,expectedSequence})`, `delete_elements({sceneRef,ids,requestId,expectedSequence})`, `get_scene_activity({sceneRef,cursor,limit})` use shared SceneMutation; return receipt, scene URL, created IDs, warnings.
 
-- [ ] **Step 1 — Record behavior:** update `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create) with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `scene-tools.integration.test.ts`: generate in allowed scene, browser sees same IDs, restart retains diagram; retry returns same receipt/one event; changed payload same requestId 409; stale sequence 409; fresh read/new request succeeds preserving human edits; delete creates tombstones; dry-run leaves revision unchanged.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Create scene via Go, compile via D2, sign via A4, submit once through B2. Atomic compare-revision append and principal-bound dedup; retry keeps IDs. Paginate/redact activity. Accurate readOnly/destructive/idempotent tool hints. Return conflict guidance rather than blindly retrying stale patches. No whole-scene replacement or agent permission/key/share-management tools.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create), stage named files and lockfiles only, commit `feat: apply agent diagrams through durable collaboration`.
+- [x] **Step 1 — Record behavior:** update `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create) with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `scene-tools.integration.test.ts`: generate in allowed scene, browser sees same IDs, restart retains diagram; retry returns same receipt/one event; changed payload same requestId 409; stale sequence 409; fresh read/new request succeeds preserving human edits; delete creates tombstones; dry-run leaves revision unchanged.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Create scene via Go, compile via D2, sign via A4, submit once through B2. Atomic compare-revision append and principal-bound dedup; retry keeps IDs. Paginate/redact activity. Accurate readOnly/destructive/idempotent tool hints. Return conflict guidance rather than blindly retrying stale patches. No whole-scene replacement or agent permission/key/share-management tools.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create), stage named files and lockfiles only, commit `feat: apply agent diagrams through durable collaboration`.
 
 ### D4: Mermaid and bounded scene exports
 

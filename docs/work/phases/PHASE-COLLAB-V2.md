@@ -8,7 +8,7 @@ updated: 2026-10-16
 
 # Collaboration v2, legacy dashboard and native MCP
 
-Design and implementation approved by user. C1, A1, B1 and D2 are verified/reviewed in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
+Design and implementation approved by user. A1–A4, B1/B2, C1/C2 and D1/D2 are verified/reviewed in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
 
 ## Trace
 
@@ -23,11 +23,11 @@ Design and implementation approved by user. C1, A1, B1 and D2 are verified/revie
 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
-| A | A1–A4 | A1–A4 verified/reviewed | in_progress |
-| B | B1–B4 | B1 verified; B2 ownership/compaction review fixes; B3/B4 pending | in_progress |
-| C | C1–C2 | C1 implemented; C2 public transport fixed, management UI implementing | in_progress |
-| D | D1–D4 | D2 verified; D1 audit/error review fixes; D3/D4 pending | in_progress |
-| E | E1–E3 | host inventory done; integration/load/canary/rollback pending | in_progress |
+| A | A1–A4 | A1–A4 verified/reviewed | complete |
+| B | B1–B4 | B1/B2 verified and reviewed; B3 browser integration active; B4 pending | in_progress |
+| C | C1–C2 | C1/C2 verified and reviewed;29browser/35unit/build pass | complete |
+| D | D1–D4 | D1–D3 verified and reviewed; D4 lifecycle review corrections active (196 JS/full Go implementation gate passed) | in_progress |
+| E | E1–E3 | local packaging/proxy and diagnostic cross-network TURN audio pass; full integration/load/canary/rollback pending | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;
 each owns files, public interfaces, failing proof, implementation, checks,
