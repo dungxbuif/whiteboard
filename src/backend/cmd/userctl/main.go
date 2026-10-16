@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"devtool/internal/domain"
+	postgresrepo "devtool/internal/repository/postgres"
+	"devtool/internal/usecase"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
@@ -58,18 +60,7 @@ func main() {
 		if err := tx.Save(&user).Error; err != nil {
 			return fmt.Errorf("save user: %w", err)
 		}
-		var workspace domain.Workspace
-		workspaceErr := tx.Where("owner_id = ? AND deleted_at IS NULL", user.ID).First(&workspace).Error
-		if errors.Is(workspaceErr, gorm.ErrRecordNotFound) {
-			if err := tx.Create(&domain.Workspace{ID: uuid.New(), Name: "My Workspace", OwnerID: user.ID}).Error; err != nil {
-				return fmt.Errorf("create default workspace: %w", err)
-			}
-			return nil
-		}
-		if workspaceErr != nil {
-			return fmt.Errorf("find default workspace: %w", workspaceErr)
-		}
-		return nil
+		return usecase.EnsureDefaultWorkspace(ctx, postgresrepo.NewUserProvisioningRepository(tx), user.ID)
 	}); err != nil {
 		log.Fatal(err)
 	}

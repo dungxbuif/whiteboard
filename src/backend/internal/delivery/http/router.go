@@ -25,7 +25,7 @@ func NewRouter(
 	if len(searchHandlers) > 0 {
 		searchHandler = searchHandlers[0]
 	}
-	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, nil, searchHandler, nil, nil, nil, nil, nil)
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, nil, searchHandler, nil, nil, nil, nil, nil, nil)
 }
 
 func NewRouterWithSharing(
@@ -87,7 +87,7 @@ func newRouterWithSharing(
 	if len(realtimeHandlers) > 2 {
 		realtimeConfigHandler = realtimeHandlers[2]
 	}
-	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, workspaceAccessMiddleware, searchHandler, sharingHandler, publicHandler, realtimeHandler, aiHandler, realtimeConfigHandler)
+	return newRouter(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, workspaceAccessMiddleware, searchHandler, sharingHandler, publicHandler, realtimeHandler, aiHandler, realtimeConfigHandler, nil)
 }
 
 func newRouter(
@@ -104,6 +104,7 @@ func newRouter(
 	realtimeHandler nethttp.Handler,
 	aiHandler nethttp.Handler,
 	realtimeConfigHandler nethttp.Handler,
+	invitationHandler *handler.InvitationHandler,
 	accessServices ...domain.AccessService,
 ) nethttp.Handler {
 	var access domain.AccessService
@@ -124,6 +125,9 @@ func newRouter(
 
 	router.Route("/api/v1", func(r chi.Router) {
 		r.Post("/auth/login", authHandler.PasswordLogin)
+		if invitationHandler != nil {
+			r.With(deliverymiddleware.InvitationBodyMiddleware).Post("/invitations/register", invitationHandler.Register)
+		}
 		if publicHandler != nil {
 			r.Get("/public/scenes/{token}", publicHandler.GetScene)
 		}
@@ -143,6 +147,9 @@ func newRouter(
 				})
 			}
 
+			if invitationHandler != nil {
+				r.With(deliverymiddleware.InvitationBodyMiddleware).Post("/invitations/accept", invitationHandler.Accept)
+			}
 			r.Get("/users/me", authHandler.Me)
 			if realtimeConfigHandler != nil {
 				r.Get("/realtime/config", realtimeConfigHandler.ServeHTTP)
@@ -152,6 +159,11 @@ func newRouter(
 			}
 
 			r.Route("/workspaces", func(r chi.Router) {
+				if invitationHandler != nil {
+					r.Get("/{id}/invitations", invitationHandler.List)
+					r.Post("/{id}/invitations", invitationHandler.Create)
+					r.Delete("/{id}/invitations/{inviteId}", invitationHandler.Revoke)
+				}
 				r.Get("/", workspaceHandler.List)
 				r.Post("/", workspaceHandler.Create)
 				if accessHandler != nil {
@@ -227,7 +239,11 @@ func writeJSON(w nethttp.ResponseWriter, status int, payload any) {
 
 // NewRouterWithAccess is the production router; legacy constructors are retained
 // for v1 tests while the new gateway enforces every scoped HTTP request.
-func NewRouterWithAccess(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler) http.Handler {
+func NewRouterWithAccess(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations ...*handler.InvitationHandler) http.Handler {
 	assets.SetAccessService(access)
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, access)
+	var invitationHandler *handler.InvitationHandler
+	if len(invitations) > 0 {
+		invitationHandler = invitations[0]
+	}
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitationHandler, access)
 }

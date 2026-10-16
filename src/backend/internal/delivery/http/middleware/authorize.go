@@ -118,7 +118,7 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 			}
 			resource := parts[2]
 			scoped := resource == "scenes" || resource == "folders" || resource == "assets" || resource == "search"
-			management := resource == "workspaces" && len(parts) > 4 && parts[4] == "members"
+			management := resource == "workspaces" && len(parts) > 4 && (parts[4] == "members" || parts[4] == "invitations")
 			if !scoped && !management {
 				next.ServeHTTP(w, r)
 				return
@@ -204,4 +204,14 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 			_, _ = w.Write(response.body.Bytes())
 		})
 	}
+}
+
+// InvitationBodyMiddleware consumes bounded input before invite acceptance starts
+// an authority transaction; registration is public but uses the same deadline.
+func InvitationBodyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if bufferScopedBody(w, r, "invitations") {
+			next.ServeHTTP(w, r)
+		}
+	})
 }

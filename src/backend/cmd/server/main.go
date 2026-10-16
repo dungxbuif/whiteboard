@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
@@ -96,6 +97,7 @@ func main() {
 	s3Repo := s3repo.NewS3Repository(s3Client)
 
 	// Usecases
+	invitationUsecase := usecase.NewInvitationUsecase(postgresrepo.NewInvitationRepository(db), accessService, cfg.FrontendURL)
 	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
@@ -107,6 +109,7 @@ func main() {
 	aiUsecase := usecase.NewAIUsecase(aiRepo, cfg.AIModelFast, cfg.AIModelReasoning)
 
 	// Handlers
+	invitationHandler := handler.NewInvitationHandler(invitationUsecase)
 	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
 	folderHandler := handler.NewFolderHandler(folderUsecase)
@@ -139,7 +142,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithAccess(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
+		Handler:           httpdelivery.NewRouterWithAccess(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler), invitationHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -168,6 +171,10 @@ func loadConfig() (config, error) {
 		}
 	}
 
+	frontend, err := url.Parse(os.Getenv("FRONTEND_URL"))
+	if err != nil || frontend.Hostname() == "" || (frontend.Scheme != "https" && frontend.Scheme != "http") || frontend.User != nil || frontend.RawQuery != "" || frontend.ForceQuery || frontend.Fragment != "" || (frontend.Path != "" && frontend.Path != "/") {
+		return config{}, fmt.Errorf("FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
+	}
 	return config{
 		Addr:             getEnv("HTTP_ADDR", defaultHTTPAddr),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
