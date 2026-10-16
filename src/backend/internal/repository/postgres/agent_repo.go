@@ -104,7 +104,7 @@ func (r *AccessRepository) AgentSceneState(ctx domain.Context, p domain.Principa
 	if slices.Contains(k.Scopes, domain.ScopeSceneWrite) && edit {
 		return domain.AccessDecision{Access: domain.AccessEdit, ACLVersion: state.ACLVersion}, nil
 	}
-	if slices.Contains(k.Scopes, domain.ScopeSceneRead) && (edit || role == domain.WorkspaceRoleViewer) {
+	if (slices.Contains(k.Scopes, domain.ScopeSceneRead) || slices.Contains(k.Scopes, domain.ScopeSceneExport)) && (edit || role == domain.WorkspaceRoleViewer) {
 		return domain.AccessDecision{Access: domain.AccessView, ACLVersion: state.ACLVersion}, nil
 	}
 	return domain.AccessDecision{}, domain.ErrAccessDenied

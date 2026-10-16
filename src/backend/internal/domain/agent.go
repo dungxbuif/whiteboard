@@ -102,3 +102,16 @@ type AgentAuditRepository interface {
 }
 
 var ErrAgentAuditUnavailable = errors.New("agent audit unavailable")
+
+var ErrAgentAuditCompletionUncertain = errors.New("agent operation audit completion uncertain")
+
+// AgentCollabRepository talks only to the configured private runtime ingress.
+type AgentCollabRepository interface {
+	Call(Context, string, SceneRef, map[string]any, int64) (json.RawMessage, error)
+}
+type AgentCollabError struct {
+	Status int
+	Code   string
+}
+
+func (e *AgentCollabError) Error() string { return e.Code }

@@ -27,6 +27,8 @@ export class GoClient {
     return client;
   }
 
+  sceneURL(ref:{workspaceId:string;sceneId:string}):string {return new URL(`/w/${ref.workspaceId}/scenes/${ref.sceneId}`,this.base).href;}
+
   async request(path: string, method = 'GET', body?: unknown): Promise<Record<string, unknown>> {
     if (!path.startsWith('/api/v1/agent/')) throw new Error('Invalid agent API path');
     const response = await fetch(new URL(path, this.base), {
@@ -41,12 +43,17 @@ export class GoClient {
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) {
-      await response.body?.cancel();
+      let upstreamCode:string|undefined;
+      if(response.body){
+        const reader=response.body.getReader();let size=0;const chunks:Uint8Array[]=[];
+        try{for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>4096)break;chunks.push(part.value);}if(size<=4096){try{upstreamCode=JSON.parse(Buffer.concat(chunks).toString('utf8')).code;}catch{}}}finally{await reader.cancel();}
+      }
+      const safeCodes=new Set(['CONFLICT','REQUEST_ID_REUSED','STALE_AUTHORITY','RATE_LIMITED','AUDIT_COMPLETION_UNCERTAIN','INVALID_UPDATE','COLLAB_DISABLED','PROMOTION_REQUIRED','SNAPSHOT_HISTORY_LIMIT']);
       const codes: Record<number, string> = {
         401: 'UNAUTHENTICATED', 403: 'ACCESS_DENIED', 404: 'NOT_FOUND',
-        413: 'PROJECTION_TOO_LARGE',
+        400: 'INVALID_INPUT', 409: 'CONFLICT', 413: 'PROJECTION_TOO_LARGE', 429: 'RATE_LIMITED', 503: 'UPSTREAM_UNAVAILABLE',
       };
-      throw new AccessError(response.status, codes[response.status] || 'AGENT_API_ERROR');
+      throw new AccessError(response.status, upstreamCode&&safeCodes.has(upstreamCode)?upstreamCode:codes[response.status] || 'AGENT_API_ERROR');
     }
     if (!response.body) throw new AccessError(502, 'INVALID_API_RESPONSE');
     const reader = response.body.getReader();

@@ -2,9 +2,9 @@
 
 Owners can create a workspace-bound bearer key with selected scopes and optional scene targets. Copy the key once; only its SHA-256 digest is stored. Revoking a key or removing/deactivating its owner prevents subsequent requests. Agents never manage members, permissions, sharing, or keys.
 
-Scopes are `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, and `scene:export`. Tools require their named scope independently; write does not imply create. A scene-targeted key cannot create arbitrary scenes. Current owner permissions also apply.
+Scopes are `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, and `scene:export`. Tools require their named scope independently; write does not imply read or create. A scene-targeted key cannot create arbitrary scenes. Current owner permissions also apply.
 
-MCP exposes `list_workspaces`, `list_scenes`, `get_scene`, and `create_scene`. Lists return at most 50 results and a cursor, without global totals. Scene projection returns at most 500 elements and 256 KiB. Oversized projection is rejected rather than silently truncated.
+MCP exposes `list_workspaces`, `list_scenes`, `get_scene`, `create_scene`, native diagram discovery/validation, `generate_diagram`, `patch_elements`, `delete_elements`, and `get_scene_activity`. Lists return at most 50 results and a cursor, without global totals. Scene projection returns at most 500 elements and 256 KiB. Oversized projection is rejected rather than silently truncated.
 
 Use Streamable HTTP `/mcp` with `Authorization: Bearer <key>` in clients that support explicit headers. For stdio clients, run the remote adapter with `WHITEBOARD_API_URL` and `WHITEBOARD_AGENT_KEY` in protected client environment/configuration. It does not start a database. Keep credentials out of arguments, URLs, logs, and source control. This is PAT-compatible access; OAuth discovery and PKCE are a separate extension, not implemented OAuth compliance.
 
@@ -19,9 +19,9 @@ Build the MCP workspace with `npm run build --workspace ./mcp` from `src/`. Conf
 
 For the HTTP service, set `WHITEBOARD_API_URL`, comma-separated exact `MCP_ALLOWED_ORIGINS`, and optionally `PORT` (default 3002). It binds to loopback by default; deployment may set `MCP_BIND_HOST` behind its configured reverse proxy. HTTP sessions expire after ten minutes, and clients initialize a fresh session after a 404. A key is checked again for every HTTP request. Keep normal login tokens and agent keys separate.
 
-Scene creation needs `scene:create`, reading needs `scene:read`, and diagram updates need `scene:write`. Move, trash and export scopes are reserved for their dedicated tools; D1 does not yet expose those tools. A projection error means the scene is too large for this discovery response; it is not a partial or empty scene. Dashboard route integration and deployment remain pending in the collaboration-v2 programme.
+Scene creation needs `scene:create`, reading needs `scene:read`, and diagram updates need `scene:write`. Move and trash scopes remain reserved for their dedicated tools. Export uses its independent scope and separately authorized projection; rendering is the D4 integration. A projection error means the scene is too large for this discovery response; it is not a partial or empty scene. Dashboard route integration and deployment remain pending in the collaboration-v2 programme.
 
-D1 `get_scene` returns the Go materialized snapshot and its `contentVersion`. This version is not the collaboration sequence. Live mutation tooling must obtain the current durable projection/sequence from the collaboration service before using a revision precondition; that integration belongs to D3.
+`get_scene` returns the live durable projection with `sequence`, `documentId`, `stateVector` and `content`. The sequence is a decimal string and is independent of the older materialized `contentVersion`. If the durable service is unavailable, reads fail; they do not substitute a potentially stale snapshot.
 
 
 ### Audit storage and failed calls
@@ -30,4 +30,14 @@ For HTTP, set `MCP_AUDIT_PATH` to an absolute path on persistent storage before 
 
 The Go database records authoritative operation metadata and commits successful scene creation together with its audit entry. Adapter journals also cover validation, denial and unavailable-upstream failures, including malformed `tools/call` envelopes rejected before the SDK handler. Journal records identify themselves as `adapter_observed`; a local stdio client controls its own journal, so it is not authoritative server evidence. Neither layer records keys, token hashes, titles, documents, arguments or raw error messages. Correlation UUIDs link the layers: MCP returns `_meta.agentCallId` (or `error.data.agentCallId` for a malformed tool-call envelope), and Go accepts and returns `X-Agent-Call-ID`. Correlation does not grant access. Unknown identities remain null; callers cannot claim another key ID.
 
-If the initial journal write fails, the tool returns `AUDIT_UNAVAILABLE` without running the operation. If writing the completion fails, `AUDIT_COMPLETION_UNCERTAIN` includes a correlation ID. Check authoritative audit/state before retrying `create_scene`, which can otherwise create duplicates. Future idempotent D3 mutations may retry their exact stable request ID and bytes; changing either starts a different operation. Existing action errors remain intact when their audit writes succeed.
+If the initial journal write fails, the tool returns `AUDIT_UNAVAILABLE` without running the operation. If writing the completion fails, `AUDIT_COMPLETION_UNCERTAIN` includes a correlation ID. Check authoritative audit/state before retrying `create_scene`, which can otherwise create duplicates. Idempotent mutations may retry their exact stable request ID and bytes; changing either starts a different operation. Existing action errors remain intact when their audit writes succeed.
+
+### Live diagram workflow (D3 implementation)
+
+Use `list_diagram_types`, `get_diagram_template` and `validate_diagram` to prepare native editable diagrams. Create an empty scene with `create_scene` if needed, then call `generate_diagram` with its `sceneRef`, preset/data, stable `instanceId`, stable `requestId` and decimal `expectedSequence`. New empty scenes start at sequence `"0"`. `dryRun:true` compiles a preview without saving. `get_scene` returns the current durable sequence; write scope does not imply read scope. A write-only key can use a revision supplied by the user.
+
+Mutations return a durable receipt, scene URL, created element IDs and warnings. `patch_elements` changes only the named fields; `delete_elements` creates tombstones. Keep the exact arguments and request ID when retrying an uncertain result. A stale revision requires a fresh read and a deliberate new request; a reused ID with changed data is rejected. `get_scene_activity` returns bounded metadata pages with sequence cursors, never document content or credentials. Export uses its independent scope.
+
+Verification uses real MCP calls, Go authorization/audit, Node private ingress, PostgreSQL and a live WebSocket replica. It covers retry receipts, conflicts, tombstones, preserved human fields, scoped reads/export, activity pages and restart. Browser visual acceptance and deployment remain separate programme gates.
+
+Go server setup for live tools: configure `COLLAB_INTERNAL_URL` to the trusted private Node ingress origin and `COLLAB_INTERNAL_SECRET` to its distinct secret (at least32 bytes). Configure both together; leaving both unset keeps live agent routes unavailable. Neither value belongs in remote MCP clients. Go capability issuance precedes the Node request and releases database locks first. The durable Node receipt/audit is the proof of append; Go metadata records the observed remote operation result, and MCP journals are adapter observations.

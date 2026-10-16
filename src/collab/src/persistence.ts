@@ -3,7 +3,7 @@ import {EventEmitter} from 'node:events';
 import type {Pool,PoolClient} from 'pg';
 import * as Y from 'yjs';
 import {MAX_FRAME_BYTES,type SceneRef,type MutationReceipt,type SceneContent} from '@collab/contracts';
-import {Authority,CollabError,hash,requestID,type Principal,type Decision} from './auth.js';
+import {Authority,CollabError,hash,requestID,revision,type Principal,type Decision} from './auth.js';
 import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import {parseMutation,commandUpdate} from './commands.js';
 import {promoteLegacy} from './promotion.js';
@@ -61,6 +61,26 @@ export class Persistence extends EventEmitter {
   const decision=await this.authority.decide(principal.roomToken,ref,'scene:read',randomUUID(),new Uint8Array());
   this.bindPrincipal(decision,principal);
   return this.transaction(ref,decision,async client=>{const {row,doc}=await this.load(client,ref);try{return {doc,content:materializeScene(doc),documentId:row.document_id,sequence:row.sequence,stateVector:Buffer.from(Y.encodeStateVector(doc)).toString('base64'),access:decision.access};}catch(error){doc.destroy();throw error;}});
+ }
+ async readProjection(grant:string,ref:SceneRef,exporting=false):Promise<Record<string,unknown>>{
+  const decision=await this.authority.verifyDecision(grant,{...ref,action:exporting?'scene:export':'scene:read',payloadHash:hash(new Uint8Array())});
+  return this.transaction(ref,decision,async client=>{
+   const {row,doc}=await this.load(client,ref);
+   try{
+    const content=materializeScene(doc);
+    const result={...ref,documentId:row.document_id,sequence:row.sequence,stateVector:Buffer.from(Y.encodeStateVector(doc)).toString('base64'),content};
+    if(!exporting&&(content.elements.length>500||Buffer.byteLength(JSON.stringify(result))>256*1024-2048))throw new CollabError('PROJECTION_TOO_LARGE','Scene exceeds projection limit',413);
+    return result;
+   }finally{doc.destroy();}
+  });
+ }
+ async readActivity(grant:string,ref:SceneRef,cursor='0',limit=50):Promise<Record<string,unknown>>{
+  if(!revision(cursor)||!Number.isInteger(limit)||limit<1||limit>50)throw new CollabError('INVALID_UPDATE','Invalid activity page',400);
+  const decision=await this.authority.verifyDecision(grant,{...ref,action:'scene:read',payloadHash:hash(new Uint8Array())});
+  return this.transaction(ref,decision,async client=>{
+   const rows=(await client.query('SELECT sequence::text,request_id AS "requestId",principal_type AS "principalType",action,created_at AS "createdAt" FROM collab_mutation_audit WHERE workspace_id=$1 AND scene_id=$2 AND sequence>$3 ORDER BY sequence LIMIT $4',[ref.workspaceId,ref.sceneId,cursor,limit+1])).rows;
+   return {items:rows.slice(0,limit),...(rows.length>limit?{nextCursor:rows[limit-1].sequence}:{})};
+  });
  }
  private bindPrincipal(decision:Decision,principal:Principal):void {if(decision.principalId!==principal.principalId||decision.principalType!==principal.principalType)throw new CollabError('FORBIDDEN');}
  async appendUpdate(ref:SceneRef,principal:Principal,requestId:string,bytes:Uint8Array):Promise<MutationReceipt>{

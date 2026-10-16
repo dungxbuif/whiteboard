@@ -23,9 +23,9 @@ export class Authority {
    }else if(p.principalType==='public'){
     if(!p.principalId.startsWith('guest:')||p.principalId.length<=6||!uuid(p.grantId)||!revision(p.grantVersion)||p.grantVersion==='0')throw new Error();
    }else if(p.principalType==='agent'){
-    if(!decision||!uuid(p.grantId)||p.principalId!=='agent:'+p.grantId||p.grantVersion!==undefined||!['scene:command','scene:read'].includes(String(p.action)))throw new Error();
+    if(!decision||!uuid(p.grantId)||p.principalId!=='agent:'+p.grantId||p.grantVersion!==undefined||!['scene:command','scene:read','scene:export'].includes(String(p.action)))throw new Error();
    }else throw new Error();
-   if(decision){if(!['scene:update','scene:command','scene:read'].includes(String(p.action))||typeof p.payloadHash!=='string'||!/^[a-f0-9]{64}$/.test(p.payloadHash))throw new Error();requestID(p.requestId);if(p.expectedSequence!==undefined&&!revision(p.expectedSequence))throw new Error();}
+   if(decision){if(!['scene:update','scene:command','scene:read','scene:export'].includes(String(p.action))||typeof p.payloadHash!=='string'||!/^[a-f0-9]{64}$/.test(p.payloadHash))throw new Error();requestID(p.requestId);if(p.expectedSequence!==undefined&&!revision(p.expectedSequence))throw new Error();}
    return p as Decision;
   }catch {throw new CollabError('UNAUTHENTICATED','Invalid or expired credential',401);}
  }
@@ -33,7 +33,7 @@ export class Authority {
  async verifyDecision(token:string,binding:Record<string,unknown>):Promise<Decision>{
   const decision=await this.verify(token,true);
   for(const [key,value] of Object.entries(binding))if(decision[key]!==value)throw new CollabError('FORBIDDEN','Decision binding mismatch');
-  if(decision.action!=='scene:read'&&decision.access!=='edit')throw new CollabError('FORBIDDEN');
+  if(!['scene:read','scene:export'].includes(String(decision.action))&&decision.access!=='edit')throw new CollabError('FORBIDDEN');
   return decision;
  }
  async decide(token:string,ref:SceneRef,action:string,requestId:string,bytes:Uint8Array,expectedSequence?:string):Promise<Decision>{

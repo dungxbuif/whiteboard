@@ -17,7 +17,7 @@ const scopes: Record<string, string> = {
 const failureClasses = new Set([
   'INVALID_INPUT', 'PROJECTION_TOO_LARGE', 'UNAUTHENTICATED', 'ACCESS_DENIED', 'NOT_FOUND',
   'UNKNOWN_TOOL', 'AGENT_API_ERROR', 'INVALID_API_RESPONSE', 'UPSTREAM_UNAVAILABLE',
-  'CONFLICT', 'RATE_LIMITED', 'UNSUPPORTED_NATIVE_DIAGRAM',
+  'CONFLICT', 'REQUEST_ID_REUSED', 'STALE_AUTHORITY', 'RATE_LIMITED', 'UNSUPPORTED_NATIVE_DIAGRAM', 'AUDIT_COMPLETION_UNCERTAIN', 'INVALID_UPDATE', 'COLLAB_DISABLED', 'PROMOTION_REQUIRED', 'SNAPSHOT_HISTORY_LIMIT',
   'SESSION_NOT_FOUND', 'SESSION_PRINCIPAL_MISMATCH', 'INITIALIZE_REQUIRED', 'SESSION_LIMIT', 'INVALID_SESSION',
 ]);
 function uuid(value: unknown): string | null {
@@ -115,7 +115,7 @@ export async function runAuditedTool<T extends Record<string, unknown>>(
   const tool = Object.hasOwn(scopes, name) ? name : 'unknown_tool';
   const event: AdapterAuditEvent = {
     correlationId, principalId: keyId ? `agent:${keyId}` : null, keyId,
-    workspaceId: uuid(args.workspaceId), sceneId: uuid(args.sceneId), tool,
+    workspaceId: uuid(args.workspaceId ?? (args.sceneRef as Record<string,unknown>|undefined)?.workspaceId), sceneId: uuid(args.sceneId ?? (args.sceneRef as Record<string,unknown>|undefined)?.sceneId), tool,
     scope: scopes[tool] || '', outcome: 'started', latencyMs: 0, failureClass: '',
     provenance: 'adapter_observed', identitySource: keyId ? 'prior_verified' : 'unknown',
     timestamp: new Date().toISOString(),

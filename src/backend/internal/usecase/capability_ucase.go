@@ -81,7 +81,7 @@ func validateMutation(m domain.SceneMutation) error {
 			return domain.ErrInvalidCapability
 		}
 	}
-	if m.Action == domain.ActionSceneRead && m.PayloadHash != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+	if (m.Action == domain.ActionSceneRead || m.Action == domain.ActionSceneExport) && m.PayloadHash != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
 		return domain.ErrInvalidCapability
 	}
 	return nil
@@ -111,6 +111,9 @@ func (s *CapabilityService) AuthorizeCommand(ctx domain.Context, p domain.Princi
 			if m.Action == domain.ActionSceneRead {
 				scope = domain.ScopeSceneRead
 			}
+			if m.Action == domain.ActionSceneExport {
+				scope = domain.ScopeSceneExport
+			}
 			if e := scoped.RequireAgentScope(ctx, p, domain.SceneRef{WorkspaceID: w, SceneID: id}, scope); e != nil {
 				return e
 			}
@@ -119,7 +122,7 @@ func (s *CapabilityService) AuthorizeCommand(ctx domain.Context, p domain.Princi
 		if e != nil {
 			return e
 		}
-		if d.ACLVersion < 1 || ((m.Action != domain.ActionSceneRead) && d.Access != domain.AccessEdit) {
+		if d.ACLVersion < 1 || ((m.Action != domain.ActionSceneRead && m.Action != domain.ActionSceneExport) && d.Access != domain.AccessEdit) {
 			return domain.ErrAccessDenied
 		}
 		c := domain.MutationClaims{RegisteredClaims: jwt.RegisteredClaims{Issuer: domain.RoomIssuer, Subject: p.ID, Audience: jwt.ClaimStrings{domain.MutationAudience}, IssuedAt: jwt.NewNumericDate(time.Now()), ExpiresAt: jwt.NewNumericDate(expires), ID: uuid.NewString()}, Purpose: domain.MutationPurpose, SceneMutation: m, PrincipalType: p.Kind, PrincipalID: p.ID, GrantID: p.GrantID, GrantVersion: p.GrantVersion, Access: d.Access, ACLVersion: strconv.FormatInt(d.ACLVersion, 10)}

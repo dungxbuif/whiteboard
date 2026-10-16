@@ -2,11 +2,13 @@ import { createServer, type Server as HTTPServer, type IncomingMessage, type Ser
 import { randomUUID } from 'node:crypto';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { CallToolRequestSchema, ListToolsRequestSchema, isInitializeRequest, type Tool } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, ListResourcesRequestSchema, ReadResourceRequestSchema, isInitializeRequest, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { GoClient } from './go-client.js';
 import { AccessError, bearer, checkOrigin } from './auth.js';
 import { AuditJournal, runAuditedTool } from './audit.js';
+import {sceneTools,callSceneTool} from './scene-tools.js';
+import {diagramTools,callDiagramTool,diagramResources,readDiagramResource} from './diagram-tools.js';
 import { auditToolEnvelopes } from './transport-audit.js';
 
 const page = { cursor: z.uuid().optional(), limit: z.number().int().min(1).max(50).default(50) };
@@ -35,11 +37,13 @@ const tools: Tool[] = Object.entries(schemas).map(([name, schema]) => ({
 }));
 
 export function createMcpServer(client: GoClient, audit: AuditJournal): Server {
-  const server = new Server({ name: 'whiteboard', version: '0.1.0' }, { capabilities: { tools: {} } });
+  const server = new Server({ name: 'whiteboard', version: '0.1.0' }, { capabilities: { tools: {}, resources: {} } });
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     await client.authenticate();
-    return { tools };
+    return { tools: [...tools,...sceneTools,...diagramTools] };
   });
+  server.setRequestHandler(ListResourcesRequestSchema, async()=>{await client.authenticate();return {resources:diagramResources()};});
+  server.setRequestHandler(ReadResourceRequestSchema, async request=>{await client.authenticate();return {contents:[{uri:request.params.uri,mimeType:'application/json',text:JSON.stringify(readDiagramResource(request.params.uri))}]};});
   server.setRequestHandler(CallToolRequestSchema, async request => {
     const name = request.params.name;
     const args = request.params.arguments || {};
@@ -70,8 +74,11 @@ export function createMcpServer(client: GoClient, audit: AuditJournal): Server {
             result = await api.request(`/api/v1/agent/workspaces/${a.workspaceId}/scenes`, 'POST', { title: a.title });
             break;
           }
-          default:
-            throw new AccessError(400, 'UNKNOWN_TOOL');
+          default: {
+            const extra=await callSceneTool(name,args,api)??await callDiagramTool(name,args,api);
+            if(!extra)throw new AccessError(400,'UNKNOWN_TOOL');
+            result=extra;
+          }
         }
         if (name === 'get_scene') {
           const projection = result.content as { elements?: unknown[] } | undefined;
@@ -89,7 +96,8 @@ export function createMcpServer(client: GoClient, audit: AuditJournal): Server {
     } catch (error) {
       const code = error instanceof AccessError ? error.code : 'UPSTREAM_UNAVAILABLE';
       const message = code === 'AUDIT_COMPLETION_UNCERTAIN'
-        ? `${code}: inspect authoritative state using the correlation ID; do not blindly retry creation.` : code;
+        ? `${code}: retain the exact mutation request ID and arguments; inspect authoritative state before retrying creation.`
+        : code === 'CONFLICT' ? 'CONFLICT: read the current scene and deliberately submit a new requestId with its sequence; do not blindly retry stale patches.' : code;
       return {
         isError: true,
         content: [{ type: 'text', text: message }],

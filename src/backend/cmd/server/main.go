@@ -24,6 +24,7 @@ import (
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	"devtool/internal/realtime"
+	collabrepo "devtool/internal/repository/collab"
 	openairepo "devtool/internal/repository/openai"
 	postgresrepo "devtool/internal/repository/postgres"
 	s3repo "devtool/internal/repository/s3"
@@ -38,6 +39,8 @@ type config struct {
 	AuthorityServiceSecret string
 	MutationGrantSecret    string
 	AuthorityListenAddr    string
+	CollabInternalURL      string
+	CollabInternalSecret   string
 	CasbinModelPath        string
 	S3Endpoint             string
 	S3AccessKey            string
@@ -170,9 +173,19 @@ func main() {
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
+	agents := usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService)
+	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
+	if cfg.CollabInternalURL != "" {
+		remote, e := collabrepo.NewAgentClient(cfg.CollabInternalURL, cfg.CollabInternalSecret)
+		if e != nil {
+			logger.Error("invalid collaboration bridge configuration")
+			os.Exit(1)
+		}
+		agentHandler.SetBridge(usecase.NewAgentBridge(agents, rooms, capabilities, remote))
+	}
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler), invitationHandler, handler.NewAgentHandler(usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService), rooms, accessService)),
+		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler), invitationHandler, agentHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -247,6 +260,19 @@ func loadConfig() (config, error) {
 	if err != nil || frontend.Hostname() == "" || (frontend.Scheme != "https" && frontend.Scheme != "http") || frontend.User != nil || frontend.RawQuery != "" || frontend.ForceQuery || frontend.Fragment != "" || (frontend.Path != "" && frontend.Path != "/") {
 		return config{}, fmt.Errorf("FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
 	}
+	if (os.Getenv("COLLAB_INTERNAL_URL") == "") != (os.Getenv("COLLAB_INTERNAL_SECRET") == "") {
+		return config{}, fmt.Errorf("COLLAB_INTERNAL_URL and COLLAB_INTERNAL_SECRET must be configured together")
+	}
+	if os.Getenv("COLLAB_INTERNAL_URL") != "" {
+		if _, e := collabrepo.NewAgentClient(os.Getenv("COLLAB_INTERNAL_URL"), os.Getenv("COLLAB_INTERNAL_SECRET")); e != nil {
+			return config{}, e
+		}
+		for _, prior := range secrets {
+			if prior == os.Getenv("COLLAB_INTERNAL_SECRET") {
+				return config{}, fmt.Errorf("COLLAB_INTERNAL_SECRET must be distinct")
+			}
+		}
+	}
 	return config{
 		Addr:                   getEnv("HTTP_ADDR", defaultHTTPAddr),
 		DatabaseURL:            os.Getenv("DATABASE_URL"),
@@ -255,6 +281,8 @@ func loadConfig() (config, error) {
 		AuthorityServiceSecret: os.Getenv("AUTHORITY_SERVICE_SECRET"),
 		MutationGrantSecret:    os.Getenv("MUTATION_GRANT_SECRET"),
 		AuthorityListenAddr:    authorityAddr,
+		CollabInternalURL:      os.Getenv("COLLAB_INTERNAL_URL"),
+		CollabInternalSecret:   os.Getenv("COLLAB_INTERNAL_SECRET"),
 		CasbinModelPath:        os.Getenv("CASBIN_MODEL_PATH"),
 		S3Endpoint:             os.Getenv("S3_ENDPOINT"),
 		S3AccessKey:            os.Getenv("S3_ACCESS_KEY"),

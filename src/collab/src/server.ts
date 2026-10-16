@@ -64,11 +64,20 @@ export async function startServer(store:Persistence,config:ServerConfig){
  const internalServer=createServer(async(request,response)=>{
   let requestId='unknown';
   try{
-   if(request.method!=='POST'||!/^\/internal\/scenes\/[0-9a-f-]{36}\/commands$/.test(request.url??'')){response.writeHead(404).end();return;}
+   if(request.method!=='POST'||!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection)$/.test(request.url??'')){response.writeHead(404).end();return;}
    ownership.assert();
    internalRates.take('ip:'+request.socket.remoteAddress,600);
    if(!secretEquals(request.headers.authorization??'','Bearer '+config.internalSecret))throw new CollabError('UNAUTHENTICATED','Invalid service credential',401);
-   const data=await body(request) as {grant:string;mutationBase64:string};if(!data||Object.keys(data).some(k=>!['grant','mutationBase64'].includes(k))||typeof data.grant!=='string'||typeof data.mutationBase64!=='string'||!data.mutationBase64.length)throw new CollabError('INVALID_UPDATE','Invalid command envelope',400);
+   const envelope=await body(request) as Record<string,unknown>;
+   const operation=request.url!.split('/').pop();
+   if(operation!=='commands'){
+    const allowed=['grant','workspaceId','sceneId',...(operation==='activity'?['cursor','limit']:[])];
+    if(!envelope||Object.keys(envelope).some(k=>!allowed.includes(k))||typeof envelope.grant!=='string'||typeof envelope.workspaceId!=='string'||typeof envelope.sceneId!=='string'||request.url!==`/internal/scenes/${envelope.sceneId}/${operation}`)throw new CollabError('INVALID_UPDATE','Invalid read envelope',400);
+    const ref={workspaceId:envelope.workspaceId,sceneId:envelope.sceneId};
+    const result=operation==='activity'?await store.readActivity(envelope.grant,ref,envelope.cursor as string|undefined,envelope.limit as number|undefined):await store.readProjection(envelope.grant,ref,operation==='export-projection');
+    response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify(result));return;
+   }
+   const data=envelope as {grant:string;mutationBase64:string};if(!data||Object.keys(data).some(k=>!['grant','mutationBase64'].includes(k))||typeof data.grant!=='string'||typeof data.mutationBase64!=='string'||!data.mutationBase64.length)throw new CollabError('INVALID_UPDATE','Invalid command envelope',400);
    const bytes=Buffer.from(data.mutationBase64,'base64');if(bytes.toString('base64')!==data.mutationBase64)throw new CollabError('INVALID_UPDATE','Noncanonical base64',400);
    const {parseMutation}=await import('./commands.js');const mutation=parseMutation(bytes);requestId=mutation.requestId;
    if(request.url!== '/internal/scenes/'+mutation.sceneId+'/commands')throw new CollabError('FORBIDDEN');

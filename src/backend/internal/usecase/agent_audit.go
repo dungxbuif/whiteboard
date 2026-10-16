@@ -35,6 +35,15 @@ func agentAuditOutcome(err error) (string, string) {
 // authorizes the callback; it must perform its normal current scope checks.
 // D3 can reuse this for its Go-side operations while retaining B2 receipts.
 func (s *AgentService) RunAuditedOperation(ctx domain.Context, p domain.Principal, tool string, ref domain.SceneRef, operation func(domain.Context) (any, error)) (any, error) {
+	return s.runAuditedOperation(ctx, p, tool, ref, operation, true)
+}
+
+// RunAuditedRemoteOperation records the actual remote result without holding a
+// workspace lock across HTTP. Node's receipt remains the durable write authority.
+func (s *AgentService) RunAuditedRemoteOperation(ctx domain.Context, p domain.Principal, tool string, ref domain.SceneRef, operation func(domain.Context) (any, error)) (any, error) {
+	return s.runAuditedOperation(ctx, p, tool, ref, operation, false)
+}
+func (s *AgentService) runAuditedOperation(ctx domain.Context, p domain.Principal, tool string, ref domain.SceneRef, operation func(domain.Context) (any, error), atomic bool) (any, error) {
 	started := time.Now()
 	repo, ok := s.repo.(domain.AgentAuditRepository)
 	if !ok {
@@ -68,7 +77,7 @@ func (s *AgentService) RunAuditedOperation(ctx domain.Context, p domain.Principa
 		event.CreatedAt = time.Now()
 	}
 	var result any
-	e = s.access.WithWorkspaceLock(ctx, key.WorkspaceID, uuid.Nil, func(locked domain.Context) error {
+	execute := func(locked domain.Context) error {
 		var err error
 		result, err = operation(locked)
 		if err != nil {
@@ -79,10 +88,18 @@ func (s *AgentService) RunAuditedOperation(ctx domain.Context, p domain.Principa
 		}
 		finish(nil)
 		if err = repo.RecordOperation(locked, &event); err != nil {
+			if !atomic {
+				return domain.ErrAgentAuditCompletionUncertain
+			}
 			return domain.ErrAgentAuditUnavailable
 		}
 		return nil
-	})
+	}
+	if atomic {
+		e = s.access.WithWorkspaceLock(ctx, key.WorkspaceID, uuid.Nil, execute)
+	} else {
+		e = execute(ctx)
+	}
 	if e == nil {
 		return result, nil
 	}
@@ -92,6 +109,9 @@ func (s *AgentService) RunAuditedOperation(ctx domain.Context, p domain.Principa
 	auditCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*time.Second)
 	defer cancel()
 	if err := repo.RecordOperationFailure(auditCtx, &event); err != nil {
+		if errors.Is(e, domain.ErrAgentAuditCompletionUncertain) {
+			return nil, e
+		}
 		return nil, domain.ErrAgentAuditUnavailable
 	}
 	return nil, e

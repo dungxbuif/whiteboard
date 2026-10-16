@@ -5,9 +5,11 @@ import (
 	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	"devtool/internal/usecase"
+	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,13 +19,22 @@ type AgentHandler struct {
 	agents *usecase.AgentService
 	rooms  domain.RoomService
 	access domain.AccessService
+	bridge *usecase.AgentBridge
 }
 
 func NewAgentHandler(a *usecase.AgentService, r domain.RoomService, access domain.AccessService) *AgentHandler {
-	return &AgentHandler{a, r, access}
+	return &AgentHandler{agents: a, rooms: r, access: access}
 }
+func (h *AgentHandler) SetBridge(b *usecase.AgentBridge) { h.bridge = b }
 func agentError(w http.ResponseWriter, r *http.Request, e error) {
+	var remote *domain.AgentCollabError
 	switch {
+	case errors.As(e, &remote):
+		writeSharingError(w, r, remote.Status, remote.Code, "Collaboration request failed; retain original mutation")
+	case errors.Is(e, domain.ErrAgentAuditCompletionUncertain):
+		writeSharingError(w, r, 503, "AUDIT_COMPLETION_UNCERTAIN", "Operation may have completed; retain original mutation")
+	case errors.Is(e, domain.ErrInvalidCapability):
+		writeSharingError(w, r, 400, "INVALID_INPUT", "Invalid command")
 	case errors.Is(e, domain.ErrAgentCredential):
 		writeSharingError(w, r, 401, "UNAUTHENTICATED", "Invalid or revoked agent key")
 	case errors.Is(e, domain.ErrAgentInput):
@@ -204,7 +215,75 @@ func (h *AgentHandler) Routes() http.Handler {
 			agentError(w, r, e)
 			return
 		}
-		out, e := h.agents.GetScene(r.Context(), agentPrincipal(r), ref)
+		if h.bridge == nil {
+			writeSharingError(w, r, 503, "UNAVAILABLE", "Durable scene service unavailable")
+			return
+		}
+		out, e := h.bridge.Projection(r.Context(), agentPrincipal(r), ref, false)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		writeJSONResponse(w, 200, out)
+	})
+	r.Post("/workspaces/{workspaceId}/scenes/{sceneId}/commands", func(w http.ResponseWriter, r *http.Request) {
+		ref, e := agentRef(r)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		if h.bridge == nil {
+			writeSharingError(w, r, 503, "UNAVAILABLE", "Durable scene service unavailable")
+			return
+		}
+		var in usecase.AgentCommandInput
+		r.Body = http.MaxBytesReader(w, r.Body, 1500000)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&in) != nil || decoder.Decode(new(any)) != io.EOF {
+			agentError(w, r, domain.ErrAgentInput)
+			return
+		}
+		out, e := h.bridge.Commands(r.Context(), agentPrincipal(r), ref, in)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		writeJSONResponse(w, 200, out)
+	})
+	r.Get("/workspaces/{workspaceId}/scenes/{sceneId}/activity", func(w http.ResponseWriter, r *http.Request) {
+		ref, e := agentRef(r)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		if h.bridge == nil {
+			writeSharingError(w, r, 503, "UNAVAILABLE", "Durable scene service unavailable")
+			return
+		}
+		cursor, limit, e := agentPageInput(r)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		out, e := h.bridge.Activity(r.Context(), agentPrincipal(r), ref, cursor, limit)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		writeJSONResponse(w, 200, out)
+	})
+	r.Get("/workspaces/{workspaceId}/scenes/{sceneId}/export-projection", func(w http.ResponseWriter, r *http.Request) {
+		ref, e := agentRef(r)
+		if e != nil {
+			agentError(w, r, e)
+			return
+		}
+		if h.bridge == nil {
+			writeSharingError(w, r, 503, "UNAVAILABLE", "Durable scene service unavailable")
+			return
+		}
+		out, e := h.bridge.Projection(r.Context(), agentPrincipal(r), ref, true)
 		if e != nil {
 			agentError(w, r, e)
 			return
