@@ -35,7 +35,7 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | `GET /api/v1/search` | HTTP | JWT + workspace | active | Search folder and scene names with `q`; `view=all|starred|trash` selects the dashboard view. |
 | Scene `content.presentationOrder` | JSON field | JWT + workspace | active | Ordered Excalidraw frame IDs persisted with scene JSON for local presentation mode. |
 | `PUT /api/v1/scenes/{id}/share` | HTTP | JWT + workspace | active | Enable/revoke a public link and optionally set a bcrypt-protected password. |
-| `GET /api/v1/public/scenes/{token}` | HTTP | Public | active | Read a shared scene by opaque token; accepts `password` query for protected links and returns read-only scene JSON. The public viewer normalizes JSON-persisted Excalidraw collaborator maps before hydrating the canvas. |
+| `GET /api/v1/public/scenes/{token}` | HTTP | Public | active | Read a shared scene by opaque token; ignores password query input; protected compatibility reads now use POST JSON `{password}` at the same path. Returns read-only scene JSON. The public viewer normalizes JSON-persisted Excalidraw collaborator maps before hydrating the canvas. |
 | `POST /api/v1/ai/chat` | HTTP | JWT | active | Proxies text or image context to the configured OpenAI-compatible provider. |
 | `POST /api/v1/ai/generate-diagram` | HTTP | JWT | active | Generates and validates Excalidraw JSON from text or a base64 image. |
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
@@ -89,7 +89,7 @@ Verified on 2026-10-16: 79 backend tests pass with real disposable PostgreSQL en
 
 A1 DTOs preserve existing fields and add `publicId?: string` to Workspace/Scene, and `aclVersion: number` to Workspace. Effective role/access is currently internal to `AccessService`; C2 must add an explicit response contract before hiding editor/owner actions. `ownerId` remains the legacy primary owner; membership is the authority. Member GET returns `[{workspaceId,userId,role,createdAt}]`; PATCH/DELETE/override writes return 204. Management body errors return 400; policy failures return the structured error above.
 
-Trash listing is owner-only and scene content is omitted. Scene asset reads filter file IDs to the authorized scene; an existing workspace file ID cannot fetch another scene's asset. Old public share routes and the owner-only v1 Socket.IO adapter remain legacy until A3/B2; no new password query route was added.
+Trash listing is owner-only and scene content is omitted. Scene asset reads filter file IDs to the authorized scene; an existing workspace file ID cannot fetch another scene's asset. Old public share routes remain compatibility adapters in A3, with passwords accepted only in POST JSON. The owner-only v1 Socket.IO adapter remains until B2.
 
 The gateway resolves aliases before access checks, holds the workspace row lock through handler completion, and buffers HTTP success until database commit. Authorization failure or handler error rolls back the transaction. New member changes reject every owner target (including self-demotion/last-owner removal). No endpoint promotes another owner or transfers ownership.
 
@@ -106,3 +106,26 @@ Tokens contain 32 cryptographically random bytes, use URL-safe encoding and expi
 New invitation errors use `{code,message,requestId}`: 400 invalid input/link or generic registration rejection, 401 authentication required, 403 email mismatch/prohibited operation, 404 inaccessible workspace, 410 expired invite, 413 oversized body, 503 unavailable storage/authority. Disposable PostgreSQL proof covers the seven-day boundary, normalization, wrong account, two-connection concurrent consume, atomic rollback, no password reset, owner management, metadata/token redaction, default-workspace idempotency, aliases and migration rollback. HTTP DTOs reject unknown fields/trailing JSON and limit bodies to 4 KiB. A1’s 1 MiB prebuffer and ten-second read deadline run before authority locking for owner operations and acceptance/registration; oversized bodies return 413 and stalled bodies return 408. Browser invitation controls are C2; no browser UAT or deployment is claimed by A2.
 
 `usecase.EnsureDefaultWorkspace(ctx, tx domain.UserProvisioningRepository, userID)` shares the default-personal-workspace behavior with `userctl`. `tx` is a transaction-scoped repository: invitation repositories reuse A1's context-bound GORM transaction, while `userctl` supplies a repository built from its existing GORM transaction. New personal workspaces receive a public alias and the A1 database trigger creates their owner membership. Creating and revoking invitations bumps the durable workspace ACL/audit; accepting uses the membership trigger. Migration 000011 stores invitations and ships with the remaining v2 migrations; never apply it ahead of reserved 000008–000010 in a deployed migration stream.
+
+## Collaboration A3 public links and room credentials (implemented, release pending)
+
+Owners manage independent links for an active scene with login JWT and X-Workspace-ID:
+
+| Method and path | Request | Success |
+| --- | --- | --- |
+| GET `/api/v1/scenes/{id}/share-links` | none | 200 array `{id,access,active,expiresAt}` |
+| POST `/api/v1/scenes/{id}/share-links` | `{access:"view"\|"edit",password?,expiresAt?}` | 201 `{id,access,active,expiresAt,token}`; token returned once |
+| DELETE `/api/v1/scenes/{id}/share-links/{linkId}` | none | 204; independent/idempotent revoke |
+| POST `/api/v1/public/scene-session` | `{token,password?,displayName?}` | 200 SceneSession below |
+| POST `/api/v1/scenes/{id}/room-token` | no body; bearer login JWT or scene-session | 200 `{token,expiresAt,sceneSession?}` |
+| POST `/api/v1/public/scenes/{token}` | legacy `{password}` | 200 legacy view scene after current authority check |
+
+SceneSession is `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. Edit exchange requires a trimmed displayName of 1–100 characters. Passwords require 6–72 UTF-8 bytes; expiry must be future RFC3339. Creation/listing never exposes hashes. Public sessions are restricted to one scene and cannot act as login credentials or manage permissions. Guests mint room tokens without a workspace header; if supplied, the header must match their session workspace. Scene paths accept UUID or alias. Login callers supply X-Workspace-ID and retain current membership/override checks.
+
+Room JWTs use dedicated COLLAB_JWT_SECRET, HS256, issuer whiteboard-api, audience whiteboard-collab and purpose room, with iat/exp/jti and at most ten minutes lifetime. Exact claims: sub=principalId, principalType=user|public, principalId, grantId, displayName, workspaceId, sceneId, access, aclVersion (decimal string). Public tokens also carry grantVersion (decimal string link revision); public IDs start `guest:` and have no user UUID. User grantId is `membership:<workspace UUID>:<user UUID>`; public grantId is its link UUID. Scene-session JWTs use audience whiteboard-scene-session and purpose scene-session. Login middleware rejects both credential purposes even with UUID subjects.
+
+Each refresh checks current scene/workspace status, membership or link access/expiry/revocation/revision under the workspace authority lock. Public refresh returns a renewed sceneSession with the same guest identity; clients replace it before expiry. Both JWT expiries are capped to link expiry. Expired sessions require a fresh link/password exchange. Password or link changes invalidate earlier public sessions; unrelated workspace changes do not invalidate the link revision. Link mutations increment workspace ACL version, audit and notify within one transaction.
+
+Errors use `{code,message,requestId}`: 400 INVALID_INPUT, 401 SHARE_PASSWORD_REQUIRED or UNAUTHENTICATED, 403 FORBIDDEN, 404 NOT_FOUND (including revoked/expired links), 413 BODY_TOO_LARGE, 503 AUTHORITY_UNAVAILABLE. Sharing bodies are limited to 4 KiB with unknown-field/trailing-JSON rejection. Credential responses disable caching. The legacy GET path ignores password queries; middleware strips its query and redacts RequestURI before logging.
+
+Migration 000008 preserves active/inactive legacy view links and bcrypt hashes. Legacy PUT share updates synchronize only their mapped link; new links store SHA-256 digests only. Down migration refuses multiple links and any new/edit/expiring grant that the legacy table cannot represent. See [public-link authority and migration](public-links.md) and [deployment](../operations/DEPLOYMENT.md). Browser controls and live collab-runtime behavior remain C2/B integration; no v2 deployment is claimed.

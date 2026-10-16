@@ -11,15 +11,22 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type SharingHandler struct{ usecase domain.ScenePermissionUsecase }
+type SharingHandler struct {
+	usecase domain.ScenePermissionUsecase
+	Links   *ShareLinkHandler
+}
 
 type ShareSceneRequest struct {
 	Active   *bool  `json:"active"`
 	Password string `json:"password"`
 }
 
-func NewSharingHandler(usecase domain.ScenePermissionUsecase) *SharingHandler {
-	return &SharingHandler{usecase: usecase}
+func NewSharingHandler(usecase domain.ScenePermissionUsecase, links ...domain.ShareLinkService) *SharingHandler {
+	h := &SharingHandler{usecase: usecase}
+	if len(links) > 0 {
+		h.Links = NewShareLinkHandler(links[0])
+	}
+	return h
 }
 
 func (h *SharingHandler) Update(w http.ResponseWriter, r *http.Request) {
@@ -44,21 +51,48 @@ func (h *SharingHandler) Update(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-type PublicHandler struct{ usecase domain.ScenePermissionUsecase }
+type PublicHandler struct {
+	usecase domain.ScenePermissionUsecase
+	Rooms   *RoomHandler
+}
 
-func NewPublicHandler(usecase domain.ScenePermissionUsecase) *PublicHandler {
-	return &PublicHandler{usecase: usecase}
+func NewPublicHandler(usecase domain.ScenePermissionUsecase, rooms ...*RoomHandler) *PublicHandler {
+	h := &PublicHandler{usecase: usecase}
+	if len(rooms) > 0 {
+		h.Rooms = rooms[0]
+	}
+	return h
 }
 
 func (h *PublicHandler) GetScene(w http.ResponseWriter, r *http.Request) {
-	password := r.URL.Query().Get("password")
-	scene, err := h.usecase.GetPublicScene(r.Context(), chi.URLParam(r, "token"), password)
-	if err != nil {
-		if strings.Contains(err.Error(), "share password") {
-			writeJSONResponse(w, http.StatusUnauthorized, map[string]any{"passwordRequired": true})
+	password := ""
+	if r.Method == http.MethodPost {
+		var input struct {
+			Password string `json:"password" validate:"max=72"`
+		}
+		if !decodeSharing(w, r, &input) {
 			return
 		}
-		http.Error(w, "Shared scene not found", http.StatusNotFound)
+		password = input.Password
+	}
+	var scene *domain.Scene
+	var err error
+	read := func(ctx domain.Context) error {
+		var e error
+		scene, e = h.usecase.GetPublicScene(ctx, chi.URLParam(r, "token"), password)
+		return e
+	}
+	if h.Rooms != nil {
+		err = h.Rooms.withPublicRead(r.Context(), chi.URLParam(r, "token"), password, read)
+	} else {
+		err = read(r.Context())
+	}
+	if err != nil {
+		if strings.Contains(err.Error(), "share password") {
+			sharingError(w, r, domain.ErrSharePassword)
+			return
+		}
+		sharingError(w, r, domain.ErrInaccessible)
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, scene)

@@ -3,8 +3,10 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"devtool/internal/domain"
@@ -46,5 +48,30 @@ func TestPublicHandlerReturnsReadOnlyScene(t *testing.T) {
 	}
 	if scene.Title != "Shared" {
 		t.Fatalf("unexpected scene: %#v", scene)
+	}
+}
+
+type passwordSharingUsecase struct{ mockSharingUsecase }
+
+func (m *passwordSharingUsecase) GetPublicScene(ctx context.Context, token, password string) (*domain.Scene, error) {
+	if password != "body-secret" {
+		return nil, errors.New("share password is invalid")
+	}
+	return &domain.Scene{Title: "Protected"}, nil
+}
+func TestPublicPasswordUsesPostBodyOnly(t *testing.T) {
+	h := NewPublicHandler(&passwordSharingUsecase{})
+	router := chi.NewRouter()
+	router.Get("/{token}", h.GetScene)
+	router.Post("/{token}", h.GetScene)
+	for _, tc := range []struct {
+		method, path, body string
+		status             int
+	}{{"GET", "/token?password=body-secret", "", 401}, {"POST", "/token", `{"password":"body-secret"}`, 200}} {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)))
+		if rr.Code != tc.status {
+			t.Fatalf("%s: got %d want %d", tc.method, rr.Code, tc.status)
+		}
 	}
 }

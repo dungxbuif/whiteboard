@@ -5,6 +5,8 @@ import (
 	"github.com/casbin/casbin/v3"
 	"github.com/casbin/casbin/v3/model"
 	"github.com/google/uuid"
+	"strings"
+	"time"
 )
 
 type AccessService struct {
@@ -70,6 +72,26 @@ func (s *AccessService) decision(p domain.Principal, state domain.AccessState) (
 	return domain.AccessDecision{Access: access, Owner: state.Role == domain.WorkspaceRoleOwner, ACLVersion: state.ACLVersion}, nil
 }
 func (s *AccessService) Resolve(ctx domain.Context, p domain.Principal, ref domain.SceneRef) (domain.AccessDecision, error) {
+	if !p.CredentialExpiresAt.IsZero() && !time.Now().Before(p.CredentialExpiresAt) {
+		return domain.AccessDecision{}, domain.ErrInvalidSceneSession
+	}
+	if p.Kind == domain.PrincipalPublic {
+		repo, ok := s.repo.(domain.PublicAccessRepository)
+		if !ok || p.GrantVersion == "" || p.UserID != nil || !strings.HasPrefix(p.ID, "guest:") || len(p.ID) <= len("guest:") {
+			return domain.AccessDecision{}, domain.ErrAccessDenied
+		}
+		if _, err := uuid.Parse(p.GrantID); err != nil {
+			return domain.AccessDecision{}, domain.ErrAccessDenied
+		}
+		d, e := repo.PublicSceneState(ctx, p, ref)
+		if e != nil {
+			return domain.AccessDecision{}, e
+		}
+		if d.Owner || (d.Access != domain.AccessView && d.Access != domain.AccessEdit) {
+			return domain.AccessDecision{}, domain.ErrAccessDenied
+		}
+		return d, nil
+	}
 	id, e := normalizedUser(p)
 	if e != nil {
 		return domain.AccessDecision{}, e

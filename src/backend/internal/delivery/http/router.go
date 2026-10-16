@@ -114,6 +114,7 @@ func newRouter(
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	router := chi.NewRouter()
+	router.Use(deliverymiddleware.RedactPublicCredentials)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
@@ -130,6 +131,11 @@ func newRouter(
 		}
 		if publicHandler != nil {
 			r.Get("/public/scenes/{token}", publicHandler.GetScene)
+			r.Post("/public/scenes/{token}", publicHandler.GetScene)
+			if publicHandler.Rooms != nil {
+				r.Post("/public/scene-session", publicHandler.Rooms.Exchange)
+				r.Method(http.MethodPost, "/scenes/{id}/room-token", publicHandler.Rooms.TokenHandler(authMiddleware))
+			}
 		}
 
 		r.Group(func(r chi.Router) {
@@ -206,6 +212,11 @@ func newRouter(
 					r.Post("/star", sceneHandler.SetStar)
 					if sharingHandler != nil {
 						r.Put("/share", sharingHandler.Update)
+						if sharingHandler.Links != nil {
+							r.Get("/share-links", sharingHandler.Links.List)
+							r.Post("/share-links", sharingHandler.Links.Create)
+							r.Delete("/share-links/{linkId}", sharingHandler.Links.Revoke)
+						}
 					}
 					r.Delete("/", sceneHandler.Delete)
 				})

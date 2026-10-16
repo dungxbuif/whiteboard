@@ -5,6 +5,7 @@ import (
 )
 
 func TestInvitationFrontendOriginConfig(t *testing.T) {
+	t.Setenv("COLLAB_JWT_SECRET", "collab-0123456789abcdef0123456789abcdef")
 	for _, key := range []string{"DATABASE_URL", "JWT_SECRET", "CASBIN_MODEL_PATH", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET"} {
 		t.Setenv(key, "fixture")
 	}
@@ -19,5 +20,23 @@ func TestInvitationFrontendOriginConfig(t *testing.T) {
 		if _, err := loadConfig(); err != nil {
 			t.Errorf("valid origin rejected: %v", err)
 		}
+	}
+}
+
+func TestRoomTokenSecretConfig(t *testing.T) {
+	for _, key := range []string{"DATABASE_URL", "CASBIN_MODEL_PATH", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET"} {
+		t.Setenv(key, "fixture")
+	}
+	t.Setenv("FRONTEND_URL", "https://example.test")
+	t.Setenv("JWT_SECRET", "login-0123456789abcdef0123456789abcdef")
+	for _, value := range []string{"", "short", "login-0123456789abcdef0123456789abcdef"} {
+		t.Setenv("COLLAB_JWT_SECRET", value)
+		if _, e := loadConfig(); e == nil {
+			t.Errorf("invalid room signing configuration accepted")
+		}
+	}
+	t.Setenv("COLLAB_JWT_SECRET", "collab-0123456789abcdef0123456789abcdef")
+	if _, e := loadConfig(); e != nil {
+		t.Fatal(e)
 	}
 }

@@ -3,6 +3,7 @@ package domain
 import (
 	"errors"
 	"github.com/google/uuid"
+	"time"
 )
 
 type PrincipalKind string
@@ -23,10 +24,13 @@ var (
 )
 
 type Principal struct {
-	Kind    PrincipalKind
-	ID      string
-	UserID  *uuid.UUID
-	GrantID string
+	Kind                PrincipalKind
+	ID                  string
+	UserID              *uuid.UUID
+	GrantID             string
+	GrantVersion        string
+	DisplayName         string
+	CredentialExpiresAt time.Time
 }
 
 func UserPrincipal(id uuid.UUID) Principal {

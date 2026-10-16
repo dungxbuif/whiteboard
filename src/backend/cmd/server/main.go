@@ -32,6 +32,7 @@ type config struct {
 	Addr             string
 	DatabaseURL      string
 	JWTSecret        string
+	CollabJWTSecret  string
 	CasbinModelPath  string
 	S3Endpoint       string
 	S3AccessKey      string
@@ -97,6 +98,13 @@ func main() {
 	s3Repo := s3repo.NewS3Repository(s3Client)
 
 	// Usecases
+	shareLinkRepo := postgresrepo.NewShareLinkRepository(db)
+	shareLinks := usecase.NewShareLinkService(shareLinkRepo, accessService)
+	rooms, err := usecase.NewRoomService(shareLinkRepo, accessService, []byte(cfg.CollabJWTSecret))
+	if err != nil {
+		logger.Error("failed to configure room credentials", "error", err)
+		os.Exit(1)
+	}
 	invitationUsecase := usecase.NewInvitationUsecase(postgresrepo.NewInvitationRepository(db), accessService, cfg.FrontendURL)
 	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
@@ -115,8 +123,8 @@ func main() {
 	folderHandler := handler.NewFolderHandler(folderUsecase)
 	sceneHandler := handler.NewSceneHandler(sceneUsecase)
 	searchHandler := handler.NewSearchHandler(searchUsecase)
-	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase)
-	publicHandler := handler.NewPublicHandler(scenePermissionUsecase)
+	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase, shareLinks)
+	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, handler.NewRoomHandler(rooms, accessService))
 	assetHandler := handler.NewAssetHandler(assetUsecase)
 	aiHandler := handler.NewAIHandler(aiUsecase)
 	realtimeServer, err := realtime.NewServer([]byte(cfg.JWTSecret))
@@ -157,6 +165,7 @@ func loadConfig() (config, error) {
 	required := []string{
 		"DATABASE_URL",
 		"JWT_SECRET",
+		"COLLAB_JWT_SECRET",
 		"CASBIN_MODEL_PATH",
 		"S3_ENDPOINT",
 		"S3_ACCESS_KEY",
@@ -171,6 +180,10 @@ func loadConfig() (config, error) {
 		}
 	}
 
+	if len(os.Getenv("COLLAB_JWT_SECRET")) < 32 || os.Getenv("COLLAB_JWT_SECRET") == os.Getenv("JWT_SECRET") {
+		return config{}, fmt.Errorf("COLLAB_JWT_SECRET must contain at least 32 bytes and differ from JWT_SECRET")
+	}
+
 	frontend, err := url.Parse(os.Getenv("FRONTEND_URL"))
 	if err != nil || frontend.Hostname() == "" || (frontend.Scheme != "https" && frontend.Scheme != "http") || frontend.User != nil || frontend.RawQuery != "" || frontend.ForceQuery || frontend.Fragment != "" || (frontend.Path != "" && frontend.Path != "/") {
 		return config{}, fmt.Errorf("FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
@@ -179,6 +192,7 @@ func loadConfig() (config, error) {
 		Addr:             getEnv("HTTP_ADDR", defaultHTTPAddr),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		JWTSecret:        os.Getenv("JWT_SECRET"),
+		CollabJWTSecret:  os.Getenv("COLLAB_JWT_SECRET"),
 		CasbinModelPath:  os.Getenv("CASBIN_MODEL_PATH"),
 		S3Endpoint:       os.Getenv("S3_ENDPOINT"),
 		S3AccessKey:      os.Getenv("S3_ACCESS_KEY"),
