@@ -6,6 +6,9 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 - [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
 
+- [Workspace invitations](docs/collaboration.md): branch-only invitation API, roles, registration and limits.
+- [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
+
 ## Release status
 
 Dashboard C1 is implemented on the collaboration-v2 branch and pending deployment. Custom collaboration, invitation roles, public editing and MCP are being implemented; do not assume these APIs are available until their release documentation confirms deployment.

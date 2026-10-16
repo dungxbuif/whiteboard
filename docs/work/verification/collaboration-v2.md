@@ -32,7 +32,7 @@ Implementation commit `309bf08` plus fix `eaa3c7d`; task review passed after one
 
 ## D2 — native diagram compiler
 
-Implementation commit `8b2fd90`, task review pending. All 19 presets are covered by 39 passing compiler/validation tests and a strict TypeScript 7 build. Tests cover stable/disjoint IDs, bindings, finite geometry, canonical node overlap, theme/direction variants, compound group boundaries, label placement, Unicode/lengths and explicit rejection of unsupported Mermaid syntax.
+Implementation commit `8b2fd90` plus fix `3f532e6`, task review passed. All 19 presets are covered by 40 passing compiler/validation tests and a strict TypeScript 7 build. Tests cover stable/disjoint IDs, bindings, finite geometry, canonical node overlap, theme/direction variants, compound group boundaries, label placement, long actor labels across journey rows, Unicode/lengths and explicit rejection of unsupported Mermaid syntax.
 
 The package produces editable native elements and passes the shared scene validator. Plain Node cannot directly import the installed Excalidraw renderer, so the implementation has a bounded native normalizer and injected official browser conversion adapter. D4 must prove actual renderer parity and exports. No live MCP or browser collaboration claim is made here.
 
@@ -41,3 +41,17 @@ Dependency/provenance decisions, copied licenses and identical human/public Mark
 ## Workspace migration regression check
 
 After B1 unified Vite/React/jsdom dependency resolution, frontend unit tests again passed (33). Controller reran the two dashboard Chromium suites: 14 passed in 8.0s, including four unchanged visual baselines. The runner emitted its existing conflicting NO_COLOR/FORCE_COLOR warning; there were no application test failures.
+
+## B1 — protocol and isolated candidate validation
+
+Implementation `16e1abf` plus fix `4eb3242`, task review passed. Final focused suites: 52 runtime tests and 13 protocol tests. Exact frame/document limits, native schema/bindings, candidate isolation, actual worker deadline/heap termination and malformed payloads are exercised.
+
+Review reproduced hidden Yjs map/sequence compartments bypassing materialized checks and BOM-only/prefixed frame IDs becoming empty or aliased. Regression tests first failed, then passed with structural/history checks and canonical UTF-8 ID decoding. Independent re-review approved both fixes. Yjs internals are pinned and must be revalidated on upgrade.
+
+Durable PostgreSQL append/ack, refresh/revocation, browser offline replay and controlled history-limit recovery remain B2/B3/E3. B1 tests do not establish those outcomes. [Dependency remediation tracking](collaboration-dependencies.md) remains part of the release checks.
+
+## A2 — invitation API and atomic onboarding
+
+Commit `9e1ec91`; task review pending. Fifteen targeted invitation tests pass with disposable PostgreSQL, plus one frontend-origin configuration test. Proof covers concurrent single use, seven-day boundary, email binding, no membership downgrade, atomic account/personal-workspace/invited membership creation, rollback, existing password preservation, generic duplicate-email rejection, owner management and bounded HTTP inputs.
+
+A broad intermediate backend run had 106 passes and two failures in the concurrently developing A3 share-link tests. That run is not a passing integration gate; rerun after A3 wiring. Browser invite controls remain C2, production remains v1. Human [invitation guide](../../user/collaboration.md) and public Markdown API guide describe the branch-only behavior.

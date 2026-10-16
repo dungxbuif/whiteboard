@@ -12,7 +12,7 @@ updated: 2026-10-16
 
 - **Active Phase:** Execution & Test — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
 - **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are authorized and executing; runtime is still the existing v1 release.
-- **Next Work:** C1 and A1 are locally verified/reviewed. A2 invitations is implementing; B1 protocol and D2 compiler are in task review. Continue dependency slices before deployment. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
+- **Next Work:** C1/A1/B1/D2 are locally verified/reviewed. A2 invitations is under review; A3 sharing and E1 dependency remediation are implementing. Continue dependency slices before deployment. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
 
 ## Project
 
