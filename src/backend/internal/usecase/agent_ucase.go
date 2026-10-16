@@ -123,7 +123,7 @@ func agentCursor(raw string) (uuid.UUID, error) {
 	}
 	return id, nil
 }
-func (s *AgentService) ListWorkspaces(ctx domain.Context, p domain.Principal, cursor string, limit int) (domain.AgentPage[domain.AgentWorkspace], error) {
+func (s *AgentService) listWorkspaces(ctx domain.Context, p domain.Principal, cursor string, limit int) (domain.AgentPage[domain.AgentWorkspace], error) {
 	out := domain.AgentPage[domain.AgentWorkspace]{Items: []domain.AgentWorkspace{}}
 	c, e := agentCursor(cursor)
 	if e != nil || limit < 1 || limit > 50 {
@@ -149,7 +149,7 @@ func (s *AgentService) ListWorkspaces(ctx domain.Context, p domain.Principal, cu
 	})
 	return out, e
 }
-func (s *AgentService) ListScenes(ctx domain.Context, p domain.Principal, w uuid.UUID, cursor string, limit int) (domain.AgentPage[domain.AgentScene], error) {
+func (s *AgentService) listScenes(ctx domain.Context, p domain.Principal, w uuid.UUID, cursor string, limit int) (domain.AgentPage[domain.AgentScene], error) {
 	out := domain.AgentPage[domain.AgentScene]{Items: []domain.AgentScene{}}
 	c, e := agentCursor(cursor)
 	if e != nil || limit < 1 || limit > 50 {
@@ -184,7 +184,7 @@ func (s *AgentService) RequireScope(ctx domain.Context, p domain.Principal, ref 
 	_, e = s.access.Resolve(ctx, domain.UserPrincipal(k.OwnerID), ref)
 	return e
 }
-func (s *AgentService) GetScene(ctx domain.Context, p domain.Principal, ref domain.SceneRef) (domain.AgentScene, error) {
+func (s *AgentService) getScene(ctx domain.Context, p domain.Principal, ref domain.SceneRef) (domain.AgentScene, error) {
 	var out domain.AgentScene
 	e := s.access.WithWorkspaceLock(ctx, ref.WorkspaceID, uuid.Nil, func(ctx domain.Context) error {
 		if e := s.RequireScope(ctx, p, ref, domain.ScopeSceneRead); e != nil {
@@ -205,7 +205,7 @@ func (s *AgentService) GetScene(ctx domain.Context, p domain.Principal, ref doma
 	})
 	return out, e
 }
-func (s *AgentService) CreateScene(ctx domain.Context, p domain.Principal, w uuid.UUID, title string) (domain.AgentScene, error) {
+func (s *AgentService) createScene(ctx domain.Context, p domain.Principal, w uuid.UUID, title string) (domain.AgentScene, error) {
 	var out domain.AgentScene
 	title = strings.TrimSpace(title)
 	if title == "" || utf8.RuneCountInString(title) > 255 {

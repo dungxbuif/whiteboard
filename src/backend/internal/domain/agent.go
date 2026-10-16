@@ -72,3 +72,33 @@ type AgentRepository interface {
 type AgentScopeRepository interface {
 	RequireAgentScope(Context, Principal, SceneRef, string) error
 }
+
+// AgentAuditCorrelationKey carries only a validated transport correlation UUID.
+// It is diagnostic metadata and is never an authorization input.
+type AgentAuditCorrelationKey struct{}
+type AgentOperationAudit struct {
+	ID                   uuid.UUID
+	CorrelationID        uuid.UUID
+	KeyID                uuid.UUID
+	PrincipalID          string
+	WorkspaceID          uuid.UUID
+	RequestedWorkspaceID *uuid.UUID
+	SceneID              *uuid.UUID
+	Tool                 string
+	Scope                string
+	Outcome              string
+	FailureClass         string
+	LatencyMs            int64
+	Provenance           string
+	CreatedAt            time.Time
+}
+
+func (AgentOperationAudit) TableName() string { return "agent_operation_audit" }
+
+type AgentAuditRepository interface {
+	FindAuditKey(Context, uuid.UUID) (AgentKey, error)
+	RecordOperation(Context, *AgentOperationAudit) error
+	RecordOperationFailure(Context, *AgentOperationAudit) error
+}
+
+var ErrAgentAuditUnavailable = errors.New("agent audit unavailable")

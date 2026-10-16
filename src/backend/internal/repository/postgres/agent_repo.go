@@ -143,3 +143,20 @@ func (r *AccessRepository) RequireAgentScope(ctx domain.Context, p domain.Princi
 	}
 	return nil
 }
+
+// Audit identity survives revocation so a previously authenticated request can
+// record its denial without turning that historical identity into authority.
+func (r *AgentRepository) FindAuditKey(ctx domain.Context, id uuid.UUID) (domain.AgentKey, error) {
+	var k domain.AgentKey
+	e := r.dbFor(ctx).Select("id,workspace_id").Where("id=?", id).First(&k).Error
+	return k, accessError(e)
+}
+func (r *AgentRepository) RecordOperation(ctx domain.Context, event *domain.AgentOperationAudit) error {
+	return r.dbFor(ctx).Create(event).Error
+}
+
+func (r *AgentRepository) RecordOperationFailure(ctx domain.Context, event *domain.AgentOperationAudit) error {
+	// Bypass any inherited access transaction: its eventual rollback must not
+	// discard a failure record. Audit metadata has no FK lock dependencies.
+	return r.db.WithContext(ctx).Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)}).Create(event).Error
+}

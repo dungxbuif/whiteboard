@@ -143,7 +143,7 @@ func agentRef(r *http.Request) (domain.SceneRef, error) {
 }
 func (h *AgentHandler) Routes() http.Handler {
 	r := chi.NewRouter()
-	r.Use(h.Authenticate)
+	r.Use(agentCorrelation, h.Authenticate)
 	r.Get("/auth", func(w http.ResponseWriter, r *http.Request) {
 		p := agentPrincipal(r)
 		writeJSONResponse(w, 200, map[string]string{"principalId": p.ID, "keyId": p.GrantID})
@@ -225,4 +225,21 @@ func (h *AgentHandler) Routes() http.Handler {
 		writeJSONResponse(w, 200, out)
 	})
 	return r
+}
+
+// The caller may correlate an event but cannot supply its principal or result.
+func agentCorrelation(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := uuid.New()
+		if raw := r.Header.Get("X-Agent-Call-ID"); raw != "" {
+			parsed, e := uuid.Parse(raw)
+			if e != nil || parsed == uuid.Nil || parsed.String() != raw {
+				agentError(w, r, domain.ErrAgentInput)
+				return
+			}
+			id = parsed
+		}
+		w.Header().Set("X-Agent-Call-ID", id.String())
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.AgentAuditCorrelationKey{}, id)))
+	})
 }

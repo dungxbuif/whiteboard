@@ -31,6 +31,11 @@ func agentFixture(t *testing.T) (*AgentRepository, *usecase.AgentService, *useca
 	if b, e := os.ReadFile("../../../migrations/000010_agent_keys.up.sql"); e == nil {
 		mustExec(t, db, string(b))
 	}
+	auditMigration, e := os.ReadFile("../../../migrations/000013_agent_operation_audit.up.sql")
+	if e != nil {
+		t.Fatal(e)
+	}
+	mustExec(t, db, string(auditMigration))
 	a, e := usecase.NewAccessService(NewAccessRepository(db))
 	if e != nil {
 		t.Fatal(e)
@@ -246,6 +251,27 @@ func TestAgentHTTP(t *testing.T) {
 	request("GET", "/api/v1/users/me", "", k.Key, 401)
 	request("GET", "/api/v1/agent/auth", "", login, 401)
 	request("GET", "/api/v1/agent/workspaces", "", k.Key, 200)
+	correlation := uuid.New()
+	req := httptest.NewRequest("GET", "/api/v1/agent/workspaces", nil)
+	req.Header.Set("Authorization", "Bearer "+k.Key)
+	req.Header.Set("X-Agent-Call-ID", correlation.String())
+	req.Header.Set("X-Agent-Key-ID", uuid.NewString()) // Untrusted metadata cannot forge identity.
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(accessMemoryResponse{rr}, req)
+	if rr.Code != 200 || rr.Header().Get("X-Agent-Call-ID") != correlation.String() {
+		t.Fatalf("correlation response: %d %s", rr.Code, rr.Header())
+	}
+	var event domain.AgentOperationAudit
+	if e := r.db.Where("correlation_id=?", correlation).First(&event).Error; e != nil || event.KeyID != k.ID || event.PrincipalID != "agent:"+k.ID.String() {
+		t.Fatalf("correlation/key binding: %+v %v", event, e)
+	}
+	req.Header.Set("X-Agent-Call-ID", "invalid-private-correlation")
+	rr = httptest.NewRecorder()
+	router.ServeHTTP(accessMemoryResponse{rr}, req)
+	if rr.Code != 400 {
+		t.Fatal("invalid correlation accepted")
+	}
+
 	request("POST", "/api/v1/agent/workspaces/"+ref.WorkspaceID.String()+"/scenes", `{"title":"Denied"}`, k.Key, 403)
 	request("GET", base, "", login, 200)
 	request("DELETE", base+"/"+k.ID.String(), "", login, 204)
@@ -346,5 +372,94 @@ func TestAgentListHonorsOwnerRevocationLock(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("list blocked after commit")
+	}
+}
+
+func TestAgentOperationAudit(t *testing.T) {
+	r, s, _, owner, ref := agentFixture(t)
+	ctx := context.WithValue(context.Background(), domain.AgentAuditCorrelationKey{}, uuid.New())
+	k, e := s.CreateAgentKey(ctx, owner, []string{domain.ScopeSceneRead, domain.ScopeSceneCreate}, domain.AgentTargets{WorkspaceID: ref.WorkspaceID})
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, _ := s.AuthenticateAgent(ctx, k.Key)
+	created, e := s.CreateScene(ctx, p, ref.WorkspaceID, "private-title-not-for-audit")
+	if e != nil {
+		t.Fatal(e)
+	}
+	_, _ = s.ListWorkspaces(ctx, p, "", 50)
+	_, _ = s.ListScenes(ctx, p, ref.WorkspaceID, "", 51)
+	_, _ = s.GetScene(ctx, p, ref)
+	var events []domain.AgentOperationAudit
+	if e = r.db.Order("created_at").Find(&events).Error; e != nil {
+		t.Fatal(e)
+	}
+	if len(events) != 4 {
+		t.Fatalf("expected four operation audits, got %d", len(events))
+	}
+	for i, event := range events {
+		if event.KeyID != k.ID || event.PrincipalID != p.ID || event.WorkspaceID != ref.WorkspaceID || event.CorrelationID != ctx.Value(domain.AgentAuditCorrelationKey{}).(uuid.UUID) || event.Provenance != "go_operation" || event.LatencyMs < 0 {
+			t.Fatalf("bad binding: %+v", event)
+		}
+		want := []string{"success", "denied", "invalid", "success"}[i]
+		if event.Outcome != want {
+			t.Fatalf("audit outcome %s want %s", event.Outcome, want)
+		}
+	}
+	if events[0].SceneID == nil || *events[0].SceneID != created.ID || events[0].Tool != "create_scene" {
+		t.Fatal("created scene absent from audit")
+	}
+	encoded, _ := json.Marshal(events)
+	for _, secret := range []string{k.Key, k.TokenHash, "private-title-not-for-audit", "elements"} {
+		if strings.Contains(string(encoded), secret) {
+			t.Fatalf("audit leaked %q", secret)
+		}
+	}
+}
+func TestAgentCreateAuditAtomic(t *testing.T) {
+	r, s, _, owner, ref := agentFixture(t)
+	ctx := context.Background()
+	k, e := s.CreateAgentKey(ctx, owner, []string{domain.ScopeSceneCreate}, domain.AgentTargets{WorkspaceID: ref.WorkspaceID})
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, _ := s.AuthenticateAgent(ctx, k.Key)
+	mustExec(t, r.db, "CREATE FUNCTION fail_agent_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'audit unavailable'; END $$; CREATE TRIGGER fail_agent_audit BEFORE INSERT ON agent_operation_audit FOR EACH ROW EXECUTE FUNCTION fail_agent_audit()")
+	if _, e = s.CreateScene(ctx, p, ref.WorkspaceID, "Must roll back"); e == nil {
+		t.Fatal("unaudited create succeeded")
+	}
+	var count int64
+	r.db.Table("scenes").Where("title='Must roll back'").Count(&count)
+	if count != 0 {
+		t.Fatal("create escaped failed audit transaction")
+	}
+}
+
+func TestAgentFailureAuditPreservesError(t *testing.T) {
+	r, s, _, owner, ref := agentFixture(t)
+	ctx := context.Background()
+	key, e := s.CreateAgentKey(ctx, owner, []string{domain.ScopeSceneCreate}, domain.AgentTargets{WorkspaceID: ref.WorkspaceID})
+	if e != nil {
+		t.Fatal(e)
+	}
+	principal, e := s.AuthenticateAgent(ctx, key.Key)
+	if e != nil {
+		t.Fatal(e)
+	}
+	mustExec(t, r.db, "CREATE FUNCTION fail_agent_create() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private database failure'; END $$; CREATE TRIGGER fail_agent_create BEFORE INSERT ON scenes FOR EACH ROW EXECUTE FUNCTION fail_agent_create()")
+	_, e = s.CreateScene(ctx, principal, ref.WorkspaceID, "private title")
+	if e == nil || !strings.Contains(e.Error(), "private database failure") {
+		t.Fatalf("operation error was lost: %v", e)
+	}
+	var event domain.AgentOperationAudit
+	if e = r.db.First(&event).Error; e != nil {
+		t.Fatal(e)
+	}
+	if event.Outcome != "failure" || event.FailureClass != "OPERATION_UNAVAILABLE" || event.KeyID != key.ID || event.Tool != "create_scene" {
+		t.Fatalf("bad failure audit: %+v", event)
+	}
+	encoded, _ := json.Marshal(event)
+	if strings.Contains(string(encoded), "private") {
+		t.Fatal("raw error leaked into audit")
 	}
 }
