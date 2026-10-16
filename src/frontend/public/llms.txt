@@ -12,8 +12,8 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 - [Scene assets](docs/scene-assets.md): branch-only scoped upload/view, size/MIME limits, expiry and required headers.
 
-- [Agent keys and MCP](docs/agents.md): scoped keys, transport configuration, pagination and PAT compatibility.
+- [Agent keys and MCP](docs/mcp.md): scoped keys, transport configuration, pagination and PAT compatibility.
 
 ## Release status
 
-Dashboard C1 is implemented on the collaboration-v2 branch and pending deployment. Custom collaboration, invitation roles, public editing and MCP are being implemented; do not assume these APIs are available until their release documentation confirms deployment.
+Collaboration v2 is implemented in stages on the collaboration-v2 branch and has not been deployed. Access, invitations, dashboard and durable agent mutations have passed task review; browser lifecycle, renderer cleanup, presence/voice and full-stack release gates remain in progress. Do not assume these APIs are deployed until the release documentation confirms it.

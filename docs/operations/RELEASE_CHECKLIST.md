@@ -15,6 +15,10 @@ shared_fields: [status]
 - Human owns release approval and rollback acceptance.
 - AI records pre-release checks, post-release checks, and verification notes.
 
+## Prior v1 release — 2026-10-15
+
+The checked items below describe the prior v1 release. They are not v2 acceptance.
+
 ## Pre-Release
 
 - [x] Backend tests passed (`go test ./...`)
@@ -56,3 +60,29 @@ shared_fields: [status]
   with a real provider key remain human UAT items.
 - Secret rotation, PostgreSQL backup/restore, and rollback image acceptance
   remain human-owned production gates.
+
+
+## Collaboration v2 release — pending
+
+User authorization covers implementation, local merge and VM100 deploy. The following technical gates remain required; prior v1 checks above do not satisfy them.
+
+- [x] Access, invitation, public links and capability tasks A1–A4 reviewed.
+- [x] Durable runtime B1/B2 and dashboard C1/C2 reviewed.
+- [x] Agent keys/audit,19presets and live mutation tasks D1–D3 reviewed.
+- [ ] B3 upload-teardown and concurrent-flush review corrections verified.
+- [ ] B4 presence/follow/voice and idle heartbeat reviewed; no second active v2 content writer.
+- [x] D4 browser startup and per-job process/temp cleanup corrections reviewed (`6cd80d6`); local nonroot image smoke passed.
+- [ ] E1 real API/browser/S3/MCP role/recovery tests and50-client measured load passed.
+- [ ] E2 idle socket through nginx exceeds75seconds after heartbeat fix.
+- [ ] Final reviewed source rebuilt for VM100 Linux/amd64; exact image IDs captured.
+- [ ] Existing environment/service ownership checked before secret changes; distinct v2 secrets installed without printing values.
+- [ ] PostgreSQL backup restored successfully in a disposable environment; complete migration7–13 stream verified.
+- [ ] Controlled writer rollback rehearsal preserves latest durable content, receipts and epoch fencing; image-only rollback forbidden after promotion.
+- [ ] Apply tested TURN gatewayIP endpoint, repeat actual deployed configuration proof; DNS hostname remains unverified until corrected.
+- [ ] Public HTTPS canary: two browsers, public view/edit, invite, roles/revoke, agent native write/export, restart and denied requests.
+- [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; original dashboard and native scene style retained.
+- [ ] Upstream proxy logs checked for secret-bearing URLs; health/readiness/ack/compaction observation recorded.
+- [ ] Internal architecture/API/schema/runbooks plus human and AI-readable public docs reconciled with deployed behavior.
+- [ ] Whole-branch review complete, local master integration and release commit recorded (no Git remote configured).
+
+Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one.

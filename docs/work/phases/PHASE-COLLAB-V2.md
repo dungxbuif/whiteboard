@@ -26,7 +26,7 @@ Design and implementation approved by user. A1–A4, B1/B2, C1/C2 and D1/D2 are 
 | A | A1–A4 | A1–A4 verified/reviewed | complete |
 | B | B1–B4 | B1/B2 verified and reviewed; B3 browser integration active; B4 pending | in_progress |
 | C | C1–C2 | C1/C2 verified and reviewed;29browser/35unit/build pass | complete |
-| D | D1–D4 | D1–D3 verified and reviewed; D4 lifecycle review corrections active (196 JS/full Go implementation gate passed) | in_progress |
+| D | D1–D4 | D1–D4 verified and reviewed; D4 lifecycle regressions and local nonroot image pass | complete |
 | E | E1–E3 | local packaging/proxy and diagnostic cross-network TURN audio pass; full integration/load/canary/rollback pending | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;

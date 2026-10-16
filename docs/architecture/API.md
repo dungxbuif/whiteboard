@@ -162,7 +162,7 @@ Dedicated bearer routes (agent keys are rejected by login middleware):
 
 All discovery filters precede pagination (limit 1–50, UUID cursor, no global totals). Agent principal is `agent:<key UUID>`, grantId is that key UUID, UserID is nil and Owner is always false. A4 independently requires `scene:read` for read decisions and `scene:write` for update/command decisions; a write-only room credential does not confer read admission. Current key revocation, owner membership/status and targets are rechecked under workspace lock. Agents do not use asset/TURN capabilities or management endpoints.
 
-MCP `/mcp` uses the official SDK Streamable HTTP lifecycle with exact Origin allowlist and authenticated principal-bound sessions. The remote stdio adapter uses `WHITEBOARD_API_URL` and `WHITEBOARD_AGENT_KEY`; stdout contains only MCP frames. PAT/header and stdio compatibility are supported; OAuth discovery/PKCE is not claimed. See [agent guide](../user/agents.md) and [ADR 0011](../decisions/0011-native-mcp.md).
+MCP `/mcp` uses the official SDK Streamable HTTP lifecycle with exact Origin allowlist and authenticated principal-bound sessions. The remote stdio adapter requires `WHITEBOARD_API_URL`, `WHITEBOARD_PUBLIC_URL` and `WHITEBOARD_AGENT_KEY`; stdout contains only MCP frames. PAT/header and stdio compatibility are supported; OAuth discovery/PKCE is not claimed. See [agent guide](../user/agents.md) and [ADR 0011](../decisions/0011-native-mcp.md).
 
 ### Asset capability expiry and renewal clarification
 
@@ -182,10 +182,30 @@ Browser routes: `/w/:id` (workspace dashboard), `/w/:id/settings/members`, `/w/:
 
 `acceptInvite(token:string): Promise<Membership>` consumes POST `/invitations/accept`. Registration uses the isolated public client, then ordinary password login; no scene credential becomes an account token. Invitation tokens stay in the URL/component only, never local/session storage, and successful consume replaces the invitation URL.
 
-`createPublicSession({token,password?,displayName?}): Promise<SceneSession>` consumes POST `/public/scene-session` using the isolated client. `SceneSession = {token,expiresAt,workspaceId,sceneId,access,principalId,displayName}` is held in memory. `renewPublicRoom(session)` POSTs `/scenes/:sceneId/room-token` with only the explicit scene-session bearer; it returns the room token, expiry and optional renewed sceneSession. These functions live in frontend `lib/collaboration-api.ts`. Public requests never run the account 401 interceptor.
+`createPublicSession({token,password?,displayName?}): Promise<SceneSession>` consumes POST `/public/scene-session` using the isolated client. `SceneSession = {token,expiresAt,workspaceId,sceneId,access,principalId,displayName}` is held in the B3 provider and same-tab sessionStorage keyed by public link, separate from account authentication. `renewPublicRoom(session)` POSTs `/scenes/:sceneId/room-token` with only the explicit scene-session bearer; it returns the room token, expiry and optional renewed sceneSession. These functions live in frontend `lib/collaboration-api.ts`. Public requests never run the account 401 interceptor.
 
 POST `/public/scenes/:token` now accepts `{password?,displayName?}`. Production reads new and migrated links by exchanging the link, deriving its canonical scope from the signed scene session, and rechecking current authority and credential expiry under the workspace lock before reading the snapshot. The supplied display name permits reading an edit-link snapshot; IDs/access are never accepted from the caller. The earlier legacy-only permission lookup could not read newly created independent links and was replaced in production wiring. Existing legacy constructor compatibility remains for old tests/integrations. GET/query passwords remain unsupported.
 
 Share UI uses GET/POST `/scenes/:sceneId/share-links` and DELETE `/scenes/:sceneId/share-links/:linkId`. Tokens are consumed only from creation responses; lists contain metadata. Member/override/invitation actions use A2 routes. Scene override selectors apply explicit updates and do not claim to display current override metadata (no read endpoint exists).
 
 `PublicSceneEditorProps` in frontend `components/public-view.tsx` exposes `{scene,session,onSessionChange,onAccessLost}` for B3. C2 renders a guarded read-only snapshot until authenticated room admission. Live edit, renewal, revocation, offline replay and real API+DB+WebSocket browser proof remain B3/E gates. Browser fixtures validate control/transport/navigation behavior; PostgreSQL tests validate computed DTOs and new-link snapshot/revoke. C2 management tests are not a substitute for those live gates.
+
+
+## Durable agent operations and export (D3/D4 branch; deployment pending)
+
+D3 replaces materialized-snapshot reads with current durable projection: `sequence` is a decimal bigint string, accompanied by `documentId`, `stateVector` and native content. `contentVersion` is not a mutation precondition. The normal read retains its500element/256KiB bound. Exact scopes are independent; write-only keys do not receive read access.
+
+Routes below share `/api/v1/agent/workspaces/{workspaceId}/scenes/{sceneId}` and bearer agent authentication:
+
+| Suffix/method | Scope and contract |
+| --- | --- |
+| `POST /commands` | `scene:write`; strict `{tool,mutationBase64}` with canonical base64 of original UTF-8 mutation bytes. Mutation includes stable requestId, decimal expectedSequence and targeted commands. |
+| `GET /activity?cursor=0&limit=50` | `scene:read`; numeric ascending durable sequence, redacted metadata and decimal next cursor, at most50events. |
+| `GET /export-projection` | `scene:export`; current durable projection,25MiB document/26MiB response envelope. |
+| `GET /export-assets/{fileId}?assetId={uuid}` | `scene:export`; current same-scene asset metadata, bounded raster bytes and authority recheck after storage I/O. No caller storage URL. |
+
+Go signs exact mutation bytes through A4, then invokes the private Node writer without holding a Go authority transaction across HTTP. Node rechecks current authority under its writer locks. An acknowledged receipt means durable append and audit committed. Retry only identical bytes and requestId for an uncertain result; changed bytes/identity conflict. A stale sequence is an explicit conflict and is never silently rebased over human changes. The optional bridge being unavailable returns503 rather than an old snapshot. Go operation audit and the B2 durable receipt remain distinct from adapter-observed journals.
+
+MCP adds native diagram catalog/schema resources, `generate_diagram`, `patch_elements`, `delete_elements`, `get_scene_activity` and `export_scene` alongside discovery/create tools. Nineteen typed diagram presets and the restricted native Mermaid subset emit editable elements; unsupported syntax returns a typed alternative. See the [catalog](../user/diagram-catalog.md) and [complete tool guide](../user/agents.md) for schemas/examples.
+
+`POST /mcp/exports` supports the remote stdio export flow. `GET /mcp/artifacts/{id}` requires the same bearer principal and current independent export scope; the URL alone grants nothing. JSON/SVG/PNG artifacts have a captured decimal revision, five-minute expiry and bounded in-memory cache. Restart/expiry requires re-export. Both endpoints retain Origin checks and audit handling. Public scene/artifact links derive from explicit `WHITEBOARD_PUBLIC_URL`, never an internal API origin. See [renderer operations](../operations/mcp.md) for limits, fonts, process boundaries and release checks.

@@ -83,12 +83,12 @@ expect(first.elements.every(e => Number.isFinite(e.x) && Number.isFinite(e.y))).
 
 **Interfaces:** `compileMermaid(source:string):Promise<CompiledDiagram>`, `exportScene(sceneRef,format:'json'|'svg'|'png'):Promise<ScopedArtifact>`; result `{id,mimeType,expiresAt,url,revision}` with authenticated or short-lived scene-scoped download.
 
-- [ ] **Step 1 — Record behavior:** update `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `render.integration.test.ts`: supported Mermaid gives editable elements; unsupported native syntax returns `UNSUPPORTED_NATIVE_DIAGRAM` with DSL alternative; exports preserve fonts/labels/assets and MIME; arbitrary URL/loopback abuse blocked; malformed/oversize input fails within deadline; revoked principal cannot get fresh artifact grant.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- render.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Pin tested parser/Excalidraw versions; fixture-based support matrix, reject image fallback for native generation. Bundle fonts; render generated local content with external network disabled and assets injected after scene authorization. Defaults: 500 nodes/1000 edges, 50,000 source chars, one render per worker, 10-second deadline, 4096px max dimension, 20 MiB artifact cap. Kill timeout workers. Curated library manifest records each asset's source/hash/license; no unreviewed plugin runtime.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- render.integration.test.ts`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research, stage named files and lockfiles only, commit `feat: add bounded Mermaid conversion and scene exports`.
+- [x] **Step 1 — Record behavior:** update `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `render.integration.test.ts`: supported Mermaid gives editable elements; unsupported native syntax returns `UNSUPPORTED_NATIVE_DIAGRAM` with DSL alternative; exports preserve fonts/labels/assets and MIME; arbitrary URL/loopback abuse blocked; malformed/oversize input fails within deadline; revoked principal cannot get fresh artifact grant.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- render.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Pin tested parser/Excalidraw versions; fixture-based support matrix, reject image fallback for native generation. Bundle fonts; render generated local content with external network disabled and assets injected after scene authorization. Defaults: 500 nodes/1000 edges, 50,000 source chars, one render per worker, 10-second deadline, 4096px max dimension, 20 MiB artifact cap. Kill timeout workers. Curated library manifest records each asset's source/hash/license; no unreviewed plugin runtime.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- render.integration.test.ts`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research, stage named files and lockfiles only, commit `feat: add bounded Mermaid conversion and scene exports`.
 
 ## Research sources
 
