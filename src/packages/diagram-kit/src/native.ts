@@ -1,6 +1,6 @@
 import {validateSceneContent} from '@collab/contracts';
-import {DiagramError,type NativeElement,type DiagramInput,type LayoutResult,type LayoutNode,type LayoutEdge} from './types';
-import {wrapText} from './layout';
+import {DiagramError,type NativeElement,type DiagramInput,type LayoutResult,type LayoutNode,type LayoutEdge} from './types.js';
+import {wrapText} from './layout.js';
 
 type MutableElement=Record<string,any>;
 const FONT_SIZE=18,LINE_HEIGHT=1.3333333333333333,TEXT_INSET=16;

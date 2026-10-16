@@ -1,4 +1,4 @@
-import {LIMITS,type JSONSchema,type Diagnostic} from './types';
+import {LIMITS,type JSONSchema,type Diagnostic} from './types.js';
 export const str=(max:number=LIMITS.label):JSONSchema=>({type:'string',minLength:1,maxLength:max});
 export const id=()=>str(LIMITS.id);
 export const enumeration=(...values:string[]):JSONSchema=>({type:'string',enum:values});

@@ -1,7 +1,7 @@
-import {validateDiagram} from './catalog';
-import {layoutDiagram} from './layout';
-import {toNativeElements} from './native';
-import {DiagramError,type DiagramInput,type CompiledDiagram} from './types';
+import {validateDiagram} from './catalog.js';
+import {layoutDiagram} from './layout.js';
+import {toNativeElements} from './native.js';
+import {DiagramError,type DiagramInput,type CompiledDiagram} from './types.js';
 export async function compileDiagram(value:unknown):Promise<CompiledDiagram>{
  const validation=validateDiagram(value);if(!validation.valid)throw new DiagramError('INVALID_DIAGRAM',validation.errors.map(e=>`${e.path}: ${e.message}`).join('\n'),validation.errors);
  const input=structuredClone(value) as DiagramInput;

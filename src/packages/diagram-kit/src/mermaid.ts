@@ -1,5 +1,5 @@
-import {compileDiagram} from './compile';
-import {DiagramError,LIMITS,type DiagramInput,type GraphData,type SequenceData} from './types';
+import {compileDiagram} from './compile.js';
+import {DiagramError,LIMITS,type DiagramInput,type GraphData,type SequenceData} from './types.js';
 const unsupported=(detail:string):never=>{throw new DiagramError('UNSUPPORTED_NATIVE_DIAGRAM',`${detail} Use getDiagramTemplate('flowchart') or getDiagramTemplate('sequence') for the typed native alternative.`);};
 export const MERMAID_SUPPORT={flowchart:'Simple LR/TB/TD graph headers, ID[Label], ID{Decision}, ID(Label), A --> B and A -->|label| B; one statement per line.',sequence:'sequenceDiagram, participant/actor ID as Label, A->>B: message, A-->>B: return; one statement per line.'} as const;
 export async function compileMermaid(source:string,options:Partial<Pick<DiagramInput,'instanceId'|'theme'|'direction'>>={} ){

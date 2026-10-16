@@ -1,14 +1,14 @@
-import {graphSchema,graphExample} from './presets/graph';
-import {sequenceSchema,sequenceExample} from './presets/sequence';
-import {erdSchema,erdExample} from './presets/erd';
-import {classSchema,classExample} from './presets/class';
-import {stateSchema,stateExample} from './presets/state';
-import {treeSchema,mindmapExample,orgExample} from './presets/tree';
-import {timelineSchema,timelineExample} from './presets/timeline';
-import {journeySchema,journeyExample} from './presets/journey';
-import {swimlaneSchema,swimlaneExample} from './presets/swimlane';
-import {object,str,enumeration,checkSchema} from './schema';
-import {DiagramError,LIMITS,type Definition,type DiagramInput,type Diagnostic,type PresetId,type GraphData,type ValidationResult} from './types';
+import {graphSchema,graphExample} from './presets/graph.js';
+import {sequenceSchema,sequenceExample} from './presets/sequence.js';
+import {erdSchema,erdExample} from './presets/erd.js';
+import {classSchema,classExample} from './presets/class.js';
+import {stateSchema,stateExample} from './presets/state.js';
+import {treeSchema,mindmapExample,orgExample} from './presets/tree.js';
+import {timelineSchema,timelineExample} from './presets/timeline.js';
+import {journeySchema,journeyExample} from './presets/journey.js';
+import {swimlaneSchema,swimlaneExample} from './presets/swimlane.js';
+import {object,str,enumeration,checkSchema} from './schema.js';
+import {DiagramError,LIMITS,type Definition,type DiagramInput,type Diagnostic,type PresetId,type GraphData,type ValidationResult} from './types.js';
 
 const rows:[PresetId,string,string,string][]=[
  ['flowchart','Flowchart','Branching processes with decisions and outcomes.','graph'],['sequence','Sequence','Ordered calls, replies and participant lifelines.','sequence'],
@@ -29,7 +29,7 @@ export function asGraph(input:DiagramInput):GraphData{
  const data=input.data;
  if('entities' in data)return {nodes:data.entities.map(e=>({id:e.id,label:e.label,kind:'database',description:e.fields.map(f=>`${f.key?f.key+' ':''}${f.name}: ${f.type}`).join('\n')})),edges:data.relations.map(r=>({id:r.id,from:r.from,to:r.to,label:[r.label,r.cardinality].filter(Boolean).join(' · '),kind:r.cardinality}))};
  if('classes' in data)return {nodes:data.classes.map(c=>({id:c.id,label:c.label,kind:'component',description:[c.members.join('\n'),'──────────',c.methods.join('\n')].filter(Boolean).join('\n')})),edges:data.relations};
- if('nodes' in data){if(input.preset==='mindmap'||input.preset==='org-chart'){const nodes=data.nodes as import('./types').TreeData['nodes'];return {nodes:nodes.map(n=>({id:n.id,label:n.label,description:n.role,kind:input.preset==='org-chart'?'person':'process'})),edges:nodes.filter(n=>n.parent).map(n=>({id:`parent:${n.id}`,from:n.parent!,to:n.id}))};}return data as GraphData;}
+ if('nodes' in data){if(input.preset==='mindmap'||input.preset==='org-chart'){const nodes=data.nodes as import('./types.js').TreeData['nodes'];return {nodes:nodes.map(n=>({id:n.id,label:n.label,description:n.role,kind:input.preset==='org-chart'?'person':'process'})),edges:nodes.filter(n=>n.parent).map(n=>({id:`parent:${n.id}`,from:n.parent!,to:n.id}))};}return data as GraphData;}
  if('steps' in data)return {nodes:data.steps.map(s=>({id:s.id,label:s.label,kind:s.kind})),edges:data.edges};
  return {nodes:[],edges:[]};
 }

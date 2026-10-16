@@ -105,3 +105,15 @@ The17 entries are accounted for by the table (3+3+6+1+2+1+1). No claim of exploi
 ### Documentation reconciliation
 
 This internal note records intended selections before mutation and actual results afterward. No API, schema, permission, user flow or public configuration contract changed, so the human/AI public product guides need no behavioral edits for this slice. Existing third-party notice covers ELK and does not enumerate changed transitive versions; no new package/license is introduced. Commit `3754f1b` reconciles the current Vitest4.1.12 protocol reference and links the historical D2 research to this current audit. Task review approved the dependency slice; the root patched graph replaces the standalone installer as the tested source. Central verification records the existing large-chunk and NO_COLOR/FORCE_COLOR warnings as baseline follow-ups, not feature regressions. Release installation and final-image checks remain open.
+
+## B3/D3 direct workspace dependencies
+
+Before integration: declare frontend contracts0.1.0/Yjs13.6.33/lib00.2.119 from the existing locked graph and MCP contracts0.1.0/diagram-kit0.1.0. Add test-only fake-indexeddb6.2.6 (npm registry version checked) for IndexedDB transaction/reload isolation evidence. Root owns the install; verify lock graph and focused consumers after implementation. No production algorithm/version changes in this declaration.
+
+## D4 renderer dependency intent
+
+D4 verified the registry package and official GHSA-238p-pmpm-9mq7: affected KaTeX >=0.11,<0.18.2, own-property fix in0.18.2. Root pins the external core KaTeX path to0.18.2; actual hostile browser fixtures remain required and the separately vendored standalone bundle is not considered patched by this override. MCP declares Playwright1.60.0 and Excalidraw0.18.1; diagram-kit receives built ESM exports for production Node. Validate built import, browser renderer/font/network/deadline and compatibility before completion.
+
+D4 install verification: initial npm install retained stale KaTeX0.16.47 despite override; npm ls failed ELSPROBLEMS. Targeted npm update katex repaired lock/tree; npm ls katex --all now exits0 with0.18.2. Audit count14 (1low5moderate8high), down from17; renderer compatibility/hostile fixtures pending. No broad audit fix used.
+
+Diagram-kit ESM prerequisite verified by D4: npm run build --workspace ./packages/diagram-kit exits0 and npm test --workspace ./packages/diagram-kit passes41tests/3files. New built-import test failed without dist then passed under normal Node import with19presets. Changes are explicit .js local import specifiers and declaration/dist build, with no compiler behavior change. Renderer/MCP build integration remains in D4; frontend package declarations are covered by upcoming B3tests.

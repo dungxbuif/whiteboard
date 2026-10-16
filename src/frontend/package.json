@@ -25,7 +25,10 @@
     "socket.io-client": "2.5.0",
     "tailwind-merge": "3.6.0",
     "tailwindcss-animate": "1.0.7",
-    "zustand": "5.0.14"
+    "zustand": "5.0.14",
+    "@collab/contracts": "0.1.0",
+    "yjs": "13.6.33",
+    "lib0": "0.2.119"
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",
@@ -42,6 +45,7 @@
     "tailwindcss": "3.4.17",
     "typescript": "7.0.2",
     "vite": "7.3.5",
-    "vitest": "4.1.12"
+    "vitest": "4.1.12",
+    "fake-indexeddb": "6.2.6"
   }
 }

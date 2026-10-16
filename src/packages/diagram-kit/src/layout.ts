@@ -1,7 +1,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type {ElkNode} from 'elkjs/lib/elk-api';
-import {asGraph} from './catalog';
-import {DiagramError,LIMITS,type DiagramInput,type GraphNode,type LayoutNode,type LayoutEdge,type LayoutResult,type SequenceData,type TimelineData,type JourneyData,type SwimlaneData} from './types';
+import {asGraph} from './catalog.js';
+import {DiagramError,LIMITS,type DiagramInput,type GraphNode,type LayoutNode,type LayoutEdge,type LayoutResult,type SequenceData,type TimelineData,type JourneyData,type SwimlaneData} from './types.js';
 
 const GAP=90,PADDING=40,NODE_WIDTH=240,LINE_HEIGHT=24,TEXT_COLUMNS=24;
 export function wrapText(text:string,columns=TEXT_COLUMNS):string{return text.split('\n').map(line=>{const chars=Array.from(line),lines:string[]=[];while(chars.length>columns){let at=chars.slice(0,columns+1).lastIndexOf(' ');if(at<columns/2)at=columns;lines.push(chars.splice(0,at).join(''));if(chars[0]===' ')chars.shift();}lines.push(chars.join(''));return lines.join('\n');}).join('\n');}
@@ -12,7 +12,7 @@ export function measureNode(n:GraphNode):LayoutNode{
  const factor=shape==='rectangle'?1:1.6;
  return {...n,x:0,y:0,width:NODE_WIDTH*factor,height:Math.max(88,(text.split('\n').length*LINE_HEIGHT+32)*factor),text,shape,role:'node'};
 }
-function connectors(edges:import('./types').GraphEdge[],nodes:LayoutNode[],direction:'LR'|'TB'):LayoutEdge[]{const map=new Map(nodes.map(n=>[n.id,n]));return edges.map(e=>{const a=map.get(e.from)!,b=map.get(e.to)!;const p:[number,number]=direction==='LR'?[a.x+a.width,a.y+a.height/2]:[a.x+a.width/2,a.y+a.height];const q:[number,number]=direction==='LR'?[b.x,b.y+b.height/2]:[b.x+b.width/2,b.y];return {...e,points:[p,...(direction==='LR'?[[ (p[0]+q[0])/2,p[1] ],[(p[0]+q[0])/2,q[1]]]:[[p[0],(p[1]+q[1])/2],[q[0],(p[1]+q[1])/2]]) as [number,number][],q]};});}
+function connectors(edges:import('./types.js').GraphEdge[],nodes:LayoutNode[],direction:'LR'|'TB'):LayoutEdge[]{const map=new Map(nodes.map(n=>[n.id,n]));return edges.map(e=>{const a=map.get(e.from)!,b=map.get(e.to)!;const p:[number,number]=direction==='LR'?[a.x+a.width,a.y+a.height/2]:[a.x+a.width/2,a.y+a.height];const q:[number,number]=direction==='LR'?[b.x,b.y+b.height/2]:[b.x+b.width/2,b.y];return {...e,points:[p,...(direction==='LR'?[[ (p[0]+q[0])/2,p[1] ],[(p[0]+q[0])/2,q[1]]]:[[p[0],(p[1]+q[1])/2],[q[0],(p[1]+q[1])/2]]) as [number,number][],q]};});}
 async function layered(input:DiagramInput):Promise<LayoutResult>{
  const graph=asGraph(input),nodes=graph.nodes.map(measureNode);
  const nodeIds=new Map(nodes.map((n,i)=>[n.id,`n${i}`])),edgeIds=new Map(graph.edges.map((e,i)=>[e.id,`e${i}`]));

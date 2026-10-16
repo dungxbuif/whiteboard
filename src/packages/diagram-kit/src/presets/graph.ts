@@ -1,5 +1,5 @@
-import {object,array,id,str,enumeration} from '../schema';
-import type {GraphData,JSONSchema,PresetId} from '../types';
+import {object,array,id,str,enumeration} from '../schema.js';
+import type {GraphData,JSONSchema,PresetId} from '../types.js';
 export const graphSchema:JSONSchema=object({nodes:array(object({id:id(),label:str(),kind:enumeration('process','decision','person','system','external','container','component','database','queue','service','host','network','store','agent','tool','model','input','output','start','end'),description:str(),technology:str(),group:id()},['id','label']),500,1),edges:array(object({id:id(),from:id(),to:id(),label:str(),kind:enumeration('flow','dependency','data','control','async')},['id','from','to']),1000),groups:array(object({id:id(),label:str()}),100)},['nodes','edges']);
 const examples:Partial<Record<PresetId,GraphData>>={
  flowchart:{nodes:[{id:'start',label:'Start',kind:'start'},{id:'review',label:'Ready to ship?',kind:'decision'},{id:'release',label:'Release',kind:'end'}],edges:[{id:'begin',from:'start',to:'review'},{id:'yes',from:'review',to:'release',label:'Yes'}]},
