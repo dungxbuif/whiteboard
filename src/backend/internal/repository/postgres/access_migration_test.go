@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"bufio"
 	"context"
 	delivery "devtool/internal/delivery/http"
 	"devtool/internal/delivery/http/handler"
@@ -8,9 +9,12 @@ import (
 	"devtool/internal/usecase"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	pg "gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -18,7 +22,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func accessTestDB(t *testing.T, through int) *gorm.DB {
@@ -199,7 +205,7 @@ func TestWorkspaceListAndSearchFilter(t *testing.T) {
 		r.Header.Set("Test-User", user.String())
 		r.Header.Set(domain.HeaderWorkspaceID, workspace)
 		rr := httptest.NewRecorder()
-		router.ServeHTTP(rr, r)
+		router.ServeHTTP(accessMemoryResponse{rr}, r)
 		return rr
 	}
 	check := func(user uuid.UUID, method, path, body string, want int) *httptest.ResponseRecorder {
@@ -343,3 +349,85 @@ func TestAccessAuthorityLockAndRollback(t *testing.T) {
 		t.Fatal("revoked principal retained write access")
 	}
 }
+
+type observedAccessBody struct {
+	io.ReadCloser
+	once    sync.Once
+	started chan struct{}
+}
+
+func (b *observedAccessBody) Read(p []byte) (int, error) {
+	b.once.Do(func() { close(b.started) })
+	return b.ReadCloser.Read(p)
+}
+
+func TestAccessStalledBodyDoesNotBlockRevocation(t *testing.T) {
+	db := accessTestDB(t, 7)
+	owner, viewer, workspace := accessFixture(t, db)
+	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'viewer')", workspace, viewer)
+	access, err := usecase.NewAccessService(NewAccessRepository(db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	auth := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			id, e := uuid.Parse(r.Header.Get("Test-User"))
+			if e != nil {
+				w.WriteHeader(401)
+				return
+			}
+			if r.URL.Path == "/api/v1/assets/presign-view" {
+				r.Body = &observedAccessBody{ReadCloser: r.Body, started: started}
+			}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.ContextKeyUserID, id)))
+		})
+	}
+	router := delivery.NewRouterWithAccess(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil)
+	server := httptest.NewServer(router)
+	defer server.Close()
+	addr := strings.TrimPrefix(server.URL, "http://")
+	stalled, err := net.Dial("tcp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stalled.Close()
+	_, err = fmt.Fprintf(stalled, "POST /api/v1/assets/presign-view HTTP/1.1\r\nHost: %s\r\nTest-User: %s\r\nX-Workspace-ID: %s\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n{", addr, viewer, workspace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("stalled body never reached server")
+	}
+	request, _ := http.NewRequest(http.MethodDelete, server.URL+"/api/v1/workspaces/"+workspace.String()+"/members/"+viewer.String(), nil)
+	request.Header.Set("Test-User", owner.String())
+	client := &http.Client{Timeout: time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("stalled viewer body blocks owner revocation: %v", err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("revocation status %d", response.StatusCode)
+	}
+	if _, err = access.ResolveWorkspace(context.Background(), domain.UserPrincipal(viewer), workspace); err == nil {
+		t.Fatal("viewer membership not revoked")
+	}
+	stalled.SetReadDeadline(time.Now().Add(12 * time.Second))
+	timeoutResponse, err := http.ReadResponse(bufio.NewReader(stalled), nil)
+	if err != nil {
+		t.Fatalf("stalled request not terminated with bounded HTTP response: %v", err)
+	}
+	defer timeoutResponse.Body.Close()
+	if timeoutResponse.StatusCode != http.StatusRequestTimeout {
+		t.Fatalf("stalled request status %d, want 408", timeoutResponse.StatusCode)
+	}
+}
+
+// In-memory fixture bodies cannot stall on network I/O. Supply the server's
+// deadline capability while exercising the same production gateway.
+type accessMemoryResponse struct{ *httptest.ResponseRecorder }
+
+func (accessMemoryResponse) SetReadDeadline(time.Time) error { return nil }

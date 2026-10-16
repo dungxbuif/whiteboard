@@ -8,8 +8,11 @@ import (
 	"errors"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"io"
+	"net"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func WriteAccessError(w http.ResponseWriter, r *http.Request, err error) {
@@ -44,6 +47,63 @@ func (r *accessResponse) Write(b []byte) (int, error) {
 	return r.body.Write(b)
 }
 
+const (
+	scopedBodyReadTimeout         = 10 * time.Second
+	sceneRequestMaxBytes    int64 = 26 << 20 // 25 MiB document plus JSON/metadata envelope.
+	metadataRequestMaxBytes int64 = 1 << 20
+)
+
+// Fully consume network input before taking an authority lock. The real HTTP
+// server must support read deadlines; unsupported transports fail closed.
+func bufferScopedBody(w http.ResponseWriter, r *http.Request, resource string) bool {
+	if r.Body == nil || r.Body == http.NoBody {
+		return true
+	}
+	limit := metadataRequestMaxBytes
+	if resource == "scenes" {
+		limit = sceneRequestMaxBytes
+	}
+	controller := http.NewResponseController(w)
+	if err := controller.SetReadDeadline(time.Now().Add(scopedBodyReadTimeout)); err != nil {
+		WriteAccessError(w, r, err)
+		return false
+	}
+	reject := func(status int, code, message string) {
+		// An incomplete body must not be drained indefinitely by net/http after the
+		// handler returns. Keep the failed connection expired and request closure.
+		_ = controller.SetReadDeadline(time.Now())
+		w.Header().Set("Connection", "close")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]string{"code": code, "message": message, "requestId": chimiddleware.GetReqID(r.Context())})
+	}
+	if r.ContentLength > limit {
+		reject(http.StatusRequestEntityTooLarge, "BODY_TOO_LARGE", "Request body exceeds limit")
+		return false
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, limit))
+	if err != nil {
+		var size *http.MaxBytesError
+		var timeout net.Error
+		switch {
+		case errors.As(err, &size):
+			reject(http.StatusRequestEntityTooLarge, "BODY_TOO_LARGE", "Request body exceeds limit")
+		case errors.As(err, &timeout) && timeout.Timeout():
+			reject(http.StatusRequestTimeout, "BODY_TIMEOUT", "Request body read timed out")
+		default:
+			reject(http.StatusBadRequest, "INVALID_BODY", "Unable to read request body")
+		}
+		return false
+	}
+	_ = r.Body.Close()
+	if err = controller.SetReadDeadline(time.Time{}); err != nil {
+		WriteAccessError(w, r, err)
+		return false
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
+	return true
+}
+
 var errHandlerRejected = errors.New("handler rejected operation")
 
 // CollaborationAccessMiddleware holds authority through commit and buffers the
@@ -66,6 +126,9 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 			user, ok := UserIDFromContext(r.Context())
 			if !ok {
 				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			if !bufferScopedBody(w, r, resource) {
 				return
 			}
 			raw := r.Header.Get(domain.HeaderWorkspaceID)
