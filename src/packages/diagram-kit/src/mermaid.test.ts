@@ -43,4 +43,12 @@ describe('native normalization and adversarial identifiers',()=>{
   const edgeIds=new Set(result.elements.filter(e=>e.type==='arrow').map(e=>e.id));const labels=result.elements.filter(e=>e.type==='text'&&e.containerId&&edgeIds.has(e.containerId));const nodes=result.elements.filter(e=>e.customData?.diagramRole==='node');
   for(const label of labels)for(const node of nodes)expect(label.x+label.width<=node.x||node.x+node.width<=label.x||label.y+label.height<=node.y||node.y+node.height<=label.y).toBe(true);
  });
+ it('journey rows account for long actor labels and scores before placing cards',async()=>{
+  const result=await compileDiagram({...canonicalFixtures()[0],preset:'user-journey',data:{actors:[{id:'long',label:'A'.repeat(600)},{id:'short',label:'Support'}],stages:[{id:'start',label:'Start',steps:[{id:'first',actor:'long',label:'Begin',score:4},{id:'second',actor:'short',label:'Help',score:5}]},{id:'finish',label:'Finish',steps:[{id:'last',actor:'long',label:'Complete',score:3}]}]}});
+  const cards=result.elements.filter(e=>e.customData?.diagramRole==='node');
+  const first=cards.find(e=>e.customData?.semanticId==='first')!,second=cards.find(e=>e.customData?.semanticId==='second')!;
+  expect(first.height).toBeGreaterThan(600);
+  expect(second.y).toBeGreaterThanOrEqual(first.y+first.height);
+  for(let a=0;a<cards.length;a++)for(let b=a+1;b<cards.length;b++){const x=cards[a],y=cards[b];expect(x.x+x.width<=y.x||y.x+y.width<=x.x||x.y+x.height<=y.y||y.y+y.height<=x.y).toBe(true);}
+ });
 });

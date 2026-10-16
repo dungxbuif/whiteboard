@@ -10,7 +10,7 @@ Choose a preset with `listDiagramTypes()`, fetch its data schema and example wit
 
 Use a new `instanceId` for a second diagram. Reuse it when retrying the same generation; IDs remain stable. Themes are `sketch`, `clean` and `pastel`; direction is `LR` or `TB`. Compilation returns `{elements,files,bounds,warnings}` and does not save the result. A caller must submit authorized scene commands separately.
 
-Sequence diagrams keep participants across the top and messages in order below. Journeys keep stages across the top and actions in actor rows. These two ordered layouts retain that orientation; direction controls graph, timeline and swimlane layouts.
+Sequence diagrams keep participants across the top and messages in order below. Journeys keep stages across the top and actions in actor rows; row spacing includes wrapped actor names and experience scores. These two ordered layouts retain that orientation; direction controls graph, timeline and swimlane layouts.
 
 Presets: flowchart, sequence, architecture, deployment, infrastructure, c4-context, c4-container, c4-component, erd, class, state, mindmap, timeline, user-journey, swimlane, org-chart, network, data-flow, agent-workflow. Each template describes its accepted data fields. Groups are editable boundaries, tree links are parent relationships, ER fields and class compartments remain text inside editable native boxes.
 
@@ -34,4 +34,4 @@ Mermaid support is intentionally a small native subset: simple flowchart node de
 
 Agent-readable source: this Markdown file is mirrored at `/docs/diagram-catalog.md`. Planned MCP discovery: `list_diagram_types`, `get_diagram_template`, `validate_diagram`; resources `whiteboard://diagrams/catalog` and `whiteboard://diagrams/{id}/schema`. Do not assume those tools are live merely because this compiler package is installed.
 
-Verification: 39 compiler tests pass locally, including all 19 presets, three themes and both direction settings. Browser rendering, live scene persistence and exports require the D3/D4/E1 integration checks before release.
+Verification: 40 compiler tests pass locally, including all 19 presets, three themes, both direction settings and long actor names across journey rows. Browser rendering, live scene persistence and exports require the D3/D4/E1 integration checks before release.

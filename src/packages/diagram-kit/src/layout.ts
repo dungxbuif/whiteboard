@@ -47,10 +47,12 @@ function timeline(data:TimelineData,input:DiagramInput):LayoutResult{
 }
 function journey(data:JourneyData):LayoutResult{
  const nodes:LayoutNode[]=[],colWidth=NODE_WIDTH+GAP;
- const rowHeights=data.actors.map(a=>Math.max(180,...data.stages.flatMap(s=>s.steps.filter(t=>t.actor===a.id).map(t=>measureNode({id:t.id,label:t.label}).height+50))));
+ const actorLabels=new Map(data.actors.map(a=>[a.id,a.label]));
+ const cards=new Map(data.stages.flatMap(s=>s.steps.map(step=>[step.id,measureNode({id:step.id,label:step.label,description:`${actorLabels.get(step.actor)}${step.score?`\nExperience: ${step.score}/5`:''}`})] as const)));
+ const rowHeights=data.actors.map(a=>Math.max(180,...data.stages.flatMap(s=>s.steps.filter(t=>t.actor===a.id).map(t=>cards.get(t.id)!.height+50))));
  const rows:number[]=[];let y=150;for(const h of rowHeights){rows.push(y);y+=h+GAP;}
  let x=PADDING;
- for(const s of data.stages){const maxPerActor=Math.max(1,...data.actors.map(a=>s.steps.filter(t=>t.actor===a.id).length));nodes.push({...measureNode({id:`stage:${s.id}`,label:s.label}),x,y:PADDING,role:'header',height:80});for(const a of data.actors){const actorSteps=s.steps.filter(t=>t.actor===a.id);actorSteps.forEach((step,k)=>nodes.push({...measureNode({id:step.id,label:step.label,description:`${a.label}${step.score?`\nExperience: ${step.score}/5`:''}`}),x:x+k*colWidth,y:rows[data.actors.indexOf(a)]}));}x+=colWidth*maxPerActor;}
+ for(const s of data.stages){const maxPerActor=Math.max(1,...data.actors.map(a=>s.steps.filter(t=>t.actor===a.id).length));nodes.push({...measureNode({id:`stage:${s.id}`,label:s.label}),x,y:PADDING,role:'header',height:80});for(const a of data.actors){const actorSteps=s.steps.filter(t=>t.actor===a.id);actorSteps.forEach((step,k)=>nodes.push({...cards.get(step.id)!,x:x+k*colWidth,y:rows[data.actors.indexOf(a)]}));}x+=colWidth*maxPerActor;}
  return {nodes,edges:[]};
 }
 function swimlane(data:SwimlaneData,input:DiagramInput):LayoutResult{
