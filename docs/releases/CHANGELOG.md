@@ -12,9 +12,11 @@ shared_fields: [status]
 
 ## Unreleased
 
-- Durable runtime B2 (branch only, review pending): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration and deployment remain pending. [Protocol](../architecture/collaboration-protocol.md).
+- Access UI C2 (branch only, reviewed): invitations, independent public links, membership/override controls, scoped agent keys, role-aware controls and stable scene/settings routes. Workspace, folder, Starred, Trash and search navigation work from Settings; original dashboard styling and native scene styling remain.
 
-- Agent access D1 (branch only, review pending): workspace-bound scoped keys, HTTP/stdio MCP discovery and scene tools, plus an owner settings component. Dashboard entry and live mutation integration remain in progress. [Agent guide](../user/agents.md).
+- Durable runtime B2 (branch only, reviewed): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration and deployment remain pending. [Protocol](../architecture/collaboration-protocol.md).
+
+- Agent access D1 (branch only, reviewed): workspace-bound scoped keys, HTTP/stdio MCP discovery and scene tools, plus an owner settings component. Owner dashboard entry is implemented; live mutation integration remains in progress. Calls receive correlated metadata-only audit, including malformed HTTP/stdio tool requests. [Agent guide](../user/agents.md).
 - Scoped assets A4 (branch only, reviewed): current scene authority, private signed mutation decisions, guest asset audit and bounded TURN credentials. Asset URL deadlines survive database/signing delays, and compatible uploads can renew without duplicate metadata; conflicting metadata returns 409. [Assets guide](../user/scene-assets.md).
 
 - Dependency patch subset (branch only): verified Axios, NanoID, lodash-es, PostCSS and Vitest updates with unchanged dashboard goldens. Remaining dependency/runtime checks are documented in [triage](../work/verification/collaboration-dependencies.md).

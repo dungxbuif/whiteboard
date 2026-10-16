@@ -81,9 +81,9 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | Requirement | Tasks | Required proof | Status | Plan |
 | --- | --- | --- | --- | --- |
 | V2-ACCESS | A1–A4 | A1 reviewed with 79 backend tests and stalled-body regression; A2 reviewed with 15 invitation tests plus origin validation and shared-clock regression; A3 reviewed with 16 public-link/credential tests; A4 scoped capability tests and deadline/renewal fixes pass with clean re-review | in_progress | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
-| V2-SYNC | B1–B4 | B1 reviewed; B2 durable ACK/replay/fault/lock proof passes awaiting review; browser convergence/offline/voice pending | in_progress | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
-| V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 public-password regression passes; full access workflows implementing | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
-| V2-MCP | D1–D4 | D1 scoped keys/HTTP+stdio discovery implemented awaiting review; D2 all preset fixtures pass; durable mutations/export integration pending | in_progress | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
+| V2-SYNC | B1–B4 | B1 reviewed; B2 durable ACK/replay/fault/lock proof passes; ownership handoff and bounded scheduler fixes reviewed, startup maintenance fix reviewed; browser convergence/offline/voice pending | in_progress | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
+| V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 access/share/routes and settings navigation pass 29 Chromium/35 unit tests, scoped review clean | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
+| V2-MCP | D1–D4 | D1 scoped keys/HTTP+stdio discovery and metadata-only audit reviewed, including malformed transport requests; D2 all preset fixtures pass; durable mutations/export integration pending | in_progress | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
 | V2-RELEASE | E1–E3 | Host inventory recorded in Homelab 42cdf59; real-stack E2E/load, cross-network audio and restore/rollback pending | in_progress | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
 
 C1 execution evidence: [verification](verification/collaboration-v2.md). Remaining v2 slices are in progress; existing v1 evidence is not reused as v2 proof.

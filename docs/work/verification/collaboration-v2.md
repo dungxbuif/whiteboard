@@ -97,3 +97,25 @@ Commit `b9d72ed`, task review pending. Final clean install/root tests pass: runt
 Forty new runtime tests cover actual database termination with no ACK/broadcast, committed-but-response-lost retry, permanent receipts after compaction, workspace lock races/current ACL/expiry, exact 100-update and five-second compaction, listener loss/readiness recovery, single process ownership, private HTTP isolation/backpressure and a built-server/worker subprocess. Legacy promotion preserves the original JSON/version and resolves images only from same-scene assets; invalid promotion leaves v1 untouched. A valid >64 MiB retained-history recovery export is reconstructed without silently changing document identity.
 
 These tests use actual PostgreSQL and sockets with a controlled Go authority fixture. Full Go+Node+browser convergence/load, actual restore and production remain B3/E gates. Root lock incorporates coordinated D1 dependencies. No v2 deployment performed.
+
+### B2 review fix round 1
+
+Commit `511ec1f` addresses three reproduced findings: private commands after owner/LISTEN loss, dirty trash repeatedly disrupting compaction, and unbounded overlapping scans. Transactions now use a shared handoff barrier and verify the exact owner backend; replacement readiness waits for the exclusive barrier. A deterministic pre-COMMIT loss test retains committed receipts without old ACK/publication. Trash/racing deletion/restart/restore preserve data and isolate other rooms. Compaction uses single-flight bounded scans and deduplicated jobs.
+
+An intermediate full run had 104 passing runtime assertions but failed from an unhandled PostgreSQL57P01 during listener shutdown. The lifecycle fix was verified; final root `npm test` exits0 with 104 runtime,13 MCP,13 contracts,40 diagram tests (170 total), no skips/unhandled errors. Scoped re-review pending. No production deployment.
+
+### D1 review fix round 1
+
+Commit `6ec72e5` adds migration13 authoritative Go operation audit and a bounded fsynced adapter-observed journal. Successful Go create and audit commit atomically; failure records omit credentials/content. HTTP requires a persistent journal path; stdio observations remain explicitly client-controlled. Upstream413 retains actionable PROJECTION_TOO_LARGE. Ten targeted real PostgreSQL tests,13 MCP HTTP/stdio/journal tests and full Go suite pass; scoped re-review pending. D3 must reuse correlation/audit wrappers.
+
+## C2 — access workflows and deep links
+
+Commit `5f1d768` plus earlier `b80e804`, review pending. Final24 Chromium flows,35 frontend unit tests and production build pass; full Go suite passed after C2 backend edits. Browser proofs use controlled API fixtures, while separate PostgreSQL tests prove current computed role/access and new public-link snapshot authorization. UUID/alias reload/back/forward/home, invitation login/register/wrong email/expiry, independent links/password/revoke, viewer/owner controls and login-token isolation are covered. Three golden images were inspected and updated for owner settings navigation; original dashboard colors/style and native canvas style remain.
+
+A broad route mock accidentally intercepted the Vite share-links module; narrowing to API paths fixed the harness without another product change. New-link snapshot production routing did need a real fix: canonical scene scope is derived from validated session and authority rechecked under lock. Public live canvas editing, session renewal and live revoke remain B3/E gates; its current guarded read-only seam is not presented as completed realtime UI.
+
+### Review closure checkpoint
+
+D1 transport audit fix `1f09d02` passed scoped spec and quality review: real HTTP and raw stdio invalid tool arguments produce one correlated start/completion pair; valid operations are not duplicated and raw arguments/credentials/SDK error text are excluded. MCP15 and full root173 tests passed. B2 startup fix `0f314a4` has40 relevant tests passing; C2 navigation fix `e8a867a` has29 Chromium,35 unit and build checks passing. Their scoped reviews are pending at this checkpoint. No v2 production deployment yet.
+
+B2 startup and C2 navigation scoped reviews are now clean. B2 reviewer independently reproduced40passing tests; C2 reviewed route/history/stale-response assertions and29browser/35unit/build evidence. Dependency declarations for B3/D3 installed with npm; npm ls confirms shared pinned contracts/diagram/Yjs/lib0 and fake-indexeddb6.2.6, no duplicate Yjs. VM100 read-only check still shows both v1 whiteboard containers healthy.

@@ -12,7 +12,7 @@ updated: 2026-10-16
 
 - **Active Phase:** Execution & Test — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
 - **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are authorized and executing; runtime is still the existing v1 release.
-- **Next Work:** C1/A1/B1/D2 are locally verified/reviewed. A2/A3 are verified/reviewed; A4 deadline/renewal fixes are reviewed. B2 durability is committed awaiting review; D1 agent/MCP is committed awaiting review. C2 access UI is implementing, preserving its verified public-password transport fix. E1 dependency patch is reviewed with remaining release checks explicit. Continue dependency slices before deployment. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
+- **Next Work:** C1/A1–A4/B1/D2 and the E1 dependency subset are reviewed. D1 scoped keys/MCP audit fixes are reviewed (15 MCP tests, root 173 tests). B2 ownership/startup fixes and C2 navigation fixes are reviewed; C2 has 29 browser/35 unit tests passing. B3 browser Yjs/offline, D3 durable agent tools and isolated D4 renderer work are active; voice and real-stack release gates follow. Production remains v1.
 
 ## Project
 
