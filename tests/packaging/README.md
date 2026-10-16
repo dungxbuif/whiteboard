@@ -39,3 +39,9 @@ rtk env TURN_PROOF_URL=turn:103.82.21.202:5349 node tests/packaging/turn-proof.m
 The recorded2026-10-16 local network is Mac10.10.0.10/WAN117.1.89.250; gateway
 WAN103.82.21.202. Revalidate those labels for subsequent runs. A direct-IP success
 is not proof that the configured hostname resolves or connects correctly.
+
+## B4 idle collaboration regression
+
+Build collab first, then run `rtk node tests/packaging/idle-collab.mjs`. This uses the existing nginx image unchanged, the current compiled host collab runtime and a random schema in the guarded loopback `devtool_a1_test` PostgreSQL database. A unique disposable bridge and Node TCP-forwarder make the random loopback runtime port reachable as nginx's `collab:8082` upstream on Docker Desktop; no product proxy timeout is changed. The forwarder does not parse or generate WebSocket traffic.
+
+The live peer stays idle for 160 seconds (production 25-second heartbeat), while a second peer disables automatic pong after joining voice. Assertions cover six or more live pings, no live close, dead-peer removal before 60 seconds, voice-slot cleanup and readiness. Go's upstream HTTP is a signed fixture; runtime, storage, room admission, WebSocket heartbeat and nginx are real. Cleanup removes only the unique QA containers/network and random schema. This is local packaging proof, not final release-image or production proof.

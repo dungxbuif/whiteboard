@@ -1,30 +1,58 @@
 import WebSocket from 'ws';
+import {randomUUID} from 'node:crypto';
+import {Awareness,fields,parseAwareness,parseViewport,roomKey} from './awareness.js';
+import {Voice,parseSignal} from './voice.js';
+import {IngressLimit} from './ingress.js';
 import * as Y from 'yjs';
 import {createDecoder,readVarUint,readVarUint8Array,hasContent} from 'lib0/decoding';
-import {decodeFrame,encodeFrame,MAX_FRAME_BYTES,type SceneRef,type MutationReceipt} from '@collab/contracts';
+import {decodeFrame,encodeFrame,type SceneRef,type MutationReceipt} from '@collab/contracts';
 import {CollabError,authorizeSync,requestID,type Principal,type Decision} from './auth.js';
 import {MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import type {Persistence,SceneState} from './persistence.js';
 import {RateLimit} from './rate-limit.js';
 
+export const HEARTBEAT_INTERVAL_MS=25_000;
+const EPHEMERAL_CONTROLS=['presence','follow','viewport','voice_join','voice_leave','voice_mute','voice_signal'];
+const MAX_CONTROL_BYTES=32768;
+const AUTH_PER_MINUTE=60,EPHEMERAL_PER_MINUTE=120,AWARENESS_PER_SECOND=30;
+
 function invalidInput<T>(parse:()=>T):T {try{return parse();}catch(error){if(error instanceof CollabError)throw error;throw new CollabError('INVALID_UPDATE','Malformed transport input',400);}}
-type Session={socket:WebSocket;ref?:SceneRef;principal?:Principal;claims?:Decision;access?:string;expires?:NodeJS.Timeout;authTimer:NodeJS.Timeout;pending:number;chain:Promise<void>;ip:string;invalid:boolean};
+type Session={connectionId:string;alive:boolean;socket:WebSocket;ref?:SceneRef;principal?:Principal;claims?:Decision;access?:string;expires?:NodeJS.Timeout;authTimer:NodeJS.Timeout;pending:number;chain:Promise<void>;ip:string;invalid:boolean};
 export class Rooms {
- private sessions=new Set<Session>();private rates=new RateLimit();private tasks=new Set<Promise<void>>();
- constructor(private store:Persistence,private options:{updatesPerMinute:number;maxBufferedBytes:number}){store.on('committed',this.committed);}
+ private sessions=new Set<Session>();private rates=new RateLimit();private ingress=new IngressLimit();private tasks=new Set<Promise<void>>();
+ private awareness=new Awareness();private voice=new Voice();private heartbeat:NodeJS.Timeout;private closing=false;
+ constructor(private store:Persistence,private options:{updatesPerMinute:number;maxBufferedBytes:number;heartbeatIntervalMs?:number}){
+  const interval=options.heartbeatIntervalMs??HEARTBEAT_INTERVAL_MS;
+  if(!Number.isInteger(interval)||interval<10||interval>HEARTBEAT_INTERVAL_MS)throw new Error('Heartbeat interval must be 10..25000ms');
+  store.on('committed',this.committed);
+  this.heartbeat=setInterval(()=>{for(const session of this.sessions){if(session.invalid)continue;if(!session.alive){this.detach(session);session.socket.terminate();continue;}session.alive=false;if(session.socket.readyState===WebSocket.OPEN)session.socket.ping();}},interval);this.heartbeat.unref();
+ }
  attach(socket:WebSocket,ip:string){
-  const session:Session={socket,pending:0,chain:Promise.resolve(),ip,invalid:false,authTimer:setTimeout(()=>socket.close(4401,'Authentication required'),5000)};
+  const session:Session={connectionId:randomUUID(),alive:true,socket,pending:0,chain:Promise.resolve(),ip,invalid:false,authTimer:setTimeout(()=>socket.close(4401,'Authentication required'),5000)};
   this.sessions.add(session);socket.on('error',()=>{});
-  socket.on('close',()=>{session.invalid=true;clearTimeout(session.authTimer);clearTimeout(session.expires);this.sessions.delete(session);});
+  socket.on('pong',()=>{session.alive=true;});
+  socket.on('close',()=>this.detach(session));
   socket.on('message',(data,binary)=>{
    if(session.invalid)return;
-   if(++session.pending>32){this.invalidate(session,'BACKPRESSURE');return;}
    const bytes=Buffer.isBuffer(data)?new Uint8Array(data):new Uint8Array(data as ArrayBuffer);
+   try{this.ingress.take(ip,bytes.byteLength);}catch{this.invalidate(session,'INGRESS_RATE_LIMITED');return;}
+   if(++session.pending>32){this.invalidate(session,'BACKPRESSURE');return;}
    session.chain=session.chain.then(async()=>{if(session.invalid)return;let id='unknown';try{
-    this.rates.take('ip:'+ip,600);
     if(binary){const frame=invalidInput(()=>decodeFrame(bytes));id=frame.updateId;requestID(id);await this.binary(session,frame.channel,id,frame.payload);}
-    else{if(bytes.length>32768)throw new CollabError('INVALID_UPDATE','Control too large',400);const control=invalidInput(()=>JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)));id=control.requestId;requestID(id);if(!control||Object.keys(control).some(k=>!['type','requestId','payload'].includes(k))||!['auth','refresh'].includes(control.type)||!control.payload||Object.keys(control.payload).some(k=>k!=='token'))throw new CollabError('INVALID_UPDATE','Invalid control',400);await this.authenticate(session,id,control.payload.token,control.type);}
+    else{
+     if(bytes.length>MAX_CONTROL_BYTES)throw new CollabError('INVALID_UPDATE','Control too large',400);
+     const control=invalidInput(()=>JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)));
+     if(!control||typeof control!=='object'||Array.isArray(control)||Object.keys(control).some(k=>!['type','requestId','payload'].includes(k)))throw new CollabError('INVALID_UPDATE','Invalid control',400);
+     id=control.requestId;requestID(id);
+     if(['auth','refresh'].includes(control.type)){
+      this.rates.take('auth:'+ip,AUTH_PER_MINUTE);
+      if(!control.payload||Object.keys(control.payload).some(k=>k!=='token'))throw new CollabError('INVALID_UPDATE','Invalid auth control',400);
+      await this.authenticate(session,id,control.payload.token,control.type);
+     }else if(EPHEMERAL_CONTROLS.includes(control.type))await this.ephemeral(session,id,control.type,control.payload);
+     else throw new CollabError('INVALID_UPDATE','Unknown control',400);
+    }
    }catch(error){await this.error(session,id,error);}finally{session.pending--;}});
+   this.track(session.chain);
   });
  }
  private async authenticate(session:Session,id:string,token:string,type:string){
@@ -34,10 +62,13 @@ export class Rooms {
   const principal={roomToken:token,principalId:claims.principalId,principalType:claims.principalType};
   const state=await this.store.read(ref,principal);
   try{
+   if(session.invalid)return;
    session.ref=ref;session.principal=principal;session.claims=claims;session.access=state.access;
    clearTimeout(session.authTimer);clearTimeout(session.expires);session.expires=setTimeout(()=>this.invalidate(session,'TOKEN_EXPIRED'),Math.max(0,claims.exp*1000-Date.now()));
-   await this.control(session,'ready',id,{...ref,principalId:principal.principalId,access:state.access,documentId:state.documentId,sequence:state.sequence,stateVector:state.stateVector});
+   this.awareness.register(ref,{connectionId:session.connectionId,principalId:principal.principalId,principalType:principal.principalType,access:state.access});
+   await this.control(session,'ready',id,{...ref,connectionId:session.connectionId,principalId:principal.principalId,access:state.access,documentId:state.documentId,sequence:state.sequence,stateVector:state.stateVector});
    await this.sync(session,id,state);
+   await this.roster(ref,id);
   }finally{state.doc.destroy();}
  }
  private async binary(session:Session,channel:number,id:string,payload:Uint8Array){
@@ -49,17 +80,73 @@ export class Rooms {
    update=bytes;
   }
   if(channel===2){
-   this.rates.take('awareness:'+session.principal.principalId,30,1000);
-   if(payload.length>8192)throw new CollabError('INVALID_UPDATE','Awareness too large',400);
-   const value=invalidInput(()=>JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(payload)));
-   if(!value||Object.keys(value).some(k=>!['cursor','selectedIds'].includes(k))||(value.cursor!==undefined&&(!value.cursor||Object.keys(value.cursor).some(k=>!['x','y'].includes(k))||!Number.isFinite(value.cursor.x)||!Number.isFinite(value.cursor.y)))||(value.selectedIds!==undefined&&(!Array.isArray(value.selectedIds)||value.selectedIds.length>256||value.selectedIds.some((v:unknown)=>typeof v!=='string'||v.length>256))))throw new CollabError('INVALID_UPDATE','Invalid awareness',400);
-   const state=await this.store.read(session.ref,session.principal);state.doc.destroy();
-   for(const other of this.sessions)if(other!==session&&other.ref?.sceneId===session.ref.sceneId)await this.control(other,'awareness',id,{principalId:session.principal.principalId,...value});return;
+   try{this.rates.take('awareness:'+session.connectionId,AWARENESS_PER_SECOND,1000);}catch{throw new CollabError('PRESENCE_RATE_LIMITED','Awareness rate exceeded',429);}
+   if(payload.length>8192)throw new CollabError('INVALID_PRESENCE','Awareness too large',400);
+   const value=parseAwareness(invalidInput(()=>JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(payload))));
+   await this.fresh(session);
+   await this.broadcast(session.ref,'awareness',id,{...value,connectionId:session.connectionId,principalId:session.principal.principalId,principalType:session.principal.principalType},other=>other!==session);return;
   }
   if(session.access!=='edit')throw new CollabError('FORBIDDEN');
   this.rates.take('principal:'+session.principal.principalType+':'+session.principal.principalId,this.options.updatesPerMinute);
   const receipt=await this.store.appendUpdate(session.ref,session.principal,id,update);
   await this.control(session,'ack',id,receipt);
+ }
+ private async fresh(session:Session){
+  if(session.invalid||!session.principal||!session.ref||!session.claims||Date.now()>=session.claims.exp*1000)throw new CollabError('UNAUTHENTICATED','Fresh room credential required',401);
+  const state=await this.store.read(session.ref,session.principal);
+  try{if(session.invalid)throw new CollabError('UNAUTHENTICATED');session.access=state.access;this.awareness.register(session.ref,{connectionId:session.connectionId,principalId:session.principal.principalId,principalType:session.principal.principalType,access:state.access});}finally{state.doc.destroy();}
+ }
+ private matching(ref:SceneRef){return [...this.sessions].filter(s=>!s.invalid&&s.ref&&roomKey(s.ref)===roomKey(ref));}
+ private async recipient(session:Session){try{await this.fresh(session);return true;}catch{this.invalidate(session,'AUTHORITY_CHANGED');return false;}}
+ private async broadcast(ref:SceneRef,type:string,id:string,payload:unknown,filter:(s:Session)=>boolean=()=>true){
+  for(const other of this.matching(ref))if(filter(other)&&await this.recipient(other))await this.control(other,type,id,payload);
+ }
+ private async roster(ref:SceneRef,id='server'){
+  const recipients=this.matching(ref);await Promise.all(recipients.map(s=>this.recipient(s)));
+  for(const session of recipients){const participants=this.awareness.list(ref).map(p=>({...p,...this.voice.state(p.connectionId)}));await this.control(session,'roster',id,{participants});}
+ }
+ private async ephemeral(session:Session,id:string,type:string,payload:unknown){
+  const voiceControl=type.startsWith('voice_');
+  try{this.rates.take((type==='viewport'?'awareness:':'control:')+session.connectionId,type==='viewport'?AWARENESS_PER_SECOND:EPHEMERAL_PER_MINUTE,type==='viewport'?1000:60_000);}catch{throw new CollabError(voiceControl?'VOICE_RATE_LIMITED':'PRESENCE_RATE_LIMITED','Ephemeral control rate exceeded',429);}
+  await this.fresh(session);const ref=session.ref!;
+  if(type==='presence'){this.awareness.update(session.connectionId,payload);await this.roster(ref,id);return;}
+  if(type==='follow'){
+   const input=fields(payload,['targetConnectionId'],'INVALID_FOLLOW');
+   if(input.targetConnectionId!==null){const target=this.matching(ref).find(s=>s.connectionId===input.targetConnectionId);if(!target||!await this.recipient(target))throw new CollabError('INVALID_FOLLOW','Target is not available',400);}
+   if(session.invalid)return;this.awareness.follow(session.connectionId,input.targetConnectionId);
+   await this.control(session,'follow',id,{connectionId:session.connectionId,targetConnectionId:input.targetConnectionId});await this.roster(ref,id);return;
+  }
+  if(type==='viewport'){
+   const viewport=parseViewport(payload);const followers=new Set(this.awareness.list(ref).filter(p=>p.following===session.connectionId).map(p=>p.connectionId));
+   await this.broadcast(ref,'viewport',id,{...viewport,connectionId:session.connectionId},other=>followers.has(other.connectionId));return;
+  }
+  if(type==='voice_join'){
+   fields(payload,[],'VOICE_INVALID');const admission=this.voice.joinVoice(roomKey(ref),session.connectionId);
+   await this.control(session,'voice_admission',id,admission);if(admission.admitted)await this.roster(ref,id);return;
+  }
+  if(type==='voice_leave'){
+   fields(payload,[],'VOICE_INVALID');this.voice.leaveVoice(session.connectionId);await this.control(session,'voice_left',id,{connectionId:session.connectionId});await this.roster(ref,id);return;
+  }
+  if(type==='voice_mute'){
+   const input=fields(payload,['muted'],'VOICE_INVALID');this.voice.mute(session.connectionId,input.muted);await this.roster(ref,id);return;
+  }
+  const signal=parseSignal(payload);const target=this.matching(ref).find(s=>s.connectionId===signal.to);
+  if(!target||!this.voice.canSignal(roomKey(ref),session.connectionId,signal.to)||!await this.recipient(target))throw new CollabError('VOICE_TARGET','Voice peer is not available',400);
+  // Admission can end while the authority request is in flight.
+  if(session.invalid||target.invalid||!this.voice.canSignal(roomKey(ref),session.connectionId,signal.to))throw new CollabError('VOICE_TARGET','Voice peer is not available',400);
+  await this.control(target,'voice_signal',id,{...signal,from:session.connectionId});
+ }
+ private track(task:Promise<void>){this.tasks.add(task);void task.catch(()=>{}).finally(()=>this.tasks.delete(task));}
+ private detach(session:Session){
+  session.invalid=true;clearTimeout(session.authTimer);clearTimeout(session.expires);
+  if(!this.sessions.delete(session))return;
+  this.voice.leaveVoice(session.connectionId);const followers=this.awareness.remove(session.connectionId);
+  if(!session.ref||this.closing)return;
+  const ref=session.ref;
+  this.track((async()=>{
+   for(const other of this.matching(ref))if(followers.includes(other.connectionId)&&await this.recipient(other))await this.control(other,'follow','server',{connectionId:other.connectionId,targetConnectionId:null});
+   await this.roster(ref);
+  })());
  }
  private async sync(session:Session,id:string,state:SceneState,vector?:Uint8Array){
   const bytes=Y.encodeStateAsUpdate(state.doc,vector);if(bytes.length>MAX_SNAPSHOT_BYTES)throw new SnapshotHistoryLimitError();
@@ -67,7 +154,7 @@ export class Rooms {
   for(let index=0;index<count;index++)await this.control(session,'sync_chunk',id,{documentId:state.documentId,sequence:state.sequence,index,count,totalBytes:bytes.length,data:Buffer.from(bytes.subarray(index*chunk,(index+1)*chunk)).toString('base64')});
  }
  private committed=({ref,receipt,update}:{ref:SceneRef;receipt:MutationReceipt;update:Uint8Array})=>{
-  const task=(async()=>{for(const session of this.sessions){if(session.ref?.sceneId!==ref.sceneId||!session.principal||session.invalid)continue;try{
+  const task=(async()=>{for(const session of this.sessions){if(!session.ref||roomKey(session.ref)!==roomKey(ref)||!session.principal||session.invalid)continue;try{
    // Fresh read authority also protects recipients; cached room access is never sufficient.
    const state=await this.store.read(ref,session.principal);state.doc.destroy();
    await this.send(session,encodeFrame({channel:3,updateId:receipt.requestId,payload:update}));
@@ -84,8 +171,8 @@ export class Rooms {
   await this.control(session,'error',id,{code:fault.code,message:fault.message,retryable:fault.retryable});
   if(fault.code==='UNAUTHENTICATED'||fault.code==='FORBIDDEN')this.invalidate(session,fault.code);
  }
- private invalidate(session:Session,reason:string){if(session.invalid)return;session.invalid=true;if(session.socket.readyState===WebSocket.OPEN){session.socket.send(JSON.stringify({type:'resync_required',requestId:'server',payload:{reason}}));session.socket.close(1013,reason);const timer=setTimeout(()=>session.socket.terminate(),1000);timer.unref();}}
+ private invalidate(session:Session,reason:string){if(session.invalid)return;this.detach(session);if(session.socket.readyState===WebSocket.OPEN){session.socket.send(JSON.stringify({type:'resync_required',requestId:'server',payload:{reason}}));session.socket.close(1013,reason);const timer=setTimeout(()=>session.socket.terminate(),1000);timer.unref();}}
  invalidateScene(sceneId:string,reason:string){for(const session of this.sessions)if(session.ref?.sceneId===sceneId)this.invalidate(session,reason);}
  invalidateWorkspace(workspaceId?:string,reason='ACL_CHANGED'){for(const session of this.sessions)if(!workspaceId||session.ref?.workspaceId===workspaceId)this.invalidate(session,reason);}
- async close(){this.store.off('committed',this.committed);for(const session of this.sessions){session.invalid=true;session.socket.terminate();clearTimeout(session.authTimer);clearTimeout(session.expires);}await Promise.allSettled([...this.tasks,...[...this.sessions].map(s=>s.chain)]);this.sessions.clear();}
+ async close(){this.closing=true;clearInterval(this.heartbeat);this.store.off('committed',this.committed);const sessions=[...this.sessions];for(const session of sessions){this.detach(session);session.socket.terminate();}await Promise.allSettled([...this.tasks,...sessions.map(s=>s.chain)]);}
 }
