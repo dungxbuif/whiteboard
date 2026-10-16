@@ -25,3 +25,5 @@ Definitive authority rejection clears the retained guest token immediately; tran
 Legacy image uploads use the same capability and PUT flow. Their blobs remain until the HTTP content save is confirmed. The local `legacy-v1` recovery namespace is never replayed into a server Yjs document after promotion.
 
 Recovery JSON format is `devtool-collab-recovery-v1`, with `encoding=base64`. `currentBase64` stores the current Yjs update. Each scoped entry can contain `snapshotBase64`, `pending[].updateBase64` with original request metadata, a canvas `draft`, and `blobs[].blobBase64` with file metadata and actual byte size. Decode these fields as bytes, not UTF-8 text. Credentials are excluded.
+
+If you leave the canvas while an image upload is pending, its late completion cannot write to the closed canvas or clear its recovery. The original image and draft remain scoped to that scene and identity; reopening under fresh authority retries them. This also applies to the explicit legacy fallback. Overlapping autosend and upload-completion flushes share one in-flight send and acknowledgement deadline.

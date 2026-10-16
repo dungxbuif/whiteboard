@@ -3,7 +3,7 @@ import '@excalidraw/excalidraw/index.css';
 import type { AssetReference, NativeElement, SceneContent } from '@collab/contracts';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
 import { CollabProvider, useCollab } from '@/collab/provider';
-import { offlineStore, type PendingBlob } from '@/collab/offline-store';
+import { offlineStore, scopeKey, type PendingBlob } from '@/collab/offline-store';
 import { uploadBlob, type UploadGrant } from '@/collab/assets';
 import { mergeSceneChanges } from '@/collab/scene-diff';
 import { Button } from '@/components/ui/button';
@@ -45,6 +45,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
   const pending = useRef<{ base: SceneContent; desired: SceneContent } | null>(null);
   const lastNative = useRef<SceneContent | null>(null);
   const localProjection = useRef<string | null>(null);
+  const lifetime = useRef(0);
   const rendering = useRef(false), uploading = useRef(false), mounted = useRef(true);
   const { isPresenting, activeSlideIndex, enter, exit, setActiveSlide } = usePresentationStore();
   const canEdit = state.canEdit || (state.status === 'legacy' && legacy?.access === 'edit');
@@ -53,7 +54,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
   const legacyScope = { ...sceneRef, principalId: collab.principal.current.id, documentId: 'legacy-v1' };
   const assetScope = state.status === 'legacy' ? legacyScope : transport.scope;
   const currentRef = useRef(collab); currentRef.current = collab;
-  useEffect(() => { mounted.current = true; void import('@excalidraw/excalidraw').then(setModule); return () => { mounted.current = false; }; }, []);
+  useEffect(() => { const owner = ++lifetime.current; mounted.current = true; void import('@excalidraw/excalidraw').then(value => { if (mounted.current && lifetime.current === owner) setModule(value); }); return () => { mounted.current = false; lifetime.current++; }; }, [transport]);
   useEffect(() => {
     if (!api || !module) return;
     if (localProjection.current === signature(renderedContent)) return;
@@ -81,18 +82,25 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     return () => { current = false; };
   }, [api, renderedContent.files, state.status]);
   async function retryUploads() {
-    const current = currentRef.current;
+    const current = currentRef.current, owner = lifetime.current;
     const isLegacy = current.transport.state.status === 'legacy' && current.legacy?.access === 'edit';
     const scope = isLegacy ? legacyScope : current.transport.scope;
-    const allowed = () => current.transport.state.canEdit || (current.transport.state.status === 'legacy' && useSceneStore.getState().activeScene?.writerMode === 'v1');
+    const allowed = () => {
+      const latest = currentRef.current, activeScene = useSceneStore.getState().activeScene;
+      if (!scope || !mounted.current || owner !== lifetime.current || latest.transport !== current.transport || !current.transport.isActive() || latest.principal.current.id !== scope.principalId || latest.sceneRef.workspaceId !== scope.workspaceId || latest.sceneRef.sceneId !== scope.sceneId) return false;
+      return isLegacy
+        ? current.transport.state.status === 'legacy' && latest.legacy?.access === 'edit' && activeScene?.writerMode === 'v1' && activeScene.id === scope.sceneId && activeScene.workspaceId === scope.workspaceId
+        : current.transport.state.canEdit && !!current.transport.scope && scopeKey(current.transport.scope) === scopeKey(scope);
+    };
     if (!scope || uploading.current || !allowed()) return;
     uploading.current = true; let repeat = false;
     try {
-      const rows = await offlineStore.blobs(scope); setUploads(rows.length);
+      const rows = await offlineStore.blobs(scope); if (!allowed()) return; setUploads(rows.length);
       for (const item of rows) {
         if (!allowed()) return;
         const guest = current.principal.current.kind === 'public';
-        const reference = await uploadBlob(item, assets => current.post<{ urls: Record<string, UploadGrant> }>(guest ? `/public/scenes/${sceneRef.sceneId}/assets/presign-upload` : '/assets/presign-upload', guest ? { assets } : { sceneId: sceneRef.sceneId, assets }));
+        const reference = await uploadBlob(item, assets => current.post<{ urls: Record<string, UploadGrant> }>(guest ? `/public/scenes/${sceneRef.sceneId}/assets/presign-upload` : '/assets/presign-upload', guest ? { assets } : { sceneId: sceneRef.sceneId, assets }), fetch, allowed);
+        if (!allowed()) return;
         refs.current[item.id] = reference;
       }
       if (!allowed()) return;
@@ -101,21 +109,25 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
         const desired = { ...draft.desired, files: { ...draft.desired.files, ...refs.current } };
         if (isLegacy) {
           await offlineStore.saveDraft(scope, desired);
+          if (!allowed()) return;
           useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired);
           await useSceneStore.getState().flushSave();
+          if (!allowed()) return;
           if (useSceneStore.getState().saveStatus !== 'saved') throw new Error('Legacy save is not confirmed; recovery retained.');
         } else {
-          current.applyLocalScene(mergeSceneChanges(draft.base, desired, adapter.content()));
-          await transport.flush();
+          current.applyLocalScene(mergeSceneChanges(draft.base, desired, current.adapter.content()));
+          await current.transport.flush();
         }
+        if (!allowed()) return;
         if (pending.current !== draft) { repeat = true; return; }
         if (isLegacy) await offlineStore.removeDraft(scope);
-        for (const item of rows) await offlineStore.removeBlob(scope, item.id);
+        for (const item of rows) { if (!allowed()) return; await offlineStore.removeBlob(scope, item.id); }
+        if (!allowed()) return;
         pending.current = null;
       }
       setUploads(0); setUploadError('');
-    } catch (error) { if (mounted.current) setUploadError(error instanceof Error ? error.message : 'Upload failed. Bytes retained.'); }
-    finally { uploading.current = false; if (repeat && mounted.current) void retryUploads(); }
+    } catch (error) { if (allowed()) setUploadError(error instanceof Error ? error.message : 'Upload failed. Bytes retained.'); }
+    finally { uploading.current = false; if (repeat && allowed()) void retryUploads(); }
   }
   useEffect(() => {
     if (!assetScope || !canEdit) return;
@@ -125,13 +137,14 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
       if (!pending.current) pending.current = rows.find(row => row.draft)?.draft ?? null;
       for (const row of rows) if (!files.current[row.id]?.dataURL) {
         const dataURL = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(row.blob); });
+        if (!current) return;
         files.current[row.id] = { id: row.id, mimeType: row.mimeType, created: row.created, dataURL };
       }
       if (api) api.addFiles(Object.values(files.current).filter(file => file.dataURL) as never);
       if (current) void retryUploads();
     }).catch(() => setUploadError('Local image recovery could not be read. Export recovery before clearing browser data.'));
     return () => { current = false; };
-  }, [canEdit, api, state.status]);
+  }, [canEdit, api, state.status, transport]);
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLElement && (event.target.isContentEditable || ['INPUT', 'TEXTAREA'].includes(event.target.tagName))) return;
@@ -150,6 +163,9 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     if (isPresenting && api) { const frame = renderedContent.elements.find(e => e.id === slideIds[activeSlideIndex]); if (frame) api.scrollToContent(frame as never, { fitToViewport: true, viewportZoomFactor: 0.8, animate: true, duration: 300 }); }
   }, [isPresenting, activeSlideIndex, JSON.stringify(slideIds), api]);
   async function onChange(elements: readonly unknown[], appState: Record<string, unknown>, incomingFiles: Record<string, CanvasFile>) {
+    const owner = lifetime.current;
+    const stillCurrent = () => mounted.current && lifetime.current === owner && currentRef.current.transport === transport && transport.isActive();
+    if (!stillCurrent()) return;
     files.current = { ...files.current, ...incomingFiles };
     const desired = canonical(elements, appState, refs.current, syncPresentationOrder([...elements], renderedContent.presentationOrder ?? []));
     const firstCallback = lastNative.current === null;
@@ -162,18 +178,20 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     const missing = Object.values(files.current).filter(file => !refs.current[file.id] && file.dataURL?.startsWith('data:') && desired.elements.some(e => e.type === 'image' && e.fileId === file.id));
     try {
       if (missing.length || pending.current) {
-        pending.current = { base: pending.current?.base ?? renderedContent, desired };
+        const draft = { base: pending.current?.base ?? renderedContent, desired };
+        pending.current = draft;
         if (!assetScope) return;
         if (state.status === 'legacy') await offlineStore.saveDraft(assetScope, desired);
         for (const file of missing) {
           const blob = await (await fetch(file.dataURL!)).blob();
-          const item: PendingBlob = { scope: assetScope, id: file.id, mimeType: file.mimeType, created: file.created, blob, draft: pending.current };
+          const item: PendingBlob = { scope: assetScope, id: file.id, mimeType: file.mimeType, created: file.created, blob, draft };
           await offlineStore.putBlob(item);
         }
-        for (const item of await offlineStore.blobs(assetScope)) await offlineStore.putBlob({ ...item, draft: pending.current });
-        setUploads(missing.length); void retryUploads();
+        for (const item of await offlineStore.blobs(assetScope)) await offlineStore.putBlob({ ...item, draft });
+        if (stillCurrent()) { setUploads(missing.length); void retryUploads(); }
       } else if (state.status === 'legacy') {
         await offlineStore.saveDraft(legacyScope, desired);
+        if (!stillCurrent()) return;
         useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired);
         localProjection.current = signature(desired);
       } else { collab.applyLocalScene(mergeSceneChanges(before, desired, adapter.content())); localProjection.current = signature(adapter.content()); }
@@ -190,7 +208,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     <section className="relative min-h-0" aria-label="Excalidraw canvas">
       {Excalidraw ? <Excalidraw excalidrawAPI={setAPI} initialData={normalizeSceneContent(renderedContent)} name={title} viewModeEnabled={!canEdit || isPresenting} onChange={onChange} onPointerUpdate={(value: { pointer: { x: number; y: number } }) => transport.sendAwareness({ cursor: value.pointer })} /> : <p>Loading whiteboard...</p>}
       {isPresenting && <><SlideNavigator activeIndex={activeSlideIndex} onMove={(index, direction) => { if (!canEdit) return; const next = [...slideIds], swap = index + direction; [next[index], next[swap]] = [next[swap], next[index]]; if (state.status === 'legacy') useSceneStore.getState().updatePresentationOrder(sceneRef.workspaceId, sceneRef.sceneId, next); else adapter.reorderPresentation(next); setActiveSlide(swap, next.length); }} onSelect={index => setActiveSlide(index, slideIds.length)} slideIds={slideIds} /><PresentationControls activeIndex={activeSlideIndex} onExit={exit} onNext={() => setActiveSlide(activeSlideIndex + 1, slideIds.length)} onPrevious={() => setActiveSlide(activeSlideIndex - 1, slideIds.length)} slideCount={slideIds.length} /></>}
-      {!isPresenting && canEdit && <AICommandPanel scene={renderedContent} onApplyDiagram={generated => { if (state.status === 'legacy') { const desired = { ...renderedContent, elements: [...renderedContent.elements, ...generated.elements] } as SceneContent; void offlineStore.saveDraft(legacyScope, desired).then(() => useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired)).catch(error => setUploadError(String(error))); } else void collab.applyAgentElements(generated.elements as NativeElement[]).catch(error => setUploadError(String(error))); }} />}
+      {!isPresenting && canEdit && <AICommandPanel scene={renderedContent} onApplyDiagram={generated => { if (state.status === 'legacy') { const desired = { ...renderedContent, elements: [...renderedContent.elements, ...generated.elements] } as SceneContent; void offlineStore.saveDraft(legacyScope, desired).then(() => { if (mounted.current && currentRef.current.transport === transport && transport.isActive() && transport.state.status === 'legacy') useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired); }).catch(error => setUploadError(String(error))); } else void collab.applyAgentElements(generated.elements as NativeElement[]).catch(error => setUploadError(String(error))); }} />}
     </section>
   </main>;
 }

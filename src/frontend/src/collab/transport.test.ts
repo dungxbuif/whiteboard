@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { it, expect } from 'vitest';
+import { it, expect, vi } from 'vitest';
 import * as Y from 'yjs';
 import { decodeFrame, encodeFrame } from '@collab/contracts/protocol';
 import { ExcalidrawAdapter } from './excalidraw-adapter';
@@ -97,4 +97,54 @@ it.each([403, 503])('collab authority status %s clears credentials only for defi
   const store = new OfflineStore(crypto.randomUUID()); let lost = 0;
   const transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter: new ExcalidrawAdapter(), store, grant: async () => { throw { response: { status } }; }, url: 'ws://local', onAccessLost: () => { lost++; } });
   await transport.start(); expect(lost).toBe(status === 403 ? 1 : 0); transport.stop();
+});
+
+it('collab overlapping scheduled and explicit flush owns one frame and no ACK timeout after acknowledgement', async () => {
+  const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
+  const socket = new Socket(), adapter = new ExcalidrawAdapter();
+  const transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter, store, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://local', socket: () => socket as unknown as WireSocket });
+  await transport.start(); socket.dispatchEvent(new Event('open')); synced(socket, server); await tick();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  let release!: () => void; const gate = new Promise<void>(resolve => { release = resolve; });
+  const nextBatch = store.nextBatch.bind(store); let entered!: () => void; const entering = new Promise<void>(resolve => { entered = resolve; });
+  vi.spyOn(store, 'nextBatch').mockImplementation(async (...args) => { entered(); await gate; return nextBatch(...args); });
+  try {
+    const desired = adapter.content(); desired.elements[0].x = 80; adapter.applyLocalScene(desired); await transport.whenDurable();
+    const explicit = transport.flush(); await entering;
+    await vi.advanceTimersByTimeAsync(600); release(); await explicit;
+    // IndexedDB callbacks use real immediates; wait until both contenders finish.
+    await vi.waitFor(() => expect(store.nextBatch).toHaveBeenCalled(), { interval: 1 });
+    await new Promise<void>(resolve => { const tx = indexedDB.open(crypto.randomUUID()); tx.onsuccess = () => { tx.result.close(); resolve(); }; });
+    const row = (await store.pending(scope))[0];
+    socket.receive({ type: 'ack', requestId: row.requestId, payload: { requestId: row.requestId, sequence: '2' } });
+    await vi.waitFor(async () => expect(await store.pending(scope)).toHaveLength(0), { interval: 1 });
+    await vi.advanceTimersByTimeAsync(16000);
+    expect(socket.sent.filter(item => typeof item !== 'string')).toHaveLength(1);
+    expect(socket.readyState).toBe(1);
+  } finally { transport.stop(); vi.useRealTimers(); vi.restoreAllMocks(); }
+});
+
+it('collab stopping transport immediately revokes edit eligibility', async () => {
+  const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
+  const socket = new Socket(), transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter: new ExcalidrawAdapter(), store, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://local', socket: () => socket as unknown as WireSocket });
+  await transport.start(); socket.dispatchEvent(new Event('open')); synced(socket, server); await tick();
+  expect(transport.state.canEdit).toBe(true); transport.stop(); expect(transport.state.canEdit).toBe(false);
+});
+
+it('collab occupied send slot still waits for caller-local durability', async () => {
+  const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
+  const socket = new Socket(), adapter = new ExcalidrawAdapter();
+  const transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter, store, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://local', socket: () => socket as unknown as WireSocket });
+  await transport.start(); socket.dispatchEvent(new Event('open')); synced(socket, server); await tick();
+  let releaseBatch!: () => void, releaseDurable!: () => void;
+  const batchGate = new Promise<void>(resolve => { releaseBatch = resolve; });
+  const durableGate = new Promise<void>(resolve => { releaseDurable = resolve; });
+  const next = store.nextBatch.bind(store), enqueue = store.enqueuePending.bind(store);
+  vi.spyOn(store, 'nextBatch').mockImplementation(async (...args) => { await batchGate; return next(...args); });
+  const first = transport.flush(); await tick();
+  vi.spyOn(store, 'enqueuePending').mockImplementation(async (...args) => { await durableGate; return enqueue(...args); });
+  const desired = adapter.content(); desired.elements[0].x = 99; adapter.applyLocalScene(desired);
+  let returned = false; const second = transport.flush().then(() => { returned = true; });
+  try { await tick(); expect(returned).toBe(false); releaseDurable(); await second; expect(await store.pending(scope)).toHaveLength(1); }
+  finally { releaseDurable(); releaseBatch(); await first; transport.stop(); vi.restoreAllMocks(); }
 });

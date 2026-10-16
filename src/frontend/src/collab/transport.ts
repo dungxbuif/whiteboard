@@ -30,6 +30,7 @@ export class CollabTransport {
   private flushTimer?: ReturnType<typeof setTimeout>;
   private ackTimer?: ReturnType<typeof setTimeout>;
   private sent = new Set<string>();
+  private flushing?: { generation: number };
   private listeners = new Set<() => void>();
   private controls = new Set<(control: Control) => void>();
   private chain: Promise<void> = Promise.resolve();
@@ -42,6 +43,7 @@ export class CollabTransport {
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   subscribeControl = (listener: (control: Control) => void) => { this.controls.add(listener); return () => { this.controls.delete(listener); }; };
   getSnapshot = () => this.state;
+  isActive = () => !this.stopped;
   private set(update: Partial<TransportState>) { this.state = { ...this.state, ...update }; this.listeners.forEach(listener => listener()); }
   private fail(error: unknown) { this.synced = false; this.set({ status: 'degraded', canEdit: false, recovery: true, error: error instanceof Error ? error.message : 'Collaboration unavailable' }); }
   private offline = () => { this.socket?.close(); this.synced = false; this.set({ status: 'offline', canEdit: this.admitted && this.access === 'edit' }); };
@@ -59,7 +61,7 @@ export class CollabTransport {
   private async connect() {
     if (this.stopped) return;
     if (!navigator.onLine) { this.set({ status: 'offline', canEdit: this.admitted && this.access === 'edit' }); return; }
-    const generation = ++this.generation; this.synced = false; this.incoming = []; this.incomingBytes = 0; this.sent.clear(); clearTimeout(this.ackTimer);
+    const generation = ++this.generation; this.flushing = undefined; this.synced = false; this.incoming = []; this.incomingBytes = 0; this.sent.clear(); clearTimeout(this.ackTimer);
     this.set({ status: 'connecting', canEdit: false });
     try {
       const grant = await this.options.grant(); if (this.stopped || generation !== this.generation) return;
@@ -171,14 +173,21 @@ export class CollabTransport {
   private scheduleFlush() { if (this.flushTimer) return; this.flushTimer = setTimeout(() => { this.flushTimer = undefined; void this.flush().catch(error => this.fail(error)); }, SEND_INTERVAL_MS); }
   async whenDurable() { await this.durable; if (this.durableError) throw this.durableError; }
   async flush() {
-    await this.whenDurable();
-    const scope = this.scope, generation = this.generation;
-    if (!scope || !this.synced || this.access !== 'edit' || this.socket?.readyState !== 1 || this.sent.size) return;
-    const row = await this.options.store.nextBatch(scope, MAX_FRAME_BYTES - 256);
-    if (!row || !this.current(generation) || !this.synced || this.access !== 'edit') return;
-    const frame = encodeFrame({ channel: 3, updateId: row.requestId, payload: new Uint8Array(row.update) });
-    this.sent.add(row.requestId); this.socket!.send(new Uint8Array(frame));
-    this.ackTimer = setTimeout(() => { if (this.current(generation)) this.socket?.close(); }, 15000);
+    const generation = this.generation;
+    if (this.stopped) return;
+    if (this.flushing?.generation === generation) { await this.whenDurable(); return; }
+    const reservation = { generation }; this.flushing = reservation;
+    try {
+      await this.whenDurable();
+      const scope = this.scope;
+      if (!this.current(generation) || !scope || !this.synced || this.access !== 'edit' || this.socket?.readyState !== 1 || this.sent.size) return;
+      const row = await this.options.store.nextBatch(scope, MAX_FRAME_BYTES - 256);
+      if (!row || this.flushing !== reservation || !this.current(generation) || !this.scope || scopeKey(scope) !== scopeKey(this.scope) || !this.synced || this.access !== 'edit' || this.socket?.readyState !== 1 || this.sent.size) return;
+      const frame = encodeFrame({ channel: 3, updateId: row.requestId, payload: new Uint8Array(row.update) });
+      this.sent.add(row.requestId); this.socket.send(new Uint8Array(frame));
+      clearTimeout(this.ackTimer);
+      this.ackTimer = setTimeout(() => { if (this.current(generation) && this.sent.has(row.requestId)) this.socket?.close(); }, 15000);
+    } finally { if (this.flushing === reservation) this.flushing = undefined; }
   }
   sendAwareness(payload: { cursor?: { x: number; y: number }; selectedIds?: string[] }) {
     if (Date.now() - this.lastAwareness < 50) return;
@@ -201,5 +210,5 @@ export class CollabTransport {
       blobs: await Promise.all((await this.options.store.blobs(scope)).map(async ({ blob, ...metadata }) => ({ ...metadata, size: blob.size, blobBase64: await encodeRecoveryBlob(blob) }))),
     }))) };
   }
-  stop() { window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online); this.stopped = true; this.generation++; this.options.adapter.doc.off('update', this.localUpdate); clearTimeout(this.retryTimer); clearTimeout(this.refreshTimer); clearTimeout(this.flushTimer); clearTimeout(this.ackTimer); this.socket?.close(); }
+  stop() { window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online); this.stopped = true; this.generation++; this.flushing = undefined; this.synced = false; this.admitted = false; this.access = 'view'; this.set({ status: 'offline', canEdit: false }); this.options.adapter.doc.off('update', this.localUpdate); clearTimeout(this.retryTimer); clearTimeout(this.refreshTimer); clearTimeout(this.flushTimer); clearTimeout(this.ackTimer); this.socket?.close(); }
 }
