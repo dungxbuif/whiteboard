@@ -1,0 +1,5 @@
+node_modules/
+collab/dist/
+packages/collab-contracts/dist/
+packages/diagram-kit/dist/
+mcp/dist/

@@ -1,0 +1,13 @@
+{
+  "name": "devtool-workspaces",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["frontend", "collab", "mcp", "packages/collab-contracts", "packages/diagram-kit"],
+  "scripts": {
+    "build:contracts": "npm run build --workspace @collab/contracts",
+    "test": "npm test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspace ./frontend"
+  },
+  "devDependencies": {"typescript": "7.0.2", "vitest": "4.1.8", "vite":"7.3.5", "jsdom":"29.1.1", "react":"19.2.7", "react-dom":"19.2.7", "@types/react":"19.2.16", "@types/react-dom":"19.2.3", "@types/node": "25.9.1"}
+}
