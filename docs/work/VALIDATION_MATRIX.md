@@ -80,11 +80,11 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 
 | Requirement | Tasks | Required proof | Status | Plan |
 | --- | --- | --- | --- | --- |
-| V2-ACCESS | A1–A4 | role/tenant negatives, migration, concurrent invite acceptance, scope/revoke | planned | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
-| V2-SYNC | B1–B4 | malformed protocol, durable ACK/replay, convergence, offline revocation, voice cap | planned | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
+| V2-ACCESS | A1–A4 | A1: 79 backend tests with real DB; review pending. Invite/public/asset grants remain pending | in_progress | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
+| V2-SYNC | B1–B4 | malformed protocol, durable ACK/replay, convergence, offline revocation, voice cap | in_progress | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
 | V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 access workflows pending | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
-| V2-MCP | D1–D4 | scopes, discovery, all preset fixtures, stale/retry mutations, export isolation | planned | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
-| V2-RELEASE | E1–E3 | real-stack E2E/load, host inventory, cross-network audio, restore/rollback, docs | planned | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
+| V2-MCP | D1–D4 | scopes, discovery, all preset fixtures, stale/retry mutations, export isolation | in_progress | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
+| V2-RELEASE | E1–E3 | Host inventory recorded in Homelab 42cdf59; real-stack E2E/load, cross-network audio and restore/rollback pending | in_progress | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
 
 C1 execution evidence: [verification](verification/collaboration-v2.md). Remaining v2 slices are in progress; existing v1 evidence is not reused as v2 proof.
 

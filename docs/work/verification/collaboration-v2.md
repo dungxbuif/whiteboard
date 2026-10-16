@@ -17,3 +17,27 @@ Date: 2026-10-16. Branch: codex/collaboration-v2. Production remains v1.
 - UI fixtures do not demonstrate live ACL, DB or collab correctness. Those remain A/B/E work.
 
 Final C1 verification: 2026-10-16, frontend build exit 0; 33 unit tests passed; 14 Chromium tests passed including four inspected golden image comparisons (7.1s). No production deployment performed.
+
+## A1 — authoritative workspace and scene access
+
+Implementation commit `309bf08` plus fix `eaa3c7d`; task review passed after one fix round. Production remains v1.
+
+- Targeted access suite: 16 tests passed against disposable local PostgreSQL 15. Full backend JSON result: 79 tests passed, 0 failed, 0 test skips; four packages have no tests.
+- Proof includes owner backfill and legacy member-to-editor migration, UUID/alias compatibility, unique aliases, role matrix, current-membership overrides, owner protection, deleted resource denial, list/search isolation, protected folder descendants and scene-scoped assets.
+- Two database connections demonstrate authority row contention: a competing revocation cannot pass the lock during the authorized write transaction; rollback and subsequent denial are checked.
+- Regression tests first reproduced incorrect alias handoff, cross-scene asset reads and missing status invalidation. Final targeted/full suites and diff whitespace checks passed.
+- API/ERD/ADR document branch behavior. Public invite/share/room guides and browser role controls await A2–A4/C2 integration; no complete collaboration or production claim follows from A1.
+- Remaining integration: return effective role/access to the frontend, use publicId aliases in App routing, implement public/agent principal resolvers and replace owner-only v1 Socket.IO.
+- Review reproduced an unbounded request-body read holding workspace authority. Fix buffers bounded input before DB/locks (10s deadline, 26MiB scene envelope, 1MiB metadata). A real stalled TCP client no longer blocks owner revocation and receives 408; 14 scoped tests pass. Independent re-review approved the fix.
+
+## D2 — native diagram compiler
+
+Implementation commit `8b2fd90`, task review pending. All 19 presets are covered by 39 passing compiler/validation tests and a strict TypeScript 7 build. Tests cover stable/disjoint IDs, bindings, finite geometry, canonical node overlap, theme/direction variants, compound group boundaries, label placement, Unicode/lengths and explicit rejection of unsupported Mermaid syntax.
+
+The package produces editable native elements and passes the shared scene validator. Plain Node cannot directly import the installed Excalidraw renderer, so the implementation has a bounded native normalizer and injected official browser conversion adapter. D4 must prove actual renderer parity and exports. No live MCP or browser collaboration claim is made here.
+
+Dependency/provenance decisions, copied licenses and identical human/public Markdown guides are recorded. Scoped npm audit found 14 inherited advisories in the Excalidraw subtree (6 high, 6 moderate, 2 low), none for ELK; browser dependency triage remains a release check.
+
+## Workspace migration regression check
+
+After B1 unified Vite/React/jsdom dependency resolution, frontend unit tests again passed (33). Controller reran the two dashboard Chromium suites: 14 passed in 8.0s, including four unchanged visual baselines. The runner emitted its existing conflicting NO_COLOR/FORCE_COLOR warning; there were no application test failures.

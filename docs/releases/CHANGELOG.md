@@ -12,6 +12,8 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Access A1 (branch only): current workspace/scene role enforcement, short public aliases retaining UUID links, owner-only membership controls, scene asset isolation and transactional ACL invalidation. Bounded request reads prevent a stalled client from holding authority and blocking revocation. [Evidence](../work/verification/collaboration-v2.md).
+
 - Dashboard C1 (branch only, not deployed): ported original dashboard colors and layout; responsive navigation, scoped light/dark portals, native previews and validated scene import. [Guide](../user/dashboard.md), [verification](../work/verification/collaboration-v2.md).
 
 - Planning only (2026-10-16): approved collaboration-v2/legacy-dashboard design and prepared [five implementation plans](../superpowers/plans/2026-10-16-collaboration-v2.md), covering ACL, durable Yjs, scoped MCP and editable diagrams. These features are not yet shipped.

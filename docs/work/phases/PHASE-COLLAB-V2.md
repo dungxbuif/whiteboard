@@ -8,7 +8,7 @@ updated: 2026-10-16
 
 # Collaboration v2, legacy dashboard and native MCP
 
-Design and implementation approved by user. C1 is implemented and under final verification in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
+Design and implementation approved by user. C1 and A1 are verified/reviewed in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
 
 ## Trace
 
@@ -16,18 +16,18 @@ Design and implementation approved by user. C1 is implemented and under final ve
 - [Programme / task index](../../superpowers/plans/2026-10-16-collaboration-v2.md)
 - [Backlog](../BACKLOG.md), [roadmap](../ROADMAP.md), [validation](../VALIDATION_MATRIX.md)
 - [Current release checklist](../../operations/RELEASE_CHECKLIST.md), [changelog](../../releases/CHANGELOG.md)
-- Planned execution evidence: `docs/work/verification/collaboration-v2.md` (created by E1).
-- Planned ADRs: 0009 access, 0010 Yjs writer, 0011 MCP; create during owning tasks.
+- [Execution evidence](../verification/collaboration-v2.md).
+- ADRs: 0009 access and0010 Yjs writer created;0011 MCP remains pending;0012 records dashboard presentation.
 
 ## Execution slices
 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
-| A | A1–A4 | A1 implementing; remaining tasks pending | in_progress |
-| B | B1–B4 | B1 implementing; remaining tasks pending | in_progress |
+| A | A1–A4 | A1 verified; A2 implementing; A3/A4 pending | in_progress |
+| B | B1–B4 | B1 review; remaining tasks pending | in_progress |
 | C | C1–C2 | C1 implemented; C2 pending A | in_progress |
-| D | D1–D4 | D2 implementing; remaining tasks pending | in_progress |
-| E | E1–E3 | integration/load proof, VM100 canary/rollback, docs | in_review |
+| D | D1–D4 | D2 review fix; remaining tasks pending | in_progress |
+| E | E1–E3 | host inventory done; integration/load/canary/rollback pending | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;
 each owns files, public interfaces, failing proof, implementation, checks,

@@ -93,9 +93,10 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | --- | --- | --- | --- | --- | --- |
 | COLLAB-V2 | phase | high-risk | in_progress | Approved legacy dashboard, ACL/invites/public edit, Yjs/custom socket, native MCP and diagram catalog | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
 
-Design and implementation authorized; C1 dashboard is verified locally. Task IDs A1–E3 are
-defined in the subsystem plans. User confirmed org means workspace. Actual NetBird/TURN topology remains
-a release preflight item rather than an assumed implementation.
+Design and implementation authorized; C1 dashboard and A1 authority are verified locally.
+A2 is implementing; B1/D2 are under review. Task IDs A1–E3 are defined in the subsystem plans.
+User confirmed org means workspace. Actual NetBird/TURN topology was recorded in Homelab
+commit42cdf59; real two-network audio and full v2 rollout remain unverified.
 
 ### Epic E01: Self-hosted Dashboard
 

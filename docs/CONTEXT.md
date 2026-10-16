@@ -12,7 +12,7 @@ updated: 2026-10-16
 
 - **Active Phase:** Execution & Test — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
 - **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are authorized and executing; runtime is still the existing v1 release.
-- **Next Work:** C1 is locally verified. Agents implement A1, B1 and D2; continue dependency slices and integrate before deployment. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
+- **Next Work:** C1 and A1 are locally verified/reviewed. A2 invitations is implementing; B1 protocol and D2 compiler are in task review. Continue dependency slices before deployment. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
 
 ## Project
 
@@ -42,6 +42,8 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Final release sign-off still requires checking and rotating any previously exposed JWT or provider credentials; see [auth secret rotation runbook](operations/auth-secrets-rotation.md).
 
 ## Recent Changes
+
+- 2026-10-16: A1 authority/aliases/migration committed and reviewed, including a real stalled-request regression protecting owner revocation. B1 workspace/protocol and D2 catalog are implemented under review; frontend33 unit tests/build and14 browser tests pass after dependency migration. [Evidence](work/verification/collaboration-v2.md). Homelab commit42cdf59 records actual topology and recovery of the existing v1 frontend; no v2 deployment.
 
 - 2026-10-16: Implementation started in codex/collaboration-v2. User removed the monochrome override; preserve the old dashboard's complete style, including colored accents. Baseline: 59 Go tests and 19 frontend unit tests passed.
 
