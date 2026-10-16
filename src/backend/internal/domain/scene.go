@@ -9,6 +9,8 @@ import (
 )
 
 type Scene struct {
+	Access         string          `json:"access,omitempty" gorm:"-"`
+	Owner          bool            `json:"owner" gorm:"-"`
 	WriterMode     string          `json:"writerMode,omitempty" gorm:"not null;default:v1"`
 	ContentPatch   bool            `json:"-" gorm:"-"`
 	ID             uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`

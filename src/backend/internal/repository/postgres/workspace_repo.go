@@ -44,7 +44,7 @@ func (r *WorkspaceRepository) Save(ctx context.Context, w *domain.Workspace) err
 
 func (r *WorkspaceRepository) ListForUser(ctx context.Context, userID uuid.UUID) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
-	if err := accessDB(ctx, r.db).Where("EXISTS (SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id AND u.deleted_at IS NULL WHERE m.workspace_id = workspaces.id AND m.user_id = ?)", userID).Find(&workspaces).Error; err != nil {
+	if err := accessDB(ctx, r.db).Select("workspaces.*, (SELECT m.role FROM workspace_members m WHERE m.workspace_id=workspaces.id AND m.user_id=?) AS role", userID).Where("EXISTS (SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id AND u.deleted_at IS NULL WHERE m.workspace_id = workspaces.id AND m.user_id = ?)", userID).Find(&workspaces).Error; err != nil {
 		return nil, fmt.Errorf("failed to list workspaces: %w", err)
 	}
 	return workspaces, nil

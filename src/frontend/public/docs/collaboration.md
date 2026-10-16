@@ -1,48 +1,34 @@
-# Workspace invitations — Collaboration v2
+# Joining and sharing a workspace
 
-Status: implemented on the development branch; deployment and browser invitation controls are pending.
+Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. Live guest editing and session revocation still require the B3 collaboration adapter and real-stack release verification.
 
-Owners create an email-bound editor or viewer invitation and copy the `/invite/:token` link to the recipient. The app sends no email. A link works once and expires exactly seven days after creation; accepting at the expiry timestamp fails. Owners can list pending metadata and revoke invitations. A list cannot recover the raw link.
+## Invite someone
 
-Existing account: log in with the invited email, then accept. New account: register with a matching email, name and password; the account, personal workspace and invited membership commit together. Email is trimmed and lowercased. Passwords require at least eight characters and at most 72 UTF-8 bytes. A typed email and link do not establish verified email ownership. Existing passwords are never changed by invitation registration. A lower-role invitation never reduces an existing membership.
+1. Open your workspace and choose **Members** in the sidebar. Only owners see workspace settings.
+2. Select **Invite member**, enter the person's email, and choose **Editor** or **Viewer**.
+3. Select **Create invitation**, then **Copy invitation**. Send the link yourself: the app does not send email.
 
-## Agent-readable API
+Save the link when you create it. The invitation list shows email, role and expiry, but cannot recover the secret URL. You can revoke an unused invitation from **Pending invitations**.
 
-All paths begin `/api/v1`. Login JWTs remain required for authenticated routes. Workspace route IDs accept UUIDs or public aliases; invitation management takes workspace scope from the path.
+An invitation works once and expires seven days after creation. Existing users sign in with the invited email and select **Accept invitation**. New users select **Create account with invitation**, enter the matching email, display name and a password with at least eight characters and at most 72 UTF-8 bytes, and join during registration. The server creates their personal workspace and invited membership together. Registering with an existing email does not reset its password: sign in instead. An invitation does not mark the email address as verified.
 
-| Method and route | Authorization | Request | Success |
-| --- | --- | --- | --- |
-| POST `/workspaces/{id}/invitations` | Owner | `{email,role:"editor"\|"viewer"}` | 201 `{invitation,inviteUrl}` |
-| GET `/workspaces/{id}/invitations` | Owner | none | 200 pending metadata array |
-| DELETE `/workspaces/{id}/invitations/{inviteId}` | Owner | none | 204 |
-| POST `/invitations/accept` | Login | `{token}` | 200 `{workspaceId,userId,role,createdAt}` |
-| POST `/invitations/register` | Public, valid invite | `{token,email,password,name}` | 201 User; then use existing password login |
+If acceptance fails, check the signed-in email. Ask the owner for a new link if it expired, was revoked or was already used. The invitation stays in the current URL while you sign in; successful acceptance replaces that URL and clears the transient invitation screen. It is never stored with the account credentials.
 
-Metadata: `id`, `workspaceId`, `email`, `role`, `inviterId`, `createdAt`, `expiresAt`, optional `acceptedAt`/`revokedAt`. Pending listing excludes consumed, revoked and expired invitations. Only creation returns a raw token URL. No API returns a token hash or password hash.
+## Manage access
 
-Errors are `{code,message,requestId}`. 400 invalid input/link or generic registration rejection; 401 login required; 403 wrong email or prohibited operation; 404 inaccessible workspace; 410 expired invitation; 413 oversized input; 408 stalled input; 503 storage/authority unavailable. Registration errors do not disclose whether an account exists. DTOs reject unknown fields and trailing JSON; JSON body limit is 4 KiB, with a ten-second prebuffer deadline before authority locking.
+Owners can change a member between **Editor** and **Viewer**, remove a member, or apply a scene override. The owner cannot be removed or demoted. Member rows currently use account IDs returned by the API.
 
-Runtime `FRONTEND_URL` must be an HTTP(S) origin without credentials, a path prefix, query or fragment; optional trailing slash is accepted.
+Editors create and change content; viewers have reading controls. A scene override can grant editor access to a workspace viewer or restrict a workspace editor to viewing that scene. Overrides require current membership and disappear when membership is removed. They never grant permission management. In **Members**, choose a scene from the loaded scene list, then choose its member override; **Inherit workspace role** removes the override. The selector applies changes explicitly and does not claim to display existing overrides.
 
-## Public scene links and room sessions (A3, release pending)
+## Share one scene
 
-Owner routes require login JWT and X-Workspace-ID. IDs accept UUIDs or public aliases.
+1. As the workspace owner, open a scene's action menu and select **Share**.
+2. Create a **View link** or **Edit link**. Each can have its own password (at least six characters and at most 72 UTF-8 bytes) and expiry.
+3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata only.
+4. Select **Revoke** beside the link to stop future access. Other links remain independent.
 
-| Method and route | Input | Output |
-| --- | --- | --- |
-| GET `/scenes/{id}/share-links` | none | `{id,access,active,expiresAt}[]` |
-| POST `/scenes/{id}/share-links` | `{access:"view"\|"edit",password?,expiresAt?}` | `{id,access,active,expiresAt,token}`; raw token once |
-| DELETE `/scenes/{id}/share-links/{linkId}` | none | 204 |
-| POST `/public/scene-session` | `{token,password?,displayName?}` | SceneSession |
-| POST `/scenes/{id}/room-token` | bearer login or scene-session | `{token,expiresAt,sceneSession?}` |
-| POST `/public/scenes/{token}` | legacy `{password}` | read-only scene |
+A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then holds a scoped, short-lived scene session in memory. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
 
-SceneSession: `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. Public access is exactly one scene. Edit guests require a trimmed 1–100 character display name. Passwords require at least six characters and at most 72 UTF-8 bytes. Expiry is a future RFC3339 timestamp. Link metadata never exposes credentials or hashes. Legacy GET ignores password query parameters; use POST JSON.
+The current public edit screen shows a read-only snapshot while live collaboration is awaiting its adapter. Actual editing is enabled only after room admission in the B3 integration. Renewal, live revocation, offline replay and real WebSocket verification are release gates, not represented as completed by the management UI tests. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
 
-Room refresh validates current membership/link and scene/workspace status. For guests, it returns a renewed sceneSession with the same guest ID; replace both credentials before expiry. Credentials last at most ten minutes and never outlive link expiry. Expired sessions require link/password exchange. Password/link changes invalidate old sessions. A room token is not a login or scene-session token.
-
-Room JWT: HS256 only; iss whiteboard-api; aud whiteboard-collab; purpose room; sub=principalId; principalType user|public; principalId, grantId, displayName, workspaceId, sceneId, access view|edit, aclVersion decimal string, iat/exp/jti. Public grantVersion is the decimal bigint link revision and principalId starts guest:. User grantId is membership:<workspace UUID>:<user UUID>; public grantId is the link UUID. Scene-session aud is whiteboard-scene-session and purpose scene-session. Go and collab require dedicated COLLAB_JWT_SECRET, at least 32 bytes and distinct from JWT_SECRET.
-
-Errors retain `{code,message,requestId}`: 400 invalid input, 401 password/session challenge, 403 forbidden, 404 inaccessible/revoked/expired resource, 413 oversized JSON, 503 unavailable authority. Body limit is 4 KiB. Clients must keep public-session credentials separate from their login credential and must not log them. Browser sharing/editor controls and runtime integration are pending.
-
-Browser credential isolation: public scene reads use POST `/public/scenes/{token}` with JSON `{password?}`, no account Authorization header and no password query. A public401 does not clear `auth_token`. Scene-session credentials remain separate from account login credentials. Locally verified; deployment pending.
+Agent API contract: POST `/api/v1/invitations/accept` accepts `{token}` with account bearer. POST `/api/v1/invitations/register` accepts `{token,email,name,password}` without bearer. POST `/api/v1/public/scene-session` accepts `{token,password?,displayName?}` without account bearer and returns `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. POST `/api/v1/public/scenes/:token` accepts `{password?,displayName?}` for the initial snapshot. Use the scoped session bearer only for `/api/v1/scenes/:sceneId/room-token`; never store it as the account login token. Share lists contain `{id,access,active,expiresAt}` only; the create response additionally contains a one-time token. Workspace responses include current `role`; authenticated scene responses include effective `access` and `owner`.

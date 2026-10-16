@@ -10,10 +10,10 @@ export const publicApi = axios.create({
 
 export type PublicScene = { title: string; content: SceneContent };
 
-export async function readPublicScene(token: string, password = ""): Promise<PublicScene> {
+export async function readPublicScene(token: string, password = "", displayName = ""): Promise<PublicScene> {
   const response = await publicApi.post<PublicScene>(
     `/public/scenes/${encodeURIComponent(token)}`,
-    password ? { password } : {},
+    { ...(password ? { password } : {}), ...(displayName ? { displayName } : {}) },
   );
   return response.data;
 }

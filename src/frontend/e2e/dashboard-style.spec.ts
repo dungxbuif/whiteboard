@@ -2,8 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 
 test.use({ reducedMotion: "reduce" });
 
-const workspace = { id: "workspace-style", name: "Design studio", ownerId: "user-style", createdAt: "2026-10-16T00:00:00Z" };
-const scene = { id: "scene-style", workspaceId: workspace.id, folderId: null, title: "System architecture", content: { elements: [], appState: {}, files: {} }, contentVersion: 1, isStarred: true, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z" };
+const workspace = { id: "workspace-style", name: "Design studio", ownerId: "user-style", role: "owner", createdAt: "2026-10-16T00:00:00Z" };
+const scene = { id: "scene-style", workspaceId: workspace.id, folderId: null, title: "System architecture", access: "edit", owner: true, content: { elements: [], appState: {}, files: {} }, contentVersion: 1, isStarred: true, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z" };
 
 async function setup(page: Page, options: { longName?: boolean; empty?: boolean } = {}) {
   let currentScene = scene;

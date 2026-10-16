@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import useFolderStore, { buildFolderTree, type FolderNode } from "@/store/folder-store";
+import useWorkspaceStore from "@/store/workspace-store";
 import useSearchStore from "@/store/search-store";
 
 function TreeItem({ node }: { node: FolderNode }) {
@@ -44,6 +45,7 @@ function TreeItem({ node }: { node: FolderNode }) {
 }
 
 export function FolderTree() {
+  const role = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === state.activeWorkspaceId)?.role);
   const folders = useFolderStore((state) => state.folders);
   const setCurrentFolderId = useFolderStore((state) => state.setCurrentFolderId);
   const setView = useSearchStore((state) => state.setView);
@@ -57,9 +59,9 @@ export function FolderTree() {
       <Button className="justify-start" onClick={() => setView("starred")} type="button" variant="ghost">
         <Star /> Starred
       </Button>
-      <Button className="justify-start" onClick={() => setView("trash")} type="button" variant="ghost">
+      {role === "owner" && <Button className="justify-start" onClick={() => setView("trash")} type="button" variant="ghost">
         <Trash2 /> Trash
-      </Button>
+      </Button>}
       {tree.length ? <ul>{tree.map((node) => <TreeItem key={node.id} node={node} />)}</ul> : (
         <p className="px-2 py-3 text-sm text-muted-foreground">No folders yet</p>
       )}

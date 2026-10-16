@@ -1,9 +1,9 @@
+import { navigate } from "@/lib/router";
 import { FilePenLine, Folder, RotateCcw, Star, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import useFolderStore from "@/store/folder-store";
-import useSceneStore from "@/store/scene-store";
 import useSearchStore, { SEARCH_VIEW_TRASH, type SearchItem } from "@/store/search-store";
 import useWorkspaceStore from "@/store/workspace-store";
 
@@ -13,7 +13,7 @@ function SearchResultCard({ item }: { item: SearchItem }) {
   const restore = useSearchStore((state) => state.restore);
   const setCurrentFolderId = useFolderStore((state) => state.setCurrentFolderId);
   const setView = useSearchStore((state) => state.setView);
-  const openSceneById = useSceneStore((state) => state.openSceneById);
+  const role = useWorkspaceStore(state => state.workspaces.find(item => item.id === state.activeWorkspaceId)?.role);
 
   const open = () => {
     if (item.type === "folder") {
@@ -21,7 +21,7 @@ function SearchResultCard({ item }: { item: SearchItem }) {
       setCurrentFolderId(item.id);
       return;
     }
-    if (activeWorkspaceId) void openSceneById(activeWorkspaceId, item.id).catch(() => undefined);
+    if (activeWorkspaceId) navigate(`/w/${activeWorkspaceId}/scenes/${item.id}`);
   };
 
   return (
@@ -34,11 +34,11 @@ function SearchResultCard({ item }: { item: SearchItem }) {
         <CardTitle className="truncate text-lg">{item.name}</CardTitle>
       </CardHeader>
       <CardContent className="flex gap-2">
-        {view === SEARCH_VIEW_TRASH ? (
+        {view === SEARCH_VIEW_TRASH ? role === "owner" ? (
           <Button onClick={() => activeWorkspaceId && void restore(activeWorkspaceId, item)} type="button" variant="outline">
             <RotateCcw size={16} aria-hidden="true" /> Restore
           </Button>
-        ) : (
+        ) : null : (
           <Button onClick={open} type="button" variant="outline">
             Open
           </Button>

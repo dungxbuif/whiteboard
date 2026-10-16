@@ -144,7 +144,7 @@ func main() {
 	sceneHandler := handler.NewSceneHandler(sceneUsecase)
 	searchHandler := handler.NewSearchHandler(searchUsecase)
 	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase, shareLinks)
-	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, handler.NewRoomHandler(rooms, accessService))
+	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, handler.NewRoomHandler(rooms, accessService, sceneUsecase))
 	assetHandler := handler.NewAssetHandler(assetUsecase)
 	assetHandler.SetCapabilityService(capabilities)
 	assetHandler.Capabilities = capabilityHandler

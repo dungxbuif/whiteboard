@@ -31,6 +31,10 @@ export function syncPresentationOrder(elements: unknown[], previousOrder: string
 
 export interface Scene {
   id: string;
+  publicId?: string;
+  access?: "view" | "edit";
+  owner?: boolean;
+  writerMode?: "v1" | "v2";
   workspaceId: string;
   folderId: string | null;
   title: string;
@@ -54,6 +58,7 @@ interface SceneState {
   openScene: (scene: Scene) => void;
   openSceneById: (workspaceId: string, sceneId: string) => Promise<void>;
   closeScene: () => Promise<void>;
+  cancelSceneOpen: () => void;
   scheduleSave: (workspaceId: string, sceneId: string, content: SceneContent) => void;
   flushSave: () => Promise<void>;
   renameScene: (workspaceId: string, sceneId: string, title: string) => Promise<void>;
@@ -73,6 +78,8 @@ interface PendingSave {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSave: PendingSave | null = null;
 let saveGeneration = 0;
+let openGeneration = 0;
+let listGeneration = 0;
 
 const workspaceHeaders = (workspaceId: string) => ({ "X-Workspace-ID": workspaceId });
 
@@ -120,14 +127,17 @@ const useSceneStore = create<SceneState>((set, get) => {
     error: null,
 
     fetchScenes: async (workspaceId, folderId) => {
+      const generation = ++listGeneration;
       set({ isLoading: true, error: null });
       try {
         const response = await api.get<Scene[]>("/scenes", {
           headers: workspaceHeaders(workspaceId),
           params: folderId ? { folderId } : undefined,
         });
+        if (generation !== listGeneration) return;
         set({ scenes: response.data, isLoading: false });
       } catch (error) {
+        if (generation !== listGeneration) return;
         set({ scenes: [], isLoading: false, error: "Scenes could not be loaded." });
         throw error;
       }
@@ -143,12 +153,14 @@ const useSceneStore = create<SceneState>((set, get) => {
       return response.data;
     },
 
-    openScene: (activeScene) => set({ activeScene, saveStatus: "idle", error: null }),
+    openScene: (activeScene) => { openGeneration += 1; set({ activeScene, saveStatus: "idle", error: null }); },
 
     openSceneById: async (workspaceId, sceneId) => {
+      const generation = ++openGeneration;
       const response = await api.get<Scene>(`/scenes/${sceneId}/`, {
         headers: workspaceHeaders(workspaceId),
       });
+      if (generation !== openGeneration) return;
       set((state) => ({
         scenes: state.scenes.some((scene) => scene.id === response.data.id)
           ? updateScene(state.scenes, response.data)
@@ -159,7 +171,10 @@ const useSceneStore = create<SceneState>((set, get) => {
       }));
     },
 
+    cancelSceneOpen: () => { openGeneration += 1; set({ activeScene: null }); },
+
     closeScene: async () => {
+      openGeneration += 1;
       await performSave();
       set({ activeScene: null, saveStatus: "idle" });
     },
@@ -217,6 +232,8 @@ const useSceneStore = create<SceneState>((set, get) => {
     },
 
     reset: () => {
+      openGeneration += 1;
+      listGeneration += 1;
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = null;
       pendingSave = null;

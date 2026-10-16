@@ -66,14 +66,17 @@ func NewPublicHandler(usecase domain.ScenePermissionUsecase, rooms ...*RoomHandl
 
 func (h *PublicHandler) GetScene(w http.ResponseWriter, r *http.Request) {
 	password := ""
+	displayName := ""
 	if r.Method == http.MethodPost {
 		var input struct {
-			Password string `json:"password" validate:"max=72"`
+			Password    string `json:"password" validate:"max=72"`
+			DisplayName string `json:"displayName,omitempty" validate:"max=100"`
 		}
 		if !decodeSharing(w, r, &input) {
 			return
 		}
 		password = input.Password
+		displayName = input.DisplayName
 	}
 	var scene *domain.Scene
 	var err error
@@ -82,7 +85,9 @@ func (h *PublicHandler) GetScene(w http.ResponseWriter, r *http.Request) {
 		scene, e = h.usecase.GetPublicScene(ctx, chi.URLParam(r, "token"), password)
 		return e
 	}
-	if h.Rooms != nil {
+	if h.Rooms != nil && h.Rooms.scenes != nil {
+		scene, err = h.Rooms.readPublicSnapshot(r.Context(), chi.URLParam(r, "token"), password, displayName)
+	} else if h.Rooms != nil {
 		err = h.Rooms.withPublicRead(r.Context(), chi.URLParam(r, "token"), password, read)
 	} else {
 		err = read(r.Context())

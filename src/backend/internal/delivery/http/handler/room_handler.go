@@ -7,15 +7,21 @@ import (
 	"github.com/google/uuid"
 	"net/http"
 	"strings"
+	"time"
 )
 
 type RoomHandler struct {
 	rooms  domain.RoomService
 	access domain.AccessService
+	scenes domain.SceneUsecase
 }
 
-func NewRoomHandler(rooms domain.RoomService, access domain.AccessService) *RoomHandler {
-	return &RoomHandler{rooms: rooms, access: access}
+func NewRoomHandler(rooms domain.RoomService, access domain.AccessService, scenes ...domain.SceneUsecase) *RoomHandler {
+	h := &RoomHandler{rooms: rooms, access: access}
+	if len(scenes) > 0 {
+		h.scenes = scenes[0]
+	}
+	return h
 }
 
 type publicSessionRequest struct {
@@ -107,4 +113,28 @@ func (h *RoomHandler) withPublicRead(ctx domain.Context, token, password string,
 		}
 		return read(ctx)
 	})
+}
+
+func (h *RoomHandler) readPublicSnapshot(ctx domain.Context, token, password, name string) (*domain.Scene, error) {
+	session, err := h.rooms.ExchangePublicSession(ctx, token, password, name)
+	if err != nil {
+		return nil, err
+	}
+	identity, err := h.rooms.ParseSceneSession(session.Token)
+	if err != nil {
+		return nil, err
+	}
+	var scene *domain.Scene
+	err = h.access.WithWorkspaceLock(ctx, identity.SceneRef.WorkspaceID, uuid.Nil, func(ctx domain.Context) error {
+		if _, err := h.access.Resolve(ctx, identity.Principal, identity.SceneRef); err != nil {
+			return err
+		}
+		if !identity.ExpiresAt.After(time.Now()) {
+			return domain.ErrInvalidSceneSession
+		}
+		var err error
+		scene, err = h.scenes.Get(ctx, identity.SceneRef.WorkspaceID, identity.SceneRef.SceneID)
+		return err
+	})
+	return scene, err
 }

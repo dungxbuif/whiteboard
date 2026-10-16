@@ -15,6 +15,7 @@ import (
 )
 
 type SceneHandler struct {
+	Access   domain.AccessService
 	usecase  domain.SceneUsecase
 	validate *validator.Validate
 }
@@ -56,6 +57,9 @@ func (h *SceneHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !h.applyAccess(w, r, scene) {
+		return
+	}
 	writeJSONResponse(w, http.StatusCreated, scene)
 }
 
@@ -76,6 +80,11 @@ func (h *SceneHandler) List(w http.ResponseWriter, r *http.Request) {
 			scenes[i].Content = nil
 		}
 	}
+	for i := range scenes {
+		if !h.applyAccess(w, r, &scenes[i]) {
+			return
+		}
+	}
 	writeJSONResponse(w, http.StatusOK, scenes)
 }
 
@@ -88,6 +97,9 @@ func (h *SceneHandler) Get(w http.ResponseWriter, r *http.Request) {
 	scene, err := h.usecase.Get(r.Context(), workspaceID, sceneID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !h.applyAccess(w, r, scene) {
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, scene)
@@ -127,6 +139,9 @@ func (h *SceneHandler) Update(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !h.applyAccess(w, r, scene) {
+		return
+	}
 	writeJSONResponse(w, http.StatusOK, scene)
 }
 
@@ -148,6 +163,9 @@ func (h *SceneHandler) SetStar(w http.ResponseWriter, r *http.Request) {
 	scene, err := h.usecase.Get(r.Context(), workspaceID, sceneID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !h.applyAccess(w, r, scene) {
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, scene)
@@ -217,4 +235,29 @@ func writeJSONResponse(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func (h *SceneHandler) applyAccess(w http.ResponseWriter, r *http.Request, scene *domain.Scene) bool {
+	if h.Access == nil {
+		return true
+	}
+	user, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		middleware.WriteAccessError(w, r, domain.ErrAccessDenied)
+		return false
+	}
+	var decision domain.AccessDecision
+	var err error
+	if scene.DeletedAt.Valid {
+		decision, err = h.Access.ResolveWorkspace(r.Context(), domain.UserPrincipal(user), scene.WorkspaceID)
+	} else {
+		decision, err = h.Access.Resolve(r.Context(), domain.UserPrincipal(user), domain.SceneRef{WorkspaceID: scene.WorkspaceID, SceneID: scene.ID})
+	}
+	if err != nil {
+		middleware.WriteAccessError(w, r, err)
+		return false
+	}
+	scene.Access = decision.Access
+	scene.Owner = decision.Owner
+	return true
 }

@@ -13,6 +13,7 @@ const mockWorkspaces = [
     id: '2c7f253e-b06b-4ad4-988c-c4590fbc964a',
     name: 'Test Workspace',
     ownerId: mockUser.id,
+    role: "owner",
     createdAt: '2026-06-11T00:00:00Z',
   },
 ];
@@ -43,6 +44,8 @@ const mockFolders = [
 const emptySceneContent = { elements: [], appState: {}, files: {} };
 let mockScenes: Array<{
   id: string;
+  access: string;
+  owner: boolean;
   workspaceId: string;
   folderId: string | null;
   title: string;
@@ -86,6 +89,10 @@ test.describe('Dashboard E2E Flows', () => {
       const sceneId = url.pathname.match(/\/scenes\/([^/]+)/)?.[1];
       const body = request.postDataJSON() as Record<string, unknown> | null;
 
+      if (url.pathname.endsWith('/share-links')) {
+        await route.fulfill({ json: request.method() === 'POST' ? { id: 'share-id', access: body?.access, active: true, expiresAt: null, token: 'share-token' } : [] });
+        return;
+      }
       if (request.method() === 'GET') {
         if (sceneId) {
           const scene = mockScenes.find((candidate) => candidate.id === sceneId);
@@ -102,6 +109,8 @@ test.describe('Dashboard E2E Flows', () => {
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
         const created = {
           id: 'scene-created',
+          access: 'edit',
+          owner: true,
           workspaceId: mockWorkspaces[0].id,
           folderId: (body?.folderId as string | null) ?? null,
           title: body?.title as string,
@@ -145,6 +154,11 @@ test.describe('Dashboard E2E Flows', () => {
       await route.abort();
     });
 
+    await page.route('**/api/v1/public/scene-session', async route => {
+      const input = route.request().postDataJSON();
+      if (['password-token', 'isolated-password'].includes(input.token) && input.password !== 'correct horse') return route.fulfill({ status: 401, json: { code: 'SHARE_PASSWORD_REQUIRED' } });
+      return route.fulfill({ json: { token: 'guest-token', expiresAt: '2030-01-01T00:00:00Z', workspaceId: mockWorkspaces[0].id, sceneId: 'scene-created', access: 'view', principalId: 'guest:test', displayName: '' } });
+    });
     await page.goto('/');
   });
 
@@ -313,14 +327,14 @@ test.describe('Dashboard E2E Flows', () => {
     await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
     await page.getByRole('menuitem', { name: 'Share', exact: true }).click();
     await expect(page.getByRole('dialog')).toContainText('Share Untitled scene');
-    await page.getByRole('button', { name: 'Save link' }).click();
-    await expect(page.getByLabel('Share URL')).toHaveValue('http://localhost:5173/p/share-token');
+    await page.getByRole('button', { name: 'Create view link' }).click();
+    await expect(page.getByLabel('view link URL')).toHaveValue('http://localhost:5173/p/share-token');
   });
 
   test('public password errors preserve login and send secrets only in POST body', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('auth_token', 'private-login-token'));
     const requests: Array<{ method: string; url: string; authorization?: string; body: string | null }> = [];
-    await page.route('**/api/v1/public/scenes/isolated-password**', async (route) => {
+    await page.route('**/api/v1/public/**', async (route) => {
       const request = route.request();
       requests.push({ method: request.method(), url: request.url(), authorization: request.headers().authorization, body: request.postData() });
       const password = request.method() === 'POST' ? request.postDataJSON()?.password : new URL(request.url()).searchParams.get('password');
@@ -328,13 +342,13 @@ test.describe('Dashboard E2E Flows', () => {
         await route.fulfill({ status: 401, json: { code: 'SHARE_PASSWORD_REQUIRED', message: 'Password required', requestId: 'fixture' } });
         return;
       }
-      await route.fulfill({ json: { title: 'Isolated protected scene', content: emptySceneContent } });
+      await route.fulfill({ json: request.url().includes('/scene-session') ? { token: 'guest-credential', expiresAt: '2030-01-01T00:00:00Z', workspaceId: mockWorkspaces[0].id, sceneId: 'scene-created', access: 'view', principalId: 'guest:test', displayName: '' } : { title: 'Isolated protected scene', content: emptySceneContent } });
     });
     await page.goto('/p/isolated-password');
     await expect(page.getByRole('heading', { name: 'Password required' })).toBeVisible();
     expect.soft(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
     await page.getByPlaceholder('Share password').fill('wrong password');
-    const failed = page.waitForResponse(response => response.url().includes('/public/scenes/isolated-password') && response.status() === 401);
+    const failed = page.waitForResponse(response => response.url().includes('/public/scene-session') && response.status() === 401);
     await page.getByRole('button', { name: 'Open shared scene' }).click();
     await failed;
     expect.soft(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');

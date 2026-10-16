@@ -3,6 +3,8 @@ import api from '../lib/api';
 
 export interface Workspace {
   id: string;
+  publicId?: string;
+  role?: 'owner' | 'editor' | 'viewer';
   name: string;
   ownerId: string;
   createdAt: string;
@@ -30,8 +32,8 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       set({ workspaces, isLoading: false });
       
       // Default to first workspace if none active
-      if (workspaces.length > 0 && !get().activeWorkspaceId) {
-        set({ activeWorkspaceId: workspaces[0].id });
+      if (!workspaces.some(workspace => workspace.id === get().activeWorkspaceId)) {
+        set({ activeWorkspaceId: workspaces[0]?.id ?? null });
       }
     } catch (error) {
       set({ isLoading: false });

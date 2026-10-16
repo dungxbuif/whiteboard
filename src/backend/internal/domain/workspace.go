@@ -17,6 +17,7 @@ const (
 )
 
 type Workspace struct {
+	Role       WorkspaceRole  `json:"role,omitempty" gorm:"->;-:migration"`
 	ID         uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
 	PublicID   *string        `json:"publicId,omitempty"`
 	ACLVersion int64          `json:"aclVersion" gorm:"default:1"`

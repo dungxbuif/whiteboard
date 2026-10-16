@@ -8,7 +8,7 @@ Use the workspace switcher to choose where scenes and folders are saved. Use sea
 
 New scene opens an empty canvas. Import scenes accepts an Excalidraw JSON file up to 25 MiB. Invalid files show an error without creating a scene. Imported content is submitted in the scene creation request, preserving native editable elements.
 
-Theme and navigation preferences are local to this browser. The account menu exposes theme switching and sign out. No placeholder account/settings actions are shown.
+Theme and navigation preferences are local to this browser. The account menu exposes theme switching and sign out. Workspace owners also have Members and Agent keys settings links.
 
 ## Import a drawing
 
@@ -25,3 +25,13 @@ An import uses the existing scene-create API and the current signed-in workspace
 Use the account menu at the bottom of the sidebar to switch light/dark theme or sign out. The original style includes colored focus and status accents. Theme choices apply to dashboard dialogs and menus, while the canvas uses Excalidraw's native styling.
 
 On desktop the header button hides or shows the sidebar. On mobile, **Open navigation** opens a drawer; Escape closes it and returns focus to the trigger. Long workspace names are shortened in the sidebar and shown in the page heading.
+
+## Access and settings
+
+Owners can open **Members** and **Agent keys** from the sidebar. Settings stay inside the dashboard shell. Use **Dashboard** to return to your scenes. Members supports invitation links, member role changes, removal and explicit scene overrides. Agent keys supports limited scopes, selected scenes and one-time key disclosure.
+
+Editors see content creation controls. Viewers see reading controls; owner management actions remain hidden. These controls use server-computed permissions and every request is still authorized by the server.
+
+Scene links accept existing UUIDs and public aliases. Reload, back and forward restore the selected workspace and scene. Returning to the dashboard closes the scene, and late scene-open responses cannot replace a newer selection. Search results open a scene route too.
+
+Management and navigation have browser regression coverage. Public live editing/revocation and production rollout remain separate release gates. See [collaboration](collaboration.md) for invitation and sharing steps.

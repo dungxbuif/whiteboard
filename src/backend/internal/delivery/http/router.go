@@ -115,6 +115,9 @@ func newRouter(
 		agents = services[0].agents
 		accessHandler = handler.NewAccessHandler(access)
 	}
+	if sceneHandler != nil {
+		sceneHandler.Access = access
+	}
 	router := chi.NewRouter()
 	router.Use(deliverymiddleware.RedactPublicCredentials)
 	router.Use(middleware.RequestID)

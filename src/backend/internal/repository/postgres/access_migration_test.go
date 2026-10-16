@@ -221,6 +221,11 @@ func TestWorkspaceListAndSearchFilter(t *testing.T) {
 	if e = json.Unmarshal(listed.Body.Bytes(), &workspaces); e != nil {
 		t.Fatal(e)
 	}
+	var workspaceDTOs []map[string]any
+	_ = json.Unmarshal(listed.Body.Bytes(), &workspaceDTOs)
+	if len(workspaceDTOs) != 1 || workspaceDTOs[0]["role"] != "editor" {
+		t.Fatalf("missing computed workspace role: %s", listed.Body.String())
+	}
 	if len(workspaces) != 1 || workspaces[0].ID != w {
 		t.Fatalf("list leak/missing: %s", listed.Body.String())
 	}
@@ -228,6 +233,18 @@ func TestWorkspaceListAndSearchFilter(t *testing.T) {
 	search := check(editor, "GET", "/search?q=", "", 200)
 	if strings.Contains(search.Body.String(), "Foreign") || strings.Contains(search.Body.String(), "Deleted") {
 		t.Fatalf("search leaked: %s", search.Body.String())
+	}
+	for _, tc := range []struct {
+		user   uuid.UUID
+		access string
+		owner  bool
+	}{{owner, "edit", true}, {editor, "view", false}, {viewer, "edit", false}} {
+		rr := check(tc.user, "GET", "/scenes/"+scene.String(), "", 200)
+		var dto map[string]any
+		_ = json.Unmarshal(rr.Body.Bytes(), &dto)
+		if dto["access"] != tc.access || dto["owner"] != tc.owner {
+			t.Fatalf("missing effective scene access: %s", rr.Body.String())
+		}
 	}
 	check(editor, "GET", "/scenes/"+foreign.String(), "", 404)
 	check(editor, "GET", "/scenes/"+deleted.String(), "", 404)

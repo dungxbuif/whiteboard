@@ -1,21 +1,34 @@
-# Joining a workspace
+# Joining and sharing a workspace
 
-Collaboration v2 invitations are implemented on the development branch; deployment and browser invitation controls are pending. Workspace owners can create an invitation for an email address with editor or viewer access and copy the returned `/invite/:token` link to the intended person. The app does not send email. Save the link when creating it: the invitation list shows metadata and cannot recover it. Owners can revoke unused invitations.
+Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. Live guest editing and session revocation still require the B3 collaboration adapter and real-stack release verification.
 
-A link works once and expires seven days after creation. If you already have an account, log in with the invited email and accept the invitation. If you are new, submit the invite token, matching email, display name and password (at least eight characters, at most 72 UTF-8 bytes) to invitation registration; your account, personal workspace and shared membership are created together. Registering with an existing email does not reset its password: use the normal login path. Typed email and possession of the link do not mark an email address as verified.
+## Invite someone
 
-Editors can change workspace content; viewers can read it. An invitation with less access does not reduce access you already have. Only owners manage invitations and membership. If acceptance fails, check the account/email and ask the owner for a fresh link if it expired or was revoked.
+1. Open your workspace and choose **Members** in the sidebar. Only owners see workspace settings.
+2. Select **Invite member**, enter the person's email, and choose **Editor** or **Viewer**.
+3. Select **Create invitation**, then **Copy invitation**. Send the link yourself: the app does not send email.
 
-API consumers: see [API reference](../architecture/API.md#collaboration-a2-invitation-contract-implemented-release-pending). Human browser invitation controls are integrated separately in the dashboard task.
+Save the link when you create it. The invitation list shows email, role and expiry, but cannot recover the secret URL. You can revoke an unused invitation from **Pending invitations**.
 
-## Sharing one scene
+An invitation works once and expires seven days after creation. Existing users sign in with the invited email and select **Accept invitation**. New users select **Create account with invitation**, enter the matching email, display name and a password with at least eight characters and at most 72 UTF-8 bytes, and join during registration. The server creates their personal workspace and invited membership together. Registering with an existing email does not reset its password: sign in instead. An invitation does not mark the email address as verified.
 
-Collaboration v2 public-link APIs are implemented on the development branch. The new browser sharing controls and realtime editor are still being integrated. An owner can create separate view and edit links, optionally protect each with a password or expiry, and revoke each independently. Copy a new link immediately: the link list cannot recover its token. Revoking one link leaves other links working.
+If acceptance fails, check the signed-in email. Ask the owner for a new link if it expired, was revoked or was already used. The invitation stays in the current URL while you sign in; successful acceptance replaces that URL and clears the transient invitation screen. It is never stored with the account credentials.
 
-A viewer can read the shared scene. An editor must enter a display name before joining; this identifies the guest in the session and does not create an account. A public link grants access only to its scene. It never grants workspace membership or permission management.
+## Manage access
 
-The client exchanges the link and optional password in a POST body, then uses a short-lived scene session. Refreshing before expiry renews the session while the link remains valid; users do not need to re-enter a password every ten minutes during an active session. If the session expires, the link is revoked, or its password changes, exchange the link again with the current password. Legacy password-protected viewers also use POST JSON at their existing public scene path; passwords in query strings are ignored.
+Owners can change a member between **Editor** and **Viewer**, remove a member, or apply a scene override. The owner cannot be removed or demoted. Member rows currently use account IDs returned by the API.
 
-API details and agent contracts are in the [A3 API reference](../architecture/API.md#collaboration-a3-public-links-and-room-credentials-implemented-release-pending).
+Editors create and change content; viewers have reading controls. A scene override can grant editor access to a workspace viewer or restrict a workspace editor to viewing that scene. Overrides require current membership and disappear when membership is removed. They never grant permission management. In **Members**, choose a scene from the loaded scene list, then choose its member override; **Inherit workspace role** removes the override. The selector applies changes explicitly and does not claim to display existing overrides.
 
-The public viewer sends passwords in POST bodies using a separate HTTP client. A failed public password challenge leaves your normal account signed in; public requests do not attach the account login token. This browser change is verified locally and pending deployment.
+## Share one scene
+
+1. As the workspace owner, open a scene's action menu and select **Share**.
+2. Create a **View link** or **Edit link**. Each can have its own password (at least six characters and at most 72 UTF-8 bytes) and expiry.
+3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata only.
+4. Select **Revoke** beside the link to stop future access. Other links remain independent.
+
+A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then holds a scoped, short-lived scene session in memory. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
+
+The current public edit screen shows a read-only snapshot while live collaboration is awaiting its adapter. Actual editing is enabled only after room admission in the B3 integration. Renewal, live revocation, offline replay and real WebSocket verification are release gates, not represented as completed by the management UI tests. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
+
+For API consumers, see the internal [API reference](../architecture/API.md). An agent-readable copy of this guide is served at `/docs/collaboration.md`; the shared `SceneSession` contract is documented in the C2 API section.

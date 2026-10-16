@@ -9,6 +9,7 @@ import useWorkspaceStore from "@/store/workspace-store";
 
 export function DashboardHeader() {
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
+  const canEdit = workspaces.find(workspace => workspace.id === activeWorkspaceId)?.role;
   const folderId = useFolderStore(state => state.currentFolderId);
   const createScene = useSceneStore(state => state.createScene);
   const input = useRef<HTMLInputElement>(null);
@@ -30,11 +31,12 @@ export function DashboardHeader() {
     <p className="mb-1 text-xs text-muted-foreground">Workspace</p>
     <h1 className="break-words text-2xl font-semibold">{workspaces.find(w => w.id === activeWorkspaceId)?.name || "Select Workspace"}</h1>
     <div className="mb-8 mt-6 h-px bg-border" />
-    <div className="flex gap-2 max-sm:flex-col">
+    {canEdit === "owner" || canEdit === "editor" ? <div className="flex gap-2 max-sm:flex-col">
       <input ref={input} className="hidden" type="file" aria-label="Scene file" accept=".excalidraw,.json" onChange={event => { const file = event.target.files?.[0]; if (file) void create(file); }} />
       <Button className="h-16 gap-2 [&_svg]:size-6" disabled={!activeWorkspaceId || busy} onClick={() => input.current?.click()}><Import />Import scenes</Button>
       <Button className="h-16 gap-2 [&_svg]:size-6" disabled={!activeWorkspaceId || busy} onClick={() => void create()}><UserPlus />New scene</Button>
     </div>
+    : <p className="text-sm text-muted-foreground">Viewer access · Open a scene to read it.</p>}
     {busy ? <p className="mt-3 text-sm text-muted-foreground" role="status">Preparing scene...</p> : null}
     {error ? <p className="mt-3 text-sm text-destructive" role="alert">{error}</p> : null}
   </header>;
