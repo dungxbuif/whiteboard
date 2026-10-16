@@ -9,21 +9,46 @@ import {Persistence} from './persistence.js';
 import {Rooms} from './rooms.js';
 import {Compactor} from './compaction.js';
 import {RateLimit} from './rate-limit.js';
+import {RuntimeOwnership,OWNER_KEY,HANDOFF_KEY} from './ownership.js';
 export type ServerConfig={host:string;port:number;internalHost:string;internalPort:number;internalSecret:string;allowedOrigins:string[];updatesPerMinute:number;maxBufferedBytes:number};
 const secretEquals=(a:string,b:string)=>Buffer.byteLength(a)===Buffer.byteLength(b)&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 async function body(request:IncomingMessage):Promise<unknown>{const chunks:Buffer[]=[];let size=0;for await(const chunk of request){size+=chunk.length;if(size>1500000)throw new CollabError('INVALID_UPDATE','Body too large',413);chunks.push(chunk);}try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new CollabError('INVALID_UPDATE','Invalid JSON',400);}}
 export async function startServer(store:Persistence,config:ServerConfig){
- const rooms=new Rooms(store,config);let listening=false,closed=false,listener:PoolClient|undefined,reconnect:NodeJS.Timeout|undefined;
- const lost=()=>{listening=false;rooms.invalidateWorkspace(undefined,'ACL_RESYNC_REQUIRED');if(listener){const old=listener;listener=undefined;old.release(true);}if(!closed&&!reconnect)reconnect=setTimeout(()=>{reconnect=undefined;void subscribe().catch(lost);},1000);};
- async function subscribe(){
-  const client=await store.pool.connect();listener=client;
-  client.on('error',lost);client.on('end',()=>{if(listener===client)lost();});
-  const owned=await client.query("SELECT pg_try_advisory_lock(hashtext(current_database()),hashtext(current_schema() || ':collab-writer')) AS owned");
-  if(!owned.rows[0].owned)throw new Error('Exactly one collab process may own a database schema');
-  await client.query('SELECT document_id,legacy_content,legacy_content_version,snapshot_sequence FROM collab_documents LIMIT 0');
-  await client.query('LISTEN acl_changed');
-  client.on('notification',message=>{try{const value=JSON.parse(message.payload??'');if(typeof value.workspaceId!=='string')throw new Error();rooms.invalidateWorkspace(value.workspaceId);}catch{rooms.invalidateWorkspace(undefined,'ACL_RESYNC_REQUIRED');}});
-  listening=true;
+ // Bound queued acquisitions too, including a reconnect waiting while shutdown starts.
+ store.pool.options.connectionTimeoutMillis=Math.min(store.pool.options.connectionTimeoutMillis||3000,3000);
+ const ownership=new RuntimeOwnership();
+ const rooms=new Rooms(store,config);
+ let listening=false,closed=false,listener:PoolClient|undefined,reconnect:NodeJS.Timeout|undefined,connecting:Promise<void>|undefined;
+ const scheduleReconnect=()=>{
+  if(!closed&&!reconnect&&!connecting)reconnect=setTimeout(()=>{reconnect=undefined;void subscribe().catch(()=>{});},1000);
+ };
+ const lost=(source?:PoolClient)=>{
+  if(source&&source!==listener)return;
+  ownership.invalidate();listening=false;rooms.invalidateWorkspace(undefined,'ACL_RESYNC_REQUIRED');
+  if(listener){const old=listener;listener=undefined;old.release(true);}
+  scheduleReconnect();
+ };
+ function subscribe():Promise<void>{
+  if(connecting)return connecting;
+  connecting=(async()=>{
+   const client=await store.pool.connect();
+   if(closed){client.release(true);return;}
+   listener=client;
+   client.on('error',()=>lost(client));client.on('end',()=>lost(client));
+   await client.query("SET statement_timeout='5s'");
+   const owned=await client.query(`SELECT pg_try_advisory_lock(${OWNER_KEY}) AS owned`);
+   if(!owned.rows[0].owned)throw new Error('Exactly one collab process may own a database schema');
+   await client.query(`SELECT pg_advisory_lock(${HANDOFF_KEY})`);
+   const lease=(await client.query('SELECT pg_backend_pid() AS pid,backend_start::text AS "backendStart" FROM pg_stat_activity WHERE pid=pg_backend_pid()')).rows[0];
+   await client.query('SELECT document_id,legacy_content,legacy_content_version,snapshot_sequence FROM collab_documents LIMIT 0');
+   await client.query(`SELECT pg_advisory_unlock(${HANDOFF_KEY})`);
+   await client.query('LISTEN acl_changed');
+   if(closed||listener!==client)throw new CollabError('UNAVAILABLE','Ownership acquisition interrupted',503,true);
+   ownership.activate(lease);store.bindRuntimeOwnership(ownership);
+   client.on('notification',message=>{try{const value=JSON.parse(message.payload??'');if(typeof value.workspaceId!=='string')throw new Error();rooms.invalidateWorkspace(value.workspaceId);}catch{rooms.invalidateWorkspace(undefined,'ACL_RESYNC_REQUIRED');}});
+   listening=true;
+  })().catch(error=>{lost();throw error;}).finally(()=>{connecting=undefined;if(!listening)scheduleReconnect();});
+  return connecting;
  }
  const publicServer=createServer(async(request,response)=>{
   if(request.url==='/healthz'){response.writeHead(200).end('ok');return;}
@@ -40,6 +65,7 @@ export async function startServer(store:Persistence,config:ServerConfig){
   let requestId='unknown';
   try{
    if(request.method!=='POST'||!/^\/internal\/scenes\/[0-9a-f-]{36}\/commands$/.test(request.url??'')){response.writeHead(404).end();return;}
+   ownership.assert();
    internalRates.take('ip:'+request.socket.remoteAddress,600);
    if(!secretEquals(request.headers.authorization??'','Bearer '+config.internalSecret))throw new CollabError('UNAUTHENTICATED','Invalid service credential',401);
    const data=await body(request) as {grant:string;mutationBase64:string};if(!data||Object.keys(data).some(k=>!['grant','mutationBase64'].includes(k))||typeof data.grant!=='string'||typeof data.mutationBase64!=='string'||!data.mutationBase64.length)throw new CollabError('INVALID_UPDATE','Invalid command envelope',400);
@@ -50,8 +76,15 @@ export async function startServer(store:Persistence,config:ServerConfig){
   }catch(error){const fault=error instanceof CollabError?error:new CollabError('UNAVAILABLE','Operation failed; retain pending mutation',503,true);response.writeHead(fault.status,{'content-type':'application/json'}).end(JSON.stringify({code:fault.code,message:fault.message,requestId}));}
  });
  for(const server of [publicServer,internalServer]){server.requestTimeout=5000;server.headersTimeout=5000;}
- const compact=new Compactor(store,()=>rooms.invalidateWorkspace(undefined,'COMPACTION_FAILED'));
- async function close(){closed=true;clearTimeout(reconnect);await compact.close();await rooms.close();if(listener){const client=listener;listener=undefined;client.release(true);}await Promise.all([publicServer,internalServer].map(server=>new Promise<void>(resolve=>{server.close(()=>resolve());server.closeAllConnections();})));wss.close();}
+ const compact=new Compactor(store,(_error,ref)=>{if(ref)rooms.invalidateScene(ref.sceneId,'COMPACTION_FAILED');});
+ async function close(){
+  closed=true;listening=false;ownership.invalidate();clearTimeout(reconnect);
+  // Drain the checked-out connection before returning it to pg-pool: release(true)
+  // first would attach its idle error handler while a termination error is still arriving.
+  if(listener){const client=listener;listener=undefined;await client.end();client.release(true);}
+  await Promise.allSettled([compact.close(),rooms.close(),connecting]);
+  await Promise.all([publicServer,internalServer].map(server=>new Promise<void>(resolve=>{server.close(()=>resolve());server.closeAllConnections();})));wss.close();
+ }
  try{
   await subscribe();
   await listen(publicServer,config.host,config.port);await listen(internalServer,config.internalHost,config.internalPort);
@@ -70,7 +103,7 @@ export function configuration(env:NodeJS.ProcessEnv=process.env){
  return {promoteV2:env.COLLAB_V2_ENABLED==='true',databaseURL:env.DATABASE_URL,authority:{roomSecret:secrets[0],grantSecret:secrets[1],serviceSecret:secrets[2],url:env.AUTHORITY_URL??'http://127.0.0.1:8081'},server:{host:env.COLLAB_HOST??'127.0.0.1',port:integer('COLLAB_PORT',8082),internalHost:env.COLLAB_INTERNAL_HOST??'127.0.0.1',internalPort:integer('COLLAB_INTERNAL_PORT',8083),internalSecret:secrets[3],allowedOrigins,updatesPerMinute:integer('COLLAB_UPDATES_PER_MINUTE',120),maxBufferedBytes:integer('COLLAB_MAX_BUFFERED_BYTES',4194304,1048576,67108864)}};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
- const config=configuration();const pool=new Pool({connectionString:config.databaseURL,max:16});pool.on('error',()=>{});
+ const config=configuration();const pool=new Pool({connectionString:config.databaseURL,max:16,connectionTimeoutMillis:3000,statement_timeout:5000});pool.on('error',()=>{});
  const server=await startServer(new Persistence(pool,new Authority(config.authority),{promoteV2:config.promoteV2,updatesPerMinute:config.server.updatesPerMinute}),config.server);
  const stop=async()=>{await server.close();await pool.end();};process.once('SIGINT',()=>void stop());process.once('SIGTERM',()=>void stop());
 }

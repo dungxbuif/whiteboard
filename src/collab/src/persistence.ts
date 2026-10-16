@@ -8,23 +8,31 @@ import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES,Sna
 import {parseMutation,commandUpdate} from './commands.js';
 import {promoteLegacy} from './promotion.js';
 import {RateLimit} from './rate-limit.js';
+import {RuntimeOwnership,type OwnerLease} from './ownership.js';
 export type SceneState={doc:Y.Doc;content:SceneContent;documentId:string;sequence:string;stateVector:string;access:'view'|'edit'};
 type Row={document_id:string;sequence:string;snapshot_sequence:string;snapshot:Buffer;snapshot_at:Date;legacy_content:unknown;legacy_content_version:string};
 export class Persistence extends EventEmitter {
  private rates=new RateLimit();
+ private ownership:RuntimeOwnership|undefined;
+ bindRuntimeOwnership(ownership:RuntimeOwnership){this.ownership=ownership;}
  constructor(public pool:Pool,public authority:Authority,private options:{promoteV2:boolean;updatesPerMinute?:number}={promoteV2:false}){super();}
- private async transaction<T>(ref:SceneRef,decision:Decision|undefined,fn:(client:PoolClient)=>Promise<T>):Promise<T>{
-  const client=await this.pool.connect();let failure=false;
+ private async transaction<T>(ref:SceneRef,decision:Decision|undefined,fn:(client:PoolClient)=>Promise<T>,skipInactive=false):Promise<T>{
+  const ownership=this.ownership;ownership?.assert();
+  const client=await this.pool.connect();let failure=false;let lease:OwnerLease|undefined;
   const connectionError=()=>{failure=true;};client.once('error',connectionError);
   try{
    await client.query('BEGIN');await client.query("SET LOCAL lock_timeout='3s'");await client.query("SET LOCAL statement_timeout='5s'");
+   if(ownership)lease=await ownership.enter(client);
    const workspace=await client.query('SELECT acl_version::text FROM workspaces WHERE id=$1 AND deleted_at IS NULL FOR UPDATE',[ref.workspaceId]);
-   if(!workspace.rowCount)throw new CollabError('FORBIDDEN');
+   if(!workspace.rowCount){if(skipInactive){await client.query('ROLLBACK');return undefined as T;}throw new CollabError('FORBIDDEN');}
    if(decision){this.fresh(decision);if(decision.workspaceId!==ref.workspaceId||decision.sceneId!==ref.sceneId||decision.aclVersion!==workspace.rows[0].acl_version)throw new CollabError('STALE_AUTHORITY','Authority changed; obtain a fresh decision',409,true);}
    const scene=await client.query('SELECT id FROM scenes WHERE workspace_id=$1 AND id=$2 AND deleted_at IS NULL FOR UPDATE',[ref.workspaceId,ref.sceneId]);
-   if(!scene.rowCount)throw new CollabError('FORBIDDEN');
+   if(!scene.rowCount){if(skipInactive){await client.query('ROLLBACK');return undefined as T;}throw new CollabError('FORBIDDEN');}
    const result=await fn(client);if(decision)this.fresh(decision);
-   await client.query('COMMIT');return result;
+   if(ownership)await ownership.check(client,lease!);
+   await client.query('COMMIT');
+   // A loss in the final-check/COMMIT gap leaves an ambiguous durable receipt, never an ack/publication.
+   if(ownership)await ownership.check(client,lease!);return result;
   }catch(error){failure=true;try{await client.query('ROLLBACK');}catch{}throw error;}finally{if(!failure)client.off('error',connectionError);client.release(failure);}
  }
  private fresh(decision:Decision):void {if(Date.now()>=decision.exp*1000)throw new CollabError('STALE_AUTHORITY','Decision expired; obtain a fresh decision',409,true);}
@@ -94,6 +102,8 @@ export class Persistence extends EventEmitter {
  }
  async compactScene(ref:SceneRef):Promise<void>{
   await this.transaction(ref,undefined,async client=>{
+   const pending=await client.query('SELECT sequence,snapshot_sequence FROM collab_documents WHERE scene_id=$1 FOR UPDATE',[ref.sceneId]);
+   if(!pending.rowCount||pending.rows[0].sequence===pending.rows[0].snapshot_sequence)return;
    const {row,doc}=await this.load(client,ref);
    try{
     const snapshot=Y.encodeStateAsUpdate(doc),content=materializeScene(doc);
@@ -101,11 +111,28 @@ export class Persistence extends EventEmitter {
     await client.query('UPDATE scenes SET content=$2,content_version=GREATEST(content_version,$3),updated_at=clock_timestamp() WHERE id=$1',[ref.sceneId,JSON.stringify(content),(BigInt(row.sequence)+BigInt(row.legacy_content_version)).toString()]);
     await client.query('DELETE FROM collab_updates WHERE scene_id=$1 AND sequence<=$2',[ref.sceneId,row.sequence]);
    }finally{doc.destroy();}
-  });
+  },true);
+ }
+ async listDueScenes(limit=64,after?:SceneRef):Promise<SceneRef[]>{
+  this.ownership?.assert();
+  const client=await this.pool.connect();let failure=false;
+  const connectionError=()=>{failure=true;};client.once('error',connectionError);
+  try{
+   await client.query('BEGIN');await client.query("SET LOCAL statement_timeout='5s'");
+   const due=await client.query(`SELECT d.workspace_id,d.scene_id FROM collab_documents d
+    JOIN workspaces w ON w.id=d.workspace_id AND w.deleted_at IS NULL
+    JOIN scenes s ON s.id=d.scene_id AND s.workspace_id=d.workspace_id AND s.deleted_at IS NULL
+    WHERE d.sequence>d.snapshot_sequence AND (d.sequence-d.snapshot_sequence>=100 OR d.snapshot_at<=clock_timestamp()-interval '5 seconds')
+     AND ($2::uuid IS NULL OR (d.workspace_id,d.scene_id)>($2::uuid,$3::uuid))
+    ORDER BY d.workspace_id,d.scene_id LIMIT $1`,[Math.max(1,Math.min(64,limit)),after?.workspaceId??null,after?.sceneId??null]);
+   await client.query('COMMIT');return due.rows.map(row=>({workspaceId:row.workspace_id,sceneId:row.scene_id}));
+  }catch(error){failure=true;try{await client.query('ROLLBACK');}catch{}throw error;}
+  finally{if(!failure)client.off('error',connectionError);client.release(failure);}
  }
  async compactDue():Promise<void>{
-  const due=await this.pool.query("SELECT workspace_id,scene_id FROM collab_documents WHERE sequence>snapshot_sequence AND (sequence-snapshot_sequence>=100 OR snapshot_at<=clock_timestamp()-interval '5 seconds')");
-  for(const row of due.rows)await this.compactScene({workspaceId:row.workspace_id,sceneId:row.scene_id});
+  const errors:unknown[]=[];
+  for(const ref of await this.listDueScenes())try{await this.compactScene(ref);}catch(error){errors.push(error);}
+  if(errors.length)throw new AggregateError(errors,'Scene compaction failures');
  }
  async exportRecovery(ref:SceneRef):Promise<Record<string,unknown>>{
   return this.transaction(ref,undefined,async client=>{

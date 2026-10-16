@@ -85,6 +85,7 @@ export class Rooms {
   if(fault.code==='UNAUTHENTICATED'||fault.code==='FORBIDDEN')this.invalidate(session,fault.code);
  }
  private invalidate(session:Session,reason:string){if(session.invalid)return;session.invalid=true;if(session.socket.readyState===WebSocket.OPEN){session.socket.send(JSON.stringify({type:'resync_required',requestId:'server',payload:{reason}}));session.socket.close(1013,reason);const timer=setTimeout(()=>session.socket.terminate(),1000);timer.unref();}}
+ invalidateScene(sceneId:string,reason:string){for(const session of this.sessions)if(session.ref?.sceneId===sceneId)this.invalidate(session,reason);}
  invalidateWorkspace(workspaceId?:string,reason='ACL_CHANGED'){for(const session of this.sessions)if(!workspaceId||session.ref?.workspaceId===workspaceId)this.invalidate(session,reason);}
  async close(){this.store.off('committed',this.committed);for(const session of this.sessions){session.invalid=true;session.socket.terminate();clearTimeout(session.authTimer);clearTimeout(session.expires);}await Promise.allSettled([...this.tasks,...[...this.sessions].map(s=>s.chain)]);this.sessions.clear();}
 }
