@@ -76,17 +76,18 @@ export async function startServer(store:Persistence,config:ServerConfig){
   }catch(error){const fault=error instanceof CollabError?error:new CollabError('UNAVAILABLE','Operation failed; retain pending mutation',503,true);response.writeHead(fault.status,{'content-type':'application/json'}).end(JSON.stringify({code:fault.code,message:fault.message,requestId}));}
  });
  for(const server of [publicServer,internalServer]){server.requestTimeout=5000;server.headersTimeout=5000;}
- const compact=new Compactor(store,(_error,ref)=>{if(ref)rooms.invalidateScene(ref.sceneId,'COMPACTION_FAILED');});
+ let compact:Compactor|undefined;
  async function close(){
   closed=true;listening=false;ownership.invalidate();clearTimeout(reconnect);
   // Drain the checked-out connection before returning it to pg-pool: release(true)
   // first would attach its idle error handler while a termination error is still arriving.
   if(listener){const client=listener;listener=undefined;await client.end();client.release(true);}
-  await Promise.allSettled([compact.close(),rooms.close(),connecting]);
+  await Promise.allSettled([compact?.close(),rooms.close(),connecting]);
   await Promise.all([publicServer,internalServer].map(server=>new Promise<void>(resolve=>{server.close(()=>resolve());server.closeAllConnections();})));wss.close();
  }
  try{
   await subscribe();
+  compact=new Compactor(store,(_error,ref)=>{if(ref)rooms.invalidateScene(ref.sceneId,'COMPACTION_FAILED');});
   await listen(publicServer,config.host,config.port);await listen(internalServer,config.internalHost,config.internalPort);
  }catch(error){await close();throw error;}
  return {url:'ws://'+config.host+':'+port(publicServer),httpURL:'http://'+config.host+':'+port(publicServer),internalURL:'http://'+config.internalHost+':'+port(internalServer),close};

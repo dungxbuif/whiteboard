@@ -110,3 +110,19 @@ it('shutdown drains a queued reconnect without reacquiring ownership afterward',
   expect((await held[0].query("SELECT pg_try_advisory_lock(hashtext(current_database()),hashtext(current_schema() || ':collab-writer')) AS owned")).rows[0].owned).toBe(true);await held[0].query('SELECT pg_advisory_unlock_all()');expect(f.pool.waitingCount).toBe(0);
  }finally{for(const client of held)client.release();}
 });
+
+it('startup maintenance waits for ownership binding before compacting a due document',async()=>{
+ const f=await fixture();cleanup.push(()=>f.close());const seed=new Persistence(f.pool,f.authority,{promoteV2:true}),state=await seed.read(f.ref,f.principal);await seed.appendUpdate(f.ref,f.principal,'startup-dirty',change(state.doc));
+ await f.pool.query("UPDATE collab_documents SET snapshot_at=clock_timestamp()-interval '10 seconds'");
+ const blocker=await f.pool.connect();let starting:ReturnType<typeof startServer>|undefined;
+ try{
+  await blocker.query('BEGIN');await blocker.query("SELECT pg_advisory_xact_lock_shared(hashtext(current_database()),hashtext(current_schema() || ':collab-handoff'))");
+  let ready=false;starting=startServer(new Persistence(f.pool,f.authority,{promoteV2:true}),{host:'127.0.0.1',port:0,internalHost:'127.0.0.1',internalPort:0,internalSecret:'i'.repeat(32),allowedOrigins:['http://localhost:3000'],updatesPerMinute:120,maxBufferedBytes:4194304});void starting.then(()=>{ready=true;}).catch(()=>{});
+  await eventually(async()=>(await f.pool.query("SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name=$1 AND query LIKE 'SELECT pg_advisory_lock(%collab-handoff%' AND cardinality(pg_blocking_pids(pid))>0) AS blocked",[f.schema])).rows[0].blocked);
+  // Cross a real scheduler interval while the database proves takeover is blocked.
+  await new Promise(r=>setTimeout(r,1500));expect(ready).toBe(false);
+  expect((await f.pool.query('SELECT snapshot_sequence FROM collab_documents')).rows[0].snapshot_sequence).toBe('0');expect((await f.pool.query('SELECT count(*) FROM collab_updates')).rows[0].count).toBe('1');
+  await blocker.query('ROLLBACK');const server=await starting;expect((await fetch(server.httpURL+'/readyz')).status).toBe(200);
+  await eventually(async()=>(await f.pool.query('SELECT snapshot_sequence FROM collab_documents')).rows[0].snapshot_sequence==='1');expect((await f.pool.query('SELECT count(*) FROM collab_updates')).rows[0].count).toBe('0');expect((await f.pool.query('SELECT count(*) FROM collab_receipts')).rows[0].count).toBe('1');
+ }finally{await blocker.query('ROLLBACK');blocker.release();if(starting)try{await(await starting).close();}catch{}}
+});
