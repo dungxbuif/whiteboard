@@ -69,15 +69,17 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [x] Access, invitation, public links and capability tasks A1–A4 reviewed.
 - [x] Durable runtime B1/B2 and dashboard C1/C2 reviewed.
 - [x] Agent keys/audit,19presets and live mutation tasks D1–D3 reviewed.
-- [ ] B3 upload-teardown and concurrent-flush review corrections verified.
+- [x] B3 upload lifetime, flush serialization and same-account draft-conflict corrections reviewed (`d42dd02`).
+- [ ] Separate pending-image movement regression resolved and reviewed.
 - [ ] B4 presence/follow/voice and idle heartbeat reviewed; no second active v2 content writer.
 - [x] D4 browser startup and per-job process/temp cleanup corrections reviewed (`6cd80d6`); local nonroot image smoke passed.
 - [ ] E1 real API/browser/S3/MCP role/recovery tests and50-client measured load passed.
-- [ ] E2 idle socket through nginx exceeds75seconds after heartbeat fix.
+- [x] E2 idle socket through nginx exceeds75seconds after heartbeat fix (160seconds, six pings, zero live disconnects; scoped review passed).
 - [ ] Final reviewed source rebuilt for VM100 Linux/amd64; exact image IDs captured.
 - [ ] Existing environment/service ownership checked before secret changes; distinct v2 secrets installed without printing values.
-- [ ] PostgreSQL backup restored successfully in a disposable environment; complete migration7–13 stream verified.
-- [ ] Controlled writer rollback rehearsal preserves latest durable content, receipts and epoch fencing; image-only rollback forbidden after promotion.
+- [x] Preflight PostgreSQL backup restored in an isolated container; actual migrator7–13 passed, final13clean. [Evidence](../work/verification/collaboration-v2-backup.md).
+- [ ] Fresh cutover backup recorded immediately before production migrations.
+- [x] Controlled replacement-scene recovery rehearsal reviewed (`403f7c9`,24independent checks): preserve latest content, receipts and original quarantined identity; assets/overrides refuse. Image-only rollback forbidden after promotion.
 - [ ] Apply tested TURN gatewayIP endpoint, repeat actual deployed configuration proof; DNS hostname remains unverified until corrected.
 - [ ] Public HTTPS canary: two browsers, public view/edit, invite, roles/revoke, agent native write/export, restart and denied requests.
 - [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; original dashboard and native scene style retained.
@@ -85,4 +87,4 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [ ] Internal architecture/API/schema/runbooks plus human and AI-readable public docs reconciled with deployed behavior.
 - [ ] Whole-branch review complete, local master integration and release commit recorded (no Git remote configured).
 
-Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one.
+Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md), [recovery evidence](../work/verification/collaboration-recovery.md) and [recovery runbook](collaboration-recovery.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one.

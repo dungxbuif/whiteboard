@@ -48,12 +48,12 @@
 
 **Interfaces:** public /collab WebSocket -> collab; /mcp streaming HTTP -> MCP; /api -> Go. Internal command/authority endpoints private. One active collab instance.
 
-- [ ] **Step 1 — Record topology:** describe route map, service identity and rollback target in deployment docs. Homelab files must be readable before editing; never replace timed-out placeholders.
-- [ ] **Step 2 — Read-only inventory:** use verified saved VM100/gateway connection metadata to inspect listeners, Docker services/networks, reverse-proxy routes, NetBird relay configuration and TURN allocation range. Record actual hosts/ports; do not assume NetBird relay serves browser TURN. Missing access blocks only the corresponding production check.
-- [ ] **Step 3 — Package:** workspace-aware locked multi-stage builds, non-root processes, bounded renderer, health/readiness, WebSocket upgrade, unbuffered streaming HTTP. Require dedicated collab JWT/service secrets and fail closed on bad config.
-- [ ] **Step 4 — Verify locally:** run `rtk docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet` using securely provided local values, then build. Exercise /collab upgrade and /mcp lifecycle behind nginx; assert /internal is unreachable publicly. Do not print expanded secrets.
-- [ ] **Step 5 — Verify TURN:** actual ICE relay allocation/audio from two networks; record selected relay candidate and cleanup. Existing Coturn remains; data collaboration needs no extra TURN listener or new media port allocation.
-- [ ] **Step 6 — Reconcile and commit:** record actual topology/env/health/routing evidence. App commit `build: package collaboration and MCP services`; Homelab deployment/docs commit separately preserving unrelated changes.
+- [x] **Step 1 — Record topology:** describe route map, service identity and rollback target in deployment docs. Homelab files must be readable before editing; never replace timed-out placeholders.
+- [x] **Step 2 — Read-only inventory:** use verified saved VM100/gateway connection metadata to inspect listeners, Docker services/networks, reverse-proxy routes, NetBird relay configuration and TURN allocation range. Record actual hosts/ports; do not assume NetBird relay serves browser TURN. Missing access blocks only the corresponding production check.
+- [x] **Step 3 — Package:** workspace-aware locked multi-stage builds, non-root processes, bounded renderer, health/readiness, WebSocket upgrade, unbuffered streaming HTTP. Require dedicated collab JWT/service secrets and fail closed on bad config.
+- [x] **Step 4 — Verify locally:** run `rtk docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet` using securely provided local values, then build. Exercise /collab upgrade and /mcp lifecycle behind nginx; assert /internal is unreachable publicly. Do not print expanded secrets.
+- [x] **Step 5 — Verify TURN:** actual ICE relay allocation/audio from two networks; record selected relay candidate and cleanup. Existing Coturn remains; data collaboration needs no extra TURN listener or new media port allocation.
+- [x] **Step 6 — Reconcile and commit:** record actual topology/env/health/routing evidence. App commit `build: package collaboration and MCP services`; Homelab deployment/docs commit separately preserving unrelated changes.
 
 ### E3: Canary, rollback and public documentation
 

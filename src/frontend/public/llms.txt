@@ -7,7 +7,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
 
 - [Browser collaboration](docs/browser-collaboration.md): branch-only admission, offline recovery, scoped queues, images and local undo.
-- [Workspace invitations](docs/collaboration.md): branch-only invitation API, roles, registration and limits.
+- [Workspace invitations](docs/collaboration.md): branch-only invitation API, roles, registration and replacement-scene recovery limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
 
 - [Scene assets](docs/scene-assets.md): branch-only scoped upload/view, size/MIME limits, expiry and required headers.
@@ -16,4 +16,4 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 ## Release status
 
-Collaboration v2 is implemented in stages on the collaboration-v2 branch and has not been deployed. Access, invitations, dashboard and durable agent mutations have passed task review; browser lifecycle, renderer cleanup, presence/voice and full-stack release gates remain in progress. Do not assume these APIs are deployed until the release documentation confirms it.
+Collaboration v2 is implemented in stages on the collaboration-v2 branch and has not been deployed. Access, invitations, dashboard and durable agent mutations have passed task review; renderer cleanup has also passed review. Browser image lifecycle, presence/voice and full-stack release gates remain in progress. Do not assume these APIs are deployed until the release documentation confirms it.

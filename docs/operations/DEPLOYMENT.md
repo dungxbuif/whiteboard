@@ -1,5 +1,7 @@
 # Production Deployment
 
+Status: the procedures below describe the existing v1 deployment unless explicitly marked v2. Collaboration v2 is not deployed. After promotion, use the [replacement-scene recovery runbook](collaboration-recovery.md); the v1 image-only rollback paragraph is not applicable to a v2 scene.
+
 ## Deployment Target
 
 The release bundle targets one Linux host or VM running Docker Compose. The
@@ -86,3 +88,10 @@ the collaboration service, and redact legacy token paths/query strings in
 reverse-proxy and tracing logs. Go strips legacy query strings and redacts
 RequestURI; routing still retains URL.Path. Credential SQL queries suppress
 parameter logging.
+
+
+## E3 backup preparation (before production changes)
+
+Record the running whiteboard image IDs and protect a copy of the existing manifest/environment with mode0600. Read the database connection from the running backend environment in memory; never print the URL or pass it as an exposed command argument. Use a PostgreSQL client at least as new as the server to create a custom-format database dump in a private release directory. Capture the migration version, restore the dump into a new disposable local database, compare table row counts and migration state, then apply the complete forward migration stream7–13 in that disposable database and verify schema state. Never restore over production or apply down migrations.
+
+The dump includes account and token data. Keep it private, outside Git and browser artifacts. This database-only proof does not back up S3 objects; existing immutable objects must remain available throughout release. Repeat the dump immediately before the migration cutover if production changed after this preparation. Record exact evidence separately; no successful restore is claimed until the commands pass.

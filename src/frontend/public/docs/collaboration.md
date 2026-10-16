@@ -73,3 +73,10 @@ Room claims: HS256, issuer `whiteboard-api`, audience `whiteboard-collab`, purpo
 Errors use `{code,message,requestId}`. Invitations: 400 invalid input/link or generic registration rejection; 401 login required; 403 wrong email/prohibited operation; 404 inaccessible workspace; 410 expiry; 413 oversized body; 408 stalled input; 503 unavailable authority. Registration errors do not enumerate accounts. Sharing: 400 invalid input; 401 password/session challenge; 403 forbidden; 404 inaccessible/revoked/expired resource; 413 oversized body; 503 unavailable authority. Invitation/public-link JSON bodies are bounded at 4 KiB; unknown fields/trailing JSON are rejected. Passwords in query strings are ignored. Do not log tokens, passwords or scoped credentials.
 
 See [browser collaboration and recovery](browser-collaboration.md) for scoped queues, local undo, image retries, session lifetime and the single-writer migration policy.
+
+
+## Operator recovery limits
+
+The current branch includes a tested recovery procedure for a verified replacement scene with a new link. Your original queued edits stay associated with their original scene; they are not automatically replayed into the replacement. Keep a downloaded recovery copy and ask the workspace owner which link to use.
+
+Scenes containing images/assets or scene-specific access overrides require an operator mapping procedure before replacement. The bounded rehearsal refuses those cases. This is not an automatic restore button, version-history feature, or proof of a production backup restore. Production rollout remains pending.

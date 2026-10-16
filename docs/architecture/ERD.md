@@ -66,3 +66,23 @@ Version 11 follows reserved share-link, collab and agent migrations 8–10. Ship
 `scene_assets` remains scene-owned. Migration 000012 adds `uploaded_principal_id` and `uploaded_principal_type` for guest audit while `uploaded_by` remains nullable and references real users only. Active file IDs are unique within `(workspace_id,scene_id,file_id)`; metadata reads require both workspace and scene. Grants are transient signed decisions, not durable ACL truth. [Authority protocol](mutation-authority.md) defines workspace-lock/version validation and revocation proof. Verification uses isolated PostgreSQL schemas and tests public guest uploads, scene isolation, and revoke races.
 
 Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene. Down migration recreates the legacy unique index first and intentionally fails if two scenes share a live file ID; operators must resolve collisions explicitly. It never deletes user assets to make rollback fit. User-principal audit strings survive user deletion; `uploaded_by` can become NULL through its existing foreign key. Historical rows without uploader keep nullable principal audit fields. Public rows require guest identity and nullable user UUID. No new durable capability table is introduced.
+
+
+## Complete v2 durable schema (branch implemented; deployment pending)
+
+| Migration / table | Durable contract |
+| --- | --- |
+| 000008 / `share_links` | Independent view/edit links, hash-only lookup, optional password/expiry, revision invalidation; legacy links migrate as view grants |
+| 000009 / `scenes.writer_mode` | Exactly v1 or v2; promotion fences the old content PATCH writer |
+| 000009 / `collab_documents` | One per scene; unique document UUID, latest and snapshot bigint sequences, snapshot bytes, original promotion JSON/version; composite workspace/scene foreign key |
+| 000009 / `collab_updates` | Ordered binary updates keyed by scene/positive sequence; compacted after snapshot |
+| 000009 / `collab_receipts` | Permanent scene/request ID dedup, exact principal/payload hash/action, unique sequence and state vector |
+| 000009 / `collab_mutation_audit` | Receipt-linked principal, workspace, sequence, payload hash/action and ACL version; retained with receipts |
+| 000010 / `agent_keys` | Workspace/owner, unique token hash, independent JSON scopes and optional scene targets; changes advance ACL version |
+| 000011 / `workspace_invitations` | Seven-day email-bound single-use invitation metadata/hash, consumption and revocation timestamps |
+| 000012 / `scene_assets` | Scene-scoped immutable file identity and user/guest uploader metadata; transient signed capabilities are not stored as authority |
+| 000013 / `agent_operation_audit` | Go-authoritative operation outcome, key/principal/scope/correlation, latency and failure class; no raw token or scene contents |
+
+Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
+
+Presence, cursor, viewport/follow and voice signaling remain ephemeral. Agent operation audit and durable scene mutation audit have different provenance and purposes. Public short IDs remain aliases; UUIDs are canonical keys and foreign-key targets. All API sequences are decimal strings to avoid JavaScript number precision loss.

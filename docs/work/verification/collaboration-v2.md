@@ -139,3 +139,18 @@ B3 commit `812578f` records56unit tests,30Chromium tests and production build pa
 
 
 D4 lifecycle fix `6cd80d6` passed scoped spec/quality review: both original findings addressed, reviewer independently ran5lifecycle tests successfully. Implementer24focused tests/build and controller nonroot Linux/arm64 nativePNG image smoke passed. Exact image and fixture boundaries are recorded in [packaging evidence](collaboration-v2-packaging.md). Final Linux/amd64 release acceptance remains outstanding.
+
+
+E2 scoped heartbeat re-review passed against `7bb902e`:25second server ping, next-interval dead-peer termination, presence/voice cleanup and160second actual nginx proof address the75second idle disconnect. Full B4 server/frontend task review remains separate. E2 packaging is accepted within its explicit local ARM64/signed-authority-fixture scope; final frozen AMD64/public release gates remain.
+
+
+### Real-stack acceptance and recovery checkpoint
+
+B3 fix3 `d42dd02` passes34collaboration tests and the frontend build; independent scoped review is pending. The same-account draft-conflict upload loop is corrected, while a separately reproduced pending-image movement regression remains a release blocker.
+
+The actual Go/Node/PostgreSQL/MCP/browser/S3 harness is running. The measured50-client workload currently **fails**:650attempts,178ACKs,219durable receipts, observed ACKp958557ms. Every observed ACK matches its receipt; this does not imply all attempted updates completed. All50sockets eventually closed1013. Profiling identifies per-update fresh validation worker startup under the workspace lock and per-commit/per-recipient full reads; repair and remeasurement are required. The target remains p95below1second at50clients each sending1smallupdate/second.
+
+Recovery slice `403f7c9` passes24tests and compilation; independent review is pending. It preserves original history in an archive and a quarantined scene and creates a distinct replacement scene/document. Unsupported assets and access overrides refuse before mutation. This is not a full PostgreSQL backup restore or a production rollout. See [recovery evidence](collaboration-recovery.md) and [operator runbook](../../operations/collaboration-recovery.md).
+
+
+B3 fix3 scoped review now passes both spec and quality (13independent targeted checks); B4 frontend integration is released while the separate image-movement repair remains required. The recovery slice also passes independent spec/quality review with24actual checks. Two nonblocking recovery hardening/coverage suggestions remain for whole-branch triage; full E3 acceptance is still open.
