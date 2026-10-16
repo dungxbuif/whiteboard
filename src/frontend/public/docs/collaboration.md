@@ -32,3 +32,42 @@ A view link reads only its scene. An edit link asks guests for a display name; t
 The current public edit screen shows a read-only snapshot while live collaboration is awaiting its adapter. Actual editing is enabled only after room admission in the B3 integration. Renewal, live revocation, offline replay and real WebSocket verification are release gates, not represented as completed by the management UI tests. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
 
 Agent API contract: POST `/api/v1/invitations/accept` accepts `{token}` with account bearer. POST `/api/v1/invitations/register` accepts `{token,email,name,password}` without bearer. POST `/api/v1/public/scene-session` accepts `{token,password?,displayName?}` without account bearer and returns `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. POST `/api/v1/public/scenes/:token` accepts `{password?,displayName?}` for the initial snapshot. Use the scoped session bearer only for `/api/v1/scenes/:sceneId/room-token`; never store it as the account login token. Share lists contain `{id,access,active,expiresAt}` only; the create response additionally contains a one-time token. Workspace responses include current `role`; authenticated scene responses include effective `access` and `owner`.
+
+
+## Agent-readable endpoint reference
+
+All routes below begin `/api/v1`. Login JWTs are account credentials. Public scene sessions are distinct scoped credentials. Workspace/scene route IDs accept existing UUIDs or public aliases; member/invitation/link IDs remain canonical IDs.
+
+| Method and route | Authorization / scope | Request | Success |
+| --- | --- | --- | --- |
+| GET `/workspaces` | Login, current memberships | none | Workspace array with current `role` |
+| POST `/workspaces` | Login | `{name}` | Workspace, `role:owner` |
+| GET `/workspaces/{id}/members` | Owner, workspace from path | none | `{workspaceId,userId,role,createdAt}[]` |
+| PATCH `/workspaces/{id}/members/{userId}` | Owner, protected owner cannot be demoted | `{role:"editor"\|"viewer"}` | 204 |
+| DELETE `/workspaces/{id}/members/{userId}` | Owner, protected owner cannot be removed | none | 204 |
+| PUT `/scenes/{id}/members/{userId}` | Owner + `X-Workspace-ID` | `{role:"editor"\|"viewer"}` | 204; apply override |
+| DELETE `/scenes/{id}/members/{userId}` | Owner + `X-Workspace-ID` | none | 204; inherit membership |
+| POST `/workspaces/{id}/invitations` | Owner, workspace from path | `{email,role:"editor"\|"viewer"}` | 201 `{invitation,inviteUrl}` |
+| GET `/workspaces/{id}/invitations` | Owner | none | 200 pending metadata array |
+| DELETE `/workspaces/{id}/invitations/{inviteId}` | Owner | none | 204 |
+| POST `/invitations/accept` | Login with invited email | `{token}` | 200 Membership |
+| POST `/invitations/register` | Public, valid email-bound invite | `{token,email,password,name}` | 201 User; then ordinary password login |
+
+Invitation metadata contains `id,workspaceId,email,role,inviterId,createdAt,expiresAt` and optional `acceptedAt,revokedAt`. Pending listing excludes consumed, revoked and expired invitations. Only creation returns the raw URL; no API returns hashes. Invitation lifetime is exactly seven days; accepting at expiry fails. Accepting a lower-role invitation never reduces an existing membership.
+
+| Method and route | Authorization / scope | Input | Output |
+| --- | --- | --- | --- |
+| GET `/scenes/{id}/share-links` | Owner login + `X-Workspace-ID` | none | `{id,access,active,expiresAt}[]` |
+| POST `/scenes/{id}/share-links` | Owner login + `X-Workspace-ID` | `{access:"view"\|"edit",password?,expiresAt?}` | `{id,access,active,expiresAt,token}`; token once |
+| DELETE `/scenes/{id}/share-links/{linkId}` | Owner login + `X-Workspace-ID` | none | 204 |
+| POST `/public/scene-session` | Public link, no account bearer | `{token,password?,displayName?}` | SceneSession |
+| POST `/public/scenes/{token}` | Public link, no account bearer | `{password?,displayName?}` | `{title,content}` snapshot after current authority checks |
+| POST `/scenes/{id}/room-token` | Login or scoped scene-session bearer | `{}`; optional `X-Workspace-ID` for scoped guest, required for login | `{token,expiresAt,sceneSession?}` |
+
+SceneSession is `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. Edit guests require a trimmed 1–100 character display name. Share passwords require at least six characters and at most 72 UTF-8 bytes. Link expiry is a future RFC3339 timestamp. Public access grants exactly one scene, with no membership or management rights. Lists expose metadata, never token/hash/password.
+
+Room renewal validates current membership/link and scene/workspace status. For guests it returns a renewed sceneSession with the same guest ID; replace both credentials before expiry. Credentials last at most ten minutes and never outlive link expiry. Expired sessions require link/password exchange. Link/password changes invalidate earlier sessions. A room JWT is not a login or scene-session token. Browser live renewal and revoke/downgrade transport remain B3/E integration gates.
+
+Room claims: HS256, issuer `whiteboard-api`, audience `whiteboard-collab`, purpose `room`, scene/workspace scope, `principalType`, `principalId`, `grantId`, `displayName`, `access`, decimal-string `aclVersion`, `iat/exp/jti`. Public IDs begin `guest:` and include decimal-string `grantVersion`. Scene-session audience is `whiteboard-scene-session` and purpose is `scene-session`. Go/collab use a dedicated `COLLAB_JWT_SECRET` of at least 32 bytes, distinct from `JWT_SECRET`.
+
+Errors use `{code,message,requestId}`. Invitations: 400 invalid input/link or generic registration rejection; 401 login required; 403 wrong email/prohibited operation; 404 inaccessible workspace; 410 expiry; 413 oversized body; 408 stalled input; 503 unavailable authority. Registration errors do not enumerate accounts. Sharing: 400 invalid input; 401 password/session challenge; 403 forbidden; 404 inaccessible/revoked/expired resource; 413 oversized body; 503 unavailable authority. Invitation/public-link JSON bodies are bounded at 4 KiB; unknown fields/trailing JSON are rejected. Passwords in query strings are ignored. Do not log tokens, passwords or scoped credentials.

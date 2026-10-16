@@ -2,15 +2,13 @@ import { ChevronDown, ChevronRight, Folder, Star, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { navigateDashboard } from "@/lib/dashboard-navigation";
 import { cn } from "@/lib/utils";
 import useFolderStore, { buildFolderTree, type FolderNode } from "@/store/folder-store";
 import useWorkspaceStore from "@/store/workspace-store";
-import useSearchStore from "@/store/search-store";
 
 function TreeItem({ node }: { node: FolderNode }) {
   const currentFolderId = useFolderStore((state) => state.currentFolderId);
-  const setCurrentFolderId = useFolderStore((state) => state.setCurrentFolderId);
-  const setView = useSearchStore((state) => state.setView);
   const [expanded, setExpanded] = useState(true);
   const hasChildren = node.children.length > 0;
 
@@ -29,7 +27,7 @@ function TreeItem({ node }: { node: FolderNode }) {
         </Button>
         <Button
           className={cn("h-8 min-w-0 flex-1 justify-start px-2", currentFolderId === node.id && "bg-accent")}
-          onClick={() => { setView("all"); setCurrentFolderId(node.id); }}
+          onClick={() => navigateDashboard({ folderId: node.id })}
           type="button"
           variant="ghost"
         >
@@ -47,19 +45,17 @@ function TreeItem({ node }: { node: FolderNode }) {
 export function FolderTree() {
   const role = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === state.activeWorkspaceId)?.role);
   const folders = useFolderStore((state) => state.folders);
-  const setCurrentFolderId = useFolderStore((state) => state.setCurrentFolderId);
-  const setView = useSearchStore((state) => state.setView);
   const tree = useMemo(() => buildFolderTree(folders), [folders]);
 
   return (
     <nav aria-label="Folders" className="grid gap-1">
-      <Button className="justify-start" onClick={() => { setView("all"); setCurrentFolderId(null); }} type="button" variant="ghost">
+      <Button className="justify-start" onClick={() => navigateDashboard()} type="button" variant="ghost">
         <Folder /> All files
       </Button>
-      <Button className="justify-start" onClick={() => setView("starred")} type="button" variant="ghost">
+      <Button className="justify-start" onClick={() => navigateDashboard({ view: "starred" })} type="button" variant="ghost">
         <Star /> Starred
       </Button>
-      {role === "owner" && <Button className="justify-start" onClick={() => setView("trash")} type="button" variant="ghost">
+      {role === "owner" && <Button className="justify-start" onClick={() => navigateDashboard({ view: "trash" })} type="button" variant="ghost">
         <Trash2 /> Trash
       </Button>}
       {tree.length ? <ul>{tree.map((node) => <TreeItem key={node.id} node={node} />)}</ul> : (

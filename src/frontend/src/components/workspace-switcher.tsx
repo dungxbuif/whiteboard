@@ -18,10 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { selectWorkspace } from "@/lib/dashboard-navigation";
 import useWorkspaceStore from "@/store/workspace-store";
 
 export function WorkspaceSwitcher() {
-  const { workspaces, activeWorkspaceId, setActiveWorkspaceId } = useWorkspaceStore();
+  const { workspaces, activeWorkspaceId } = useWorkspaceStore();
   const createWorkspace = useWorkspaceStore((state) => state.createWorkspace);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [workspaceName, setWorkspaceName] = React.useState("");
@@ -53,7 +54,7 @@ export function WorkspaceSwitcher() {
         {Array.isArray(workspaces) && workspaces.map((workspace) => (
           <DropdownMenuItem
             key={workspace.id}
-            onClick={() => setActiveWorkspaceId(workspace.id)}
+            onClick={() => selectWorkspace(workspace)}
             className="flex items-center justify-between"
           >
             <div className="flex min-w-0 items-center gap-2">
@@ -97,7 +98,8 @@ export function WorkspaceSwitcher() {
             setIsCreating(true);
             setCreateError("");
             try {
-              await createWorkspace(name);
+              const workspace = await createWorkspace(name);
+              selectWorkspace(workspace);
               setCreateDialogOpen(false);
             } catch {
               setCreateError("Could not create workspace");

@@ -1,13 +1,13 @@
 import { Search } from "lucide-react";
 import { useEffect, useRef } from "react";
 
+import { navigateDashboard } from "@/lib/dashboard-navigation";
 import { Input } from "@/components/ui/input";
 import useSearchStore, { SEARCH_DEBOUNCE_MS } from "@/store/search-store";
 
 export function SearchBar({ workspaceId }: { workspaceId: string | null }) {
   const query = useSearchStore((state) => state.query);
   const view = useSearchStore((state) => state.view);
-  const setQuery = useSearchStore((state) => state.setQuery);
   const search = useSearchStore((state) => state.search);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -23,7 +23,7 @@ export function SearchBar({ workspaceId }: { workspaceId: string | null }) {
         className="pl-9"
         onChange={(event) => {
           const nextQuery = event.target.value;
-          setQuery(nextQuery);
+          navigateDashboard({ query: nextQuery, view });
           if (timer.current) clearTimeout(timer.current);
           if (!workspaceId) return;
           timer.current = setTimeout(() => {

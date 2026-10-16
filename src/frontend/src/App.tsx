@@ -23,8 +23,9 @@ function App() {
   const publicToken = pathname.match(/^\/p\/([^/]+)\/?$/)?.[1] ?? null;
   const inviteToken = pathname.match(/^\/invite\/([^/]+)\/?$/)?.[1] ?? null;
   const sceneRoute = pathname.match(/^\/w\/([^/]+)\/scenes\/([^/]+)\/?$/);
+  const dashboardRoute = pathname.match(/^\/w\/([^/]+)\/?$/);
   const settingsRoute = pathname.match(/^\/w\/([^/]+)\/settings\/(members|agents)\/?$/);
-  const routeWorkspace = sceneRoute?.[1] ?? settingsRoute?.[1];
+  const routeWorkspace = sceneRoute?.[1] ?? settingsRoute?.[1] ?? dashboardRoute?.[1];
   const routeScene = sceneRoute?.[2];
   const { checkAuth, isAuthenticated, isLoading } = useAuthStore();
   const { workspaces, activeWorkspaceId, fetchWorkspaces, setActiveWorkspaceId } = useWorkspaceStore();

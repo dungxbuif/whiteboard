@@ -35,3 +35,9 @@ Editors see content creation controls. Viewers see reading controls; owner manag
 Scene links accept existing UUIDs and public aliases. Reload, back and forward restore the selected workspace and scene. Returning to the dashboard closes the scene, and late scene-open responses cannot replace a newer selection. Search results open a scene route too.
 
 Management and navigation have browser regression coverage. Public live editing/revocation and production rollout remain separate release gates. See [collaboration](collaboration.md) for invitation and sharing steps.
+
+## Move between settings and your files
+
+Choosing a workspace opens that workspace's dashboard at `/w/:id`. You can reload that route, or use browser back/forward to return to the previous workspace settings. UUIDs and public aliases both work.
+
+From Members or Agent keys, **All files**, a folder, **Starred**, owner-only **Trash**, and the search box open their destination in the workspace dashboard. The selected folder, view or search text is retained. **Dashboard** opens All files and clears the previous search.

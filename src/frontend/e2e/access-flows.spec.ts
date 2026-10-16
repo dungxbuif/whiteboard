@@ -159,3 +159,91 @@ test('public edit asks for display name without persisting guest credentials', a
   expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
   expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('guest-credential');
 });
+
+
+const secondWorkspace = { ...workspace, id: '0f00f7e8-4e36-49a4-b1c6-88ff5e413533', publicId: 'second-workspace', name: 'Second workspace' };
+const navigationFolder = { id: 'planning-folder', workspaceId: workspace.id, parentId: null, name: 'Planning', path: '/planning/', depth: 0, isStarred: false, createdAt: '', updatedAt: '' };
+async function navigationFixture(page: Page) {
+  await fixture(page);
+  await page.route('**/api/v1/workspaces', route => route.fulfill({ json: [workspace, secondWorkspace] }));
+  await page.route('**/api/v1/folders**', route => route.fulfill({ json: route.request().headers()['x-workspace-id'] === workspace.id ? [navigationFolder] : [] }));
+  await page.route('**/api/v1/scenes', route => {
+    const url = new URL(route.request().url());
+    return route.fulfill({ json: [{ ...scene, title: url.searchParams.get('folderId') ? 'Folder drawing' : 'Root drawing' }] });
+  });
+  await page.route('**/api/v1/scenes?**', route => route.fulfill({ json: [{ ...scene, title: 'Folder drawing' }] }));
+  await page.route('**/api/v1/search**', route => {
+    const query = new URL(route.request().url()).searchParams;
+    const name = query.get('q') ? 'Found ' + query.get('q') : query.get('view') === 'starred' ? 'Starred drawing' : 'Trashed drawing';
+    return route.fulfill({ json: [{ id: scene.id, workspaceId: workspace.id, type: 'scene', name, isStarred: query.get('view') === 'starred', updatedAt: '' }] });
+  });
+}
+
+for (const section of ['members', 'agents']) {
+  const heading = section === 'members' ? 'Members' : 'Agent keys';
+  test('switching workspace from ' + section + ' updates route and survives history', async ({ page }) => {
+    await navigationFixture(page);
+    await page.goto('/w/workspace-alias/settings/' + section);
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    await page.getByRole('combobox').filter({ hasText: workspace.name }).click();
+    await page.getByRole('menuitem', { name: secondWorkspace.name, exact: true }).click();
+    await expect(page).toHaveURL('/w/' + secondWorkspace.publicId);
+    await expect(page.getByRole('heading', { name: secondWorkspace.name, exact: true })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('heading', { name: secondWorkspace.name, exact: true })).toBeVisible();
+    await page.goBack();
+    await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox').filter({ hasText: workspace.name })).toBeVisible();
+    await page.goForward();
+    await expect(page.getByRole('heading', { name: secondWorkspace.name, exact: true })).toBeVisible();
+  });
+
+  test('dashboard navigation leaves ' + section + ' preserving folder view and search', async ({ page }) => {
+    await navigationFixture(page);
+    const settings = '/w/workspace-alias/settings/' + section;
+    for (const target of ['All files', 'Planning', 'Starred', 'Trash']) {
+      await page.goto(settings);
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      await page.getByRole('navigation', { name: 'Folders', exact: true }).getByRole('button', { name: target, exact: true }).click();
+      await expect(page).toHaveURL('/w/workspace-alias');
+      await expect(page.getByRole('heading', { name: heading, exact: true })).toHaveCount(0);
+      if (target === 'All files' || target === 'Planning') await expect(page.getByRole('region', { name: 'Scenes' })).toContainText(target === 'Planning' ? 'Folder drawing' : 'Root drawing');
+      else await expect(page.getByRole('region', { name: target })).toContainText(target === 'Starred' ? 'Starred drawing' : 'Trashed drawing');
+    }
+    await page.goto(settings);
+    await page.getByRole('textbox', { name: 'Search scenes and folders' }).fill('architecture');
+    await expect(page).toHaveURL('/w/workspace-alias');
+    await expect(page.getByRole('region', { name: 'Search results' })).toContainText('Found architecture');
+    await expect(page.getByRole('textbox', { name: 'Search scenes and folders' })).toHaveValue('architecture');
+  });
+}
+
+test('a delayed obsolete scene open cannot replace a newer route', async ({ page }) => {
+  await fixture(page);
+  const oldScene = { ...scene, id: 'old-scene', publicId: 'old-alias', title: 'Old scene' };
+  const newScene = { ...scene, id: 'new-scene', publicId: 'new-alias', title: 'New scene' };
+  await page.route('**/api/v1/scenes', route => route.fulfill({ json: [oldScene, newScene] }));
+  let oldStarted = false;
+  let releaseOld!: () => void;
+  let oldCompleted!: () => void;
+  const pending = new Promise<void>(resolve => { releaseOld = resolve; });
+  const completed = new Promise<void>(resolve => { oldCompleted = resolve; });
+  await page.route('**/api/v1/scenes/old-scene/', async route => { oldStarted = true; await pending; await route.fulfill({ json: oldScene }); oldCompleted(); });
+  await page.route('**/api/v1/scenes/new-scene/', route => route.fulfill({ json: newScene }));
+  await page.goto('/');
+  await page.locator('article').filter({ hasText: 'Old scene' }).getByRole('button', { name: 'Open', exact: true }).click();
+  await expect.poll(() => oldStarted).toBe(true);
+  await page.goBack();
+  await page.locator('article').filter({ hasText: 'New scene' }).getByRole('button', { name: 'Open', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'New scene', exact: true })).toBeVisible();
+  const oldResponse = page.waitForResponse(response => response.url().endsWith('/scenes/old-scene/'));
+  releaseOld();
+  await completed;
+  await (await oldResponse).finished();
+  await page.evaluate(async () => {
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  });
+  await expect(page.getByRole('heading', { name: 'New scene', exact: true })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp('/scenes/new-scene$'));
+});
