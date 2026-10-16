@@ -143,3 +143,27 @@ Private Go mutation decisions and public scene assets follow the [authority cont
 | POST | `/internal/authority/decisions` | Private listener only; dedicated service bearer + room token, exact binding in [protocol](mutation-authority.md) |
 
 Existing login `/api/v1/assets/presign-upload` remains compatible with the new upload limits and short URLs. New scoped upload responses include `headers.Content-Type`; PUT the original Blob so the browser supplies exact Content-Length. MIME allowlist is PNG/JPEG/GIF/WebP; 1 byte–10 MiB; at most 100 unique file IDs. Existing SVG/AVIF references remain readable. URL expiry is bounded by credential/link expiry; already-issued object-store URLs last until their expiration despite revocation. New Go authority decision lifetimes are <=5s. Runtime reverse-proxy and object-store integration validation remains E-owned.
+
+
+## Scoped agent keys and MCP (D1)
+
+Owner login routes: `GET/POST /api/v1/workspaces/{id}/agent-keys`, `DELETE /api/v1/workspaces/{id}/agent-keys/{keyId}`. POST accepts `{scopes:string[],sceneIds:UUID[]}` and returns metadata plus `key` once. Lists/revocations never return the raw key or digest. Each key targets one workspace; empty sceneIds means all its scenes. Explicit scene targets cannot include `scene:create`. Scopes: `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, `scene:export`; no scope implies another. Key mutations audit key IDs and bump the workspace ACL transactionally.
+
+Dedicated bearer routes (agent keys are rejected by login middleware):
+
+| Route | Requirement / response |
+| --- | --- |
+| `GET /api/v1/agent/auth` | Current active key, owner membership and workspace; `{principalId,keyId}` |
+| `GET /api/v1/agent/workspaces?cursor&limit` | `workspace:read`; `{items,nextCursor?}` |
+| `GET /api/v1/agent/workspaces/{workspaceId}/scenes?cursor&limit` | `scene:read`; scoped metadata page |
+| `POST /api/v1/agent/workspaces/{workspaceId}/scenes` | `scene:create`, unrestricted workspace target, current edit; `{title}` creates `{elements:[],appState:{},files:{}}` |
+| `GET /api/v1/agent/workspaces/{workspaceId}/scenes/{sceneId}` | `scene:read`; at most 500 elements/256 KiB, else `413 PROJECTION_TOO_LARGE` |
+| `POST /api/v1/agent/workspaces/{workspaceId}/scenes/{sceneId}/room-token` | Current read or write scope; ten-minute scoped room credential for private authority bridge |
+
+All discovery filters precede pagination (limit 1–50, UUID cursor, no global totals). Agent principal is `agent:<key UUID>`, grantId is that key UUID, UserID is nil and Owner is always false. A4 independently requires `scene:read` for read decisions and `scene:write` for update/command decisions; a write-only room credential does not confer read admission. Current key revocation, owner membership/status and targets are rechecked under workspace lock. Agents do not use asset/TURN capabilities or management endpoints.
+
+MCP `/mcp` uses the official SDK Streamable HTTP lifecycle with exact Origin allowlist and authenticated principal-bound sessions. The remote stdio adapter uses `WHITEBOARD_API_URL` and `WHITEBOARD_AGENT_KEY`; stdout contains only MCP frames. PAT/header and stdio compatibility are supported; OAuth discovery/PKCE is not claimed. See [agent guide](../user/agents.md) and [ADR 0011](../decisions/0011-native-mcp.md).
+
+### Asset capability expiry and renewal clarification
+
+Upload capabilities preserve the absolute parent credential/current public-link deadline through repository lookup and signing. A renewal of the same scene/file preserves its asset ID, storage key and original uploader audit only when MIME, byte size, SHA-256 and dimensions are identical. Conflicting metadata returns `409 ASSET_CONFLICT` instead of replacing the existing object identity.

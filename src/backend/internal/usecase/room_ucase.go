@@ -126,7 +126,7 @@ func (s *RoomService) MintRoomToken(ctx domain.Context, p domain.Principal, ref 
 		if e != nil {
 			return result, e
 		}
-	} else if p.Kind != domain.PrincipalPublic {
+	} else if p.Kind != domain.PrincipalPublic && p.Kind != domain.PrincipalAgent {
 		return result, domain.ErrAccessDenied
 	}
 	e := s.access.WithWorkspaceLock(ctx, ref.WorkspaceID, actor, func(ctx domain.Context) error {
@@ -144,7 +144,7 @@ func (s *RoomService) MintRoomToken(ctx domain.Context, p domain.Principal, ref 
 				return e
 			}
 			p.GrantID = "membership:" + ref.WorkspaceID.String() + ":" + actor.String()
-		} else {
+		} else if p.Kind == domain.PrincipalPublic {
 			if d.Access == domain.AccessEdit && strings.TrimSpace(p.DisplayName) == "" {
 				return domain.ErrInvalidShareInput
 			}
@@ -159,6 +159,12 @@ func (s *RoomService) MintRoomToken(ctx domain.Context, p domain.Principal, ref 
 			if link.ExpiresAt != nil && link.ExpiresAt.Before(expires) {
 				expires = *link.ExpiresAt
 			}
+		}
+		if p.Kind == domain.PrincipalAgent {
+			if !p.CredentialExpiresAt.IsZero() && p.CredentialExpiresAt.Before(expires) {
+				expires = p.CredentialExpiresAt
+			}
+			p.DisplayName = "Agent"
 		}
 		raw, e := s.sign(p, ref, d, domain.RoomAudience, domain.RoomPurpose, expires)
 		if e != nil {
@@ -209,6 +215,11 @@ func (s *RoomService) parse(raw, audience, purpose string) (domain.SceneSessionI
 		}
 		id, e := uuid.Parse(p.GrantID)
 		if e != nil || id == uuid.Nil {
+			return identity, domain.ErrInvalidSceneSession
+		}
+	case domain.PrincipalAgent:
+		id, e := uuid.Parse(p.GrantID)
+		if purpose != domain.RoomPurpose || e != nil || id == uuid.Nil || p.ID != "agent:"+id.String() || p.GrantVersion != "" {
 			return identity, domain.ErrInvalidSceneSession
 		}
 	case domain.PrincipalUser:

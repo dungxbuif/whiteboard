@@ -105,12 +105,14 @@ func newRouter(
 	aiHandler nethttp.Handler,
 	realtimeConfigHandler nethttp.Handler,
 	invitationHandler *handler.InvitationHandler,
-	accessServices ...domain.AccessService,
+	services ...routerServices,
 ) nethttp.Handler {
 	var access domain.AccessService
 	var accessHandler *handler.AccessHandler
-	if len(accessServices) > 0 {
-		access = accessServices[0]
+	var agents *handler.AgentHandler
+	if len(services) > 0 {
+		access = services[0].access
+		agents = services[0].agents
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	router := chi.NewRouter()
@@ -125,6 +127,9 @@ func newRouter(
 	}
 
 	router.Route("/api/v1", func(r chi.Router) {
+		if agents != nil {
+			r.Mount("/agent", agents.Routes())
+		}
 		if assetHandler != nil && assetHandler.Capabilities != nil {
 			cap := assetHandler.Capabilities
 			r.With(deliverymiddleware.InvitationBodyMiddleware).Method(http.MethodPost, "/scenes/{id}/assets/upload-capability", cap.UploadHandler(authMiddleware))
@@ -172,6 +177,11 @@ func newRouter(
 			}
 
 			r.Route("/workspaces", func(r chi.Router) {
+				if agents != nil {
+					r.Get("/{id}/agent-keys", agents.List)
+					r.Post("/{id}/agent-keys", agents.Create)
+					r.Delete("/{id}/agent-keys/{keyId}", agents.Revoke)
+				}
 				if invitationHandler != nil {
 					r.Get("/{id}/invitations", invitationHandler.List)
 					r.Post("/{id}/invitations", invitationHandler.Create)
@@ -263,5 +273,15 @@ func NewRouterWithAccess(auth *handler.AuthHandler, workspaces *handler.Workspac
 	if len(invitations) > 0 {
 		invitationHandler = invitations[0]
 	}
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitationHandler, access)
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitationHandler, routerServices{access: access})
+}
+
+func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler) http.Handler {
+	assets.SetAccessService(access)
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents})
+}
+
+type routerServices struct {
+	access domain.AccessService
+	agents *handler.AgentHandler
 }

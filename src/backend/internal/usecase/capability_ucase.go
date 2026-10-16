@@ -27,7 +27,7 @@ func NewCapabilityService(a domain.AccessService, l domain.ShareLinkRepository, 
 func (s *CapabilityService) expiry(ctx domain.Context, p domain.Principal, ttl time.Duration) (time.Time, error) {
 	now := time.Now()
 	expires := now.Add(ttl)
-	if p.Kind != domain.PrincipalUser && p.Kind != domain.PrincipalPublic {
+	if p.Kind != domain.PrincipalUser && p.Kind != domain.PrincipalPublic && p.Kind != domain.PrincipalAgent {
 		return time.Time{}, domain.ErrAccessDenied
 	}
 	if p.CredentialExpiresAt.IsZero() || !p.CredentialExpiresAt.After(now) {
@@ -102,6 +102,19 @@ func (s *CapabilityService) AuthorizeCommand(ctx domain.Context, p domain.Princi
 		if e != nil {
 			return e
 		}
+		if p.Kind == domain.PrincipalAgent {
+			scoped, ok := s.access.(domain.AgentScopeRepository)
+			if !ok {
+				return domain.ErrAccessDenied
+			}
+			scope := domain.ScopeSceneWrite
+			if m.Action == domain.ActionSceneRead {
+				scope = domain.ScopeSceneRead
+			}
+			if e := scoped.RequireAgentScope(ctx, p, domain.SceneRef{WorkspaceID: w, SceneID: id}, scope); e != nil {
+				return e
+			}
+		}
 		d, e := s.access.Resolve(ctx, p, domain.SceneRef{WorkspaceID: w, SceneID: id})
 		if e != nil {
 			return e
@@ -123,6 +136,9 @@ func (s *CapabilityService) AuthorizeCommand(ctx domain.Context, p domain.Princi
 	return result, nil
 }
 func (s *CapabilityService) CreateAssetCapability(ctx domain.Context, p domain.Principal, ref domain.SceneRef, requests []domain.AssetUploadRequest) (domain.AssetGrant, error) {
+	if p.Kind == domain.PrincipalAgent {
+		return domain.AssetGrant{}, domain.ErrAccessDenied
+	}
 	var result domain.AssetGrant
 	if e := validateAssets(requests); e != nil {
 		return result, e
@@ -160,6 +176,9 @@ func (s *CapabilityService) CreateAssetCapability(ctx domain.Context, p domain.P
 }
 
 func (s *CapabilityService) AuthorizeScene(ctx domain.Context, p domain.Principal, ref domain.SceneRef, ttl time.Duration) (time.Time, error) {
+	if p.Kind == domain.PrincipalAgent {
+		return time.Time{}, domain.ErrAccessDenied
+	}
 	var expires time.Time
 	actor := uuid.Nil
 	if p.UserID != nil {

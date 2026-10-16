@@ -75,6 +75,20 @@ func (s *AccessService) Resolve(ctx domain.Context, p domain.Principal, ref doma
 	if !p.CredentialExpiresAt.IsZero() && !time.Now().Before(p.CredentialExpiresAt) {
 		return domain.AccessDecision{}, domain.ErrInvalidSceneSession
 	}
+	if p.Kind == domain.PrincipalAgent {
+		repo, ok := s.repo.(domain.AgentAccessRepository)
+		if !ok {
+			return domain.AccessDecision{}, domain.ErrAccessDenied
+		}
+		d, e := repo.AgentSceneState(ctx, p, ref)
+		if e != nil {
+			return domain.AccessDecision{}, e
+		}
+		if d.Owner || (d.Access != domain.AccessView && d.Access != domain.AccessEdit) {
+			return domain.AccessDecision{}, domain.ErrAccessDenied
+		}
+		return d, nil
+	}
 	if p.Kind == domain.PrincipalPublic {
 		repo, ok := s.repo.(domain.PublicAccessRepository)
 		if !ok || p.GrantVersion == "" || p.UserID != nil || !strings.HasPrefix(p.ID, "guest:") || len(p.ID) <= len("guest:") {
@@ -203,4 +217,18 @@ func (s *AccessService) SetOverride(ctx domain.Context, actor uuid.UUID, ref dom
 		}
 		return s.repo.ChangeOverride(ctx, ref, target, role)
 	})
+}
+
+func (s *AccessService) RequireAgentScope(ctx domain.Context, p domain.Principal, ref domain.SceneRef, scope string) error {
+	if p.Kind != domain.PrincipalAgent {
+		return domain.ErrAccessDenied
+	}
+	if !p.CredentialExpiresAt.IsZero() && !time.Now().Before(p.CredentialExpiresAt) {
+		return domain.ErrInvalidSceneSession
+	}
+	repo, ok := s.repo.(domain.AgentScopeRepository)
+	if !ok {
+		return domain.ErrAccessDenied
+	}
+	return repo.RequireAgentScope(ctx, p, ref, scope)
 }
