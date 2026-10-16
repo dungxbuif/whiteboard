@@ -5,7 +5,7 @@ import {Voice,parseSignal} from './voice.js';
 import {IngressLimit} from './ingress.js';
 import * as Y from 'yjs';
 import {createDecoder,readVarUint,readVarUint8Array,hasContent} from 'lib0/decoding';
-import {decodeFrame,encodeFrame,type SceneRef,type MutationReceipt} from '@collab/contracts';
+import {MAX_FRAME_BYTES,decodeFrame,encodeFrame,type SceneRef,type MutationReceipt} from '@collab/contracts';
 import {CollabError,authorizeSync,requestID,type Principal,type Decision} from './auth.js';
 import {MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import type {Persistence,SceneState} from './persistence.js';
@@ -18,8 +18,10 @@ const AUTH_PER_MINUTE=60,EPHEMERAL_PER_MINUTE=120,AWARENESS_PER_SECOND=30;
 
 function invalidInput<T>(parse:()=>T):T {try{return parse();}catch(error){if(error instanceof CollabError)throw error;throw new CollabError('INVALID_UPDATE','Malformed transport input',400);}}
 type Session={connectionId:string;alive:boolean;socket:WebSocket;ref?:SceneRef;principal?:Principal;claims?:Decision;access?:string;expires?:NodeJS.Timeout;authTimer:NodeJS.Timeout;pending:number;chain:Promise<void>;ip:string;invalid:boolean};
+type Fanout={ref:SceneRef;updates:Uint8Array[];bytes:number;overflow:boolean};
 export class Rooms {
  private sessions=new Set<Session>();private rates=new RateLimit();private ingress=new IngressLimit();private tasks=new Set<Promise<void>>();
+ private fanouts=new Map<string,Fanout>();
  private awareness=new Awareness();private voice=new Voice();private heartbeat:NodeJS.Timeout;private closing=false;
  constructor(private store:Persistence,private options:{updatesPerMinute:number;maxBufferedBytes:number;heartbeatIntervalMs?:number}){
   const interval=options.heartbeatIntervalMs??HEARTBEAT_INTERVAL_MS;
@@ -97,7 +99,7 @@ export class Rooms {
   try{if(session.invalid)throw new CollabError('UNAUTHENTICATED');session.access=state.access;this.awareness.register(session.ref,{connectionId:session.connectionId,principalId:session.principal.principalId,principalType:session.principal.principalType,access:state.access});}finally{state.doc.destroy();}
  }
  private matching(ref:SceneRef){return [...this.sessions].filter(s=>!s.invalid&&s.ref&&roomKey(s.ref)===roomKey(ref));}
- private async recipient(session:Session){try{await this.fresh(session);return true;}catch{this.invalidate(session,'AUTHORITY_CHANGED');return false;}}
+ private async recipient(session:Session){try{await this.fresh(session);return true;}catch(error){this.invalidate(session,error instanceof CollabError&&['UNAUTHENTICATED','FORBIDDEN','STALE_AUTHORITY'].includes(error.code)?'AUTHORITY_CHANGED':'UNAVAILABLE');return false;}}
  private async broadcast(ref:SceneRef,type:string,id:string,payload:unknown,filter:(s:Session)=>boolean=()=>true){
   for(const other of this.matching(ref))if(filter(other)&&await this.recipient(other))await this.control(other,type,id,payload);
  }
@@ -153,13 +155,35 @@ export class Rooms {
   const chunk=512*1024,count=Math.max(1,Math.ceil(bytes.length/chunk));
   for(let index=0;index<count;index++)await this.control(session,'sync_chunk',id,{documentId:state.documentId,sequence:state.sequence,index,count,totalBytes:bytes.length,data:Buffer.from(bytes.subarray(index*chunk,(index+1)*chunk)).toString('base64')});
  }
- private committed=({ref,receipt,update}:{ref:SceneRef;receipt:MutationReceipt;update:Uint8Array})=>{
-  const task=(async()=>{for(const session of this.sessions){if(!session.ref||roomKey(session.ref)!==roomKey(ref)||!session.principal||session.invalid)continue;try{
-   // Fresh read authority also protects recipients; cached room access is never sufficient.
-   const state=await this.store.read(ref,session.principal);state.doc.destroy();
-   await this.send(session,encodeFrame({channel:3,updateId:receipt.requestId,payload:update}));
-  }catch{this.invalidate(session,'AUTHORITY_CHANGED');}}})();this.tasks.add(task);void task.finally(()=>this.tasks.delete(task));
+ private committed=({ref,update}:{ref:SceneRef;receipt:MutationReceipt;update:Uint8Array})=>{
+  if(this.closing)return;const key=roomKey(ref);let pending=this.fanouts.get(key);const created=!pending;
+  if(!pending){pending={ref,updates:[],bytes:0,overflow:false};this.fanouts.set(key,pending);}
+  if(pending.overflow)return;
+  // Bound both retained bytes and tiny-update metadata; overflow recovers from durable sync.
+  if(pending.bytes+update.length>4*MAX_FRAME_BYTES||pending.updates.length>=1024){pending.overflow=true;pending.updates=[];pending.bytes=0;this.invalidateScene(ref.sceneId,'BACKPRESSURE');return;}
+  pending.updates.push(update);pending.bytes+=update.length;
+  if(created)this.track(this.flushFanout(key,pending));
  };
+ private async flushFanout(key:string,pending:Fanout){
+  try{
+   while(!this.closing&&!pending.overflow&&pending.updates.length){
+    await new Promise(resolve=>setTimeout(resolve,100));
+    if(this.closing||pending.overflow)break;
+    const updates=pending.updates;pending.updates=[];pending.bytes=0;const id='s'; // Broadcast identity is not an ACK; durable receipts retain original request IDs.
+    // Avoid a merged frame exceeding the existing transport ceiling. Each accepted
+    // update fits already; small updates share a frame, large updates stand alone.
+    const frames:Uint8Array[]=[];let group:Uint8Array[]=[];let bytes=0;
+    const flush=()=>{if(group.length){frames.push(encodeFrame({channel:3,updateId:id,payload:group.length===1?group[0]:Y.mergeUpdates(group)}));group=[];bytes=0;}};
+    for(const update of updates){if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();
+    for(const session of this.matching(pending.ref)){
+     // No cached authorization: the fresh read keeps current ACL and ownership
+     // fences and reconstructs current durable state before any batch is delivered.
+     if(!await this.recipient(session))continue;
+     for(const frame of frames)await this.send(session,frame);
+    }
+   }
+  }catch{this.invalidateScene(pending.ref.sceneId,'UNAVAILABLE');}finally{if(this.fanouts.get(key)===pending)this.fanouts.delete(key);}
+ }
  private async send(session:Session,data:string|Uint8Array){
   if(session.invalid||session.socket.readyState!==WebSocket.OPEN)return;
   if(session.socket.bufferedAmount+Buffer.byteLength(data)>this.options.maxBufferedBytes){this.invalidate(session,'BACKPRESSURE');return;}
@@ -172,7 +196,8 @@ export class Rooms {
   if(fault.code==='UNAUTHENTICATED'||fault.code==='FORBIDDEN')this.invalidate(session,fault.code);
  }
  private invalidate(session:Session,reason:string){if(session.invalid)return;this.detach(session);if(session.socket.readyState===WebSocket.OPEN){session.socket.send(JSON.stringify({type:'resync_required',requestId:'server',payload:{reason}}));session.socket.close(1013,reason);const timer=setTimeout(()=>session.socket.terminate(),1000);timer.unref();}}
- invalidateScene(sceneId:string,reason:string){for(const session of this.sessions)if(session.ref?.sceneId===sceneId)this.invalidate(session,reason);}
- invalidateWorkspace(workspaceId?:string,reason='ACL_CHANGED'){for(const session of this.sessions)if(!workspaceId||session.ref?.workspaceId===workspaceId)this.invalidate(session,reason);}
+ private cancelFanouts(matches:(ref:SceneRef)=>boolean){for(const [key,pending] of this.fanouts)if(matches(pending.ref)){pending.overflow=true;pending.updates=[];pending.bytes=0;this.fanouts.delete(key);}}
+ invalidateScene(sceneId:string,reason:string){this.cancelFanouts(ref=>ref.sceneId===sceneId);for(const session of this.sessions)if(session.ref?.sceneId===sceneId)this.invalidate(session,reason);}
+ invalidateWorkspace(workspaceId?:string,reason='ACL_CHANGED'){this.cancelFanouts(ref=>!workspaceId||ref.workspaceId===workspaceId);for(const session of this.sessions)if(!workspaceId||session.ref?.workspaceId===workspaceId)this.invalidate(session,reason);}
  async close(){this.closing=true;clearInterval(this.heartbeat);this.store.off('committed',this.committed);const sessions=[...this.sessions];for(const session of sessions){this.detach(session);session.socket.terminate();}await Promise.allSettled([...this.tasks,...sessions.map(s=>s.chain)]);}
 }

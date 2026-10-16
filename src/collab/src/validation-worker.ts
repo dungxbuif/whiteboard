@@ -4,9 +4,10 @@ import {createDecoder,hasContent} from 'lib0/decoding';
 import {materializeScene} from './document.js';
 import type {ValidationInput} from './validation-job.js';
 
+function validate(input:ValidationInput){
 const doc=new Y.Doc({gc:false});
 try {
-  const {snapshot,update}=workerData as ValidationInput;
+  const {snapshot,update}=input;
   Y.applyUpdate(doc,snapshot);
   // Capture map identity as well as immutable values; replacing an entire map
   // would destroy independent-field CRDT semantics even if its ID/type matched.
@@ -24,3 +25,7 @@ try {
 } catch(error){
   parentPort!.postMessage({ok:false,error:error instanceof Error?error.message:'Invalid candidate update'});
 } finally {doc.destroy();}
+
+}
+parentPort!.on('message',validate);
+validate(workerData as ValidationInput);
