@@ -1,7 +1,7 @@
 ---
 artifact_type: architectural_design
 id: COLLAB-V2-DESIGN-2026-10-15
-status: ready_for_review
+status: ready
 owner: shared
 human_fields:
   - design_approval
@@ -23,7 +23,9 @@ shared_fields:
 - ID: `COLLAB-V2-DESIGN-2026-10-15`
 - Scope: authenticated workspace collaboration, public view/edit links, Yjs
   document sync, offline replay, presence, follow mode, and voice signaling.
-- Design state: approved in conversation; awaiting written-spec review.
+- Design state: approved in conversation by the user's “xác nhận”, including
+  the written spec and legacy dashboard styling preference.
+- Implementation plan: [programme and subsystem plans](../plans/2026-10-16-collaboration-v2.md).
 - Implementation state: not started.
 
 ## Goal

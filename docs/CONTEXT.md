@@ -3,16 +3,16 @@ artifact_type: context
 id: CONTEXT
 status: active
 owner: shared
-updated: 2026-10-15
+updated: 2026-10-16
 ---
 
 # Context
 
 ## Current Focus
 
-- **Active Phase:** Reconciliation (Phases 1–5 implementation)
-- **Active Work:** Realtime collaboration/voice, OpenAI-compatible AI, authenticated scene routes, and public sharing are deployed on VM100 and smoke-tested.
-- **Next Work:** Rotate any credentials flagged by the release secret-rotation runbook before final production sign-off.
+- **Active Phase:** Detail Design — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
+- **Active Work:** User approved the v2 spec including legacy dashboard styling and native MCP/diagram catalog. [Implementation plans](superpowers/plans/2026-10-16-collaboration-v2.md) are in review; runtime is still the existing v1 release.
+- **Next Work:** Review execution plans, then implement the dependency slices. Existing release secret-rotation and cross-network voice/AI UAT items remain tracked separately.
 
 ## Project
 
@@ -42,6 +42,8 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Final release sign-off still requires checking and rotating any previously exposed JWT or provider credentials; see [auth secret rotation runbook](operations/auth-secrets-rotation.md).
 
 ## Recent Changes
+
+- 2026-10-16: Recorded approved v2 design and five implementation slices (17 tasks), with tests, dependencies, documentation targets, canary and rollback; organization-specific scope remains explicit pending clarification. No v2 runtime code shipped.
 
 - 2026-07-15: Completed EXC-013 S3 assets backend, caching logic, frontend hook, and tests.
 - 2026-07-15: Approved EXC-013 S3 assets detail design and moved to in_progress.
