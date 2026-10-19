@@ -192,7 +192,14 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
     files.current = { ...files.current, ...incomingFiles };
     const desired = canonical(elements, appState, refs.current, syncPresentationOrder([...elements], renderedContent.presentationOrder ?? []));
     const firstCallback = lastNative.current === null;
-    const before = lastNative.current ?? renderedContent; lastNative.current = desired;
+    // A recovered image draft is the native baseline on a same-scope reopen,
+    // even before the imperative canvas API has reported its first snapshot.
+    // Comparing the first gesture with bare durable content would treat the
+    // recovered image ID as an unrelated colliding add and discard the move.
+    const recoveredBaseline = pending.current
+      ? mergeSceneChanges(pending.current.base, pending.current.desired, renderedContent)
+      : renderedContent;
+    const before = lastNative.current ?? recoveredBaseline; lastNative.current = desired;
     // Native mount supplies default appState. Establish its baseline without persisting defaults.
     if (firstCallback && JSON.stringify(desired.elements) === JSON.stringify(renderedContent.elements)) return;
     if (rendering.current || !canEdit || signature(before) === signature(desired)) return;
