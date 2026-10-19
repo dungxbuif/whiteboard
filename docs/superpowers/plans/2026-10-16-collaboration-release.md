@@ -70,7 +70,7 @@
 
 ### E3 recovery clarification — approved during execution
 
-The rollback rehearsal uses a new replacement scene UUID with v1 content and a distinct documentId on promotion, while retaining the original trashed/quarantined scene and its durable history. Same-scene writer-mode reset cannot fence the existing binary protocol, which lacks an incoming epoch precondition. The bounded recovery slice `403f7c9` passed independent review and24checks, refusing assets/overrides before mutation. It is not a general production reset CLI. See [recovery runbook](../../operations/collaboration-recovery.md).
+The rollback rehearsal uses a new replacement scene UUID with v1 content and a distinct documentId on promotion, while retaining the original trashed/quarantined scene and its durable history. Same-scene writer-mode reset cannot fence the existing binary protocol, which lacks an incoming epoch precondition. The bounded recovery slice `7233ea1` passed independent review and24checks, refusing assets/overrides before mutation. It is not a general production reset CLI. See [recovery runbook](../../operations/collaboration-recovery.md).
 
 A separate full database preflight restore passed on2026-10-17: actual migrator applied7–13from a restored v1version6dump, with final13clean. [Backup evidence](../../work/verification/collaboration-v2-backup.md). Fresh cutover backup, final deployment/canary and complete E3reconciliation remain required.
 

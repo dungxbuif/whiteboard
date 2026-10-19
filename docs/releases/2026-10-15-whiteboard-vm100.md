@@ -131,12 +131,12 @@ point and confirms the database restore procedure.
 
 ## Linked Work
 
-- `8b4f989` — normalize persisted Excalidraw collaborators in the public viewer.
-- `eb30443` — record the production viewer fix and live share verification.
-- `ad3a32b` — document canonical UUID route identifiers.
-- `f97c225` — make the frontend healthcheck IPv4 explicit.
-- `93e1341` — retain VM100 container aliases.
-- `d766e1e` — connect the migration job to the Homelab database.
+- `fb1e5c3` — normalize persisted Excalidraw collaborators in the public viewer.
+- `70ae0b2` — record the production viewer fix and live share verification.
+- `a0b52ff` — document canonical UUID route identifiers.
+- `a7a7748` — make the frontend healthcheck IPv4 explicit.
+- `9dc2b02` — retain VM100 container aliases.
+- `0a3e16f` — connect the migration job to the Homelab database.
 - [Changelog](CHANGELOG.md)
 - [Release checklist](../operations/RELEASE_CHECKLIST.md)
 - [Validation matrix](../work/VALIDATION_MATRIX.md)

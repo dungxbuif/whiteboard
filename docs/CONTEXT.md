@@ -45,7 +45,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 - 2026-10-19: Collaboration v2 local acceptance passed 17/17, including 650/650 durable ACKs at p95 13.236 ms, native S3 image reload/recovery, MCP writes/exports, presence/follow and generated two-browser audio. Legacy Socket.IO code and dependencies were removed. VM100 rollout remains.
 
-- 2026-10-17: B3 revision-conflict review closed (`d42dd02`); recovery slice reviewed (`403f7c9`); architecture/backup reconciliation (`0eef886`); bounded worker/fanout performance repair (`f2dd6cf`) reviewed. [Database restore evidence](work/verification/collaboration-v2-backup.md).
+- 2026-10-17: B3 revision-conflict review closed (`6e040a4`); recovery slice reviewed (`7233ea1`); architecture/backup reconciliation (`d91b62c`); bounded worker/fanout performance repair (`aee746d`) reviewed. [Database restore evidence](work/verification/collaboration-v2-backup.md).
 
 - 2026-10-16: A1 authority/aliases/migration committed and reviewed, including a real stalled-request regression protecting owner revocation. B1 workspace/protocol and D2 catalog are implemented under review; frontend33 unit tests/build and14 browser tests pass after dependency migration. [Evidence](work/verification/collaboration-v2.md). Homelab commit42cdf59 records actual topology and recovery of the existing v1 frontend; no v2 deployment.
 

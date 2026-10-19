@@ -69,17 +69,17 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [x] Access, invitation, public links and capability tasks A1–A4 reviewed.
 - [x] Durable runtime B1/B2 and dashboard C1/C2 reviewed.
 - [x] Agent keys/audit,19presets and live mutation tasks D1–D3 reviewed.
-- [x] B3 upload lifetime, flush serialization and same-account draft-conflict corrections reviewed (`d42dd02`).
-- [x] Pending-image movement, concurrent remote-field and reopen recovery regressions resolved (`45eba9f`, `6bc5213`).
-- [x] B4 presence/follow/voice and idle heartbeat pass; legacy Socket.IO writer/signaling code is retired (`9bd7055`).
-- [x] D4 browser startup and per-job process/temp cleanup corrections reviewed (`6cd80d6`); local nonroot image smoke passed.
+- [x] B3 upload lifetime, flush serialization and same-account draft-conflict corrections reviewed (`6e040a4`).
+- [x] Pending-image movement, concurrent remote-field and reopen recovery regressions resolved (`7982575`, `8b2667f`).
+- [x] B4 presence/follow/voice and idle heartbeat pass; legacy Socket.IO writer/signaling code is retired (`80bf53b`).
+- [x] D4 browser startup and per-job process/temp cleanup corrections reviewed (`a1bdd7f`); local nonroot image smoke passed.
 - [x] E1 real API/browser/S3/MCP role/recovery suite passed 17/17; 50-client load completed650/650 durable ACKs at p9513.236ms.
 - [x] E2 idle socket through nginx exceeds75seconds after heartbeat fix (160seconds, six pings, zero live disconnects; scoped review passed).
 - [ ] Final reviewed source rebuilt for VM100 Linux/amd64; exact image IDs captured.
 - [ ] Existing environment/service ownership checked before secret changes; distinct v2 secrets installed without printing values.
 - [x] Preflight PostgreSQL backup restored in an isolated container; actual migrator7–13 passed, final13clean. [Evidence](../work/verification/collaboration-v2-backup.md).
 - [ ] Fresh cutover backup recorded immediately before production migrations.
-- [x] Controlled replacement-scene recovery rehearsal reviewed (`403f7c9`,24independent checks): preserve latest content, receipts and original quarantined identity; assets/overrides refuse. Image-only rollback forbidden after promotion.
+- [x] Controlled replacement-scene recovery rehearsal reviewed (`7233ea1`,24independent checks): preserve latest content, receipts and original quarantined identity; assets/overrides refuse. Image-only rollback forbidden after promotion.
 - [ ] Apply tested TURN gatewayIP endpoint, repeat actual deployed configuration proof; DNS hostname remains unverified until corrected.
 - [ ] Public HTTPS canary: two browsers, public view/edit, invite, roles/revoke, agent native write/export, restart and denied requests.
 - [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; original dashboard and native scene style retained.

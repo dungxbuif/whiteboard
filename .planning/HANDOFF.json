@@ -9,8 +9,8 @@
   "total_tasks": 3,
   "status": "paused",
   "completed_tasks": [
-    {"id": 1, "name": "Implement collaboration v2 access, runtime, dashboard, MCP and diagrams", "status": "done", "commit": "9bd7055"},
-    {"id": 2, "name": "Fix image recovery and Chromium renderer startup regressions", "status": "done", "commit": "d33944f"},
+    {"id": 1, "name": "Implement collaboration v2 access, runtime, dashboard, MCP and diagrams", "status": "done", "commit": "80bf53b"},
+    {"id": 2, "name": "Fix image recovery and Chromium renderer startup regressions", "status": "done", "commit": "66177e4"},
     {"id": 3, "name": "Local real-stack acceptance", "status": "done", "progress": "17/17 real-stack; 650/650 durable ACKs; MCP 43/43"},
     {"id": 4, "name": "Run final sequential repository gate from merged master", "status": "done", "progress": "npm 246 tests; frontend 93 tests and production build; Go all packages"},
     {"id": 5, "name": "Restore production v1 after VM100 reboot outage", "status": "done", "progress": "backend/frontend healthy; public /healthz HTTP 200"}

@@ -4,7 +4,7 @@ Status: paused by the user before production v2 cutover. This file is the machin
 
 ## Proven at this checkpoint
 
-- Local `master` contains the collaboration v2 implementation through merge commit `750def4`.
+- Local `master` contains the collaboration v2 implementation through merge commit `2637ddd`.
 - Root workspace tests pass: collaboration runtime149, MCP43, contracts13 and diagram kit41 (246 total).
 - Frontend unit tests pass25 files/93 tests and the production build succeeds.
 - All Go packages pass.
