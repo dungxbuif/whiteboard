@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 )
 
 func testCredentialLimiter(t *testing.T, cfg CredentialRateLimitConfig) *CredentialRateLimiter {
@@ -16,6 +18,61 @@ func testCredentialLimiter(t *testing.T, cfg CredentialRateLimitConfig) *Credent
 		t.Fatal(err)
 	}
 	return limiter
+}
+
+func observedClientIP(t *testing.T, remoteAddr, realIP string) string {
+	t.Helper()
+	observed := ""
+	handler := CapturePeerIP(chimiddleware.RealIP(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		observed = credentialClientIP(r)
+	})))
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.RemoteAddr = remoteAddr
+	if realIP != "" {
+		req.Header.Set("X-Real-IP", realIP)
+	}
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	return observed
+}
+
+func TestCredentialClientIPTrustsSingleRealIPFromPrivateOrLoopbackPeer(t *testing.T) {
+	for _, tc := range []struct {
+		peer, header, want string
+	}{
+		{"172.18.0.4:54321", "203.0.113.42", "203.0.113.42"},
+		{"127.0.0.1:54321", "2001:db8::42", "2001:db8::42"},
+		{"[fd00::5]:54321", "198.51.100.7", "198.51.100.7"},
+	} {
+		if got := observedClientIP(t, tc.peer, tc.header); got != tc.want {
+			t.Errorf("peer=%q header=%q: got %q, want %q", tc.peer, tc.header, got, tc.want)
+		}
+	}
+}
+
+func TestCredentialClientIPIgnoresSpoofedRealIPFromPublicPeer(t *testing.T) {
+	if got := observedClientIP(t, "198.51.100.9:54321", "203.0.113.99"); got != "198.51.100.9" {
+		t.Fatalf("spoofed public-peer header resolved to %q", got)
+	}
+}
+
+func TestCredentialClientIPRejectsMalformedOrMultipleRealIPValues(t *testing.T) {
+	for _, header := range []string{"not-an-ip", "203.0.113.1, 203.0.113.2", "203.0.113.1 203.0.113.2"} {
+		if got := observedClientIP(t, "172.18.0.4:54321", header); got != "172.18.0.4" {
+			t.Errorf("header=%q resolved to %q", header, got)
+		}
+	}
+	observed := ""
+	handler := CapturePeerIP(chimiddleware.RealIP(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		observed = credentialClientIP(r)
+	})))
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.RemoteAddr = "172.18.0.4:54321"
+	req.Header.Add("X-Real-IP", "203.0.113.1")
+	req.Header.Add("X-Real-IP", "203.0.113.2")
+	handler.ServeHTTP(httptest.NewRecorder(), req)
+	if observed != "172.18.0.4" {
+		t.Fatalf("duplicate header lines resolved to %q", observed)
+	}
 }
 
 func requestFrom(ip string) *http.Request {

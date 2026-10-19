@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -52,6 +53,22 @@ type CredentialRateLimiter struct {
 	entries   map[string]credentialRateEntry
 }
 
+type immediatePeerContextKey struct{}
+
+// CapturePeerIP must run before any middleware that rewrites RemoteAddr. It
+// preserves the direct network peer so credential limiting can decide whether
+// a reverse-proxy identity header is trustworthy.
+func CapturePeerIP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		peer := normalizedRemoteIP(r.RemoteAddr)
+		ctx := r.Context()
+		if peer != "unknown" {
+			ctx = context.WithValue(ctx, immediatePeerContextKey{}, peer)
+		}
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func NewDefaultCredentialRateLimiter() (*CredentialRateLimiter, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -101,8 +118,8 @@ func (l *CredentialRateLimiter) digest(route CredentialRoute, axis, value string
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func credentialClientIP(r *http.Request) string {
-	value := strings.TrimSpace(r.RemoteAddr)
+func normalizedRemoteIP(remoteAddr string) string {
+	value := strings.TrimSpace(remoteAddr)
 	if host, _, err := net.SplitHostPort(value); err == nil {
 		value = host
 	}
@@ -110,6 +127,27 @@ func credentialClientIP(r *http.Request) string {
 		return parsed.String()
 	}
 	return "unknown"
+}
+
+func credentialClientIP(r *http.Request) string {
+	peer := normalizedRemoteIP(r.RemoteAddr)
+	if captured, ok := r.Context().Value(immediatePeerContextKey{}).(string); ok {
+		peer = captured
+	}
+	parsedPeer := net.ParseIP(peer)
+	if parsedPeer == nil || (!parsedPeer.IsPrivate() && !parsedPeer.IsLoopback()) {
+		return peer
+	}
+	forwardedValues := r.Header.Values("X-Real-IP")
+	if len(forwardedValues) != 1 {
+		return peer
+	}
+	forwarded := strings.TrimSpace(forwardedValues[0])
+	parsedForwarded := net.ParseIP(forwarded)
+	if parsedForwarded == nil {
+		return peer
+	}
+	return parsedForwarded.String()
 }
 
 func normalizeCredentialIdentity(route CredentialRoute, identity string) string {

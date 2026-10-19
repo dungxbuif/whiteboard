@@ -121,6 +121,7 @@ func newRouter(
 	router := chi.NewRouter()
 	router.Use(deliverymiddleware.RedactPublicCredentials)
 	router.Use(middleware.RequestID)
+	router.Use(deliverymiddleware.CapturePeerIP)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
 
