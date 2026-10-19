@@ -15,7 +15,7 @@ ai_fields:
 shared_fields:
   - queue_items
   - status
-updated: 2026-06-11
+updated: 2026-10-19
 ---
 
 # Backlog
@@ -91,11 +91,14 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 | ID | Type | Lane | Status | Scope | Next artifact |
 | --- | --- | --- | --- | --- | --- |
-| COLLAB-V2 | phase | high-risk | in_progress | Approved legacy dashboard, ACL/invites/public edit, Yjs/custom socket, native MCP and diagram catalog | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
+| COLLAB-V2 | phase | high-risk | paused_release | Implementation complete: legacy dashboard, ACL/invites/public edit, Yjs/custom socket, presence/voice, native MCP and diagram catalog. Production cutover paused by user. | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
+| COLLAB-V2-RELEASE | release | high-risk | ready_to_resume | Fresh VM100 backup, secrets, Linux/amd64 images, migrations7–13, public deploy/canary, Homelab reconciliation and final release sign-off | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md), [.continue-here](../../.planning/phases/04-realtime-collaboration/.continue-here.md) |
 
-Design and implementation authorized. A1–A4, B1–B3, C1/C2, D1–D4 and E2 packaging have passed task reviews. B4 frontend integration and a separate pending-image movement repair are active. E1 runtime performance meets the local50-client target and passed task review; browser acceptance currently11/13with remaining asset/epoch cases being investigated. Bounded replacement-scene recovery is reviewed; full preflight database restore and migrations6→13passed in isolation. Final review, VM100AMD64 images, fresh cutover backup, merge/deployment/public canary remain required.
+Design and implementation are complete. Local real-stack acceptance passes17/17, including native S3 image reload/recovery, browser presence/follow, generated two-browser audio, MCP mutations/exports and650/650 durable ACKs at p9513.236ms. The pending-image movement/reopen regressions and Chromium startup endpoint race have deterministic tests and fixes. Go tests, frontend production build and the full MCP43-test suite pass. The final root npm rerun was intentionally interrupted when the user paused; the earlier complete component and real-stack suites remain recorded evidence.
 
-User confirmed org means workspace. Actual two-network TURN audio passes using the gatewayIP; local hostname DNS still needs correction or the testedIP release setting. See [release checklist](../operations/RELEASE_CHECKLIST.md), [real-stack evidence](verification/collaboration-v2-real-stack.md) and [backup evidence](verification/collaboration-v2-backup.md). Task IDs A1–E3 in the subsystem plans are the active queue; the older epic/ticket tables below preserve v1 planning history and do not represent v2 acceptance.
+The user requested the source be committed and merged into the main local repository, with the collaboration worktree removed. No VM100 deployment is part of this pause checkpoint. Resume at `COLLAB-V2-RELEASE`: take a fresh cutover backup, install distinct v2 service secrets without printing them, build/record Linux/amd64 image IDs, migrate6→13, deploy, run public-origin authorization/S3/MCP/WebSocket/voice/browser canaries, then reconcile app and Homelab docs and close the release checklist.
+
+User confirmed org means workspace. Actual two-network TURN audio passes using the gatewayIP; local hostname DNS still needs correction or the testedIP release setting. See [release checklist](../operations/RELEASE_CHECKLIST.md), [real-stack evidence](verification/collaboration-v2-real-stack.md) and [backup evidence](verification/collaboration-v2-backup.md). The older epic/ticket tables below preserve v1 planning history and do not represent v2 acceptance.
 
 ### Epic E01: Self-hosted Dashboard
 

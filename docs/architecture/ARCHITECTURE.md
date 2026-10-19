@@ -12,7 +12,7 @@ shared_fields: [status, linked_decisions]
 
 ## Implementation and deployment status
 
-This document describes the collaboration-v2 branch. Production still runs v1; reviewed task implementations do not imply deployment. Access/dashboard, durable persistence, browser transport, agent commands and native rendering have passed task review. Presence/follow/voice frontend integration, performance acceptance and the production rollout remain in progress. See the [release checklist](../operations/RELEASE_CHECKLIST.md) for current gates and [verification](../work/verification/collaboration-v2.md) for evidence boundaries.
+This document describes the collaboration-v2 release candidate. Production still runs v1 until the recorded VM100 cutover. Access/dashboard, durable persistence, browser transport, presence/follow/voice, agent commands and native rendering have passed local acceptance. The production rollout remains. See the [release checklist](../operations/RELEASE_CHECKLIST.md) for current gates and [real-stack verification](../work/verification/collaboration-v2-real-stack.md) for evidence boundaries.
 
 The tenant is a workspace. There is no separate organization hierarchy. Dashboard components reuse the original reference layout, colors and light/dark tokens. The scene retains native Excalidraw styling.
 
@@ -28,7 +28,7 @@ The tenant is a workspace. There is no separate organization hierarchy. Dashboar
 | Shared Coturn | WebRTC media relay | Short-lived API-issued credentials; shared server remains outside this stack |
 | Optional AI provider | Chat/image-to-diagram through an OpenAI-compatible API | Server-side configured key; native diagram presets do not require a provider |
 
-Public nginx routes `/api` to Go, `/collab` to Node WebSocket and `/mcp` to the MCP adapter. Private authority and mutation endpoints share an internal Docker network with no host ports; nginx rejects `/internal`. Data collaboration uses the custom socket, not RelayHub or WebRTC data channels. Legacy Socket.IO retirement remains pending frontend voice/presence migration.
+Public nginx routes `/api` to Go, `/collab` to Node WebSocket and `/mcp` to the MCP adapter. Private authority and mutation endpoints share an internal Docker network with no host ports; nginx rejects `/internal`. Data collaboration uses the custom socket, not RelayHub or WebRTC data channels. Legacy Socket.IO has been removed from the Go server, frontend dependencies and nginx routing.
 
 ```mermaid
 flowchart LR
@@ -56,7 +56,7 @@ Permission mutations lock the workspace, advance its decimal ACL version and iss
 
 Legacy scenes start with `writer_mode=v1`. Promotion validates and seeds a native Yjs document, retaining the original JSON/version. Failure leaves v1 intact. Once promoted, Go rejects whole-scene content PATCH with `COLLAB_REQUIRED`; browser and agent edits use the same durable Node writer. Disabling `COLLAB_V2_ENABLED` only stops new promotions.
 
-Native element IDs, tombstones, files, app state and presentation order are represented by the shared document contract. The runtime validates untrusted candidate updates in resource-bounded workers. Update size is at most1MiB, materialized content25MiB and retained Yjs history64MiB. Per-principal document writes are limited to120/minute. Performance worker/fanout changes remain under review; exact protocol behavior is documented in [collaboration protocol](collaboration-protocol.md).
+Native element IDs, tombstones, files, app state and presentation order are represented by the shared document contract. The runtime validates untrusted candidate updates in resource-bounded workers. Update size is at most1MiB, materialized content25MiB and retained Yjs history64MiB. Per-principal document writes are limited to120/minute. Bounded reusable validators and serialized/coalesced room fanout passed the unchanged 50-client acceptance workload; exact protocol behavior is documented in [collaboration protocol](collaboration-protocol.md).
 
 A successful transaction appends the update, permanent idempotency receipt and mutation audit and advances the sequence before ACK or publication. Request IDs bind exact principal and payload bytes. Lost-response retries return the existing receipt rather than duplicating mutation. Snapshots occur after100updates or five seconds with bounded, single-flight compaction.
 
@@ -66,7 +66,7 @@ Exclusive process ownership, shared transaction/exclusive handoff barriers and e
 
 IndexedDB queues are isolated by principal/workspace/scene/document identity. The client persists before sending, retains immutable sent request IDs/bytes and removes entries only after durable acknowledgement. Offline content, pending Blob bytes and recovery exports remain separate from credentials. Revoke, downgrade or epoch mismatch retains recovery and prevents unauthorized replay.
 
-The adapter applies field-level native changes; local undo excludes remote and agent edits. Image references enter the shared scene only after upload. Upload lifecycle/revision guards prevent stale callbacks from deleting another draft's recovery. A separately identified pending-image movement defect remains a release blocker until its repair is verified. See [browser architecture](BROWSER_COLLABORATION.md).
+The adapter applies field-level native changes; local undo excludes remote and agent edits. Image references enter the shared scene only after upload. Upload lifecycle/revision guards prevent stale callbacks from deleting another draft's recovery. Concurrent remote fields, local pending movement and reopen recovery now retain the newest compatible native image state. See [browser architecture](BROWSER_COLLABORATION.md).
 
 Legacy HTTP fallback requires an explicit disabled/promotion-required result plus fresh v1 verification. Generic network failures and already-promoted scenes never activate a second writer. Legacy recovery is namespaced separately and cannot be automatically replayed into a new Yjs identity.
 

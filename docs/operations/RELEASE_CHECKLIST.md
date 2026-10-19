@@ -70,10 +70,10 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [x] Durable runtime B1/B2 and dashboard C1/C2 reviewed.
 - [x] Agent keys/audit,19presets and live mutation tasks D1–D3 reviewed.
 - [x] B3 upload lifetime, flush serialization and same-account draft-conflict corrections reviewed (`d42dd02`).
-- [ ] Separate pending-image movement regression resolved and reviewed.
-- [ ] B4 presence/follow/voice and idle heartbeat reviewed; no second active v2 content writer.
+- [x] Pending-image movement, concurrent remote-field and reopen recovery regressions resolved (`45eba9f`, `6bc5213`).
+- [x] B4 presence/follow/voice and idle heartbeat pass; legacy Socket.IO writer/signaling code is retired (`9bd7055`).
 - [x] D4 browser startup and per-job process/temp cleanup corrections reviewed (`6cd80d6`); local nonroot image smoke passed.
-- [ ] E1 real API/browser/S3/MCP role/recovery tests and50-client measured load passed.
+- [x] E1 real API/browser/S3/MCP role/recovery suite passed 17/17; 50-client load completed650/650 durable ACKs at p9513.236ms.
 - [x] E2 idle socket through nginx exceeds75seconds after heartbeat fix (160seconds, six pings, zero live disconnects; scoped review passed).
 - [ ] Final reviewed source rebuilt for VM100 Linux/amd64; exact image IDs captured.
 - [ ] Existing environment/service ownership checked before secret changes; distinct v2 secrets installed without printing values.

@@ -12,6 +12,8 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Collaboration v2 release candidate: the custom authenticated `/collab/` WebSocket is now the only realtime path; legacy Socket.IO server/client/proxy code is removed. Durable Yjs collaboration, role-aware access/invitations/public edit links, presence/follow, WebRTC voice signaling, scoped MCP agent writes/exports and 19 native diagram presets are integrated. Local real-stack acceptance passed17/17, including native S3 image reload/recovery and650/650 durable ACKs at p9513.236ms. Production VM100 rollout remains to be recorded.
+
 - Access UI C2 (branch only, reviewed): invitations, independent public links, membership/override controls, scoped agent keys, role-aware controls and stable scene/settings routes. Workspace, folder, Starred, Trash and search navigation work from Settings; original dashboard styling and native scene styling remain.
 
 - Durable runtime B2 (branch only, reviewed): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration and deployment remain pending. [Protocol](../architecture/collaboration-protocol.md).

@@ -1,12 +1,12 @@
 # Production Deployment
 
-Status: the procedures below describe the existing v1 deployment unless explicitly marked v2. Collaboration v2 is not deployed. After promotion, use the [replacement-scene recovery runbook](collaboration-recovery.md); the v1 image-only rollback paragraph is not applicable to a v2 scene.
+Status: this procedure describes the collaboration-v2 release candidate and its cutover from the existing v1 deployment. Until the recorded cutover finishes, production remains v1. After promotion, use the [replacement-scene recovery runbook](collaboration-recovery.md); image-only rollback is not valid for a promoted v2 scene.
 
 ## Deployment Target
 
 The release bundle targets one Linux host or VM running Docker Compose. The
-frontend nginx container serves the built SPA and proxies `/api/` and
-`/socket.io/` to the Go backend. PostgreSQL, S3-compatible storage, and Coturn
+frontend nginx container serves the built SPA and proxies `/api/` to Go,
+`/collab/` to the custom Node WebSocket runtime and `/mcp` to the MCP adapter. PostgreSQL, S3-compatible storage, and Coturn
 are external services supplied through environment configuration. The shared
 Homelab gateway runs Coturn on `turn.relayhub.dungxbuif.com:5349`; the release
 stack must not start another TURN listener.
@@ -15,8 +15,10 @@ stack must not start another TURN listener.
 
 Create an untracked `.env.prod` at the repository root from `src/.env.example`.
 Set production values for `DATABASE_URL`, `JWT_SECRET`, S3 credentials,
-`FRONTEND_URL`, `AI_API_KEY`, `TURN_URL`, `TURN_USERNAME`, `TURN_AUTH_SECRET`,
-and `TURN_REALM`. `TURN_AUTH_SECRET` must match the
+`FRONTEND_URL`, `AI_API_KEY`, `TURN_URL`, `TURN_AUTH_SECRET`,
+and `TURN_REALM`. Also configure distinct values of at least 32 bytes for
+`COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and
+`COLLAB_INTERNAL_SECRET`. `TURN_AUTH_SECRET` must match the
 VPS-only Coturn secret and never be exposed to the browser. Never put secret
 values in Git or in browser URLs.
 
@@ -31,7 +33,7 @@ image-to-diagram is required.
 ## Release process
 
 1. Run the pre-release checklist and all repository tests.
-2. Build and start the migration job, backend, and frontend:
+2. Build and start the migration job, backend, collaboration runtime, MCP adapter, and frontend:
    `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.
    The production manifest attaches the services to the pre-created
    `homelab-net`, `whiteboard-app`, and `edge-http-net` networks; the frontend
@@ -39,8 +41,8 @@ image-to-diagram is required.
 3. Confirm the migration job exits successfully before accepting traffic.
 4. Verify `/healthz`, password sign-in, an owned workspace request, scene save,
    an authenticated deep link at `/w/{workspaceId}/scenes/{sceneId}`, public
-   share viewer, a JWT-authenticated `/socket.io/` connection that can join
-   only an owned workspace room, TURN allocation from an external
+   share viewer, a scoped `/collab/` WebSocket that can join only its authorized
+   scene, MCP liveness plus an authenticated native mutation/export, TURN allocation from an external
    network, and the AI proxy with a real key.
 5. Record the image tags, migration version, and verification results in the
    release notes.
