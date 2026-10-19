@@ -1,7 +1,7 @@
 ---
 artifact_type: phase
 id: PHASE-5
-status: implemented
+status: in_review
 owner: human
 human_fields: [goal, scope, out_of_scope, priority, success_criteria]
 ai_fields: [risks, dependencies, verification_plan, completion_summary]
@@ -12,10 +12,10 @@ trace:
   requirements: [P5-REQ-01, P5-REQ-02, P5-REQ-03, P5-REQ-04]
   tickets: [EXC-029, EXC-030, EXC-031, EXC-032, EXC-033]
   bugs: []
-  test_verification: TBD
+  test_verification: VALIDATION_MATRIX
   validation_matrix: VALIDATION_MATRIX
   adrs: []
-  release_notes: TBD
+  release_notes: 2026-10-19-collaboration-v2
 ---
 
 # Phase: PHASE-5 AI Features (OpenAI-Compatible API)
@@ -23,10 +23,10 @@ trace:
 ## Status
 
 - ID: PHASE-5
-- Status: implemented
+- Status: in_review
 - Owner: human
 - Created: 2026-06-03
-- Updated: 2026-06-11
+- Updated: 2026-10-19
 
 ## Goal
 
@@ -62,6 +62,8 @@ Integrate an OpenAI-compatible AI provider (DeepSeek by default) to provide inte
 
 - [x] Prompt results are validated into Excalidraw JSON.
 - [x] Code generation receives the complete visual layout and returns a previewable component.
+- [ ] Public-origin chat, text/image-to-diagram and to-code pass against the
+      user-provided OpenAI-compatible provider key.
 
 ## Gate Checklist
 
@@ -73,4 +75,8 @@ Integrate an OpenAI-compatible AI provider (DeepSeek by default) to provide inte
 
 ## Completion Summary
 
-Completed with an OpenAI-compatible REST repository (DeepSeek default), authenticated proxy routes, JSON/code output cleaning, image input validation, and the in-canvas AI command panel. Verified by backend unit tests and frontend unit/build checks without requiring a live API key.
+Implementation is complete with an OpenAI-compatible REST repository (DeepSeek
+default), authenticated proxy routes, JSON/code output cleaning, image input
+validation, and the in-canvas AI command panel. Backend unit tests and frontend
+unit/build checks pass. Final release UAT is blocked until the user provides a
+backend-only provider key.

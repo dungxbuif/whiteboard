@@ -14,7 +14,11 @@ Status: paused by the user before production v2 cutover. This file is the machin
 
 ## P0 release blockers
 
-1. **Retired OAuth credential:** GitHub Push Protection found a Google OAuth client ID and secret in historical `src/frontend/playwright.config.ts`. Rewrite all Git history before the first remote push, verify the values no longer exist in any pushed ref, and revoke the retired credential in Google Cloud. Do not bypass push protection.
+1. **Retired OAuth credential revocation:** GitHub Push Protection found a
+   Google OAuth client ID and secret in historical
+   `src/frontend/playwright.config.ts`. The complete Git history was rewritten,
+   the rewritten `master` was pushed without the values, and push protection
+   was not bypassed. Revoke the retired credential in Google Cloud.
 2. **Automatic reboot recovery:** external Docker networks were unavailable when v1 containers restarted after the VM reboot. Backend/frontend exited and `restart: unless-stopped` did not reattach them. Define service/network ordering or a retry unit, then prove a controlled Docker/VM restart returns public health to HTTP200 without manual `compose up`.
 3. **Fresh cutover backup:** create a private custom-format PostgreSQL dump immediately before migration; record SHA-256, inspect with `pg_restore --list`, restore into an isolated database and compare migration state and row counts.
 4. **Four distinct v2 service secrets:** install `COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and `COLLAB_INTERNAL_SECRET`, each at least32 bytes and different from login JWT. Verify without printing values.
@@ -34,8 +38,9 @@ Status: paused by the user before production v2 cutover. This file is the machin
 
 - Approved-design enterprise parity still includes comments/guest comments, screen sharing, live presentation/spotlight/waiting-room/activity UI, version history/restore, libraries/collections, domain capture, SSO/SCIM and retention. Create requirements/tickets or record an explicit owner decision removing each item.
 - Harness `PHASE-2.md` remains ready but unimplemented for CLI hard gates, loop guard and the security standard.
-- `REQUIREMENTS.md` and `USER_STORIES.md` remain `TBD` drafts and need traceable content.
-- Reconcile stale status only; do not reimplement completed work. E02/E03 are delivered, E05/EXC-030–033 are implemented, E04's Socket.IO/WebRTC-data-channel rows are superseded by custom `/collab/`, password auth supersedes the Google OAuth release wording, and populated project standards likely close BL-001.
+- Requirements/user stories, epic/ticket/roadmap/validation/API state, password
+  auth, custom `/collab/`, and BL-001 standards were reconciled on 2026-10-19.
+  This docs-only closure does not close any production release gate.
 - Preserve copied font license bytes or explicitly document any normalization; current whole-tree whitespace checks encounter upstream license formatting.
 
 ## Resume order

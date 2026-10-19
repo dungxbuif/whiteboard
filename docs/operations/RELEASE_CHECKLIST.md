@@ -85,6 +85,7 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; original dashboard and native scene style retained.
 - [ ] Upstream proxy logs checked for secret-bearing URLs; health/readiness/ack/compaction observation recorded.
 - [ ] Internal architecture/API/schema/runbooks plus human and AI-readable public docs reconciled with deployed behavior.
-- [ ] Whole-branch review complete, local master integration and release commit recorded (no Git remote configured).
+- [ ] Whole-branch review complete and release commit recorded. The Git remote
+  is configured and the history-scrubbed master push succeeded.
 
 Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md), [recovery evidence](../work/verification/collaboration-recovery.md) and [recovery runbook](collaboration-recovery.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one.

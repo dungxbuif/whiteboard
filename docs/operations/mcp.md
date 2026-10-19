@@ -1,6 +1,7 @@
 # MCP rendering operations
 
-D4 is implemented and locally verified in the collaboration-v2 branch. Production remains v1 until the release gate. See the [Collaboration v2 programme](../superpowers/plans/2026-10-16-collaboration-v2.md).
+D4 is implemented and locally verified on merged master. Production remains
+v1 until the release gate. See the [Collaboration v2 programme](../superpowers/plans/2026-10-16-collaboration-v2.md).
 
 ## Configuration and build
 

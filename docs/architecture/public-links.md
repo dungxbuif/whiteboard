@@ -1,6 +1,10 @@
 # Public links and room sessions (Collaboration v2 A3)
 
-Status: implemented and under verification on the development branch; production remains v1. Trace: [programme](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](../work/phases/PHASE-COLLAB-V2.md), [ACL decision](../decisions/0009-collaboration-access.md).
+Status: implemented and locally verified on merged master; production remains
+v1 until VM100 cutover. Trace:
+[programme](../superpowers/plans/2026-10-16-collaboration-v2.md),
+[phase](../work/phases/PHASE-COLLAB-V2.md), [ACL
+decision](../decisions/0009-collaboration-access.md).
 
 ## Decision and implementation
 

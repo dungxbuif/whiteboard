@@ -1,6 +1,6 @@
 # Editable diagram catalog
 
-Collaboration v2 includes a local diagram compiler. It creates editable shapes, labels and connectors; no AI provider key is needed. The collaboration-v2 branch also exposes the compiler through MCP. Production availability follows the release gate.
+Collaboration v2 includes a local diagram compiler. It creates editable shapes, labels and connectors; no AI provider key is needed. The merged release candidate also exposes the compiler through MCP. Production availability follows the release gate.
 
 Choose a preset with `listDiagramTypes()`, fetch its data schema and example with `getDiagramTemplate(id)`, validate with `validateDiagram(input)`, then call `await compileDiagram(input)`.
 

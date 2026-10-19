@@ -13,7 +13,7 @@ ai_fields:
 shared_fields:
   - matrix_rows
   - validation_status
-updated: 2026-10-15
+updated: 2026-10-19
 ---
 
 # Validation Matrix
@@ -33,6 +33,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | --- | --- |
 | planned | Accepted as intended behavior, not implemented |
 | in_progress | Actively being built or verified |
+| blocked | Accepted proof cannot run until an external input or environment is available |
 | implemented | Implemented and evidence exists |
 | changed | Contract or expected proof changed after earlier implementation |
 | retired | No longer part of the accepted project contract |
@@ -56,6 +57,7 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | REQ-03 | 1 | EXC-013 | S3 Assets | yes | no | no | no | no | no | implemented | Unit tests for AssetUsecase and AssetHandler pass |
 | REQ-08,09 | 1 | EXC-014 | Search + Starred/Trash | yes | no | yes | no | no | yes | implemented | `go test ./...`; `npm run test:unit`; `npm run build`; `npx playwright test` (11 passed) |
 | REQ-04 | 1 | EXC-034 | Email/Password Auth and User Provisioning | yes | yes | yes | no | yes | yes | implemented | Password auth/userctl tests; default-workspace creation; frontend unit/build; `npx playwright test` (11 passed). Deployment credential rotation is tracked as an operational release gate. |
+| REQ-04,NFR-01,NFR-08 | 1 | AUTH-HARDENING | Credential and invitation boundary hardening | yes | yes | yes | no | yes | yes | implemented | [Authentication hardening verification](verification/auth-hardening-2026-10-19.md): bounded strict JSON, active-user JWT checks, constant-cost unknown login, and privacy-preserving fixed-window throttling with `429 RATE_LIMITED` plus `Retry-After`. |
 | P2-REQ-01 | 2 | EXC-015 | Frame Persistence & Scene Store Extension | yes | no | yes | no | no | yes | implemented | `npm run test:unit`; `npm run build`; presentation E2E flow. |
 | P2-REQ-01 | 2 | EXC-016 | Frame Tool Activation | no | no | yes | no | no | yes | implemented | Native Excalidraw frame tool remains available; browser canvas flow passes. |
 | P2-REQ-02 | 2 | EXC-017 | Presentation Engine & Controls | yes | no | yes | no | no | yes | implemented | Presentation store and controls; `npx playwright test` passes. |
@@ -65,28 +67,29 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 | P3-REQ-02 | 3 | EXC-021 | Public API & Share Dialog UI | no | no | yes | no | no | yes | implemented | Public handler, share dialog, `/p/:token` read-only viewer, Playwright viewer test, and live production share smoke test. |
 | P3-REQ-03 | 3 | EXC-022 | Password Protection | yes | no | yes | no | no | yes | implemented | bcrypt challenge response and public viewer password prompt. |
 | P3-REQ-04 | 3 | EXC-023 | Sharing Integration Tests | yes | yes | yes | no | no | yes | implemented | Sharing usecase tests, public viewer browser flow, and full suite verification. |
-| P4-REQ-03 | 4 | EXC-024 | Coturn & Docker Setup | no | no | no | no | yes | yes | implemented | `docker compose config`; compose/env docs |
-| P4-REQ-01 | 4 | EXC-025 | Socket.io Backend + Frontend Client | yes | yes | no | no | no | yes | implemented | Go tests; frontend build; phase detail design |
-| P4-REQ-01 | 4 | EXC-026 | Collaborative Cursors & Presence | yes | no | no | no | no | yes | implemented | realtime store and toolbar; frontend build |
-| P4-REQ-01 | 4 | EXC-027 | WebRTC DataChannel + Scene Sync | yes | yes | no | no | no | yes | implemented | room event handlers; scene update loop guard |
-| P4-REQ-02 | 4 | EXC-028 | Voice Calling | no | no | no | yes | yes | yes | implemented | WebRTC signaling and media controls; TURN config |
+| P4-REQ-03 | 4 | EXC-024 | Coturn & Docker Setup | no | no | no | yes | yes | yes | implemented | Compose/env checks plus generated two-network audio through the proven gateway TURN endpoint. VM100 cutover is V2-RELEASE. |
+| P4-REQ-01 | 4 | EXC-025 | Legacy Socket.IO transport | yes | yes | no | no | no | yes | retired | Historical implementation was removed; custom /collab/ is the only accepted realtime transport. |
+| V2-REQ-05 | 4 | EXC-026 | Native cursors, presence and follow | yes | yes | yes | yes | no | yes | implemented | Runtime tests and real-stack native two-browser presence/follow acceptance. |
+| P4-REQ-01 | 4 | EXC-027 | Legacy WebRTC data-channel scene sync | yes | yes | no | no | no | yes | retired | Durable Yjs sync over /collab/ supersedes this contract; WebRTC remains voice media only. |
+| V2-REQ-05 | 4 | EXC-028 | Voice Calling | yes | yes | yes | yes | yes | yes | implemented | Generated two-browser audio, ten-participant admission, mute/leave/denial cleanup, TURN evidence and continued edits pass locally. |
 | P5-REQ-01 | 5 | EXC-029 | AI Domain & OpenAI-Compatible Repository | yes | yes | no | no | no | yes | implemented | OpenAI-compatible repository tests and AI contracts |
 | P5-REQ-01 | 5 | EXC-030 | AI Proxy Endpoint & FE Client | yes | yes | no | no | no | yes | implemented | authenticated routes, AI store, backend tests |
 | P5-REQ-01 | 5 | EXC-031 | Text-to-Diagram & Diagram-to-Code (Backend) | yes | yes | no | no | no | yes | implemented | output cleaning and scene validation tests |
 | P5-REQ-02 | 5 | EXC-032 | AI Command Panel & Code Preview (Frontend) | no | no | yes | no | no | yes | implemented | in-canvas panel and frontend build |
 | P5-REQ-03 | 5 | EXC-033 | Multimodal: Image-to-Diagram & Visual Chat | yes | no | yes | no | no | yes | implemented | base64 validation tests and image attachment UI |
+| P5-REQ-04 | 5 | AI-PROVIDER-UAT | Public-origin live provider workflow | no | yes | yes | yes | yes | yes | blocked | Requires a user-provided backend-only OpenAI-compatible key. No production live-provider result is claimed. |
 
-## Collaboration v2 planned proof
+## Collaboration v2 proof
 
 | Requirement | Tasks | Required proof | Status | Plan |
 | --- | --- | --- | --- | --- |
-| V2-ACCESS | A1–A4 | A1 reviewed with 79 backend tests and stalled-body regression; A2 reviewed with 15 invitation tests plus origin validation and shared-clock regression; A3 reviewed with 16 public-link/credential tests; A4 scoped capability tests and deadline/renewal fixes pass with clean re-review | in_progress | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
-| V2-SYNC | B1–B4 | B1–B4 implemented; durable ACK/replay/fault/lock proof, browser convergence/offline recovery, native presence/follow, generated two-browser audio, mute/leave, permission denial, and continued edits pass | implemented | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
-| V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 access/share/routes and settings navigation pass 29 Chromium/35 unit tests, scoped review clean | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
-| V2-MCP | D1–D4 | Scoped keys, HTTP/stdio discovery, native IDs, presets, durable mutations, duplicate/stale receipts, preservation of human edits, current export, and revoked downloads pass against the real stack | implemented | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
-| V2-RELEASE | E1–E3 | Local real-stack 17/17 passes; 650/650 durable ACKs with p95 13.236 ms; native assets and actual two-browser audio pass. VM100 rollout, public-origin browser smoke, and fresh backup/rollback record remain | in_progress | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
+| V2-REQ-01–02 | A1–A4 | A1 reviewed with 79 backend tests and stalled-body regression; A2 reviewed with 15 invitation tests plus origin validation and shared-clock regression; A3 reviewed with 16 public-link/credential tests; A4 scoped capability tests and deadline/renewal fixes pass with clean re-review; access/browser cases pass in the 17/17 real-stack run | implemented | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
+| V2-REQ-03–05 | B1–B4 | B1–B4 implemented; durable ACK/replay/fault/lock proof, browser convergence/offline recovery, native presence/follow, generated two-browser audio, mute/leave, permission denial, and continued edits pass | implemented | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
+| V2-REQ-01 | C1–C2 | C1 unit/browser/visual proof recorded; C2 access/share/routes and settings navigation pass 29 Chromium/35 unit tests, scoped review clean; route/role/share flows also pass the real-stack suite | implemented | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
+| V2-REQ-06–07 | D1–D4 | Scoped keys, HTTP/stdio discovery, native IDs, presets, durable mutations, duplicate/stale receipts, preservation of human edits, current export, and revoked downloads pass against the real stack | implemented | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
+| V2-REQ-08 | E1–E3 | Local real-stack 17/17 passes; 650/650 durable ACKs with p95 13.236 ms; native assets and actual two-browser audio pass. VM100 rollout, public-origin browser smoke, and fresh backup/rollback record remain | in_progress | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
 
-C1 execution evidence: [verification](verification/collaboration-v2.md). Remaining v2 slices are in progress; existing v1 evidence is not reused as v2 proof.
+C1–D4 implementation and local acceptance evidence: [verification](verification/collaboration-v2.md) and [real-stack acceptance](verification/collaboration-v2-real-stack.md). Only V2-REQ-08 remains in progress; existing v1 evidence is not reused as v2 proof.
 
 ## Rules
 

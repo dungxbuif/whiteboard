@@ -6,11 +6,11 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 - [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
 
-- [Browser collaboration](docs/browser-collaboration.md): branch-only admission, offline recovery, scoped queues, images and local undo.
-- [Workspace invitations](docs/collaboration.md): branch-only invitation API, roles, registration and replacement-scene recovery limits.
+- [Browser collaboration](docs/browser-collaboration.md): locally verified release-candidate admission, offline recovery, scoped queues, images and local undo.
+- [Workspace invitations](docs/collaboration.md): locally verified release-candidate invitation API, roles, registration, credential-attempt 429/Retry-After handling and replacement-scene recovery limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
 
-- [Scene assets](docs/scene-assets.md): branch-only scoped upload/view, size/MIME limits, expiry and required headers.
+- [Scene assets](docs/scene-assets.md): locally verified release-candidate scoped upload/view, size/MIME limits, expiry and required headers.
 
 - [Agent keys and MCP](docs/mcp.md): scoped keys, transport configuration, pagination and PAT compatibility.
 

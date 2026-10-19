@@ -1,6 +1,10 @@
 # B3 browser collaboration detail design
 
-Status: implemented; local verification recorded in the B3 task report, release acceptance pending. Authorized by the approved collaboration-v2 programme; controller owns commits and release records. Links: [programme](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](../work/phases/PHASE-COLLAB-V2.md).
+Status: implemented and included in the 17/17 local real-stack acceptance;
+VM100/public-origin release acceptance remains pending. Authorized by the
+approved Collaboration v2 programme. Links:
+[programme](../superpowers/plans/2026-10-16-collaboration-v2.md),
+[phase](../work/phases/PHASE-COLLAB-V2.md).
 
 The browser uses the B2 WebSocket contract (auth/refresh, ready, bounded sync_chunk, channel 3 updates, ack), nested Y.Map element fields and ordered ID arrays. CollabProvider owns one document and transport per principal/workspace/scene. Editing is disabled until fresh ready authority and complete synchronization. Only local origin updates enter IndexedDB; writes are persisted before send. Acknowledgements are accepted only from the current admitted connection and exact principal/workspace/scene/documentId scope plus request ID. Replay loads retained updates after server sync; merge never replaces the queue. Revoke, account switch, epoch mismatch, quota/storage failure and 64 MiB history limit preserve recovery and disable transmission as appropriate. Pending edits are exportable; different identities are never silently reassigned.
 

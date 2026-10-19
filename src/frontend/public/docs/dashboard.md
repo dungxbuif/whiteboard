@@ -1,6 +1,6 @@
 # Dashboard
 
-Status: implemented on the collaboration-v2 branch; not deployed yet.
+Status: implemented and locally verified on merged master; not deployed yet.
 
 The dashboard follows the original devtool interface, including its original colors, sidebar, scene cards, typography and spacing. Excalidraw keeps its native canvas appearance.
 

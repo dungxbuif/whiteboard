@@ -1,4 +1,4 @@
-# Collaboration protocol (v2, implementation in progress)
+# Collaboration protocol (v2, locally verified release candidate)
 
 Go owns access decisions; the custom Node service owns Yjs content. These contracts are internal and are not a claim that collaboration is deployed.
 
@@ -18,7 +18,13 @@ The exact 25 MiB (26,214,400 UTF-8 bytes) materialized JSON ceiling applies afte
 
 `SnapshotHistoryLimitError.code` is `SNAPSHOT_HISTORY_LIMIT`. This is a fail-closed operational recovery condition, separate from the 25 MiB visible document ceiling. The room must preserve durable and pending updates/receipts and stop accepting writes until an operator follows a tested B2/E3 recovery procedure. Ordinary update-log snapshot pruning does not necessarily reduce retained Yjs struct history. Never silently re-seed the document, change its epoch or drop another client's queued edits.
 
-Tests prove bad versions/lengths/trailing bytes, exact frame/document boundaries, bad nested fields and references, rejected data URLs, independent field convergence, native tombstones/bindings, real worker deadline/heap termination and live-state immutability. The B1 execution report records red/green evidence and integration results. Real WebSocket, PostgreSQL durability, ACL and deployment verification remain B2/E work.
+Tests prove bad versions/lengths/trailing bytes, exact frame/document
+boundaries, bad nested fields and references, rejected data URLs, independent
+field convergence, native tombstones/bindings, real worker deadline/heap
+termination and live-state immutability. The B1 execution report records
+red/green evidence. Real WebSocket, PostgreSQL durability, ACL, browser and
+fault/recovery behavior now pass local real-stack acceptance; VM100 deployment
+remains E3 work.
 
 Materialization checks Yjs's underlying compartments as well as public values: all map roots and nested element/file field maps have no sequence structs; both array roots have no keyed structs and contain only native string-reference array content. Retained deleted/replaced nested maps and field values are checked too, so adding then deleting a hidden shared container cannot evade the boundary. These checks use the pinned Yjs `_start`/`_map` representation and exported content classes; dependency upgrades must rerun their regressions. Binary update-ID bytes must exactly match UTF-8 re-encoding after strict decoding; leading BOM bytes are rejected consistently with encoding, preventing empty or aliased IDs. Focused red/green regressions verify these cases without dependency changes.
 

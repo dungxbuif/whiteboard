@@ -21,13 +21,13 @@ shared_fields:
 trace:
   backlog_items: []
   roadmap: ROADMAP
-  requirements: [P2-REQ-01, P2-REQ-02, P2-REQ-03, P2-REQ-04, P2-REQ-05]
+  requirements: [P2-REQ-01, P2-REQ-02, P2-REQ-03]
   tickets: [EXC-015, EXC-016, EXC-017, EXC-018]
   bugs: []
-  test_verification: TBD
+  test_verification: VALIDATION_MATRIX
   validation_matrix: VALIDATION_MATRIX
   adrs: []
-  release_notes: TBD
+  release_notes: CHANGELOG
 ---
 
 # Phase: PHASE-2-PRODUCT Presentation Mode
@@ -38,7 +38,7 @@ trace:
 - Status: done
 - Owner: human
 - Created: 2026-06-03
-- Updated: 2026-06-11
+- Updated: 2026-10-19
 
 ## Goal
 
@@ -79,9 +79,9 @@ Implement a high-fidelity presentation mode that mirrors Excalidraw Plus functio
 
 - [x] Phase has linked requirements or explicit discovery goal
 - [x] Tickets/bugs are created or planned
-- [ ] Risks and dependencies are recorded
-- [ ] Verification plan is defined
-- [ ] Release/changelog need is identified
+- [x] Risks and dependencies are recorded in the ticket designs
+- [x] Verification plan is defined in the validation matrix
+- [x] Release/changelog need is identified
 
 ## Completion Summary
 

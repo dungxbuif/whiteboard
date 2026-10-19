@@ -1,6 +1,8 @@
 # Joining and sharing a workspace
 
-Status: browser management, durable collaboration, presence/follow and voice are implemented and verified locally on the collaboration-v2 branch. Production deployment remains pending.
+Status: browser management, durable collaboration, presence/follow and voice
+are implemented and verified locally on merged master. Production deployment
+remains pending.
 
 ## Invite someone
 
@@ -13,6 +15,12 @@ Save the link when you create it. The invitation list shows email, role and expi
 An invitation works once and expires seven days after creation. Existing users sign in with the invited email and select **Accept invitation**. New users select **Create account with invitation**, enter the matching email, display name and a password with at least eight characters and at most 72 UTF-8 bytes, and join during registration. The server creates their personal workspace and invited membership together. Registering with an existing email does not reset its password: sign in instead. An invitation does not mark the email address as verified.
 
 If acceptance fails, check the signed-in email. Ask the owner for a new link if it expired, was revoked or was already used. The invitation stays in the current URL while you sign in; successful acceptance replaces that URL and clears the transient invitation screen. It is never stored with the account credentials.
+
+Repeated password-login, invitation-registration, or public-link credential
+attempts can return HTTP 429 with
+`{code:"RATE_LIMITED",message,requestId}`. Wait for the integer number of
+seconds in the `Retry-After` response header before trying again. A throttled
+request does not consume an invitation or change scene access.
 
 ## Manage access
 
@@ -29,11 +37,16 @@ Editors create and change content; viewers have reading controls. A scene overri
 
 A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then retains the scoped, short-lived scene session in the current tab's sessionStorage so reload preserves its guest identity. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
 
-The public scene remains read-only until fresh room admission and synchronization. The B3 browser implementation has local protocol, guest reload/revocation UI, and native browser offline-replay verification. It has not been deployed; full public production-path acceptance remains a release gate. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
+The public scene remains read-only until fresh room admission and
+synchronization. Live guest edit, reload, renewal, revocation and native
+offline replay pass the local 17/17 real-stack suite. They have not been
+deployed; full public-origin VM100 acceptance remains a release gate. Legacy
+public URLs still work through current access checks. Passwords in query
+strings are ignored.
 
 For API consumers, see the internal [API reference](../architecture/API.md). An agent-readable copy of this guide is served at `/docs/collaboration.md`; the shared `SceneSession` contract is documented in the C2 API section.
 
-## B3 browser integration (implemented; deployment pending)
+## Browser integration (implemented locally; deployment pending)
 
 The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](../architecture/BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
 

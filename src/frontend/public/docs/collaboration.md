@@ -14,6 +14,12 @@ An invitation works once and expires seven days after creation. Existing users s
 
 If acceptance fails, check the signed-in email. Ask the owner for a new link if it expired, was revoked or was already used. The invitation stays in the current URL while you sign in; successful acceptance replaces that URL and clears the transient invitation screen. It is never stored with the account credentials.
 
+Repeated password-login, invitation-registration, or public-link credential
+attempts can return HTTP 429 with
+`{code:"RATE_LIMITED",message,requestId}`. Wait for the integer number of
+seconds in the `Retry-After` response header before trying again. A throttled
+request does not consume an invitation or change scene access.
+
 ## Manage access
 
 Owners can change a member between **Editor** and **Viewer**, remove a member, or apply a scene override. The owner cannot be removed or demoted. Member rows currently use account IDs returned by the API.
@@ -83,7 +89,11 @@ Open **People** in a v2 scene to list connected tabs and their effective Editor/
 
 ## Operator recovery limits
 
-The current branch includes a tested recovery procedure for a verified replacement scene with a new link. Your original queued edits stay associated with their original scene; they are not automatically replayed into the replacement. Keep a downloaded recovery copy and ask the workspace owner which link to use.
+The merged release candidate includes a tested recovery procedure for a
+verified replacement scene with a new link. Your original queued edits stay
+associated with their original scene; they are not automatically replayed into
+the replacement. Keep a downloaded recovery copy and ask the workspace owner
+which link to use.
 
 Scenes containing images/assets or scene-specific access overrides require an operator mapping procedure before replacement. The bounded rehearsal refuses those cases. This is not an automatic restore button, version-history feature, or proof of a production backup restore. Production rollout remains pending.
 

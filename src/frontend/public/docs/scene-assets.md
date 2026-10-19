@@ -1,6 +1,7 @@
 # Images, uploads and realtime credentials
 
-Backend contracts are implemented for collaboration v2; browser and release integration are still in progress.
+Backend and browser integration are implemented and verified in the local
+real-stack release candidate; production deployment remains pending.
 
 Upload PNG, JPEG, GIF or WebP images between 1 byte and 10 MiB. Public viewers can display existing images; public editors can upload only to their shared scene. Existing SVG and AVIF images remain readable. A batch supports up to 100 distinct file IDs.
 

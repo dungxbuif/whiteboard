@@ -28,10 +28,11 @@ Rewrite the existing Excalidraw-based whiteboard and dashboard ecosystem (curren
 
 ## Non-Goals
 
-- Multi-user collaboration (deferred to Phase 4).
-- AI features (deferred to Phase 5).
-- Complex permission systems (deferred to later phases).
-- Public sharing links (implemented in Phase 3).
+- Email delivery for invitation links.
+- Public links that grant workspace membership.
+- Replacing the native Excalidraw scene visual language.
+- Claiming approved enterprise-parity backlog as delivered Collaboration v2
+  scope; see [requirements](REQUIREMENTS.md#approved-product-backlog).
 
 ## Users And Stakeholders
 
@@ -44,12 +45,14 @@ Rewrite the existing Excalidraw-based whiteboard and dashboard ecosystem (curren
 - **Frontend:** React Vite, Shadcn UI, Zustand for state management.
 - **Database:** PostgreSQL with Multi-tenancy support (UUID-based identifiers).
 - **Storage:** S3-compatible (MinIO/AWS/GCS) for binary assets.
-- **Auth:** Google OAuth integration.
+- **Auth:** Email/password with backend-issued JWT sessions, operator
+  provisioning through `userctl`, and atomic invite registration/default
+  workspace creation. Google OAuth is retired from the runtime.
 
 ## Phase Breakdown
 
 ### Phase 1: Self-hosted Dashboard & Core Infrastructure
-- **Status:** Planned.
+- **Status:** Done.
 - **Goal:** Core rewrite of Dashboard and Backend.
 - **Requirements:**
   - Google Drive-like file management (Nested Folders, Trash, Starring).
@@ -72,13 +75,19 @@ Rewrite the existing Excalidraw-based whiteboard and dashboard ecosystem (curren
   - Legacy parity with existing `references/excalidraw` sharing logic.
 
 ### Phase 4: Real-time Collaboration & Voice Calling
+- **Status:** Local implementation and acceptance verified; production rollout
+  remains.
 - **Goal:** High-fidelity P2P and Relay-based collaboration.
 - **Requirements:**
-  - WebRTC/Socket.io integration.
+  - Durable Yjs document sync, presence/follow, and voice signaling over the
+    custom authenticated `/collab/` WebSocket.
+  - WebRTC voice media with bounded room admission and scoped TURN credentials.
   - Voice call support within the whiteboard.
-  - Unified TURN/STUN relay solution (Single port/endpoint target).
+  - Unified TURN/STUN relay endpoint.
 
 ### Phase 5: AI Integration (OpenAI-Compatible API)
+- **Status:** Implementation verified; public live-provider UAT blocked on a
+  user-provided backend-only key.
 - **Goal:** Intelligent diagramming and code generation.
 - **Requirements:**
   - Diagram-to-code (React/HTML generation).
@@ -122,10 +131,14 @@ Rewrite the existing Excalidraw dashboard and hosting logic into a clean, modern
   - **Acceptance:** Uploaded files are successfully stored in S3; UI retrieves them via signed URLs or public paths.
 
 #### Authentication & Access
-- **REQ-04: Google OAuth Integration**
-  - **Current State:** Google OAuth authorization-code flow with backend-issued JWT sessions.
-  - **Target State:** Users can log in via Google; sessions managed by the Go backend (JWT or Secure Cookies).
-  - **Acceptance:** User can log in, see their profile, and session persists.
+- **REQ-04: Email/Password Authentication and Provisioning**
+  - **Current State:** Email/password login with backend-issued JWT sessions.
+  - **Target State:** Users authenticate without a third-party identity
+    provider; `userctl` and invite registration provision a default workspace
+    transactionally.
+  - **Acceptance:** Valid credentials establish a session; invalid credentials
+    do not disclose account existence; provisioning is idempotent and never
+    stores or returns the password hash.
 
 #### Workspace & File Management (Google Drive-like)
 - **REQ-05: Multi-tenant Workspaces**
@@ -160,27 +173,30 @@ Rewrite the existing Excalidraw dashboard and hosting logic into a clean, modern
 #### In Scope
 - Full rewrite of Frontend in React Vite + Shadcn (reusing UI components from `./devtool`).
 - Full rewrite of Backend in Go (Clean Architecture).
-- Google OAuth login.
+- Email/password login and operator/invitation provisioning.
 - Multi-tenant database design.
 - Folder/File CRUD with Trash, Star, and Search.
 - S3 integration for media.
 
 #### Out of Scope
-- Multi-user collaboration (Phase 4).
-- AI features (Phase 5).
-- Complex permission systems (e.g., inviting other users to workspaces) - deferred for later phases.
-- Public sharing links (Phase 3).
+
+This subsection records the original Phase 1 boundary. Collaboration,
+invitations, public sharing, and AI were delivered by later phases and are part
+of the current product contract.
 
 ### Phase 1 Acceptance Criteria
-- [ ] Backend code passes "Clean Architecture" review (separation of concerns).
-- [ ] Database schema verified for multi-tenancy support.
-- [x] User can log in with Google.
-- [ ] User can create multiple Workspaces.
-- [ ] User can create, rename, and move drawings into nested folders.
-- [ ] User can "Star" a drawing and see it in the Starred section.
-- [ ] User can move a drawing to Trash and restore it.
-- [ ] Searching for a file name returns correct results.
-- [ ] Drawing state (JSON) is saved to DB and assets (images) are saved to S3.
+- [x] Backend code follows the repository/usecase/handler architecture and
+      passes the current Go suite.
+- [x] Database schema and repository proof cover workspace isolation.
+- [x] User can log in with email/password.
+- [x] Operator and invite provisioning create a default workspace.
+- [x] User can create multiple Workspaces.
+- [x] User can create, rename, and move drawings into nested folders.
+- [x] User can "Star" a drawing and see it in the Starred section.
+- [x] User can move a drawing to Trash and restore it.
+- [x] Searching for a file name returns correct results.
+- [x] Drawing state is saved to PostgreSQL and scene assets use S3-compatible
+      storage.
 - [ ] Excalidraw UI is fully functional within the React app.
 
 ---
@@ -227,15 +243,22 @@ Enable public sharing of drawings with fine-grained access control, replicating 
 Implement seamless multi-user collaboration and voice calling with a focus on self-hosted infrastructure and minimal port exposure.
 
 ### Requirements
-- **REQ-01: Real-time Sync:** Multi-user editing with cursor visibility and presence.
+- **REQ-01: Real-time Sync:** Durable Yjs multi-user editing with cursor
+  visibility, presence, follow, offline replay, and commit-before-ACK semantics.
 - **REQ-02: Voice Calling:** Integrated P2P voice calls using WebRTC.
 - **REQ-03: Relay Infrastructure:** Deployment of a unified TURN/STUN relay (e.g., Coturn) on a single port.
-- **REQ-04: Performance:** Low-latency synchronization for up to 10 concurrent users per scene.
+- **REQ-04: Performance:** Fifty concurrent principals sending one small update
+  per second converge with ACK p95 below one second; voice admits at most ten
+  active participants.
 
 ### Acceptance Criteria
-- [ ] Multiple users can edit the same scene simultaneously.
-- [ ] Voice calls are clear and stable.
-- [ ] Infrastructure runs behind a single endpoint.
+- [x] Multiple users can edit the same scene simultaneously in local
+      production-stack acceptance.
+- [x] Generated two-browser audio, mute/leave, denial, and continued document
+      editing pass through TURN.
+- [x] The custom `/collab/` endpoint is the only realtime transport;
+      Socket.IO is removed.
+- [ ] VM100 migration/deployment and public-origin WebSocket/TURN canary pass.
 
 ---
 
@@ -251,15 +274,29 @@ Integrate an OpenAI-compatible provider (DeepSeek by default) to provide intelli
 - **REQ-04: Visual Chat:** Chat with the configured provider about the current whiteboard content.
 
 ### Acceptance Criteria
-- [ ] Prompt results in valid Excalidraw JSON.
-- [ ] Code generation reflects the visual layout accurately.
+- [x] Model output is cleaned and validated as Excalidraw JSON.
+- [x] Code generation accepts complete scene input and returns previewable code.
+- [ ] Public-origin live-provider chat, text/image-to-diagram, and to-code UAT
+      pass with the user-provided backend-only key.
 
 ## Constraints
 
 - Go 1.22+ required for backend.
 - PostgreSQL for persistence.
 - S3-compatible storage for binary assets.
-- Google OAuth 2.0 for authentication.
+- Email/password authentication; provider keys and password hashes remain
+  backend-only.
+- Collaboration v2 requires distinct login, room, authority, mutation-grant,
+  and internal-service secrets.
+
+## Approved Enterprise-Parity Backlog
+
+The approved Collaboration v2 research keeps these outside the release
+candidate: comments/guest comments, screen sharing, live presentation,
+spotlight, waiting room, activity UI, user-visible version history/restore,
+workspace libraries/collections, domain capture, SSO/SCIM, and enterprise
+retention. They require dedicated requirement slices and tickets and must not be
+reported as delivered. See [REQUIREMENTS.md](REQUIREMENTS.md#approved-product-backlog).
 
 ## Linked Decisions
 

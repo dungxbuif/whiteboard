@@ -82,7 +82,8 @@ returned once and cannot be recovered from link metadata.
 Do not run its down migration as routine rollback: it refuses multiple links
 or grants that cannot be represented by the legacy model. Preserve the schema
 and disable v2 entry points, or use a verified backup and explicit migration
-plan. A3 is implemented on the development branch; the existing release steps above remain v1.
+plan. A3 is implemented and locally verified on merged master; the existing
+production deployment remains v1.
 Public refresh returns a renewed scene session before expiry, capped to link
 expiry. A monotonic link revision invalidates existing sessions after password
 or link changes. Release wiring must pass COLLAB_JWT_SECRET to both Go and

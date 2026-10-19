@@ -1,7 +1,7 @@
 ---
 artifact_type: integrations_doc
 id: INTEGRATIONS
-status: draft
+status: active
 owner: shared
 human_fields: [provider_choice, credential_approval, business_owner]
 ai_fields: [systems, contracts, secrets_names, failure_modes]
@@ -19,17 +19,41 @@ shared_fields: [status, trace]
 
 | System | Purpose | Contract | Owner | Status |
 | --- | --- | --- | --- | --- |
-| TBD | TBD | TBD | TBD | draft |
+| PostgreSQL 16 | Users, workspaces, ACL, scenes, durable Yjs state, receipts and audits | SQL migrations 1–13 and repository transactions | Whiteboard operator | active; production v2 migration pending |
+| S3-compatible object storage | Immutable raster scene assets | AWS S3 signing/API; scoped capability endpoints | Whiteboard operator | active; v2 public canary pending |
+| Coturn | STUN/TURN relay for WebRTC voice | TURN REST credentials issued after current scene authorization | Homelab gateway operator | active release candidate; tested gateway IP required until split DNS is fixed |
+| OpenAI-compatible provider | Chat, diagram generation, image reasoning and diagram-to-code | Backend-only OpenAI-compatible HTTP API | Product owner | implementation active; live production UAT blocked on key |
+| Chromium renderer | Isolated PNG/SVG export for MCP | Local Playwright CDP process with network denial and bounded lifecycle | Whiteboard MCP service | locally verified; Linux/amd64 release image pending |
 
 ## Credentials And Secrets
 
 Document required secret names only. Do not store secret values.
 
-- TBD
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `COLLAB_JWT_SECRET`
+- `AUTHORITY_SERVICE_SECRET`
+- `MUTATION_GRANT_SECRET`
+- `COLLAB_INTERNAL_SECRET`
+- `S3_ACCESS_KEY`, `S3_SECRET_KEY`
+- `TURN_AUTH_SECRET`
+- `AI_API_KEY` when live AI features are enabled
+- `WHITEBOARD_AGENT_KEY` for remote MCP clients
 
 ## Failure Modes
 
-- TBD
+- PostgreSQL unavailability makes authorization and durable writes fail closed;
+  collaboration readiness drops rather than accepting stale authority.
+- Object storage failure retains scene/file metadata and exposes retry/recovery;
+  a failed PUT is never treated as a completed asset.
+- TURN/DNS failure leaves document collaboration available while voice relay
+  fails; use the tested gateway IP until hostname resolution is proven.
+- Missing `AI_API_KEY` returns a provider-configuration error without exposing
+  a key to the browser.
+- MCP audit/journal or authority failure prevents mutations; uncertain
+  completion requires receipt/current-state inspection before retry.
+- Renderer timeout or crash returns a bounded render failure and cleans the
+  owned process/temp directory.
 
 ## Collaboration v2 presence and voice
 

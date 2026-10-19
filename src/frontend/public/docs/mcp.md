@@ -15,7 +15,10 @@ Status: collaboration v2 implementation; deployment pending.
 - Successful writes return `{receipt:{requestId,sequence,stateVector},sceneUrl,createdIds,warnings}`. Keep identical request IDs and bytes on uncertain retries. Conflict requires a fresh read and deliberate new request; never blindly replace a whole scene.
 - Dry-run compiles without changing revision. No permission/key/share-management tools are exposed.
 
-Read the human agent guide for setup, scopes, audit retention and failure handling. Real MCP → Go → Node → PostgreSQL integration, live socket convergence and restart are verified in D3. Rendered browser/deployment verification remains a release gate.
+Read the human agent guide for setup, scopes, audit retention and failure
+handling. Real MCP → Go → Node → PostgreSQL integration, live socket
+convergence, restart, native browser IDs, rendered export and revoked downloads
+pass locally. VM100 deployment verification remains a release gate.
 
 ## Export a scene
 

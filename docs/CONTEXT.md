@@ -10,9 +10,9 @@ updated: 2026-10-19
 
 ## Current Focus
 
-- **Active Phase:** Paused before production release — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
-- **Active Work:** Implementation is complete and is being committed/merged into local `master` as the pause checkpoint. Production remains on v1; no VM100 deployment was started.
-- **Next Work:** Resume [COLLAB-V2-RELEASE](work/BACKLOG.md): run the final sequential repository gate, take a fresh cutover backup, install distinct v2 service secrets, build and record Linux/amd64 images, migrate6→13, deploy, run the public browser/authorization/S3/MCP/WebSocket/voice canary, then reconcile Homelab and close the release note/checklist. Machine and human handoff live under `.planning/`.
+- **Active Phase:** Production release review — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
+- **Active Work:** Local implementation and 17/17 real-stack acceptance are complete. Planning/requirements now reflect password auth, custom /collab/, delivered E01–E03, implemented E04/E05 code, and open production/enterprise gates. Production remains on v1 while release hardening and cutover work continue.
+- **Next Work:** Finish [COLLAB-V2-RELEASE](work/BACKLOG.md): automatic reboot recovery, security/dependency review, fresh cutover backup, distinct v2 secrets, frozen Linux/amd64 images, migrations6→13, public deploy/canaries, Homelab reconciliation and release sign-off.
 
 ## Project
 
@@ -23,7 +23,9 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Planning covers all 5 phases (34 tickets total).
 - Phase 1 has 15 tickets (EXC-001 to EXC-014 plus EXC-034).
 - EXC-001 through EXC-034 are implemented; external credential rotation remains a release operation.
-- Architecture, requirements, and ADR documentation migrated to harness format.
+- Architecture, requirements, user stories and ADR documentation are traced in
+  harness format. Enterprise parity and Harness enforcement remain explicit
+  backlog, not delivered scope.
 
 ## Active Decisions
 
@@ -39,9 +41,17 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 ## Blockers
 
-- Final release sign-off still requires checking and rotating any previously exposed JWT or provider credentials; see [auth secret rotation runbook](operations/auth-secrets-rotation.md).
+- Retired Google OAuth history was scrubbed before the remote push; provider-side credential revocation is still required.
+- Live AI provider UAT requires the user-provided backend-only OpenAI-compatible key.
+- Production release still requires reboot recovery, fresh backup/restore, v2 secrets, frozen images, migration/deploy and public canaries; see [release audit](work/verification/2026-10-19-release-pause-audit.md).
 
 ## Recent Changes
+
+- 2026-10-19: Reconciled master requirements, user stories, roadmap, backlog,
+  validation, phase summaries and API docs with merged source and local
+  acceptance. Historical Google OAuth and Socket.IO/WebRTC-data-channel
+  contracts are marked retired/superseded; production, enterprise, Harness,
+  AI-provider UAT and OAuth-revocation work stays open.
 
 - 2026-10-19: Collaboration v2 local acceptance passed 17/17, including 650/650 durable ACKs at p95 13.236 ms, native S3 image reload/recovery, MCP writes/exports, presence/follow and generated two-browser audio. Legacy Socket.IO code and dependencies were removed. VM100 rollout remains.
 

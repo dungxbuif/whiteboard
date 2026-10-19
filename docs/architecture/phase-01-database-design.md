@@ -11,7 +11,8 @@ shape before migrations and repositories are finalized.
 
 Phase 1 covers the self-hosted dashboard rewrite:
 
-- Google OAuth user identity and persisted sessions.
+- Email/password user identity and backend-issued sessions. The nullable
+  `google_subject` field remains only for migration compatibility.
 - Multi-tenant workspace isolation.
 - Workspace-owned folders with materialized paths.
 - Workspace-owned Excalidraw scenes stored as JSONB.

@@ -10,7 +10,12 @@ Use Streamable HTTP `/mcp` with `Authorization: Bearer <key>` in clients that su
 
 Owner management: GET/POST `/api/v1/workspaces/{id}/agent-keys`, DELETE `/api/v1/workspaces/{id}/agent-keys/{keyId}` using normal login authentication. Creation body: `{ "scopes": ["workspace:read", "scene:read"], "sceneIds": [] }`. Empty sceneIds permits the workspace; an explicit list narrows scene tools. The response `key` is shown once.
 
-Implementation verification: isolated PostgreSQL tests check scope/target intersection, revoked owner/key, hash-only storage and room credential revocation. Real MCP HTTP and stdio tests check initialization, tool discovery, authentication on each call, origin validation, principal-bound sessions and bounded tenant-filtered pagination. Dashboard route and deployment integration are programme follow-ups.
+Implementation verification: isolated PostgreSQL tests check scope/target
+intersection, revoked owner/key, hash-only storage and room credential
+revocation. Real MCP HTTP and stdio tests check initialization, tool discovery,
+authentication on each call, origin validation, principal-bound sessions and
+bounded tenant-filtered pagination. Owner dashboard routing and local
+MCP-to-browser mutation/export acceptance pass; production deployment remains.
 
 
 ### Remote stdio setup
@@ -19,7 +24,13 @@ From `src/`, build generated workspace dependencies first: `npm run build --work
 
 For the HTTP service, set `WHITEBOARD_API_URL`, `WHITEBOARD_PUBLIC_URL`, comma-separated exact `MCP_ALLOWED_ORIGINS`, and optionally `PORT` (default 3002). It binds to loopback by default; deployment may set `MCP_BIND_HOST` behind its configured reverse proxy. HTTP sessions expire after ten minutes, and clients initialize a fresh session after a 404. A key is checked again for every HTTP request. Keep normal login tokens and agent keys separate.
 
-Scene creation needs `scene:create`, reading needs `scene:read`, and diagram updates need `scene:write`. Move and trash scopes remain reserved for their dedicated tools. Export uses its independent scope and separately authorized projection; rendering and downloads use the bounded export service described below. A projection error means the scene is too large for this discovery response; it is not a partial or empty scene. Dashboard route integration and deployment remain pending in the collaboration-v2 programme.
+Scene creation needs `scene:create`, reading needs `scene:read`, and diagram
+updates need `scene:write`. Move and trash scopes remain reserved for their
+dedicated tools. Export uses its independent scope and separately authorized
+projection; rendering and downloads use the bounded export service described
+below. A projection error means the scene is too large for this discovery
+response; it is not a partial or empty scene. Dashboard route integration is
+implemented; VM100 deployment remains pending.
 
 `get_scene` returns the live durable projection with `sequence`, `documentId`, `stateVector` and `content`. The sequence is a decimal string and is independent of the older materialized `contentVersion`. If the durable service is unavailable, reads fail; they do not substitute a potentially stale snapshot.
 
