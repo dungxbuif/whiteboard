@@ -7,11 +7,13 @@ import {Persistence} from '/app/collab/dist/persistence.js';
 import {startServer} from '/app/collab/dist/server.js';
 const pool=new Pool({connectionString:'postgres://fixture:fixture@db:5432/packaging_test'});
 for(let i=0;;i++){try{await pool.query('SELECT 1');break;}catch(e){if(i===30)throw e;await new Promise(r=>setTimeout(r,500));}}
-for(const file of (await readdir('/migrations')).filter(f=>f.endsWith('.up.sql')).sort())await pool.query(await readFile('/migrations/'+file,'utf8'));
+if(!(await pool.query("SELECT to_regclass('public.users') AS name")).rows[0].name){
+ for(const file of (await readdir('/migrations')).filter(f=>f.endsWith('.up.sql')).sort())await pool.query(await readFile('/migrations/'+file,'utf8'));
+}
 const user='11111111-1111-4111-8111-111111111111',workspaceId='22222222-2222-4222-8222-222222222222',sceneId='33333333-3333-4333-8333-333333333333';
-await pool.query("INSERT INTO users(id,email,name) VALUES($1,'packaging@test.invalid','Packaging')",[user]);
-await pool.query("INSERT INTO workspaces(id,owner_id,name) VALUES($1,$2,'Packaging')",[workspaceId,user]);
-await pool.query("INSERT INTO scenes(id,workspace_id,title,content) VALUES($1,$2,'Packaging',$3)",[sceneId,workspaceId,JSON.stringify({elements:[],appState:{},files:{}})]);
+await pool.query("INSERT INTO users(id,email,name) VALUES($1,'packaging@test.invalid','Packaging') ON CONFLICT (id) DO NOTHING",[user]);
+await pool.query("INSERT INTO workspaces(id,owner_id,name) VALUES($1,$2,'Packaging') ON CONFLICT (id) DO NOTHING",[workspaceId,user]);
+await pool.query("INSERT INTO scenes(id,workspace_id,title,content) VALUES($1,$2,'Packaging',$3) ON CONFLICT (id) DO NOTHING",[sceneId,workspaceId,JSON.stringify({elements:[],appState:{},files:{}})]);
 const authority=new Authority({roomSecret:'r'.repeat(32),grantSecret:'g'.repeat(32),serviceSecret:'s'.repeat(32),url:'http://127.0.0.1:1'});
 authority.decide=async(_token,scope,action,requestId,bytes,expectedSequence)=>{
  const now=Math.floor(Date.now()/1000),aclVersion=(await pool.query('SELECT acl_version::text AS v FROM workspaces WHERE id=$1',[workspaceId])).rows[0].v;
