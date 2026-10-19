@@ -14,11 +14,12 @@ Status: paused by the user before production v2 cutover. This file is the machin
 
 ## P0 release blockers
 
-1. **Automatic reboot recovery:** external Docker networks were unavailable when v1 containers restarted after the VM reboot. Backend/frontend exited and `restart: unless-stopped` did not reattach them. Define service/network ordering or a retry unit, then prove a controlled Docker/VM restart returns public health to HTTP200 without manual `compose up`.
-2. **Fresh cutover backup:** create a private custom-format PostgreSQL dump immediately before migration; record SHA-256, inspect with `pg_restore --list`, restore into an isolated database and compare migration state and row counts.
-3. **Four distinct v2 service secrets:** install `COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and `COLLAB_INTERNAL_SECRET`, each at least32 bytes and different from login JWT. Verify without printing values.
-4. **Frozen Linux/amd64 release artifacts:** build from reviewed source, record exact image IDs/platforms, run migrations7–13 and verify schema version13 with `dirty=false`.
-5. **Production canary:** verify roles, invitations, revocation, public view/edit, UUID/alias deep-link refresh, S3 paste/reload, custom `/collab/`, MCP native mutation/export, denial paths, runtime restart/replay and TURN voice with multiple principals/browsers.
+1. **Retired OAuth credential:** GitHub Push Protection found a Google OAuth client ID and secret in historical `src/frontend/playwright.config.ts`. Rewrite all Git history before the first remote push, verify the values no longer exist in any pushed ref, and revoke the retired credential in Google Cloud. Do not bypass push protection.
+2. **Automatic reboot recovery:** external Docker networks were unavailable when v1 containers restarted after the VM reboot. Backend/frontend exited and `restart: unless-stopped` did not reattach them. Define service/network ordering or a retry unit, then prove a controlled Docker/VM restart returns public health to HTTP200 without manual `compose up`.
+3. **Fresh cutover backup:** create a private custom-format PostgreSQL dump immediately before migration; record SHA-256, inspect with `pg_restore --list`, restore into an isolated database and compare migration state and row counts.
+4. **Four distinct v2 service secrets:** install `COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and `COLLAB_INTERNAL_SECRET`, each at least32 bytes and different from login JWT. Verify without printing values.
+5. **Frozen Linux/amd64 release artifacts:** build from reviewed source, record exact image IDs/platforms, run migrations7–13 and verify schema version13 with `dirty=false`.
+6. **Production canary:** verify roles, invitations, revocation, public view/edit, UUID/alias deep-link refresh, S3 paste/reload, custom `/collab/`, MCP native mutation/export, denial paths, runtime restart/replay and TURN voice with multiple principals/browsers.
 
 ## P1 release work
 
