@@ -1,8 +1,9 @@
 # Production Deployment
 
 Status: collaboration v2 is deployed on VM100 from application commit
-`d885975`. Final reboot/TURN/log and complete browser-role canaries remain on
-the release checklist. For promoted scenes, use the
+`772d3ea`. Controlled reboot, Docker DNS restart/replay, authenticated TURN and
+core public infrastructure canaries pass. The remaining product acceptance
+matrix is on the release checklist. For promoted scenes, use the
 [replacement-scene recovery runbook](collaboration-recovery.md); image-only
 rollback is not valid.
 
@@ -130,6 +131,13 @@ did not catch the invalid mount split. See
 [VM100 tmpfs verification](../work/verification/compose-tmpfs-vm100-2026-10-19.md).
 
 An installed Homelab systemd recovery unit waits for Swarm/network metadata and
-re-applies the Compose stack. Non-reboot execution is verified. Do not close the
-recovery gate until a controlled VM reboot restores external overlay networks,
-all four services and public health without manual intervention.
+re-applies the Compose stack. A controlled VM reboot verified that it restores
+the two external overlay networks, local application bridge, all four healthy
+services and public health without manual intervention.
+
+Frontend nginx resolves backend, collaboration and MCP service names at runtime
+through Docker's embedded DNS. A production collaboration-container address
+change preserved public WebSocket upgrade and authenticated admission without a
+frontend restart. Keep the isolated address-replacement smoke in the release
+gate for future nginx/base-image changes. See
+[DNS recovery evidence](../work/verification/nginx-docker-dns-recovery-2026-10-19.md).

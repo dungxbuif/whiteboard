@@ -11,8 +11,8 @@ updated: 2026-10-19
 ## Current Focus
 
 - **Active Phase:** Production release review — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
-- **Active Work:** Collaboration v2 is deployed on VM100 from `d885975`. The fresh cutover backup/restore, distinct secrets, frozen Linux/amd64 images, migrations 7–13, public health/deep-link/S3/MCP, internal-route denial, scoped TURN config/STUN challenge and local log checks are verified. Release sign-off remains open for controlled reboot, runtime restart/replay, authenticated TURN allocation/audio and the complete browser roles matrix.
-- **Next Work:** Finish [COLLAB-V2-RELEASE](work/BACKLOG.md): controlled reboot recovery, remaining public-origin canaries and final release sign-off.
+- **Active Work:** Collaboration v2 is deployed on VM100 from `772d3ea`. Backup/restore, secrets, frozen Linux/amd64 images, migration 13, public health/deep-link/S3/MCP/internal denial/log checks, runtime DNS restart/replay, authenticated TURN allocation and automatic controlled-reboot recovery are verified.
+- **Next Work:** Finish [COLLAB-V2-RELEASE](work/BACKLOG.md): public view/edit, invitation/role/revoke, native MCP write/export, public browser voice/media, mobile/keyboard acceptance and final release sign-off.
 
 ## Project
 
@@ -43,11 +43,16 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 - Retired Google OAuth history was scrubbed before the remote push; provider-side credential revocation is still required.
 - Live AI provider UAT requires the user-provided backend-only OpenAI-compatible key.
-- Final release sign-off still requires controlled reboot recovery, authenticated TURN allocation/audio, runtime restart/replay and the remaining browser roles matrix; see [release checklist](operations/RELEASE_CHECKLIST.md).
+- Final release sign-off still requires the remaining public view/edit,
+  invitation/role/revoke, native MCP write/export, public browser voice/media and mobile/keyboard acceptance
+  matrix; see [release checklist](operations/RELEASE_CHECKLIST.md).
 
 ## Recent Changes
 
-- 2026-10-19: Deployed Collaboration v2 on VM100 from `d885975`. Four Linux/amd64 services are healthy, migration 13 is clean, the fresh backup restored with 14/14 table counts matching, and public deep-link/S3/MCP canaries pass. The tmpfs manifest parsing incident is corrected and verified. Final reboot/TURN/log/role canaries remain.
+- 2026-10-19: Deployed Collaboration v2 on VM100 and advanced production to
+  `772d3ea`. Four services recover automatically after a controlled reboot;
+  Docker DNS restart/replay and authenticated TURN allocation pass. Migration
+  13 remains clean and public health/deep-link/S3/MCP/denial canaries pass.
 
 - 2026-10-19: Homelab commit `9722490` reconciles the VM100 template,
   Compose semantic regression, recovery tests, architecture, runbook,

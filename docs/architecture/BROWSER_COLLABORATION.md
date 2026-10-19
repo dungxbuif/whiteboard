@@ -1,7 +1,8 @@
 # B3 browser collaboration detail design
 
 Status: implemented, included in the 17/17 local real-stack acceptance and
-deployed on VM100. Final public roles/restart/TURN/denial acceptance remains. Authorized by the
+deployed on VM100. Docker DNS restart/replay and controlled reboot recovery pass;
+final public roles/mobile/keyboard acceptance remains. Authorized by the
 approved Collaboration v2 programme. Links:
 [programme](../superpowers/plans/2026-10-16-collaboration-v2.md),
 [phase](../work/phases/PHASE-COLLAB-V2.md).

@@ -62,7 +62,7 @@ The checked items below describe the prior v1 release. They are not v2 acceptanc
   remain human-owned production gates.
 
 
-## Collaboration v2 release — deployed, final canaries pending
+## Collaboration v2 release — deployed, product acceptance pending
 
 User authorization covers implementation, local merge and VM100 deploy. The following technical gates remain required; prior v1 checks above do not satisfy them.
 
@@ -79,16 +79,16 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [x] Existing environment/service ownership checked; four distinct v2 secrets of at least 32 bytes are installed and verified without printing values.
 - [x] Preflight PostgreSQL backup restored in an isolated container; actual migrator7–13 passed, final13clean. [Evidence](../work/verification/collaboration-v2-backup.md).
 - [x] Fresh cutover backup recorded and restore-checked immediately before production migrations; all 14 table counts matched. [Evidence](../work/verification/collaboration-v2-backup.md).
-- [ ] Controlled VM reboot recreates/awaits external networks through the installed recovery unit and restores all four application services plus public health without manual Compose intervention. Non-reboot unit proof already passes.
+- [x] Controlled VM reboot recreated/awaited external networks through the installed recovery unit and restored all four healthy application services plus public health without manual Compose intervention.
 - [x] Controlled replacement-scene recovery rehearsal reviewed (`93d57a1`,24independent checks): preserve latest content, receipts and original quarantined identity; assets/overrides refuse. Image-only rollback forbidden after promotion.
-- [x] Applied the tested `turn:103.82.21.202:5349` endpoint with the existing realm; deployed allocation/audio proof remains unchecked below.
-- [ ] Public HTTPS canary: authenticated deep-link save/reload and cleanup, dashboard/settings/share/invitation/agent-key UI, public S3 write/read/delete, native MCP authentication/read and revoked-key denial, internal-route denial, scoped TURN config and unauthenticated STUN challenge pass. Public view/edit mutation, invitation acceptance/role/revoke, native MCP write/export, runtime restart/replay and authenticated TURN allocation/audio remain.
-- [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; visible desktop/deep-link checks preserve the original dashboard and native scene style. Mobile/keyboard coverage and the complete roles matrix remain.
+- [x] Applied the tested `turn:103.82.21.202:5349` endpoint; a fresh scoped credential completed authenticated UDP Allocate, returned a relayed address and was released with Refresh lifetime zero.
+- [ ] Public HTTPS canary: authenticated deep-link save/reload, dashboard/settings access UI, S3 write/read/delete, native MCP authentication/read and revoked-key denial, internal-route denial, Docker DNS runtime restart/replay and authenticated TURN allocation pass. Public view/edit mutation, invitation acceptance/role/revoke, native MCP write/export and two-peer browser voice/media remain.
+- [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; visible desktop/deep-link and post-restart `People (1)` / `Saved` checks preserve the original dashboard and native scene style. Mobile/keyboard coverage and the complete roles matrix remain.
 - [x] Public `/internal` and encoded/normalized variants return 404. Nginx access logging is disabled and local nginx/backend/collab/MCP/Cloudflared logs inspected on VM100 contain no credential-bearing URL; Cloudflare dashboard retention policy was outside VM access.
-- [ ] Final health/readiness/ACK/compaction observation recorded after restart/reboot canaries.
+- [x] Post-restart/reboot health/readiness/admission/sync observation recorded; four services are healthy, migration13 is clean and the public browser returns `People (1)` / `Saved`. Existing local ACK/compaction proof remains linked above.
 - [ ] Internal architecture/API/schema/runbooks plus human and AI-readable public docs reconciled with deployed behavior. Application docs are updated in this release commit and Homelab reconciliation is committed as `9722490`; final canary evidence remains.
 - [x] Whole-branch source/security review and frozen dependency review complete. `npm audit --omit=dev` reports zero production findings; the nine remaining development/build entries are classified in [dependency evidence](../work/verification/collaboration-dependencies.md).
 - [ ] Final release sign-off commit recorded. The Git remote
   is configured and the history-scrubbed master push succeeded.
 
-Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md), [cutover backup](../work/verification/collaboration-v2-backup.md), [tmpfs incident](../work/verification/compose-tmpfs-vm100-2026-10-19.md), [release note](../releases/2026-10-19-collaboration-v2.md), [recovery evidence](../work/verification/collaboration-recovery.md) and [recovery runbook](collaboration-recovery.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one. Retired Google credential revocation remains an external provider operation.
+Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md), [cutover backup](../work/verification/collaboration-v2-backup.md), [tmpfs incident](../work/verification/compose-tmpfs-vm100-2026-10-19.md), [Docker DNS recovery](../work/verification/nginx-docker-dns-recovery-2026-10-19.md), [release note](../releases/2026-10-19-collaboration-v2.md), [recovery evidence](../work/verification/collaboration-recovery.md) and [recovery runbook](collaboration-recovery.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one. Retired Google credential revocation remains an external provider operation.

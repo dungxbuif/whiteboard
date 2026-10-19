@@ -41,7 +41,7 @@ A high-performance, self-hosted whiteboard ecosystem with Google Drive-like mana
 | M1 | Phase 1: Self-hosted Dashboard Rewrite | done | [PHASE-1.md](phases/PHASE-1.md) | 11 plans (01-01 to 01-11) |
 | M2 | Phase 2: Presentation Mode | done | [PHASE-2-PRODUCT.md](phases/PHASE-2-PRODUCT.md) | 3 plans (02-01 to 02-03) |
 | M3 | Phase 3: Shareable Production | done | [PHASE-3.md](phases/PHASE-3.md) | 3 plans (03-01 to 03-03) |
-| M4 | Phase 4: Real-time Collaboration & Calling | in_review | [PHASE-COLLAB-V2.md](phases/PHASE-COLLAB-V2.md) | VM100 v2 deployed; final reboot/TURN/log/roles acceptance pending |
+| M4 | Phase 4: Real-time Collaboration & Calling | in_review | [PHASE-COLLAB-V2.md](phases/PHASE-COLLAB-V2.md) | VM100 v2, reboot recovery, DNS restart/replay and TURN allocation pass; final product acceptance matrix pending |
 | M5 | Phase 5: AI Features (OpenAI-Compatible API) | in_review | [PHASE-5.md](phases/PHASE-5.md) | Implementation verified; public live-provider UAT blocked on key |
 | ME | Enterprise parity | ready | [Requirements](../requirements/REQUIREMENTS.md#approved-product-backlog) | Comments, screen sharing, live presentation/activity, versioning, libraries, domain/SSO/SCIM/retention need tickets |
 | MH | Harness: Develop Harness CLI (Hard Enforcement) | ready | [PHASE-2.md](phases/PHASE-2.md) | Create implementation tickets or record an owner decision removing the milestone |
@@ -86,7 +86,8 @@ No milestone status implies enterprise feature parity.
 - [x] 04-03-PLAN.md — Voice calling baseline; current signaling shares /collab/
 - [x] Collaboration v2 local implementation and 17/17 real-stack acceptance
 - [x] VM100 cutover, migration 13, frozen Linux/amd64 images and initial public-origin health/deep-link/S3/MCP acceptance
-- [ ] Controlled reboot, deployed TURN/restart/denial/log and complete browser roles acceptance
+- [x] Controlled reboot, Docker DNS restart/replay, internal denial/log and authenticated TURN allocation acceptance
+- [ ] Public share/invite/roles, native MCP write/export, browser voice/media and mobile/keyboard acceptance
 
 ## Phase 5 Plans
 

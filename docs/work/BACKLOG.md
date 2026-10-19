@@ -92,8 +92,8 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | ID | Type | Lane | Status | Scope | Next artifact |
 | --- | --- | --- | --- | --- | --- |
 | COLLAB-V2 | phase | high-risk | in_review | Deployed on VM100: legacy dashboard style, ACL/invites/public edit, Yjs/custom socket, presence/voice, native MCP and diagram catalog. Final public-origin operational acceptance remains open. | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
-| COLLAB-V2-RELEASE | release | high-risk | in_progress | Fresh backup/restore, distinct secrets, Linux/amd64 images, migrations 7–13, public deploy, denial/log checks and Homelab reconciliation are complete. Controlled reboot, runtime restart/replay, authenticated TURN allocation/audio, complete roles matrix and sign-off remain. | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md) |
-| PROD-REBOOT-RECOVERY | bug | high-risk | in_review | Homelab retry unit is installed/enabled and non-reboot proof passes. Prove a controlled VM reboot recreates/awaits external networks and restores public health without manual Compose intervention. | [Release checklist](../operations/RELEASE_CHECKLIST.md) |
+| COLLAB-V2-RELEASE | release | high-risk | in_progress | Backup/restore, secrets, Linux/amd64 images, migration 13, deploy, denial/log checks, Docker DNS restart/replay, authenticated TURN allocation, automatic reboot recovery and Homelab reconciliation pass. Public roles/share/invite, native MCP write/export, browser voice/media, mobile/keyboard and sign-off remain. | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md) |
+| PROD-REBOOT-RECOVERY | bug | high-risk | done | Controlled VM reboot restored external networks, four healthy services, migration 13 and public health automatically through the recovery unit. | [Release note](../releases/2026-10-19-collaboration-v2.md) |
 | RELEASE-SECURITY-REVIEW | release | high-risk | done | Whole-branch correctness/auth/deployment review passed; production audit is clean and all nine development/build findings are classified. | [Dependency review](verification/collaboration-dependencies.md) |
 | PLANNING-RECONCILIATION | maintenance | normal | done | Epic/ticket/roadmap/validation/API status now distinguishes shipped local behavior, retired transports and open release gates. | [Requirements](../requirements/REQUIREMENTS.md), [validation](VALIDATION_MATRIX.md) |
 | ENTERPRISE-PARITY | phase | high-risk | needs_tickets | Promote approved-design items: comments, screen sharing, live presentation controls, activity UI, version history, libraries, domain capture, SSO/SCIM and retention. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |
@@ -104,13 +104,15 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 Design and implementation are complete. Local real-stack acceptance passes17/17, including native S3 image reload/recovery, browser presence/follow, generated two-browser audio, MCP mutations/exports and650/650 durable ACKs at p9513.236ms. The pending-image movement/reopen regressions and Chromium startup endpoint race have deterministic tests and fixes. The final merged-master sequential gate passes: root npm246 tests, frontend93 unit tests and production build, and all Go packages.
 
-Collaboration v2 is running on VM100 from `d885975`. The fresh cutover dump was
+Collaboration v2 is running on VM100 from `772d3ea`. The fresh cutover dump was
 restored and compared, four service secrets are installed, the frozen
 Linux/amd64 images are recorded, migration 13 is clean, and public
 health/deep-link/S3/MCP checks pass. A Compose tmpfs parsing defect found during
-create is fixed and verified. Continue `PROD-REBOOT-RECOVERY` and the remaining
-authenticated TURN allocation/audio, restart/replay and browser-role canaries, then sign off the
-release. Homelab reconciliation is committed locally as `9722490`; that
+create is fixed and verified. Controlled reboot, Docker DNS restart/replay and
+authenticated TURN allocation pass. Continue public share/invite/roles, native
+MCP write/export, public browser voice/media and mobile/keyboard canaries, then
+sign off the release.
+Homelab reconciliation is committed locally as `9722490`; that
 repository has no remote.
 
 User confirmed org means workspace. Actual two-network TURN audio passes using the gatewayIP; local hostname DNS still needs correction or the testedIP release setting. See [release checklist](../operations/RELEASE_CHECKLIST.md), [real-stack evidence](verification/collaboration-v2-real-stack.md) and [backup evidence](verification/collaboration-v2-backup.md). The older epic/ticket tables below preserve v1 planning history and do not represent v2 acceptance.

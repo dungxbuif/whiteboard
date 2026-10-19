@@ -1,6 +1,8 @@
 # Browser collaboration and recovery
 
-Status: implemented and deployed on VM100. Authenticated public deep-link save/reload passes; final restart/roles/denial canaries remain before sign-off.
+Status: implemented and deployed on VM100. Authenticated deep-link save/reload,
+Docker DNS restart/replay and controlled reboot recovery pass; the remaining
+public roles/mobile/keyboard acceptance is tracked in the release checklist.
 
 Open a scene and wait for **Saved** or **Read-only**. The canvas stays read-only until the server checks current access and the document finishes synchronizing. A pending count means changes are on this device and still await the server's durable acknowledgement. Closing the tab does not mean those changes were saved on the server.
 

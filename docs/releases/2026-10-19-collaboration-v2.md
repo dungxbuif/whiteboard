@@ -1,7 +1,8 @@
 # Whiteboard collaboration v2 — 2026-10-19
 
-Status: deployed to VM100; final reboot/TURN/log canaries remain before release
-sign-off.
+Status: deployed to VM100; controlled reboot, runtime restart/replay, TURN
+allocation and core public infrastructure canaries pass. The remaining product
+acceptance matrix is listed below.
 
 ## User-visible changes
 
@@ -35,7 +36,7 @@ operational checks.
 
 ## Production deployment
 
-Production runs the collaboration-v2 stack from application commit `d885975`
+Production runs the collaboration-v2 stack from application commit `772d3ea`
 at `https://whiteboard.dungxbuif.com`. `COLLAB_V2_ENABLED=true`; the Go backend,
 custom collaboration runtime, MCP adapter and nginx frontend are healthy.
 Migrations 7–13 completed and the database reports version 13 with
@@ -46,7 +47,7 @@ The frozen Linux/amd64 images are:
 - Backend: `sha256:e0c6c51e31624401102a6bac4a555d99977748b2f9c6a321df6156e18fb0e167`.
 - Collaboration: `sha256:ef235e1c3e3aa293072785c161660f526bf112c4daaeb8fac507333f8c7f8f69`.
 - MCP: `sha256:0cd512501273886674680b5e9c14d87ee0b59802bf0399541120b07b32bd03de`.
-- Frontend: `sha256:e48b3a2dcd72f45e9198de1527e6440309c67d7f3833a2d13f6f57a245171eaa`.
+- Frontend: `sha256:b6efa2d39826cf1eae03b71fd3e12897ae7f4a897c7e5c79984e5d5969b5c3db`.
 
 Four independent collaboration service secrets, each at least 32 bytes and
 distinct from the login JWT secret, are installed without recording their
@@ -75,14 +76,31 @@ manifest correction in `d885975` preserves each complete mount option; runtime
 inspection confirms the expected `/tmp` sizes/modes on collaboration, MCP and
 frontend containers. See [tmpfs evidence](../work/verification/compose-tmpfs-vm100-2026-10-19.md).
 
+Commit `772d3ea` makes nginx re-resolve backend, collaboration and MCP service
+names through Docker DNS. With no frontend restart, production moved the
+collaboration service from `172.30.0.76` to `172.30.0.84`; public WebSocket
+upgrade, authenticated admission/sync and the visible `People (1)` / `Saved`
+state passed. See [DNS recovery evidence](../work/verification/nginx-docker-dns-recovery-2026-10-19.md).
+
 Homelab commit `9722490` reconciles the VM100 template, adds a semantic Compose
 regression test, and updates recovery tests, architecture, runbook, deployment
 evidence and its infrastructure release note. The Homelab repository has no
 configured remote, so this is a local commit.
 
-Final sign-off still requires controlled VM reboot recovery, authenticated TURN
-allocation/audio, runtime restart/replay and closure of the remaining browser
-canary matrix. Live AI provider
+The controlled VM reboot started at 16:29:38 local time. The installed recovery
+unit waited for network metadata and restored all four healthy services without
+manual intervention. `homelab-net` and `edge-http-net` returned as Swarm overlay
+networks, `whiteboard-app` as a local bridge, migration 13 stayed clean, public
+health returned successfully, `/internal` returned 404 and anonymous `/mcp`
+returned 401.
+
+A freshly issued production TURN credential completed authenticated UDP
+Allocate and returned a relayed address; Refresh with lifetime zero released it.
+No credential value is recorded.
+
+Final sign-off still requires closure of the remaining public view/edit,
+invitation/role/revoke, native MCP write/export, two-peer browser voice/media
+and mobile/keyboard acceptance matrix. Live AI provider
 UAT is externally blocked until the user supplies `AI_API_KEY`. Retired Google
 OAuth credential revocation remains an external Google Cloud operation; the
 values are absent from reachable Git history.

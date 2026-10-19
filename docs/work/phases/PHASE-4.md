@@ -68,8 +68,8 @@ Implement seamless multi-user collaboration and voice calling with a focus on se
 - [x] Voice calls are clear and stable when browser media permissions and TURN are available.
 - [x] Local production-stack behavior runs through `/collab/`; Socket.IO is
       absent from runtime/deployment dependencies.
-- [ ] VM100 cutover, controlled reboot recovery, migrations, and public-origin
-      WebSocket/TURN canary pass.
+- [x] VM100 cutover, controlled reboot recovery, migration13, public-origin
+      WebSocket restart/replay and authenticated TURN allocation pass.
 
 ## Gate Checklist
 
@@ -84,5 +84,6 @@ Implement seamless multi-user collaboration and voice calling with a focus on se
 The historical Socket.IO/WebRTC-data-channel implementation was superseded by
 Collaboration v2. Custom `/collab/`, durable Yjs ACK/replay, native
 presence/follow, WebRTC voice signaling, scoped TURN, assets, and recovery pass
-the 17/17 local real-stack suite. Production rollout remains under
-[PHASE-COLLAB-V2](PHASE-COLLAB-V2.md); enterprise parity remains separate.
+the 17/17 local real-stack suite and is deployed on VM100. Remaining public
+product acceptance is tracked under [PHASE-COLLAB-V2](PHASE-COLLAB-V2.md);
+enterprise parity remains separate.

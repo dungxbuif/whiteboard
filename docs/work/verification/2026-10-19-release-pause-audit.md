@@ -22,7 +22,7 @@ is the current source for remaining gates.
   installed and distinct from the login JWT secret; values were not printed.
 - Frozen Linux/amd64 backend, collaboration, MCP and frontend image IDs plus the
   v1 rollback images are recorded in the release note.
-- Collaboration v2 is deployed from `d885975`; all four services are healthy and
+- Collaboration v2 is deployed from `772d3ea`; all four services are healthy and
   `COLLAB_V2_ENABLED=true`.
 - Public HTTPS health, authenticated deep-link save/reload, dashboard/settings
   access UI, S3 bucket write/read/delete, native MCP authentication/reads and
@@ -32,22 +32,25 @@ is the current source for remaining gates.
   unauthenticated STUN challenge pass without exposing credential values.
 - The Compose tmpfs YAML parsing incident is corrected and the actual container
   tmpfs maps are verified.
+- Production commit `772d3ea` re-resolves Docker service names at runtime;
+  public WebSocket admission/sync passed across a collaboration-container IP
+  change without restarting the frontend.
+- Authenticated production TURN Allocate returned a relayed address and Refresh
+  lifetime zero released it.
+- A controlled VM reboot restored external networks, all four healthy services,
+  migration13 and public health automatically through the recovery unit.
 - Homelab commit `9722490` reconciles the deployment template, semantic Compose
   regression, recovery tests, architecture, runbook and release evidence. The
   Homelab repository has no configured remote.
 
 ## Remaining release gates
 
-1. **Controlled reboot:** reboot VM100 and prove the recovery unit restores
-   external networks, all four services and public health without manual
-   intervention.
-2. **Final production canaries:** finish public view/edit mutation,
-   invitation/role/revoke, native MCP write/export, collaboration runtime
-   restart/replay and authenticated deployed TURN allocation/audio. Complete
-   mobile/keyboard coverage.
-3. **Live AI provider UAT (external):** requires the user-provided backend-only
+1. **Final production canaries:** finish public view/edit mutation,
+   invitation/role/revoke, native MCP write/export, two-peer browser voice/media
+   and mobile/keyboard coverage.
+2. **Live AI provider UAT (external):** requires the user-provided backend-only
    `AI_API_KEY`.
-4. **Retired OAuth revocation (external):** revoke the retired credential in
+3. **Retired OAuth revocation (external):** revoke the retired credential in
    Google Cloud. Its values are absent from reachable Git history.
 
 ## Separate product backlog

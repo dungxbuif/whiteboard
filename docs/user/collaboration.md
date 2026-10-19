@@ -2,8 +2,10 @@
 
 Status: browser management, durable collaboration, presence/follow and voice
 are implemented and deployed on VM100. Authenticated deep-link save/reload is
-verified publicly; the complete public roles/restart/TURN/denial matrix remains
-before final release sign-off.
+verified publicly; Docker DNS restart/replay, TURN relay allocation and
+controlled reboot recovery also pass. Public share/invite/roles, native MCP
+write/export, browser voice/media and mobile/keyboard acceptance remain before
+final release sign-off.
 
 ## Invite someone
 

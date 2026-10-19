@@ -1,7 +1,7 @@
 # Frontend Docker DNS recovery verification — 2026-10-19
 
-Status: implementation and isolated packaging proof complete; production
-deployment/restart replay pending.
+Status: implementation, isolated packaging proof and production restart replay
+complete.
 
 ## Trigger and intended behavior
 
@@ -41,3 +41,17 @@ passes `nginx -t`; the full isolated packaging smoke then passes the original
 admission plus a second authenticated `ready` admission after the address
 replacement. The smoke also verifies that variable proxying preserves the
 backend API URI and the existing MCP routes.
+
+## Production evidence
+
+Production runs the fix from commit `772d3ea`. Without restarting the frontend,
+the collaboration container moved from Homelab address `172.30.0.76` to
+`172.30.0.84`. Public WebSocket upgrade passed both before and after the move;
+authenticated admission and synchronization also passed. The visible browser
+scene recovered to `People (1)` and `Saved`.
+
+The subsequent controlled VM reboot exercised the same service-discovery path.
+The recovery unit waited for Docker network metadata, reconciled the Compose
+stack and restored all four healthy services automatically. Public health and
+collaboration access recovered without a manual frontend restart or manual
+`compose up`.

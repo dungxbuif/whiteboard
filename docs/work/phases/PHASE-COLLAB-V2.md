@@ -33,7 +33,7 @@ override: preserve the original dashboard style.
 | B | B1–B4 | Durable writer/browser integration, image movement/reopen recovery, native presence/follow and voice pass local review and real-stack acceptance | complete |
 | C | C1–C2 | C1/C2 verified and reviewed;29browser/35unit/build pass | complete |
 | D | D1–D4 | D1–D4 verified and reviewed; D4 lifecycle regressions and local nonroot image pass | complete |
-| E | E1–E3 | Local 17/17 acceptance and 650/650 durable ACKs pass. Fresh restore-checked backup, frozen Linux/amd64 images, migration 13, VM100 deployment and initial public health/deep-link/S3/MCP canaries pass. Controlled reboot, deployed TURN/restart/denial/log and complete roles proof remain. | in_progress |
+| E | E1–E3 | Local 17/17 acceptance and 650/650 durable ACKs pass. Fresh backup, images, migration 13, VM100 deploy, public health/deep-link/S3/MCP/denial/log, Docker DNS restart/replay, authenticated TURN allocation and controlled reboot recovery pass. Public share/invite/roles, native MCP write/export, browser voice/media and mobile/keyboard proof remain. | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;
 each owns files, public interfaces, failing proof, implementation, checks,
@@ -55,12 +55,11 @@ Enterprise parity P1/P2 candidates remain separate from these delivery slices.
 
 ## Open release gates
 
-- Prove automatic recovery after a controlled VM restart. The installed retry
-  unit passes non-reboot proof.
-- Finish the public-origin roles/invite/share/revoke/custom-WebSocket/voice and
-  restart/replay canaries. Deep-link save/reload, S3, authenticated/revoked MCP,
-  internal-route denial, scoped TURN config/STUN challenge and local log checks
-  already pass.
+- Finish the public-origin view/edit, invitation/roles/revoke, native MCP
+  write/export, browser voice/media and mobile/keyboard acceptance matrix. Deep-link save/reload,
+  S3, authenticated/revoked MCP reads, internal-route denial, local log checks,
+  Docker DNS restart/replay, authenticated TURN allocation and controlled VM
+  reboot recovery pass.
 - Finish final release evidence. Whole-branch/dependency review,
   fresh backup/restore, distinct secrets, frozen images, migration 13,
   deployment and Homelab reconciliation (`9722490`) are complete.

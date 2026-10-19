@@ -61,8 +61,8 @@ This is database backup/restore and forward-migration proof, not an S3 object
 backup. Existing immutable S3 objects must remain available. Independent
 off-host disaster-recovery storage is not demonstrated. Public browser
 management checks, authenticated MCP reads, S3 write/read/delete and deep-link
-persistence have passed; controlled VM reboot recovery, native MCP
-write/export, deployed TURN allocation/audio and the remaining denial/log
-canaries stay on the release checklist.
+persistence, controlled VM reboot recovery and deployed TURN relay allocation
+have passed. Native MCP write/export, public browser media and the remaining
+product canaries stay on the release checklist.
 
 See [release checklist](../../operations/RELEASE_CHECKLIST.md) and [replacement-scene recovery](../../operations/collaboration-recovery.md).

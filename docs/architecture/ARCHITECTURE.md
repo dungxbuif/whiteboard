@@ -13,11 +13,11 @@ shared_fields: [status, linked_decisions]
 ## Implementation and deployment status
 
 This document describes the collaboration-v2 system deployed on VM100 from
-`d885975`. Access/dashboard, durable persistence, browser transport,
+`772d3ea`. Access/dashboard, durable persistence, browser transport,
 presence/follow/voice, agent commands and native rendering passed local
 acceptance; initial public deep-link/S3/MCP canaries also pass. See the
 [release checklist](../operations/RELEASE_CHECKLIST.md) for the remaining
-controlled-reboot/TURN/denial/roles gates and [real-stack verification](../work/verification/collaboration-v2-real-stack.md) for local evidence boundaries.
+remaining public product acceptance gates and [real-stack verification](../work/verification/collaboration-v2-real-stack.md) for local evidence boundaries.
 
 The tenant is a workspace. There is no separate organization hierarchy. Dashboard components reuse the original reference layout, colors and light/dark tokens. The scene retains native Excalidraw styling.
 
