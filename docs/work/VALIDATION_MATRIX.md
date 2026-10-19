@@ -80,14 +80,13 @@ Policy lives in `docs/standards/VALIDATION.md`. This matrix is runtime project s
 
 | Requirement | Tasks | Required proof | Status | Plan |
 | --- | --- | --- | --- | --- |
-| V2-ACCESS | A1–A4 | role/tenant negatives, migration, concurrent invite acceptance, scope/revoke | planned | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
-| V2-SYNC | B1–B4 | malformed protocol, durable ACK/replay, convergence, offline revocation, voice cap | planned | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
-| V2-DASH | C1–C2 | old/new visual comparison, mobile/keyboard and access/browser workflows | planned | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
-| V2-MCP | D1–D4 | scopes, discovery, all preset fixtures, stale/retry mutations, export isolation | planned | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
-| V2-RELEASE | E1–E3 | real-stack E2E/load, host inventory, cross-network audio, restore/rollback, docs | planned | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
+| V2-ACCESS | A1–A4 | A1 reviewed with 79 backend tests and stalled-body regression; A2 reviewed with 15 invitation tests plus origin validation and shared-clock regression; A3 reviewed with 16 public-link/credential tests; A4 scoped capability tests and deadline/renewal fixes pass with clean re-review | in_progress | [A](../superpowers/plans/2026-10-16-collaboration-access.md) |
+| V2-SYNC | B1–B4 | B1–B4 implemented; durable ACK/replay/fault/lock proof, browser convergence/offline recovery, native presence/follow, generated two-browser audio, mute/leave, permission denial, and continued edits pass | implemented | [B](../superpowers/plans/2026-10-16-collaboration-runtime.md) |
+| V2-DASH | C1–C2 | C1 unit/browser/visual proof recorded; C2 access/share/routes and settings navigation pass 29 Chromium/35 unit tests, scoped review clean | in_progress | [C](../superpowers/plans/2026-10-16-collaboration-dashboard.md) |
+| V2-MCP | D1–D4 | Scoped keys, HTTP/stdio discovery, native IDs, presets, durable mutations, duplicate/stale receipts, preservation of human edits, current export, and revoked downloads pass against the real stack | implemented | [D](../superpowers/plans/2026-10-16-collaboration-agents.md) |
+| V2-RELEASE | E1–E3 | Local real-stack 17/17 passes; 650/650 durable ACKs with p95 13.236 ms; native assets and actual two-browser audio pass. VM100 rollout, public-origin browser smoke, and fresh backup/rollback record remain | in_progress | [E](../superpowers/plans/2026-10-16-collaboration-release.md) |
 
-No v2 execution results exist yet. [Phase](phases/PHASE-COLLAB-V2.md) records
-planning-only review; existing v1 evidence is not reused as v2 proof.
+C1 execution evidence: [verification](verification/collaboration-v2.md). Remaining v2 slices are in progress; existing v1 evidence is not reused as v2 proof.
 
 ## Rules
 
@@ -104,3 +103,16 @@ planning-only review; existing v1 evidence is not reused as v2 proof.
 - E2E proof covers user-visible browser flows.
 - Platform proof covers only shell, deployment, mobile, desktop, or runtime behavior that cannot be proven in lower layers.
 - A ticket can be implemented without every proof column if the ticket explains why.
+
+## E1 real-stack acceptance — 2026-10-16
+
+Evidence and safe reproduction: [real-stack acceptance](verification/collaboration-v2-real-stack.md). Dedicated command: `rtk npm run test:e2e:collab --workspace ./frontend` from src; use the bundled Node PATH recorded in evidence.
+
+| Contract | Proof | State | Boundary |
+| --- | --- | --- | --- |
+| Actual password/invitation roles and owner/editor/viewer browser permissions; UUID/alias reload | Real production Go/Node/DB + browser | pass in 17/17 consolidated run | No HTTP route mocks |
+| Offline edits/downgrade recovery; actual commit-before-ACK child kill/restart; epoch mismatch | Four real browser cases | pass | Guarded QA schema; production rollback drill remains |
+| MCP HTTP/stdio real keys/native browser IDs/stale conflict/human preservation/scoped PNG and revoked grant | Real-stack MCP case | pass | Actual local renderer; VM100 smoke remains |
+| Native paste/reload, actual signed S3 PUT/GET, failed PUT retention, renewal and byte equality | Real browser + SeaweedFS S3 | pass | First load and reload both fetched/rendered the native image |
+| Native presence/follow and actual generated two-browser audio; mute/leave/denial cleanup | Real browsers and WebRTC media | pass | Local host proof; public-origin/TURN smoke remains |
+| 50 clients each 1 native update/sec, p95 <1s, durable ACKs and convergence | Actual local runtime/process profiling | pass | 650/650 ACKs; p50 9.742ms, p95 13.236ms; peak RSS 399,097,856B |

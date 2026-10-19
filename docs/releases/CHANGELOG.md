@@ -12,6 +12,26 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Collaboration v2 release candidate: the custom authenticated `/collab/` WebSocket is now the only realtime path; legacy Socket.IO server/client/proxy code is removed. Durable Yjs collaboration, role-aware access/invitations/public edit links, presence/follow, WebRTC voice signaling, scoped MCP agent writes/exports and 19 native diagram presets are integrated. Local real-stack acceptance passed17/17, including native S3 image reload/recovery and650/650 durable ACKs at p9513.236ms. Production VM100 rollout remains to be recorded.
+
+- Access UI C2 (branch only, reviewed): invitations, independent public links, membership/override controls, scoped agent keys, role-aware controls and stable scene/settings routes. Workspace, folder, Starred, Trash and search navigation work from Settings; original dashboard styling and native scene styling remain.
+
+- Durable runtime B2 (branch only, reviewed): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration and deployment remain pending. [Protocol](../architecture/collaboration-protocol.md).
+
+- Agent access D1 (branch only, reviewed): workspace-bound scoped keys, HTTP/stdio MCP discovery and scene tools, plus an owner settings component. Owner dashboard entry is implemented; live mutation integration remains in progress. Calls receive correlated metadata-only audit, including malformed HTTP/stdio tool requests. [Agent guide](../user/agents.md).
+- Scoped assets A4 (branch only, reviewed): current scene authority, private signed mutation decisions, guest asset audit and bounded TURN credentials. Asset URL deadlines survive database/signing delays, and compatible uploads can renew without duplicate metadata; conflicting metadata returns 409. [Assets guide](../user/scene-assets.md).
+
+- Dependency patch subset (branch only): verified Axios, NanoID, lodash-es, PostCSS and Vitest updates with unchanged dashboard goldens. Remaining dependency/runtime checks are documented in [triage](../work/verification/collaboration-dependencies.md).
+- Public links A3 (branch only, reviewed): independent view/edit links, scoped guest sessions, separate room credentials, current permission checks and renewal. Browser/runtime integration remains pending.
+
+- Diagram catalog D2 (branch only): 19 native editable diagram presets, deterministic layout and explicit supported Mermaid subset. Compiler review and 40 tests pass; renderer/export integration remains pending. [Catalog](../user/diagram-catalog.md).
+- Protocol B1 (branch only): strict binary framing and native scene schemas, isolated Yjs candidate validation with bounded resources, malformed/history checks. Durable server/browser integration remains pending. [Evidence](../work/verification/collaboration-v2.md).
+- Invitations A2 (branch only): owner-created single-use seven-day links, email-bound acceptance and atomic account/default workspace provisioning. Existing account passwords are preserved. [Guide](../user/collaboration.md).
+
+- Access A1 (branch only): current workspace/scene role enforcement, short public aliases retaining UUID links, owner-only membership controls, scene asset isolation and transactional ACL invalidation. Bounded request reads prevent a stalled client from holding authority and blocking revocation. [Evidence](../work/verification/collaboration-v2.md).
+
+- Dashboard C1 (branch only, not deployed): ported original dashboard colors and layout; responsive navigation, scoped light/dark portals, native previews and validated scene import. [Guide](../user/dashboard.md), [verification](../work/verification/collaboration-v2.md).
+
 - Planning only (2026-10-16): approved collaboration-v2/legacy-dashboard design and prepared [five implementation plans](../superpowers/plans/2026-10-16-collaboration-v2.md), covering ACL, durable Yjs, scoped MCP and editable diagrams. These features are not yet shipped.
 
 - Release candidate: [Whiteboard VM100 — 2026-10-15](2026-10-15-whiteboard-vm100.md). Automated checks and live public-share verification passed; human secret-rotation, backup/restore, rollback, voice, and AI gates remain documented in the release checklist.

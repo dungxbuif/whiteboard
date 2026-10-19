@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "bundled": [
+    {
+      "id": "native-semantic-motifs",
+      "path": "src/fixtures/native-motifs.json",
+      "source": "project-authored:collaboration-v2/D2",
+      "license": "project-original",
+      "sha256": "ceab3502a1e64e210a92b1b6cb8a352f6df9f3fdbb341520901a86b3a0f7736c",
+      "executable": false
+    }
+  ],
+  "reviewCandidates": [
+    {
+      "id": "excalidraw-community-libraries",
+      "source": "https://github.com/excalidraw/excalidraw-libraries",
+      "status": "not-bundled",
+      "reason": "Every individual library needs explicit source/hash/license review before import."
+    }
+  ],
+  "policy": "Native shapes only. No remote fetch, unreviewed asset import, runtime plugin or image fallback."
+}

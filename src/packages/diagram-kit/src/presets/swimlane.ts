@@ -1,0 +1,4 @@
+import {object,array,id,str,enumeration} from '../schema.js';
+import type {SwimlaneData} from '../types.js';
+export const swimlaneSchema=object({lanes:array(object({id:id(),label:str()}),100,1),steps:array(object({id:id(),lane:id(),label:str(),kind:enumeration('process','decision')},['id','lane','label']),500,1),edges:array(object({id:id(),from:id(),to:id(),label:str()},['id','from','to']),1000)});
+export const swimlaneExample:SwimlaneData={lanes:[{id:'customer',label:'Customer'},{id:'system',label:'System'},{id:'reviewer',label:'Reviewer'}],steps:[{id:'submit',lane:'customer',label:'Submit request'},{id:'validate',lane:'system',label:'Validate data'},{id:'review',lane:'reviewer',label:'Approve?',kind:'decision'},{id:'notify',lane:'system',label:'Notify customer'}],edges:[{id:'sent',from:'submit',to:'validate'},{id:'valid',from:'validate',to:'review'},{id:'approved',from:'review',to:'notify',label:'Yes'}]};

@@ -1,3 +1,4 @@
+import { legacyCollabFixture } from './legacy-collab-fixture';
 import { test, expect } from '@playwright/test';
 
 const screenshotPath = process.env.SCREENSHOT_PATH;
@@ -13,6 +14,7 @@ const mockWorkspaces = [
     id: '2c7f253e-b06b-4ad4-988c-c4590fbc964a',
     name: 'Test Workspace',
     ownerId: mockUser.id,
+    role: "owner",
     createdAt: '2026-06-11T00:00:00Z',
   },
 ];
@@ -43,6 +45,8 @@ const mockFolders = [
 const emptySceneContent = { elements: [], appState: {}, files: {} };
 let mockScenes: Array<{
   id: string;
+  access: string;
+  owner: boolean;
   workspaceId: string;
   folderId: string | null;
   title: string;
@@ -55,6 +59,7 @@ let mockScenes: Array<{
 
 test.describe('Dashboard E2E Flows', () => {
   test.beforeEach(async ({ page }) => {
+    await legacyCollabFixture(page);
     mockScenes = [];
     await page.route('**/api/v1/auth/login', async (route) => {
       await route.fulfill({ json: { token: 'playwright-token' } });
@@ -83,9 +88,14 @@ test.describe('Dashboard E2E Flows', () => {
     await page.route('**/api/v1/scenes**', async (route) => {
       const request = route.request();
       const url = new URL(request.url());
+      if (url.pathname.endsWith('/room-token')) return route.fulfill({ json: { token: 'fixture-room-token', expiresAt: new Date(Date.now() + 600000).toISOString() } });
       const sceneId = url.pathname.match(/\/scenes\/([^/]+)/)?.[1];
       const body = request.postDataJSON() as Record<string, unknown> | null;
 
+      if (url.pathname.endsWith('/share-links')) {
+        await route.fulfill({ json: request.method() === 'POST' ? { id: 'share-id', access: body?.access, active: true, expiresAt: null, token: 'share-token' } : [] });
+        return;
+      }
       if (request.method() === 'GET') {
         if (sceneId) {
           const scene = mockScenes.find((candidate) => candidate.id === sceneId);
@@ -102,6 +112,8 @@ test.describe('Dashboard E2E Flows', () => {
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
         const created = {
           id: 'scene-created',
+          access: 'edit', writerMode: 'v1',
+          owner: true,
           workspaceId: mockWorkspaces[0].id,
           folderId: (body?.folderId as string | null) ?? null,
           title: body?.title as string,
@@ -145,6 +157,11 @@ test.describe('Dashboard E2E Flows', () => {
       await route.abort();
     });
 
+    await page.route('**/api/v1/public/scene-session', async route => {
+      const input = route.request().postDataJSON();
+      if (['password-token', 'isolated-password'].includes(input.token) && input.password !== 'correct horse') return route.fulfill({ status: 401, json: { code: 'SHARE_PASSWORD_REQUIRED' } });
+      return route.fulfill({ json: { token: 'guest-token', expiresAt: '2030-01-01T00:00:00Z', workspaceId: mockWorkspaces[0].id, sceneId: 'scene-created', access: 'view', principalId: 'guest:test', displayName: '' } });
+    });
     await page.goto('/');
   });
 
@@ -236,6 +253,8 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('status')).toHaveText('Saved');
     if (canvasScreenshotPath) await page.screenshot({ path: canvasScreenshotPath, fullPage: false });
 
+    await page.getByTitle('Rectangle — R or 2', { exact: true }).click();
+    await expect(page.getByTitle('Rectangle — R or 2', { exact: true }).locator('input')).toBeChecked();
     const canvas = page.locator('canvas').first();
     await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
@@ -313,13 +332,45 @@ test.describe('Dashboard E2E Flows', () => {
     await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
     await page.getByRole('menuitem', { name: 'Share', exact: true }).click();
     await expect(page.getByRole('dialog')).toContainText('Share Untitled scene');
-    await page.getByRole('button', { name: 'Save link' }).click();
-    await expect(page.getByLabel('Share URL')).toHaveValue('http://localhost:5173/p/share-token');
+    await page.getByRole('button', { name: 'Create view link' }).click();
+    await expect(page.getByLabel('view link URL')).toHaveValue('http://localhost:5173/p/share-token');
+  });
+
+  test('public password errors preserve login and send secrets only in POST body', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('auth_token', 'private-login-token'));
+    const requests: Array<{ method: string; url: string; authorization?: string; body: string | null }> = [];
+    await page.route('**/api/v1/public/**', async (route) => {
+      const request = route.request();
+      requests.push({ method: request.method(), url: request.url(), authorization: request.headers().authorization, body: request.postData() });
+      const password = request.method() === 'POST' ? request.postDataJSON()?.password : new URL(request.url()).searchParams.get('password');
+      if (password !== 'correct horse') {
+        await route.fulfill({ status: 401, json: { code: 'SHARE_PASSWORD_REQUIRED', message: 'Password required', requestId: 'fixture' } });
+        return;
+      }
+      await route.fulfill({ json: request.url().includes('/scene-session') ? { token: 'guest-credential', expiresAt: '2030-01-01T00:00:00Z', workspaceId: mockWorkspaces[0].id, sceneId: 'scene-created', access: 'view', principalId: 'guest:test', displayName: '' } : { title: 'Isolated protected scene', content: emptySceneContent } });
+    });
+    await page.goto('/p/isolated-password');
+    await expect(page.getByRole('heading', { name: 'Password required' })).toBeVisible();
+    expect.soft(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
+    await page.getByPlaceholder('Share password').fill('wrong password');
+    const failed = page.waitForResponse(response => response.url().includes('/public/scene-session') && response.status() === 401);
+    await page.getByRole('button', { name: 'Open shared scene' }).click();
+    await failed;
+    expect.soft(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
+    await page.getByPlaceholder('Share password').fill('correct horse');
+    await page.getByRole('button', { name: 'Open shared scene' }).click();
+    await expect(page.getByRole('heading', { name: 'Isolated protected scene' })).toBeVisible();
+    expect.soft(requests.every(request => request.method === 'POST')).toBe(true);
+    expect.soft(requests.every(request => request.authorization === undefined)).toBe(true);
+    expect.soft(requests.every(request => new URL(request.url).search === '')).toBe(true);
+    expect.soft(requests.some(request => request.body && JSON.parse(request.body).password === 'correct horse')).toBe(true);
+    expect(await page.evaluate(() => localStorage.getItem('auth_token'))).toBe('private-login-token');
   });
 
   test('should prompt for a password on protected public links', async ({ page }) => {
     await page.route('**/api/v1/public/scenes/password-token**', async (route) => {
-      const password = new URL(route.request().url()).searchParams.get('password');
+      expect(route.request().method()).toBe('POST');
+      const password = route.request().postDataJSON()?.password;
       if (password !== 'correct horse') {
         await route.fulfill({ status: 401, json: { passwordRequired: true } });
         return;
@@ -334,3 +385,5 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByText('Read-only')).toBeVisible();
   });
 });
+
+test.beforeEach(async ({ page }) => { await legacyCollabFixture(page); });

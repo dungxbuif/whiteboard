@@ -1,14 +1,14 @@
 ---
 artifact_type: phase
 id: COLLAB-V2
-status: in_review
+status: in_progress
 owner: shared
-updated: 2026-10-16
+updated: 2026-10-17
 ---
 
 # Collaboration v2, legacy dashboard and native MCP
 
-Design approved by user; implementation plans in review. No runtime implementation in this phase has started.
+Design and implementation approved by user. A1–A4, B1–B3, C1/C2, D1–D4 and E2 packaging are verified/reviewed in codex/collaboration-v2; production remains v1. User confirmed org means workspace and removed the monochrome override: port the original dashboard style.
 
 ## Trace
 
@@ -16,18 +16,18 @@ Design approved by user; implementation plans in review. No runtime implementati
 - [Programme / task index](../../superpowers/plans/2026-10-16-collaboration-v2.md)
 - [Backlog](../BACKLOG.md), [roadmap](../ROADMAP.md), [validation](../VALIDATION_MATRIX.md)
 - [Current release checklist](../../operations/RELEASE_CHECKLIST.md), [changelog](../../releases/CHANGELOG.md)
-- Planned execution evidence: `docs/work/verification/collaboration-v2.md` (created by E1).
-- Planned ADRs: 0009 access, 0010 Yjs writer, 0011 MCP; create during owning tasks.
+- [Execution evidence](../verification/collaboration-v2.md).
+- ADRs: 0009 access and0010 Yjs writer created;0011 MCP created;0012 records dashboard presentation.
 
 ## Execution slices
 
 | Slice | Tasks | Result | State |
 | --- | --- | --- | --- |
-| A | A1–A4 | authoritative ACL, invites, public sessions, capabilities | in_review |
-| B | B1–B4 | durable CRDT, offline editing, presence/follow/voice | in_review |
-| C | C1–C2 | legacy dashboard style and management flows | in_review |
-| D | D1–D4 | scoped MCP, editable diagram catalog, export | in_review |
-| E | E1–E3 | integration/load proof, VM100 canary/rollback, docs | in_review |
+| A | A1–A4 | A1–A4 verified/reviewed | complete |
+| B | B1–B4 | B1–B3 reviewed; B4 frontend active; separate image-movement acceptance repair active | in_progress |
+| C | C1–C2 | C1/C2 verified and reviewed;29browser/35unit/build pass | complete |
+| D | D1–D4 | D1–D4 verified and reviewed; D4 lifecycle regressions and local nonroot image pass | complete |
+| E | E1–E3 | E2 reviewed; local50-client load passes, performance reviewed, two browser cases pending; bounded recovery reviewed and DB restore6→13passed; final rollout pending | in_progress |
 
 Task identifiers in the subsystem plans are the bounded execution work items;
 each owns files, public interfaces, failing proof, implementation, checks,
@@ -43,9 +43,8 @@ docs reconciliation and commit. No additional ticket duplication is required.
 - Verify browser, API, database and collab together, then deploy/observe on VM100 with tested rollback.
 - Human and agent-readable docs reconciled to actual shipped behavior.
 
-Organization hierarchy remains a separate open domain question: current code
-has workspace ownership/membership only. This blocks org-specific tools, not
-workspace/MCP planning. Do not silently equate org and workspace.
+User explicitly confirmed that org means workspace. Implement workspace
+ownership/membership and MCP tools; no separate organization hierarchy.
 Enterprise parity P1/P2 candidates remain separate from these delivery slices.
 
 ## Planning verification — 2026-10-16

@@ -49,7 +49,7 @@ A high-performance, self-hosted whiteboard ecosystem with Google Drive-like mana
 
 Upcoming approved-design programme: [Collaboration v2](phases/PHASE-COLLAB-V2.md)
 with [implementation task index](../superpowers/plans/2026-10-16-collaboration-v2.md).
-State: plans in review, no runtime changes yet. Existing milestone delivery
+State: implementation in progress, production remains v1. Existing milestone delivery
 statuses above refer to v1 and do not imply v2 or enterprise feature parity.
 
 - [ ] 01-01-PLAN.md — Backend & Infrastructure Scaffold

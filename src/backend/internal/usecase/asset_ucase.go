@@ -2,6 +2,8 @@ package usecase
 
 import (
 	"fmt"
+	"github.com/go-playground/validator/v10"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,7 +25,10 @@ func NewAssetUsecase(
 	s3Repo domain.S3Repository,
 	bucket string,
 	urlExpiry time.Duration,
-) domain.AssetUsecase {
+) *assetUsecase {
+	if urlExpiry <= 0 || urlExpiry > domain.AssetCapabilityLifetime {
+		urlExpiry = domain.AssetCapabilityLifetime
+	}
 	return &assetUsecase{
 		sceneRepo: sceneRepo,
 		assetRepo: assetRepo,
@@ -33,102 +38,190 @@ func NewAssetUsecase(
 	}
 }
 
-func (u *assetUsecase) PresignUpload(ctx domain.Context, workspaceID, userID, sceneID uuid.UUID, assets []domain.AssetUploadRequest) (map[string]domain.AssetUploadResponse, error) {
-	// Verify scene ownership
-	_, err := u.sceneRepo.FindByID(ctx, workspaceID, sceneID)
-	if err != nil {
-		return nil, fmt.Errorf("scene not found or unauthorized: %w", err)
+func (u *assetUsecase) PresignUpload(ctx domain.Context, workspaceID, userID, sceneID uuid.UUID, requests []domain.AssetUploadRequest) (map[string]domain.AssetUploadResponse, error) {
+	return u.PresignPrincipalUpload(ctx, domain.UserPrincipal(userID), domain.SceneRef{WorkspaceID: workspaceID, SceneID: sceneID}, requests, time.Now().Add(u.urlExpiry))
+}
+func (u *assetUsecase) deadline(parent time.Time) (time.Time, error) {
+	now := time.Now()
+	deadline := now.Add(u.urlExpiry)
+	if parent.Before(deadline) {
+		deadline = parent
 	}
-
-	result := make(map[string]domain.AssetUploadResponse)
-
-	for _, req := range assets {
-		assetID := uuid.New()
-		storageKey := fmt.Sprintf("workspaces/%s/scenes/%s/assets/%s", workspaceID, sceneID, assetID)
-
-		uploadUrl, err := u.s3Repo.PresignUpload(ctx, u.bucket, storageKey, u.urlExpiry)
-		if err != nil {
-			return nil, fmt.Errorf("failed to presign upload for file %s: %w", req.FileID, err)
+	deadline = deadline.Truncate(time.Second)
+	if deadline.Sub(now) < time.Second {
+		return time.Time{}, domain.ErrInvalidSceneSession
+	}
+	return deadline, nil
+}
+func assetDeadlineValid(deadline time.Time) error {
+	if time.Until(deadline) < time.Second {
+		return domain.ErrInvalidSceneSession
+	}
+	return nil
+}
+func equalAssetValue[T comparable](a, b *T) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
+}
+func assetIntentMatches(asset domain.SceneAsset, request domain.AssetUploadRequest) bool {
+	return asset.AssetKind == domain.SceneAssetKindExcalidrawFile && asset.MimeType == request.MimeType && asset.ByteSize == request.ByteSize && equalAssetValue(asset.SHA256, request.SHA256) && equalAssetValue(asset.Width, request.Width) && equalAssetValue(asset.Height, request.Height)
+}
+func (u *assetUsecase) PresignPrincipalUpload(ctx domain.Context, p domain.Principal, ref domain.SceneRef, requests []domain.AssetUploadRequest, parent time.Time) (map[string]domain.AssetUploadResponse, error) {
+	if e := validateAssets(requests); e != nil {
+		return nil, e
+	}
+	deadline, e := u.deadline(parent)
+	if e != nil {
+		return nil, e
+	}
+	constrained, ok := u.s3Repo.(domain.ScopedUploadRepository)
+	if !ok {
+		return nil, fmt.Errorf("object storage cannot enforce upload constraints")
+	}
+	var user *uuid.UUID
+	switch p.Kind {
+	case domain.PrincipalUser:
+		id, e := normalizedUser(p)
+		if e != nil {
+			return nil, e
 		}
-
-		fileID := req.FileID // Avoid taking address of loop variable directly in older Go, though Go 1.22+ handles it.
-		asset := &domain.SceneAsset{
-			ID:            assetID,
-			WorkspaceID:   workspaceID,
-			SceneID:       &sceneID,
-			UploadedBy:    &userID,
-			AssetKind:     domain.SceneAssetKindExcalidrawFile,
-			FileID:        &fileID,
-			StorageBucket: u.bucket,
-			StorageKey:    storageKey,
-			MimeType:      req.MimeType,
-			ByteSize:      req.ByteSize,
-			SHA256:        req.SHA256,
-			Width:         req.Width,
-			Height:        req.Height,
+		user = &id
+	case domain.PrincipalPublic:
+		if p.UserID != nil || !strings.HasPrefix(p.ID, "guest:") {
+			return nil, domain.ErrAccessDenied
 		}
-
-		if err := u.assetRepo.Create(ctx, asset); err != nil {
-			return nil, fmt.Errorf("failed to create asset metadata: %w", err)
-		}
-
-		result[fileID] = domain.AssetUploadResponse{
-			AssetID:    assetID,
-			UploadUrl:  uploadUrl,
-			StorageKey: storageKey,
-			ExpiresAt:  time.Now().Add(u.urlExpiry),
+	default:
+		return nil, domain.ErrAccessDenied
+	}
+	if _, e = u.sceneRepo.FindByID(ctx, ref.WorkspaceID, ref.SceneID); e != nil {
+		return nil, e
+	}
+	fileIDs := make([]string, len(requests))
+	for i, r := range requests {
+		fileIDs[i] = r.FileID
+	}
+	rows, e := u.assetRepo.GetByFileIDs(ctx, ref.WorkspaceID, ref.SceneID, fileIDs)
+	if e != nil {
+		return nil, e
+	}
+	existing := make(map[string]domain.SceneAsset, len(rows))
+	for _, row := range rows {
+		if row.FileID != nil && row.SceneID != nil && *row.SceneID == ref.SceneID && row.WorkspaceID == ref.WorkspaceID && row.DeletedAt == nil {
+			existing[*row.FileID] = row
 		}
 	}
-
+	// Validate the complete batch before signing any refresh or inserting metadata.
+	for _, r := range requests {
+		if row, found := existing[r.FileID]; found && !assetIntentMatches(row, r) {
+			return nil, domain.ErrAssetConflict
+		}
+	}
+	result := make(map[string]domain.AssetUploadResponse, len(requests))
+	for _, r := range requests {
+		if e = assetDeadlineValid(deadline); e != nil {
+			return nil, e
+		}
+		row, found := existing[r.FileID]
+		if !found {
+			id := uuid.New()
+			file := r.FileID
+			row = domain.SceneAsset{ID: id, WorkspaceID: ref.WorkspaceID, SceneID: &ref.SceneID, UploadedBy: user, UploadedPrincipalID: p.ID, UploadedPrincipalType: string(p.Kind), AssetKind: domain.SceneAssetKindExcalidrawFile, FileID: &file, StorageBucket: u.bucket, StorageKey: fmt.Sprintf("workspaces/%s/scenes/%s/assets/%s", ref.WorkspaceID, ref.SceneID, id), MimeType: r.MimeType, ByteSize: r.ByteSize, SHA256: r.SHA256, Width: r.Width, Height: r.Height}
+		}
+		upload, headers, e := constrained.PresignUploadConstrained(ctx, row.StorageBucket, row.StorageKey, r.MimeType, r.ByteSize, deadline)
+		if e != nil {
+			return nil, e
+		}
+		if e = assetDeadlineValid(deadline); e != nil {
+			return nil, e
+		}
+		if !found {
+			if e = u.assetRepo.Create(ctx, &row); e != nil {
+				return nil, e
+			}
+		}
+		result[r.FileID] = domain.AssetUploadResponse{AssetID: row.ID, StorageKey: row.StorageKey, UploadUrl: upload, Headers: headers, ExpiresAt: deadline}
+	}
+	if e = assetDeadlineValid(deadline); e != nil {
+		return nil, e
+	}
+	return result, nil
+}
+func (u *assetUsecase) PresignView(ctx domain.Context, w, scene uuid.UUID, files []string) (map[string]domain.AssetViewResponse, error) {
+	return u.PresignScopedView(ctx, domain.SceneRef{WorkspaceID: w, SceneID: scene}, files, time.Now().Add(u.urlExpiry))
+}
+func (u *assetUsecase) PresignScopedView(ctx domain.Context, ref domain.SceneRef, files []string, parent time.Time) (map[string]domain.AssetViewResponse, error) {
+	deadline, e := u.deadline(parent)
+	if e != nil {
+		return nil, e
+	}
+	signer, ok := u.s3Repo.(domain.ScopedDownloadRepository)
+	if !ok {
+		return nil, fmt.Errorf("object storage cannot enforce download deadline")
+	}
+	if _, e = u.sceneRepo.FindByID(ctx, ref.WorkspaceID, ref.SceneID); e != nil {
+		return nil, e
+	}
+	rows, e := u.assetRepo.GetByFileIDs(ctx, ref.WorkspaceID, ref.SceneID, files)
+	if e != nil {
+		return nil, e
+	}
+	result := make(map[string]domain.AssetViewResponse, len(rows))
+	for _, row := range rows {
+		if e = assetDeadlineValid(deadline); e != nil {
+			return nil, e
+		}
+		if row.FileID == nil || row.SceneID == nil || *row.SceneID != ref.SceneID || row.WorkspaceID != ref.WorkspaceID || row.DeletedAt != nil {
+			continue
+		}
+		expires := deadline
+		var signed string
+		if row.PresignedURL != nil && row.URLExpiresAt != nil && row.URLExpiresAt.After(time.Now().Add(time.Second)) && !row.URLExpiresAt.After(deadline) {
+			signed = *row.PresignedURL
+			expires = *row.URLExpiresAt
+		} else {
+			signed, e = signer.PresignDownloadUntil(ctx, row.StorageBucket, row.StorageKey, deadline)
+			if e != nil {
+				return nil, e
+			}
+			if e = assetDeadlineValid(deadline); e != nil {
+				return nil, e
+			}
+			if e = u.assetRepo.UpdatePresignedURL(ctx, row.ID, signed, expires); e != nil {
+				return nil, e
+			}
+		}
+		result[*row.FileID] = domain.AssetViewResponse{AssetID: row.ID, ViewUrl: signed, MimeType: row.MimeType, ExpiresAt: expires}
+	}
+	if e = assetDeadlineValid(deadline); e != nil {
+		return nil, e
+	}
 	return result, nil
 }
 
-func (u *assetUsecase) PresignView(ctx domain.Context, workspaceID, sceneID uuid.UUID, fileIDs []string) (map[string]domain.AssetViewResponse, error) {
-	// Verify scene ownership
-	_, err := u.sceneRepo.FindByID(ctx, workspaceID, sceneID)
-	if err != nil {
-		return nil, fmt.Errorf("scene not found or unauthorized: %w", err)
+func validateAssets(requests []domain.AssetUploadRequest) error {
+	if len(requests) == 0 || len(requests) > domain.MaxAssetBatch {
+		return domain.ErrInvalidCapability
 	}
-
-	assets, err := u.assetRepo.GetByFileIDs(ctx, workspaceID, fileIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch assets: %w", err)
-	}
-
-	result := make(map[string]domain.AssetViewResponse)
-	now := time.Now()
-
-	for _, asset := range assets {
-		if asset.FileID == nil {
-			continue
+	seen := map[string]bool{}
+	v := validator.New()
+	for _, r := range requests {
+		if v.Struct(r) != nil || seen[r.FileID] {
+			return domain.ErrInvalidCapability
 		}
-
-		var viewUrl string
-		var expiresAt time.Time
-
-		// Check if we have a valid cached presigned URL
-		if asset.PresignedURL != nil && asset.URLExpiresAt != nil && asset.URLExpiresAt.After(now.Add(5*time.Minute)) {
-			viewUrl = *asset.PresignedURL
-			expiresAt = *asset.URLExpiresAt
-		} else {
-			// Generate new URL
-			newUrl, err := u.s3Repo.PresignDownload(ctx, asset.StorageBucket, asset.StorageKey, u.urlExpiry)
-			if err != nil {
-				return nil, fmt.Errorf("failed to presign download for asset %s: %w", asset.ID, err)
-			}
-			viewUrl = newUrl
-			expiresAt = now.Add(u.urlExpiry)
-
-			_ = u.assetRepo.UpdatePresignedURL(ctx, asset.ID, viewUrl, expiresAt)
+		seen[r.FileID] = true
+		switch r.MimeType {
+		case "image/png", "image/jpeg", "image/gif", "image/webp":
+		default:
+			return domain.ErrInvalidCapability
 		}
-
-		result[*asset.FileID] = domain.AssetViewResponse{
-			AssetID:   asset.ID,
-			ViewUrl:   viewUrl,
-			MimeType:  asset.MimeType,
-			ExpiresAt: expiresAt,
+		if r.SHA256 != nil && v.Var(*r.SHA256, "len=64,hexadecimal,lowercase") != nil {
+			return domain.ErrInvalidCapability
+		}
+		if r.Width != nil && (*r.Width < 1 || *r.Width > 32768) || r.Height != nil && (*r.Height < 1 || *r.Height > 32768) {
+			return domain.ErrInvalidCapability
 		}
 	}
-
-	return result, nil
+	return nil
 }

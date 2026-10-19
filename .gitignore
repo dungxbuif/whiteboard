@@ -14,3 +14,7 @@ scripts/bin/harness-cli.exe
 .playwright-mcp
 src/frontend/test-results
 src/frontend/playwright-report
+
+# Generated bounded-renderer bundles
+src/mcp/render-dist/
+src/mcp/test-render-dist/

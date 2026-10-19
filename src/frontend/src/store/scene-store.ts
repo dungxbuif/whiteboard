@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import api from "@/lib/api";
+import { writeCollaborativeContent, legacyConflict } from "@/collab/writers";
 
 export const SCENE_SAVE_DEBOUNCE_MS = 750;
 export const EMPTY_SCENE_CONTENT = {
@@ -31,6 +32,10 @@ export function syncPresentationOrder(elements: unknown[], previousOrder: string
 
 export interface Scene {
   id: string;
+  publicId?: string;
+  access?: "view" | "edit";
+  owner?: boolean;
+  writerMode?: "v1" | "v2";
   workspaceId: string;
   folderId: string | null;
   title: string;
@@ -50,10 +55,11 @@ interface SceneState {
   saveStatus: SaveStatus;
   error: string | null;
   fetchScenes: (workspaceId: string, folderId: string | null) => Promise<void>;
-  createScene: (workspaceId: string, folderId: string | null, title?: string) => Promise<Scene>;
+  createScene: (workspaceId: string, folderId: string | null, title?: string, content?: SceneContent) => Promise<Scene>;
   openScene: (scene: Scene) => void;
   openSceneById: (workspaceId: string, sceneId: string) => Promise<void>;
   closeScene: () => Promise<void>;
+  cancelSceneOpen: () => void;
   scheduleSave: (workspaceId: string, sceneId: string, content: SceneContent) => void;
   flushSave: () => Promise<void>;
   renameScene: (workspaceId: string, sceneId: string, title: string) => Promise<void>;
@@ -73,6 +79,8 @@ interface PendingSave {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingSave: PendingSave | null = null;
 let saveGeneration = 0;
+let openGeneration = 0;
+let listGeneration = 0;
 
 const workspaceHeaders = (workspaceId: string) => ({ "X-Workspace-ID": workspaceId });
 
@@ -106,6 +114,11 @@ const useSceneStore = create<SceneState>((set, get) => {
       }));
     } catch (error) {
       if (save.generation !== saveGeneration) return;
+      if ((error as { response?: { data?: { code?: string } } }).response?.data?.code === 'COLLAB_REQUIRED') {
+        set(state => ({ activeScene: state.activeScene?.id === save.sceneId ? { ...state.activeScene, writerMode: 'v2' } : state.activeScene, saveStatus: 'error', error: 'Collaboration is required. Previous edits are retained for recovery.' }));
+        legacyConflict(save.workspaceId, save.sceneId, save.content);
+        throw error;
+      }
       pendingSave = save;
       set({ saveStatus: "error", error: "Scene could not be saved." });
       throw error;
@@ -120,35 +133,40 @@ const useSceneStore = create<SceneState>((set, get) => {
     error: null,
 
     fetchScenes: async (workspaceId, folderId) => {
+      const generation = ++listGeneration;
       set({ isLoading: true, error: null });
       try {
         const response = await api.get<Scene[]>("/scenes", {
           headers: workspaceHeaders(workspaceId),
           params: folderId ? { folderId } : undefined,
         });
+        if (generation !== listGeneration) return;
         set({ scenes: response.data, isLoading: false });
       } catch (error) {
+        if (generation !== listGeneration) return;
         set({ scenes: [], isLoading: false, error: "Scenes could not be loaded." });
         throw error;
       }
     },
 
-    createScene: async (workspaceId, folderId, title = "Untitled scene") => {
+    createScene: async (workspaceId, folderId, title = "Untitled scene", content = EMPTY_SCENE_CONTENT) => {
       const response = await api.post<Scene>(
         "/scenes/",
-        { title, folderId, content: EMPTY_SCENE_CONTENT },
+        { title, folderId, content },
         { headers: workspaceHeaders(workspaceId) },
       );
       set((state) => ({ scenes: [response.data, ...state.scenes], activeScene: response.data }));
       return response.data;
     },
 
-    openScene: (activeScene) => set({ activeScene, saveStatus: "idle", error: null }),
+    openScene: (activeScene) => { openGeneration += 1; set({ activeScene, saveStatus: "idle", error: null }); },
 
     openSceneById: async (workspaceId, sceneId) => {
+      const generation = ++openGeneration;
       const response = await api.get<Scene>(`/scenes/${sceneId}/`, {
         headers: workspaceHeaders(workspaceId),
       });
+      if (generation !== openGeneration) return;
       set((state) => ({
         scenes: state.scenes.some((scene) => scene.id === response.data.id)
           ? updateScene(state.scenes, response.data)
@@ -159,12 +177,19 @@ const useSceneStore = create<SceneState>((set, get) => {
       }));
     },
 
+    cancelSceneOpen: () => { openGeneration += 1; set({ activeScene: null }); },
+
     closeScene: async () => {
+      openGeneration += 1;
       await performSave();
       set({ activeScene: null, saveStatus: "idle" });
     },
 
     scheduleSave: (workspaceId, sceneId, content) => {
+      if (writeCollaborativeContent(workspaceId, sceneId, content)) return;
+      if (get().activeScene?.id === sceneId && get().activeScene?.writerMode === 'v2') {
+        set({ saveStatus: 'error', error: 'Collaboration connection required; HTTP content writes are disabled.' }); return;
+      }
       saveGeneration += 1;
       pendingSave = { workspaceId, sceneId, content, generation: saveGeneration };
       if (saveTimer) clearTimeout(saveTimer);
@@ -217,6 +242,8 @@ const useSceneStore = create<SceneState>((set, get) => {
     },
 
     reset: () => {
+      openGeneration += 1;
+      listGeneration += 1;
       if (saveTimer) clearTimeout(saveTimer);
       saveTimer = null;
       pendingSave = null;

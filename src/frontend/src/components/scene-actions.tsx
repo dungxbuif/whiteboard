@@ -27,6 +27,8 @@ export function SceneActions({ scene }: { scene: Scene }) {
     await renameScene(activeWorkspaceId, scene.id, title);
   }
 
+  if (scene.access !== "edit" && !scene.owner) return null;
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -45,9 +47,9 @@ export function SceneActions({ scene }: { scene: Scene }) {
         >
           <Star size={16} aria-hidden="true" /> {scene.isStarred ? "Unstar" : "Star"}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setShareOpen(true)}>
+        {scene.owner && <DropdownMenuItem onSelect={() => setShareOpen(true)}>
           <Share2 size={16} aria-hidden="true" /> Share
-        </DropdownMenuItem>
+        </DropdownMenuItem>}
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
           onSelect={() => {

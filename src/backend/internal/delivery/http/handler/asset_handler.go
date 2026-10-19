@@ -3,13 +3,18 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
+	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 )
 
 type AssetHandler struct {
+	Capabilities *CapabilityHandler
+	access       domain.AccessService
+	capabilities domain.CapabilityService
 	assetUsecase domain.AssetUsecase
 }
 
@@ -63,9 +68,21 @@ func (h *AssetHandler) PresignUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := h.assetUsecase.PresignUpload(ctx, workspaceID, userID, sceneID, req.Assets)
+	if !h.authorize(w, r, workspaceID, sceneID, true) {
+		return
+	}
+	var resp map[string]domain.AssetUploadResponse
+	if h.capabilities != nil {
+		principal := domain.UserPrincipal(userID)
+		principal.CredentialExpiresAt, _ = ctx.Value(domain.ContextKeyCredentialExpiry).(time.Time)
+		grant, e := h.capabilities.CreateAssetCapability(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: sceneID}, req.Assets)
+		err = e
+		resp = grant.URLs
+	} else {
+		resp, err = h.assetUsecase.PresignUpload(ctx, workspaceID, userID, sceneID, req.Assets)
+	}
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		capabilityError(w, r, err)
 		return
 	}
 
@@ -103,12 +120,38 @@ func (h *AssetHandler) PresignView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.authorize(w, r, workspaceID, sceneID, false) {
+		return
+	}
 	resp, err := h.assetUsecase.PresignView(ctx, workspaceID, sceneID, req.FileIDs)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		capabilityError(w, r, err)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{"urls": resp})
 }
+
+func (h *AssetHandler) SetAccessService(access domain.AccessService) { h.access = access }
+func (h *AssetHandler) authorize(w http.ResponseWriter, r *http.Request, workspace, scene uuid.UUID, edit bool) bool {
+	if h.access == nil {
+		return true
+	}
+	user, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		return false
+	}
+	d, e := h.access.Resolve(r.Context(), domain.UserPrincipal(user), domain.SceneRef{WorkspaceID: workspace, SceneID: scene})
+	if e == nil && edit && d.Access != domain.AccessEdit {
+		e = domain.ErrAccessDenied
+	}
+	if e != nil {
+		middleware.WriteAccessError(w, r, e)
+		return false
+	}
+	return true
+}
+
+func (h *AssetHandler) SetCapabilityService(c domain.CapabilityService) { h.capabilities = c }

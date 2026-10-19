@@ -24,6 +24,7 @@ func (u *workspaceUsecase) Create(ctx context.Context, userID uuid.UUID, name st
 		ID:      uuid.New(),
 		Name:    name,
 		OwnerID: userID,
+		Role:    domain.WorkspaceRoleOwner,
 	}
 
 	if err := u.repo.Save(ctx, workspace); err != nil {

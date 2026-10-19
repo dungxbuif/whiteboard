@@ -2,7 +2,8 @@ package middleware
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"net/http"
 	"strings"
 
@@ -18,47 +19,58 @@ func AuthMiddleware(secret []byte) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get(domain.HeaderAuthorization)
 			if authHeader == "" {
-				http.Error(w, "Authorization header is required", http.StatusUnauthorized)
+				writeAuthenticationError(w, r)
 				return
 			}
 
 			if !strings.HasPrefix(authHeader, domain.BearerPrefix) {
-				http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+				writeAuthenticationError(w, r)
 				return
 			}
 
 			tokenStr := strings.TrimPrefix(authHeader, domain.BearerPrefix)
 			token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-				}
 				return secret, nil
-			})
+			}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 
 			if err != nil || !token.Valid {
-				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				writeAuthenticationError(w, r)
 				return
 			}
 
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
-				http.Error(w, "Invalid token claims", http.StatusUnauthorized)
+				writeAuthenticationError(w, r)
 				return
+			}
+
+			// Login credentials intentionally have no scoped-token purpose or audience.
+			for _, key := range []string{"purpose", "iss", "aud", "principalType", "workspaceId", "sceneId"} {
+				if _, scoped := claims[key]; scoped {
+					writeAuthenticationError(w, r)
+					return
+				}
 			}
 
 			sub, ok := claims["sub"].(string)
 			if !ok {
-				http.Error(w, "User ID missing from token", http.StatusUnauthorized)
+				writeAuthenticationError(w, r)
 				return
 			}
 
 			userID, err := uuid.Parse(sub)
 			if err != nil {
-				http.Error(w, "Invalid user ID in token", http.StatusUnauthorized)
+				writeAuthenticationError(w, r)
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), domain.ContextKeyUserID, userID)
+			expiry, e := claims.GetExpirationTime()
+			if e != nil || expiry == nil {
+				writeAuthenticationError(w, r)
+				return
+			}
+			ctx := context.WithValue(r.Context(), domain.ContextKeyCredentialExpiry, expiry.Time)
+			ctx = context.WithValue(ctx, domain.ContextKeyUserID, userID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -68,4 +80,10 @@ func AuthMiddleware(secret []byte) func(http.Handler) http.Handler {
 func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	id, ok := ctx.Value(domain.ContextKeyUserID).(uuid.UUID)
 	return id, ok
+}
+
+func writeAuthenticationError(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]string{"code": "UNAUTHENTICATED", "message": "Authentication required", "requestId": chimiddleware.GetReqID(r.Context())})
 }

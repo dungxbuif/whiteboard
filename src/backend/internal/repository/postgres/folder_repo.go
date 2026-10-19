@@ -22,7 +22,7 @@ func NewFolderRepository(db *gorm.DB) *FolderRepository {
 
 func (r *FolderRepository) FindByID(ctx context.Context, workspaceID uuid.UUID, id uuid.UUID) (*domain.Folder, error) {
 	var f domain.Folder
-	if err := r.db.WithContext(ctx).First(&f, "workspace_id = ? AND id = ?", workspaceID, id).Error; err != nil {
+	if err := accessDB(ctx, r.db).First(&f, "workspace_id = ? AND id = ?", workspaceID, id).Error; err != nil {
 		return nil, fmt.Errorf("failed to find folder: %w", err)
 	}
 	return &f, nil
@@ -30,7 +30,7 @@ func (r *FolderRepository) FindByID(ctx context.Context, workspaceID uuid.UUID, 
 
 func (r *FolderRepository) ListByWorkspace(ctx context.Context, workspaceID uuid.UUID) ([]domain.Folder, error) {
 	var folders []domain.Folder
-	if err := r.db.WithContext(ctx).Find(&folders, "workspace_id = ?", workspaceID).Error; err != nil {
+	if err := accessDB(ctx, r.db).Find(&folders, "workspace_id = ?", workspaceID).Error; err != nil {
 		return nil, fmt.Errorf("failed to list folders: %w", err)
 	}
 	return folders, nil
@@ -38,7 +38,7 @@ func (r *FolderRepository) ListByWorkspace(ctx context.Context, workspaceID uuid
 
 func (r *FolderRepository) ListByParent(ctx context.Context, workspaceID uuid.UUID, parentID *uuid.UUID) ([]domain.Folder, error) {
 	var folders []domain.Folder
-	query := r.db.WithContext(ctx).Where("workspace_id = ?", workspaceID)
+	query := accessDB(ctx, r.db).Where("workspace_id = ?", workspaceID)
 	if parentID == nil {
 		query = query.Where("parent_id IS NULL")
 	} else {
@@ -52,7 +52,7 @@ func (r *FolderRepository) ListByParent(ctx context.Context, workspaceID uuid.UU
 }
 
 func (r *FolderRepository) Save(ctx context.Context, f *domain.Folder) error {
-	if err := r.db.WithContext(ctx).Save(f).Error; err != nil {
+	if err := accessDB(ctx, r.db).Save(f).Error; err != nil {
 		return fmt.Errorf("failed to save folder: %w", err)
 	}
 	return nil
@@ -60,7 +60,7 @@ func (r *FolderRepository) Save(ctx context.Context, f *domain.Folder) error {
 
 func (r *FolderRepository) MaxDepthByPath(ctx context.Context, workspaceID uuid.UUID, pathPrefix string) (int, error) {
 	var maxDepth int
-	if err := r.db.WithContext(ctx).Model(&domain.Folder{}).
+	if err := accessDB(ctx, r.db).Model(&domain.Folder{}).
 		Where("workspace_id = ? AND path LIKE ?", workspaceID, pathPrefix+"%").
 		Select("COALESCE(MAX(depth), 0)").
 		Scan(&maxDepth).Error; err != nil {
@@ -70,7 +70,7 @@ func (r *FolderRepository) MaxDepthByPath(ctx context.Context, workspaceID uuid.
 }
 
 func (r *FolderRepository) DeleteRecursive(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return accessDB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		var folder domain.Folder
 		if err := tx.First(&folder, "workspace_id = ? AND id = ?", workspaceID, folderID).Error; err != nil {
 			return err
@@ -99,7 +99,7 @@ func (r *FolderRepository) DeleteRecursive(ctx context.Context, workspaceID uuid
 }
 
 func (r *FolderRepository) RestoreRecursive(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return accessDB(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		var folder domain.Folder
 		if err := tx.Unscoped().First(&folder, "workspace_id = ? AND id = ?", workspaceID, folderID).Error; err != nil {
 			return fmt.Errorf("failed to find deleted folder: %w", err)
@@ -123,7 +123,7 @@ func (r *FolderRepository) RestoreRecursive(ctx context.Context, workspaceID uui
 }
 
 func (r *FolderRepository) UpdatePathRecursive(ctx context.Context, workspaceID uuid.UUID, oldPathPrefix, newPathPrefix string, depthDelta int) error {
-	err := r.db.WithContext(ctx).Model(&domain.Folder{}).
+	err := accessDB(ctx, r.db).Model(&domain.Folder{}).
 		Where("workspace_id = ? AND path LIKE ?", workspaceID, oldPathPrefix+"%").
 		Updates(map[string]interface{}{
 			"path":  gorm.Expr("REPLACE(path, ?, ?)", oldPathPrefix, newPathPrefix),

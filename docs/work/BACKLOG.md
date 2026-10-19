@@ -15,7 +15,7 @@ ai_fields:
 shared_fields:
   - queue_items
   - status
-updated: 2026-06-11
+updated: 2026-10-19
 ---
 
 # Backlog
@@ -91,11 +91,14 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 | ID | Type | Lane | Status | Scope | Next artifact |
 | --- | --- | --- | --- | --- | --- |
-| COLLAB-V2 | phase | high-risk | in_review | Approved legacy dashboard, ACL/invites/public edit, Yjs/custom socket, native MCP and diagram catalog | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
+| COLLAB-V2 | phase | high-risk | paused_release | Implementation complete: legacy dashboard, ACL/invites/public edit, Yjs/custom socket, presence/voice, native MCP and diagram catalog. Production cutover paused by user. | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
+| COLLAB-V2-RELEASE | release | high-risk | ready_to_resume | Fresh VM100 backup, secrets, Linux/amd64 images, migrations7–13, public deploy/canary, Homelab reconciliation and final release sign-off | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md), [.continue-here](../../.planning/phases/04-realtime-collaboration/.continue-here.md) |
 
-Design approval recorded; implementation has not started. Task IDs A1–E3 are
-defined in the subsystem plans. Org domain and actual NetBird/TURN topology
-remain explicit scope/preflight items rather than assumed implementation.
+Design and implementation are complete. Local real-stack acceptance passes17/17, including native S3 image reload/recovery, browser presence/follow, generated two-browser audio, MCP mutations/exports and650/650 durable ACKs at p9513.236ms. The pending-image movement/reopen regressions and Chromium startup endpoint race have deterministic tests and fixes. Go tests, frontend production build and the full MCP43-test suite pass. The final root npm rerun was intentionally interrupted when the user paused; the earlier complete component and real-stack suites remain recorded evidence.
+
+The user requested the source be committed and merged into the main local repository, with the collaboration worktree removed. No VM100 deployment is part of this pause checkpoint. Resume at `COLLAB-V2-RELEASE`: take a fresh cutover backup, install distinct v2 service secrets without printing them, build/record Linux/amd64 image IDs, migrate6→13, deploy, run public-origin authorization/S3/MCP/WebSocket/voice/browser canaries, then reconcile app and Homelab docs and close the release checklist.
+
+User confirmed org means workspace. Actual two-network TURN audio passes using the gatewayIP; local hostname DNS still needs correction or the testedIP release setting. See [release checklist](../operations/RELEASE_CHECKLIST.md), [real-stack evidence](verification/collaboration-v2-real-stack.md) and [backup evidence](verification/collaboration-v2-backup.md). The older epic/ticket tables below preserve v1 planning history and do not represent v2 acceptance.
 
 ### Epic E01: Self-hosted Dashboard
 

@@ -3,6 +3,7 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"devtool/internal/delivery/http/middleware"
@@ -14,6 +15,7 @@ import (
 )
 
 type SceneHandler struct {
+	Access   domain.AccessService
 	usecase  domain.SceneUsecase
 	validate *validator.Validate
 }
@@ -55,6 +57,9 @@ func (h *SceneHandler) Create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !h.applyAccess(w, r, scene) {
+		return
+	}
 	writeJSONResponse(w, http.StatusCreated, scene)
 }
 
@@ -70,6 +75,16 @@ func (h *SceneHandler) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if r.URL.Query().Get("trash") == "true" {
+		for i := range scenes {
+			scenes[i].Content = nil
+		}
+	}
+	for i := range scenes {
+		if !h.applyAccess(w, r, &scenes[i]) {
+			return
+		}
+	}
 	writeJSONResponse(w, http.StatusOK, scenes)
 }
 
@@ -82,6 +97,9 @@ func (h *SceneHandler) Get(w http.ResponseWriter, r *http.Request) {
 	scene, err := h.usecase.Get(r.Context(), workspaceID, sceneID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	if !h.applyAccess(w, r, scene) {
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, scene)
@@ -114,7 +132,14 @@ func (h *SceneHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	scene, err := h.usecase.Update(r.Context(), workspaceID, userID, sceneID, request.Title, folderID, content)
 	if err != nil {
+		if errors.Is(err, domain.ErrCollabRequired) {
+			writeJSONResponse(w, http.StatusConflict, map[string]string{"code": "COLLAB_REQUIRED", "message": "Use collaboration to update scene content", "requestId": r.Header.Get("X-Request-ID")})
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if !h.applyAccess(w, r, scene) {
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, scene)
@@ -138,6 +163,9 @@ func (h *SceneHandler) SetStar(w http.ResponseWriter, r *http.Request) {
 	scene, err := h.usecase.Get(r.Context(), workspaceID, sceneID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !h.applyAccess(w, r, scene) {
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, scene)
@@ -165,6 +193,9 @@ func (h *SceneHandler) lifecycleAction(w http.ResponseWriter, r *http.Request, a
 }
 
 func parseURLUUID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	if id, ok := r.Context().Value(domain.ContextKeySceneID).(uuid.UUID); ok {
+		return id, true
+	}
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
 		http.Error(w, "Invalid scene ID", http.StatusBadRequest)
@@ -204,4 +235,29 @@ func writeJSONResponse(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func (h *SceneHandler) applyAccess(w http.ResponseWriter, r *http.Request, scene *domain.Scene) bool {
+	if h.Access == nil {
+		return true
+	}
+	user, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		middleware.WriteAccessError(w, r, domain.ErrAccessDenied)
+		return false
+	}
+	var decision domain.AccessDecision
+	var err error
+	if scene.DeletedAt.Valid {
+		decision, err = h.Access.ResolveWorkspace(r.Context(), domain.UserPrincipal(user), scene.WorkspaceID)
+	} else {
+		decision, err = h.Access.Resolve(r.Context(), domain.UserPrincipal(user), domain.SceneRef{WorkspaceID: scene.WorkspaceID, SceneID: scene.ID})
+	}
+	if err != nil {
+		middleware.WriteAccessError(w, r, err)
+		return false
+	}
+	scene.Access = decision.Access
+	scene.Owner = decision.Owner
+	return true
 }

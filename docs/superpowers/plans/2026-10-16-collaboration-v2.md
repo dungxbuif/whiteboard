@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go/GORM/Casbin, PostgreSQL, React/Vite/TypeScript 7, Yjs, WebSocket, MCP SDK, Excalidraw.
 
-**Spec:** [Approved collaboration design](../specs/2026-10-15-collaboration-v2-design.md); approved in conversation by “xác nhận”; implementation has not started.
+**Spec:** [Approved collaboration design](../specs/2026-10-15-collaboration-v2-design.md); approved in conversation by “xác nhận”; implementation authorized by the user on 2026-10-16.
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - Invitation links: single-use, email-bound, seven-day expiry. Room JWT: ten minutes.
 - Update frame: 1 MiB; materialized document: 25 MiB; 120 updates/minute/principal.
 - Snapshot: first of 100 updates or five seconds. Voice: ten active participants; no product-level data-participant cap.
-- Dashboard follows `references/devtool` styling; monochrome applies to dashboard only. Scene components retain native library styling.
+- Dashboard follows `references/devtool` styling; reuse its original colors and tokens without a monochrome override. Scene components retain native library styling.
 - Retain TypeScript 7 toolchain, password login, default workspace provisioning, and OpenAI-compatible provider boundary.
 - Every task updates its affected docs before implementation and reconciles them with verified behavior before commit.
 
@@ -34,7 +34,7 @@
 
 ## Status and execution order
 
-Status: **in_review**. Design approved; these implementation details are ready for review. No runtime change is shipped by this document.
+Status: **in_progress**. Design and implementation authorized by the user. No runtime change is shipped by this document.
 
 | Order | Plan | Deliverable | Depends on |
 | --- | --- | --- | --- |
@@ -61,7 +61,7 @@ Only create an isolated implementation worktree at execution time; preserve unre
 
 ## Shared implementation contracts
 
-These refinements close implementation gaps in the approved design; they are proposed for this plan review.
+These contracts guide implementation of the approved design.
 
 ### Access and tenancy
 
@@ -143,9 +143,9 @@ Persist files as references; exclude data URLs, selection, camera and credential
 | Community MCP/libs | D2 pins/audits official parser, ELK layout and curated libraries; D1/D3 use community contracts as references |
 | Fancy diagrams | D2 test matrix covers every requested preset and discoverable schemas |
 | TURN/NetBird | E1 requires actual topology and listener inventory before production changes |
-| Organization interaction | current DB has no organization entity. Do not disguise a workspace as an organization. Workspace MCP is covered; a real org layer (org roles, membership and workspace ownership) needs a separate product decision before implementing org tools |
+| Workspace interaction | User confirmed that “org” meant workspace; implement workspace tools without adding an organization hierarchy |
 
-The organization item is open and blocks only organization-specific tools. The prior response incorrectly implied every architecture decision was settled; this explicit gap preserves the original request.
+On 2026-10-16 the user resolved the terminology: org means workspace. There is no separate organization scope.
 
 ## Documentation and traceability
 
@@ -166,7 +166,7 @@ No claim of passing tests is made by this plan.
 
 ## Self-review
 
-- Every accepted design section maps to A–E; org is explicitly pending, not represented as completed.
+- Every accepted design section maps to A–E; workspace terminology is confirmed by the user.
 - Browser/MCP write paths share grants, schema and durable sequence; shadow HTTP writer removed.
 - Dashboard theme scope and legacy style priority preserved.
 - Unsupported Mermaid native conversion must report an explicit capability error; no silent image fallback.

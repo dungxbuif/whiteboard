@@ -1,0 +1,40 @@
+{
+  "name": "devtool-workspaces",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "collab",
+    "mcp",
+    "packages/collab-contracts",
+    "packages/diagram-kit"
+  ],
+  "scripts": {
+    "build:contracts": "npm run build --workspace @collab/contracts",
+    "test": "npm test --workspaces --if-present",
+    "test:unit": "npm run test:unit --workspace ./frontend"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "vitest": "4.1.12",
+    "vite": "7.3.5",
+    "jsdom": "29.1.1",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "@types/react": "19.2.16",
+    "@types/react-dom": "19.2.3",
+    "@types/node": "25.9.1"
+  },
+  "overrides": {
+    "postcss": "8.5.23",
+    "lodash-es": "4.18.1",
+    "@excalidraw/excalidraw": {
+      "nanoid": "3.3.18"
+    },
+    "@excalidraw/mermaid-to-excalidraw": {
+      "nanoid": "5.1.16"
+    },
+    "katex": "0.18.2"
+  }
+}

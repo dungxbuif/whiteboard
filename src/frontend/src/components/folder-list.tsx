@@ -22,6 +22,8 @@ export function FolderList() {
   const createFolder = useFolderStore((state) => state.createFolder);
   const setCurrentFolderId = useFolderStore((state) => state.setCurrentFolderId);
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const role = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === state.activeWorkspaceId)?.role);
+  const canEdit = role === "owner" || role === "editor";
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -48,7 +50,7 @@ export function FolderList() {
     <section className="grid gap-4" aria-label="Folder contents">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-lg font-semibold">Folders</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
+        {canEdit && <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button disabled={!activeWorkspaceId} size="sm" type="button" variant="outline">
               <Plus /> New folder
@@ -74,7 +76,7 @@ export function FolderList() {
               </DialogFooter>
             </form>
           </DialogContent>
-        </Dialog>
+        </Dialog>}
       </div>
 
       {visibleFolders.length ? (
@@ -90,7 +92,7 @@ export function FolderList() {
                 <Folder className="text-primary" />
                 <span className="truncate">{folder.name}</span>
               </Button>
-              <FolderActions folder={folder} />
+              {canEdit && <FolderActions folder={folder} />}
             </div>
           ))}
         </div>

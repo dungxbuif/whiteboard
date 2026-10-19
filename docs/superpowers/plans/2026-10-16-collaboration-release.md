@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go, PostgreSQL, TypeScript 7, MCP SDK, Excalidraw, Yjs, Docker, Playwright.
 
-**Spec:** [Approved design](../specs/2026-10-15-collaboration-v2-design.md), approved by “xác nhận”; not implemented.
+**Spec:** [Approved design](../specs/2026-10-15-collaboration-v2-design.md), approved by “xác nhận”; implementation authorized and in progress. Production remains v1.
 
 ## Global Constraints
 
@@ -17,7 +17,7 @@
 - Roles: owner/editor/viewer; management owner-only. Invite TTL seven days, single-use/email-bound. Room JWT ten minutes.
 - Update frame 1 MiB; document 25 MiB; 120 updates/minute/principal; snapshot at 100 updates or five seconds.
 - Ten voice participants; no product-level data cap. Retain TypeScript 7 and password/default-workspace provisioning.
-- Dashboard copies old shadcn styling with monochrome tokens. Scene components retain native style.
+- Dashboard copies old shadcn styling with its original colors and tokens. Scene components retain native style.
 
 ## Review Focus
 
@@ -48,12 +48,12 @@
 
 **Interfaces:** public /collab WebSocket -> collab; /mcp streaming HTTP -> MCP; /api -> Go. Internal command/authority endpoints private. One active collab instance.
 
-- [ ] **Step 1 — Record topology:** describe route map, service identity and rollback target in deployment docs. Homelab files must be readable before editing; never replace timed-out placeholders.
-- [ ] **Step 2 — Read-only inventory:** use verified saved VM100/gateway connection metadata to inspect listeners, Docker services/networks, reverse-proxy routes, NetBird relay configuration and TURN allocation range. Record actual hosts/ports; do not assume NetBird relay serves browser TURN. Missing access blocks only the corresponding production check.
-- [ ] **Step 3 — Package:** workspace-aware locked multi-stage builds, non-root processes, bounded renderer, health/readiness, WebSocket upgrade, unbuffered streaming HTTP. Require dedicated collab JWT/service secrets and fail closed on bad config.
-- [ ] **Step 4 — Verify locally:** run `rtk docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet` using securely provided local values, then build. Exercise /collab upgrade and /mcp lifecycle behind nginx; assert /internal is unreachable publicly. Do not print expanded secrets.
-- [ ] **Step 5 — Verify TURN:** actual ICE relay allocation/audio from two networks; record selected relay candidate and cleanup. Existing Coturn remains; data collaboration needs no extra TURN listener or new media port allocation.
-- [ ] **Step 6 — Reconcile and commit:** record actual topology/env/health/routing evidence. App commit `build: package collaboration and MCP services`; Homelab deployment/docs commit separately preserving unrelated changes.
+- [x] **Step 1 — Record topology:** describe route map, service identity and rollback target in deployment docs. Homelab files must be readable before editing; never replace timed-out placeholders.
+- [x] **Step 2 — Read-only inventory:** use verified saved VM100/gateway connection metadata to inspect listeners, Docker services/networks, reverse-proxy routes, NetBird relay configuration and TURN allocation range. Record actual hosts/ports; do not assume NetBird relay serves browser TURN. Missing access blocks only the corresponding production check.
+- [x] **Step 3 — Package:** workspace-aware locked multi-stage builds, non-root processes, bounded renderer, health/readiness, WebSocket upgrade, unbuffered streaming HTTP. Require dedicated collab JWT/service secrets and fail closed on bad config.
+- [x] **Step 4 — Verify locally:** run `rtk docker compose --env-file .env.prod -f docker-compose.prod.yml config --quiet` using securely provided local values, then build. Exercise /collab upgrade and /mcp lifecycle behind nginx; assert /internal is unreachable publicly. Do not print expanded secrets.
+- [x] **Step 5 — Verify TURN:** actual ICE relay allocation/audio from two networks; record selected relay candidate and cleanup. Existing Coturn remains; data collaboration needs no extra TURN listener or new media port allocation.
+- [x] **Step 6 — Reconcile and commit:** record actual topology/env/health/routing evidence. App commit `build: package collaboration and MCP services`; Homelab deployment/docs commit separately preserving unrelated changes.
 
 ### E3: Canary, rollback and public documentation
 
@@ -68,6 +68,12 @@
 - [ ] **Step 5 — Expand:** health/readiness/error/ack/compaction metrics, load evidence and snapshot equality must pass. Retire v1 only after exit criteria. On failure disable new promotions and follow recovery drill; record outstanding UAT accurately.
 - [ ] **Step 6 — Reconcile and commit:** human and llms docs reflect deployed behavior, source/license notices and P1/P2 backlog. Record exact pass/fail/skipped results. Commit `docs: publish collaboration v2 release and operations`; follow prior merge/release authorization without unrelated changes.
 
+### E3 recovery clarification — approved during execution
+
+The rollback rehearsal uses a new replacement scene UUID with v1 content and a distinct documentId on promotion, while retaining the original trashed/quarantined scene and its durable history. Same-scene writer-mode reset cannot fence the existing binary protocol, which lacks an incoming epoch precondition. The bounded recovery slice `403f7c9` passed independent review and24checks, refusing assets/overrides before mutation. It is not a general production reset CLI. See [recovery runbook](../../operations/collaboration-recovery.md).
+
+A separate full database preflight restore passed on2026-10-17: actual migrator applied7–13from a restored v1version6dump, with final13clean. [Backup evidence](../../work/verification/collaboration-v2-backup.md). Fresh cutover backup, final deployment/canary and complete E3reconciliation remain required.
+
 ## Later milestones
 
-Comments/guest comments, screen sharing, presenter spotlight/waiting room, activity-feed UI, user version history, shared libraries/collections, SSO/SCIM/retention remain parity backlog. Snapshots/audit alone do not deliver those products. Org-specific MCP awaits the organization-domain decision explicitly recorded in the programme.
+Comments/guest comments, screen sharing, presenter spotlight/waiting room, activity-feed UI, user version history, shared libraries/collections, SSO/SCIM/retention remain parity backlog. Snapshots/audit alone do not deliver those products. The user confirmed that org means workspace; no organization hierarchy is required.

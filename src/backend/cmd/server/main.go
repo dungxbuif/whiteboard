@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/casbin/casbin/v3"
-	gormadapter "github.com/casbin/gorm-adapter/v3"
-	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -22,7 +22,7 @@ import (
 	"devtool/internal/delivery/http/handler"
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
-	"devtool/internal/realtime"
+	collabrepo "devtool/internal/repository/collab"
 	openairepo "devtool/internal/repository/openai"
 	postgresrepo "devtool/internal/repository/postgres"
 	s3repo "devtool/internal/repository/s3"
@@ -30,27 +30,32 @@ import (
 )
 
 type config struct {
-	Addr             string
-	DatabaseURL      string
-	JWTSecret        string
-	CasbinModelPath  string
-	S3Endpoint       string
-	S3AccessKey      string
-	S3SecretKey      string
-	S3Bucket         string
-	S3Region         string
-	FrontendURL      string
-	AIAPIKey         string
-	AIBaseURL        string
-	AIModelFast      string
-	AIModelReasoning string
-	TURNURL          string
-	TURNUsername     string
-	TURNPassword     string
-	TURNAuthSecret   string
+	Addr                   string
+	DatabaseURL            string
+	JWTSecret              string
+	CollabJWTSecret        string
+	AuthorityServiceSecret string
+	MutationGrantSecret    string
+	AuthorityListenAddr    string
+	CollabInternalURL      string
+	CollabInternalSecret   string
+	CasbinModelPath        string
+	S3Endpoint             string
+	S3AccessKey            string
+	S3SecretKey            string
+	S3Bucket               string
+	S3Region               string
+	FrontendURL            string
+	AIAPIKey               string
+	AIBaseURL              string
+	AIModelFast            string
+	AIModelReasoning       string
+	TURNURL                string
+	TURNAuthSecret         string
 }
 
 const defaultHTTPAddr = ":8080"
+const defaultAuthorityAddr = "127.0.0.1:8081"
 
 func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -67,20 +72,10 @@ func main() {
 	}
 	logger.Info("database connection initialized with GORM")
 
-	adapter, err := gormadapter.NewAdapterByDB(db)
+	accessService, err := usecase.NewAccessService(postgresrepo.NewAccessRepository(db), cfg.CasbinModelPath)
 	if err != nil {
-		logger.Error("failed to create casbin adapter", "error", err)
+		logger.Error("failed to create access policy", "error", err)
 		os.Exit(1)
-	}
-
-	enforcer, err := casbin.NewEnforcer(cfg.CasbinModelPath, adapter)
-	if err != nil {
-		logger.Error("failed to create casbin enforcer", "error", err)
-		os.Exit(1)
-	}
-
-	if err := enforcer.LoadPolicy(); err != nil {
-		logger.Warn("failed to load casbin policy", "error", err)
 	}
 
 	// S3 Configuration
@@ -108,53 +103,83 @@ func main() {
 	s3Repo := s3repo.NewS3Repository(s3Client)
 
 	// Usecases
+	shareLinkRepo := postgresrepo.NewShareLinkRepository(db)
+	shareLinks := usecase.NewShareLinkService(shareLinkRepo, accessService)
+	rooms, err := usecase.NewRoomService(shareLinkRepo, accessService, []byte(cfg.CollabJWTSecret))
+	if err != nil {
+		logger.Error("failed to configure room credentials", "error", err)
+		os.Exit(1)
+	}
+	invitationUsecase := usecase.NewInvitationUsecase(postgresrepo.NewInvitationRepository(db), accessService, cfg.FrontendURL)
 	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 	sceneUsecase := usecase.NewSceneUsecase(sceneRepo, folderRepo)
 	searchUsecase := usecase.NewSearchUsecase(searchRepo)
 	scenePermissionUsecase := usecase.NewScenePermissionUsecase(scenePermissionRepo, sceneRepo)
-	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, 1*time.Hour)
+	assetUsecase := usecase.NewAssetUsecase(sceneRepo, sceneAssetRepo, s3Repo, cfg.S3Bucket, domain.AssetCapabilityLifetime)
+	capabilities, err := usecase.NewCapabilityService(accessService, shareLinkRepo, assetUsecase, []byte(cfg.MutationGrantSecret))
+	if err != nil {
+		logger.Error("failed to configure mutation authority", "error", err)
+		os.Exit(1)
+	}
+	capabilityHandler, err := handler.NewCapabilityHandler(capabilities, rooms, accessService, assetUsecase, []byte(cfg.AuthorityServiceSecret))
+	if err != nil {
+		logger.Error("failed to configure private authority", "error", err)
+		os.Exit(1)
+	}
+	if err = capabilityHandler.SetTURNConfig(cfg.TURNURL, cfg.TURNAuthSecret); err != nil {
+		logger.Error("failed to configure scoped TURN", "error", err)
+		os.Exit(1)
+	}
 	aiRepo := openairepo.New(cfg.AIAPIKey, cfg.AIBaseURL, cfg.AIModelFast)
 	aiUsecase := usecase.NewAIUsecase(aiRepo, cfg.AIModelFast, cfg.AIModelReasoning)
 
 	// Handlers
+	invitationHandler := handler.NewInvitationHandler(invitationUsecase)
 	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
 	folderHandler := handler.NewFolderHandler(folderUsecase)
 	sceneHandler := handler.NewSceneHandler(sceneUsecase)
 	searchHandler := handler.NewSearchHandler(searchUsecase)
-	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase)
-	publicHandler := handler.NewPublicHandler(scenePermissionUsecase)
+	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase, shareLinks)
+	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, handler.NewRoomHandler(rooms, accessService, sceneUsecase))
 	assetHandler := handler.NewAssetHandler(assetUsecase)
+	assetHandler.SetCapabilityService(capabilities)
+	assetHandler.Capabilities = capabilityHandler
 	aiHandler := handler.NewAIHandler(aiUsecase)
-	realtimeServer, err := realtime.NewServer([]byte(cfg.JWTSecret))
-	if err != nil {
-		logger.Error("failed to create realtime server", "error", err)
-		os.Exit(1)
-	}
-	realtimeServer.SetTURNConfig(cfg.TURNURL, cfg.TURNUsername, cfg.TURNPassword)
-	if cfg.TURNAuthSecret != "" {
-		realtimeServer.SetTURNAuthSecret(cfg.TURNAuthSecret, cfg.TURNUsername)
-	}
-	realtimeServer.SetWorkspaceAuthorizer(func(ctx context.Context, workspaceID uuid.UUID, userID string) bool {
-		userUUID, err := uuid.Parse(userID)
-		if err != nil {
-			return false
-		}
-		workspace, err := workspaceRepo.FindByID(ctx, workspaceID)
-		return err == nil && workspace.OwnerID == userUUID
-	})
-
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
+	agents := usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService)
+	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
+	agentHandler.SetExportAssets(usecase.NewExportAssets(agents, sceneAssetRepo, s3Repo.(domain.ExportObjectReader)))
+	if cfg.CollabInternalURL != "" {
+		remote, e := collabrepo.NewAgentClient(cfg.CollabInternalURL, cfg.CollabInternalSecret)
+		if e != nil {
+			logger.Error("invalid collaboration bridge configuration")
+			os.Exit(1)
+		}
+		agentHandler.SetBridge(usecase.NewAgentBridge(agents, rooms, capabilities, remote))
+	}
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithSharingAndWorkspaceAccess(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, middledelivery.WorkspaceAccessMiddleware(workspaceRepo), searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler)),
+		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
+	privateServer := &http.Server{Addr: cfg.AuthorityListenAddr, Handler: capabilityHandler.AuthorityHandler(), ReadHeaderTimeout: domain.DefaultReadHeaderTimeout, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	privateListener, err := net.Listen("tcp", cfg.AuthorityListenAddr)
+	if err != nil {
+		logger.Error("failed to bind private authority", "error", err)
+		os.Exit(1)
+	}
+	go func() {
+		if e := privateServer.Serve(privateListener); e != nil && e != http.ErrServerClosed {
+			logger.Error("private authority stopped", "error", e)
+			os.Exit(1)
+		}
+	}()
 	logger.Info("starting server", "addr", cfg.Addr)
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		logger.Error("server stopped", "error", err)
@@ -166,6 +191,9 @@ func loadConfig() (config, error) {
 	required := []string{
 		"DATABASE_URL",
 		"JWT_SECRET",
+		"COLLAB_JWT_SECRET",
+		"AUTHORITY_SERVICE_SECRET",
+		"MUTATION_GRANT_SECRET",
 		"CASBIN_MODEL_PATH",
 		"S3_ENDPOINT",
 		"S3_ACCESS_KEY",
@@ -180,25 +208,73 @@ func loadConfig() (config, error) {
 		}
 	}
 
+	if len(os.Getenv("COLLAB_JWT_SECRET")) < 32 || os.Getenv("COLLAB_JWT_SECRET") == os.Getenv("JWT_SECRET") {
+		return config{}, fmt.Errorf("COLLAB_JWT_SECRET must contain at least 32 bytes and differ from JWT_SECRET")
+	}
+
+	secrets := []string{os.Getenv("JWT_SECRET"), os.Getenv("COLLAB_JWT_SECRET")}
+	for _, key := range []string{"AUTHORITY_SERVICE_SECRET", "MUTATION_GRANT_SECRET"} {
+		value := os.Getenv(key)
+		if len(value) < 32 {
+			return config{}, fmt.Errorf("%s must contain at least 32 bytes", key)
+		}
+		for _, prior := range secrets {
+			if prior == value {
+				return config{}, fmt.Errorf("%s must use a distinct secret", key)
+			}
+		}
+		secrets = append(secrets, value)
+	}
+	authorityAddr := getEnv("AUTHORITY_LISTEN_ADDR", defaultAuthorityAddr)
+	host, port, e := net.SplitHostPort(authorityAddr)
+	ip := net.ParseIP(host)
+	n, pe := strconv.Atoi(port)
+	if e != nil || pe != nil || n < 1 || n > 65535 || ip == nil || (!ip.IsLoopback() && !ip.IsPrivate()) {
+		return config{}, fmt.Errorf("AUTHORITY_LISTEN_ADDR must bind an explicit loopback or private IP and valid port")
+	}
+	if os.Getenv("TURN_URL") != "" && len(os.Getenv("TURN_AUTH_SECRET")) < 32 {
+		return config{}, fmt.Errorf("TURN_URL requires TURN_AUTH_SECRET of at least 32 bytes")
+	}
+	frontend, err := url.Parse(os.Getenv("FRONTEND_URL"))
+	if err != nil || frontend.Hostname() == "" || (frontend.Scheme != "https" && frontend.Scheme != "http") || frontend.User != nil || frontend.RawQuery != "" || frontend.ForceQuery || frontend.Fragment != "" || (frontend.Path != "" && frontend.Path != "/") {
+		return config{}, fmt.Errorf("FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
+	}
+	if (os.Getenv("COLLAB_INTERNAL_URL") == "") != (os.Getenv("COLLAB_INTERNAL_SECRET") == "") {
+		return config{}, fmt.Errorf("COLLAB_INTERNAL_URL and COLLAB_INTERNAL_SECRET must be configured together")
+	}
+	if os.Getenv("COLLAB_INTERNAL_URL") != "" {
+		if _, e := collabrepo.NewAgentClient(os.Getenv("COLLAB_INTERNAL_URL"), os.Getenv("COLLAB_INTERNAL_SECRET")); e != nil {
+			return config{}, e
+		}
+		for _, prior := range secrets {
+			if prior == os.Getenv("COLLAB_INTERNAL_SECRET") {
+				return config{}, fmt.Errorf("COLLAB_INTERNAL_SECRET must be distinct")
+			}
+		}
+	}
 	return config{
-		Addr:             getEnv("HTTP_ADDR", defaultHTTPAddr),
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		JWTSecret:        os.Getenv("JWT_SECRET"),
-		CasbinModelPath:  os.Getenv("CASBIN_MODEL_PATH"),
-		S3Endpoint:       os.Getenv("S3_ENDPOINT"),
-		S3AccessKey:      os.Getenv("S3_ACCESS_KEY"),
-		S3SecretKey:      os.Getenv("S3_SECRET_KEY"),
-		S3Bucket:         os.Getenv("S3_BUCKET"),
-		S3Region:         getEnv("S3_REGION", "auto"),
-		FrontendURL:      os.Getenv("FRONTEND_URL"),
-		AIAPIKey:         os.Getenv("AI_API_KEY"),
-		AIBaseURL:        getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
-		AIModelFast:      getEnv("AI_MODEL_FAST", "deepseek-chat"),
-		AIModelReasoning: getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
-		TURNURL:          os.Getenv("TURN_URL"),
-		TURNUsername:     os.Getenv("TURN_USERNAME"),
-		TURNPassword:     os.Getenv("TURN_PASSWORD"),
-		TURNAuthSecret:   os.Getenv("TURN_AUTH_SECRET"),
+		Addr:                   getEnv("HTTP_ADDR", defaultHTTPAddr),
+		DatabaseURL:            os.Getenv("DATABASE_URL"),
+		JWTSecret:              os.Getenv("JWT_SECRET"),
+		CollabJWTSecret:        os.Getenv("COLLAB_JWT_SECRET"),
+		AuthorityServiceSecret: os.Getenv("AUTHORITY_SERVICE_SECRET"),
+		MutationGrantSecret:    os.Getenv("MUTATION_GRANT_SECRET"),
+		AuthorityListenAddr:    authorityAddr,
+		CollabInternalURL:      os.Getenv("COLLAB_INTERNAL_URL"),
+		CollabInternalSecret:   os.Getenv("COLLAB_INTERNAL_SECRET"),
+		CasbinModelPath:        os.Getenv("CASBIN_MODEL_PATH"),
+		S3Endpoint:             os.Getenv("S3_ENDPOINT"),
+		S3AccessKey:            os.Getenv("S3_ACCESS_KEY"),
+		S3SecretKey:            os.Getenv("S3_SECRET_KEY"),
+		S3Bucket:               os.Getenv("S3_BUCKET"),
+		S3Region:               getEnv("S3_REGION", "auto"),
+		FrontendURL:            os.Getenv("FRONTEND_URL"),
+		AIAPIKey:               os.Getenv("AI_API_KEY"),
+		AIBaseURL:              getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
+		AIModelFast:            getEnv("AI_MODEL_FAST", "deepseek-chat"),
+		AIModelReasoning:       getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
+		TURNURL:                os.Getenv("TURN_URL"),
+		TURNAuthSecret:         os.Getenv("TURN_AUTH_SECRET"),
 	}, nil
 }
 

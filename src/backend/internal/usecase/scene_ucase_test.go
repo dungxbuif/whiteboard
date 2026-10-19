@@ -96,3 +96,22 @@ func TestSceneUsecaseRejectsInvalidContent(t *testing.T) {
 		t.Fatal("expected invalid JSON error")
 	}
 }
+
+func TestV2SceneRejectsLegacyContentPatch(t *testing.T) {
+	workspaceID, userID, id := uuid.New(), uuid.New(), uuid.New()
+	repo := &mockSceneRepo{scene: &domain.Scene{ID: id, WorkspaceID: workspaceID, WriterMode: "v2", Title: "Original", Content: json.RawMessage(`{"elements":[]}`)}}
+	service := NewSceneUsecase(repo, &mockSceneFolderRepo{})
+	content := json.RawMessage(`{"elements":[{"id":"legacy"}]}`)
+	_, err := service.Update(context.Background(), workspaceID, userID, id, nil, nil, &content)
+	if err == nil || err.Error() != "COLLAB_REQUIRED" {
+		t.Fatalf("expected COLLAB_REQUIRED, got %v", err)
+	}
+	title := "Metadata works"
+	result, err := service.Update(context.Background(), workspaceID, userID, id, &title, nil, nil)
+	if err != nil || result.Title != title {
+		t.Fatalf("metadata update failed: %v", err)
+	}
+	if string(result.Content) != `{"elements":[]}` {
+		t.Fatal("metadata overwrote content")
+	}
+}

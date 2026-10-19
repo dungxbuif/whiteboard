@@ -1,0 +1,27 @@
+# Isolated E1 dependencies; generated credentials are supplied only by the harness.
+services:
+  objectstore:
+    image: chrislusf/seaweedfs:3.97
+    command: server -s3 -s3.port=9000 -s3.config=/etc/e1-s3.json -dir=/data -volume.max=2 -master.volumeSizeLimitMB=32
+    configs:
+      - source: s3-identity
+        target: /etc/e1-s3.json
+    ports:
+      - "127.0.0.1::9000"
+    tmpfs:
+      - /data:size=134217728
+  postgres:
+    profiles: [database]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: collab_e1_test
+      POSTGRES_USER: e1
+      POSTGRES_PASSWORD: ${E1_DB_PASSWORD:?generated QA password required}
+    ports:
+      - "127.0.0.1::5432"
+    tmpfs:
+      - /var/lib/postgresql/data:size=268435456
+configs:
+  s3-identity:
+    content: |
+      {"identities":[{"name":"qa","credentials":[{"accessKey":"${E1_S3_ACCESS:?generated QA access key required}","secretKey":"${E1_S3_SECRET:?generated QA secret required}"}],"actions":["Admin","Read","Write","List","Tagging"]}]}

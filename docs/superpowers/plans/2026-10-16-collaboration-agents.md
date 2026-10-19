@@ -17,7 +17,7 @@
 - Roles: owner/editor/viewer; management owner-only. Invite TTL seven days, single-use/email-bound. Room JWT ten minutes.
 - Update frame 1 MiB; document 25 MiB; 120 updates/minute/principal; snapshot at 100 updates or five seconds.
 - Ten voice participants; no product-level data cap. Retain TypeScript 7 and password/default-workspace provisioning.
-- Dashboard copies old shadcn styling with monochrome tokens. Scene components retain native style.
+- Dashboard copies old shadcn styling with its original colors and tokens. Scene components retain native style.
 
 ## Review Focus
 
@@ -35,12 +35,12 @@
 
 **Interfaces:** Go `CreateAgentKey(ctx,owner,scopes,targets) (KeyOnce,error)`, `AuthenticateAgent(ctx,bearer) (Principal,error)`; owner-only GET/POST/DELETE `/api/v1/workspaces/{id}/agent-keys[/{keyId}]`. MCP `list_workspaces`, `list_scenes`, `get_scene`, `create_scene`; page limit 50, projection cap 500 elements/256 KiB.
 
-- [ ] **Step 1 — Record behavior:** update `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create) with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `TestAgentScopeIntersection`: read-only key cannot write; key for A cannot enumerate B; revoked owner/key denied; DB stores hashes only. `server.test.ts`: initialize/tools/list lifecycle, missing bearer 401, invalid Origin rejected, stdio stdout only MCP frames, pagination doesn't leak other tenants' totals.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- server.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Use server-managed bearer keys for clients supporting explicit headers and a stdio remote proxy with credential in secure config/environment. Do not call PAT support full OAuth compliance: OAuth discovery/PKCE is a separate compatibility extension. Authenticate every HTTP call and bind MCP session to principal. Stdio proxy does not start a local DB. UI uses legacy dashboard style, key shown once, audit stores only key ID. Run Go Agent tests in backend too.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- server.test.ts`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create), stage named files and lockfiles only, commit `feat: expose scoped native MCP scene tools`.
+- [x] **Step 1 — Record behavior:** update `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create) with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `TestAgentScopeIntersection`: read-only key cannot write; key for A cannot enumerate B; revoked owner/key denied; DB stores hashes only. `server.test.ts`: initialize/tools/list lifecycle, missing bearer 401, invalid Origin rejected, stdio stdout only MCP frames, pagination doesn't leak other tenants' totals.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- server.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Use server-managed bearer keys for clients supporting explicit headers and a stdio remote proxy with credential in secure config/environment. Do not call PAT support full OAuth compliance: OAuth discovery/PKCE is a separate compatibility extension. Authenticate every HTTP call and bind MCP session to principal. Stdio proxy does not start a local DB. UI uses legacy dashboard style, key shown once, audit stores only key ID. Run Go Agent tests in backend too.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- server.test.ts`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md` (create), `docs/architecture/API.md`, `docs/decisions/0011-native-mcp.md` (create), stage named files and lockfiles only, commit `feat: expose scoped native MCP scene tools`.
 
 ### D2: Discoverable native diagram catalog
 
@@ -57,12 +57,12 @@ expect(first.elements.every(e => Number.isFinite(e.x) && Number.isFinite(e.y))).
 
 **Interfaces:** Produce `listDiagramTypes():PresetDescriptor[]`, `getDiagramTemplate(id:string):{schema:JSONSchema,example:unknown}`, `compileDiagram(input:DiagramInput):Promise<CompiledDiagram>`; input `{preset,instanceId,schemaVersion:1,theme:'sketch'|'clean'|'pastel',direction:'LR'|'TB',data}`; result `{elements:NativeElement[],files:AssetReference[],bounds,warnings}`. MCP tools `list_diagram_types`, `get_diagram_template`, `validate_diagram`; resources `whiteboard://diagrams/catalog` and `whiteboard://diagrams/{id}/schema`.
 
-- [ ] **Step 1 — Record behavior:** update `docs/research/2026-10-16-diagram-dependencies.md`, `docs/user/diagram-catalog.md`, `src/frontend/public/docs/diagram-catalog.md` (create missing docs) with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `catalog.test.ts` iterates flowchart, sequence, architecture, deployment, infrastructure, c4-context, c4-container, c4-component, erd, class, state, mindmap, timeline, user-journey, swimlane, org-chart, network, data-flow, agent-workflow. Assert native elements, stable IDs for same instance, disjoint IDs between instances, resolved bindings, finite geometry, no unintended overlaps in canonical fixtures. Cycle/missing-node/Unicode/long-label cases produce actionable diagnostics; invalid schema writes nothing.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./packages/diagram-kit`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Typed schemas: graph nodes/edges/groups, sequence participants/messages, ER entities/fields/relations, class members/methods, tree nodes/parents, timeline events, journey actors/stages, swimlane lanes/steps. Graph engine supports C4/network/architecture/agent semantics. ELK handles layered routing; dedicated ordered sequence/timeline renderers handle those layouts. Use Excalidraw skeleton conversion and binding repair. IDs derive from instanceId+semantic ID with group/file/binding remap. No provider key required. Dependency pin/license/security decision recorded before imports.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./packages/diagram-kit`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/research/2026-10-16-diagram-dependencies.md`, `docs/user/diagram-catalog.md`, `src/frontend/public/docs/diagram-catalog.md` (create missing docs), stage named files and lockfiles only, commit `feat: add editable diagram presets and discovery`.
+- [x] **Step 1 — Record behavior:** update `docs/research/2026-10-16-diagram-dependencies.md`, `docs/user/diagram-catalog.md`, `src/frontend/public/docs/diagram-catalog.md` (create missing docs) with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `catalog.test.ts` iterates flowchart, sequence, architecture, deployment, infrastructure, c4-context, c4-container, c4-component, erd, class, state, mindmap, timeline, user-journey, swimlane, org-chart, network, data-flow, agent-workflow. Assert native elements, stable IDs for same instance, disjoint IDs between instances, resolved bindings, finite geometry, no unintended overlaps in canonical fixtures. Cycle/missing-node/Unicode/long-label cases produce actionable diagnostics; invalid schema writes nothing.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./packages/diagram-kit`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Typed schemas: graph nodes/edges/groups, sequence participants/messages, ER entities/fields/relations, class members/methods, tree nodes/parents, timeline events, journey actors/stages, swimlane lanes/steps. Graph engine supports C4/network/architecture/agent semantics. ELK handles layered routing; dedicated ordered sequence/timeline renderers handle those layouts. Use Excalidraw skeleton conversion and binding repair. IDs derive from instanceId+semantic ID with group/file/binding remap. No provider key required. Dependency pin/license/security decision recorded before imports.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./packages/diagram-kit`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/research/2026-10-16-diagram-dependencies.md`, `docs/user/diagram-catalog.md`, `src/frontend/public/docs/diagram-catalog.md` (create missing docs), stage named files and lockfiles only, commit `feat: add editable diagram presets and discovery`.
 
 ### D3: Live mutation tools and safe retries
 
@@ -70,12 +70,12 @@ expect(first.elements.every(e => Number.isFinite(e.x) && Number.isFinite(e.y))).
 
 **Interfaces:** MCP `generate_diagram({sceneRef,preset,data,instanceId,requestId,expectedSequence,dryRun})`, `patch_elements({sceneRef,patches,requestId,expectedSequence})`, `delete_elements({sceneRef,ids,requestId,expectedSequence})`, `get_scene_activity({sceneRef,cursor,limit})` use shared SceneMutation; return receipt, scene URL, created IDs, warnings.
 
-- [ ] **Step 1 — Record behavior:** update `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create) with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `scene-tools.integration.test.ts`: generate in allowed scene, browser sees same IDs, restart retains diagram; retry returns same receipt/one event; changed payload same requestId 409; stale sequence 409; fresh read/new request succeeds preserving human edits; delete creates tombstones; dry-run leaves revision unchanged.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Create scene via Go, compile via D2, sign via A4, submit once through B2. Atomic compare-revision append and principal-bound dedup; retry keeps IDs. Paginate/redact activity. Accurate readOnly/destructive/idempotent tool hints. Return conflict guidance rather than blindly retrying stale patches. No whole-scene replacement or agent permission/key/share-management tools.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create), stage named files and lockfiles only, commit `feat: apply agent diagrams through durable collaboration`.
+- [x] **Step 1 — Record behavior:** update `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create) with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `scene-tools.integration.test.ts`: generate in allowed scene, browser sees same IDs, restart retains diagram; retry returns same receipt/one event; changed payload same requestId 409; stale sequence 409; fresh read/new request succeeds preserving human edits; delete creates tombstones; dry-run leaves revision unchanged.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Create scene via Go, compile via D2, sign via A4, submit once through B2. Atomic compare-revision append and principal-bound dedup; retry keeps IDs. Paginate/redact activity. Accurate readOnly/destructive/idempotent tool hints. Return conflict guidance rather than blindly retrying stale patches. No whole-scene replacement or agent permission/key/share-management tools.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- scene-tools.integration.test.ts`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/user/agents.md`, `docs/architecture/collaboration-protocol.md`, `src/frontend/public/docs/mcp.md` (create), stage named files and lockfiles only, commit `feat: apply agent diagrams through durable collaboration`.
 
 ### D4: Mermaid and bounded scene exports
 
@@ -83,12 +83,12 @@ expect(first.elements.every(e => Number.isFinite(e.x) && Number.isFinite(e.y))).
 
 **Interfaces:** `compileMermaid(source:string):Promise<CompiledDiagram>`, `exportScene(sceneRef,format:'json'|'svg'|'png'):Promise<ScopedArtifact>`; result `{id,mimeType,expiresAt,url,revision}` with authenticated or short-lived scene-scoped download.
 
-- [ ] **Step 1 — Record behavior:** update `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research with contracts and verification cases.
-- [ ] **Step 2 — Add failing proof:** `render.integration.test.ts`: supported Mermaid gives editable elements; unsupported native syntax returns `UNSUPPORTED_NATIVE_DIAGRAM` with DSL alternative; exports preserve fonts/labels/assets and MIME; arbitrary URL/loopback abuse blocked; malformed/oversize input fails within deadline; revoked principal cannot get fresh artifact grant.
-- [ ] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- render.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
-- [ ] **Step 4 — Implement:** Pin tested parser/Excalidraw versions; fixture-based support matrix, reject image fallback for native generation. Bundle fonts; render generated local content with external network disabled and assets injected after scene authorization. Defaults: 500 nodes/1000 edges, 50,000 source chars, one render per worker, 10-second deadline, 4096px max dimension, 20 MiB artifact cap. Kill timeout workers. Curated library manifest records each asset's source/hash/license; no unreviewed plugin runtime.
-- [ ] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- render.integration.test.ts`; require listed cases to pass and record actual results.
-- [ ] **Step 6 — Reconcile and commit:** reconcile `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research, stage named files and lockfiles only, commit `feat: add bounded Mermaid conversion and scene exports`.
+- [x] **Step 1 — Record behavior:** update `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research with contracts and verification cases.
+- [x] **Step 2 — Add failing proof:** `render.integration.test.ts`: supported Mermaid gives editable elements; unsupported native syntax returns `UNSUPPORTED_NATIVE_DIAGRAM` with DSL alternative; exports preserve fonts/labels/assets and MIME; arbitrary URL/loopback abuse blocked; malformed/oversize input fails within deadline; revoked principal cannot get fresh artifact grant.
+- [x] **Step 3 — Verify failure:** run `rtk npm test --workspace ./mcp -- render.integration.test.ts`; confirm missing behavior causes failure, not broken infrastructure.
+- [x] **Step 4 — Implement:** Pin tested parser/Excalidraw versions; fixture-based support matrix, reject image fallback for native generation. Bundle fonts; render generated local content with external network disabled and assets injected after scene authorization. Defaults: 500 nodes/1000 edges, 50,000 source chars, one render per worker, 10-second deadline, 4096px max dimension, 20 MiB artifact cap. Kill timeout workers. Curated library manifest records each asset's source/hash/license; no unreviewed plugin runtime.
+- [x] **Step 5 — Verify:** rerun `rtk npm test --workspace ./mcp -- render.integration.test.ts`; require listed cases to pass and record actual results.
+- [x] **Step 6 — Reconcile and commit:** reconcile `docs/user/diagram-catalog.md`, `docs/user/agents.md`, `docs/operations/mcp.md` (create), dependency research, stage named files and lockfiles only, commit `feat: add bounded Mermaid conversion and scene exports`.
 
 ## Research sources
 
