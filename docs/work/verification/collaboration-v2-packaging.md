@@ -31,13 +31,13 @@ Owned: this note, Homelab architecture/whiteboard/coturn runbooks and compose te
 
 ## Remaining release gates
 
-These images are packaging validation artifacts from a dirty working tree, not a frozen release. Initial base432462f; latest capture 862da65 plus B3/E2 work. Source snapshot hash and per-file manifest are in `.superpowers/sdd/2026-10-16-collaboration-v2/task-E2-source-manifest.json`; source may change after the capture. E3 must build linux/amd64 at whole-branch freeze after B4/reviews, verify real Go/private binds and authenticated public API/MCP connectivity, fix/test TURN endpoint, backup/restore and promotion rollback, inspect upstream proxy logging, then deploy/canary. No v2 rollout performed.
+These images are packaging validation artifacts from a dirty working tree, not a frozen release. Initial base432462f; latest capture 98be44b plus B3/E2 work. Source snapshot hash and per-file manifest are in `.superpowers/sdd/2026-10-16-collaboration-v2/task-E2-source-manifest.json`; source may change after the capture. E3 must build linux/amd64 at whole-branch freeze after B4/reviews, verify real Go/private binds and authenticated public API/MCP connectivity, fix/test TURN endpoint, backup/restore and promotion rollback, inspect upstream proxy logging, then deploy/canary. No v2 rollout performed.
 
 Public feature pages remain v1 because deployment has not happened. Internal operator docs and Homelab compose template were reconciled; human-readable Markdown is also directly agent-readable. Controller owns central env/API/release/context/validation updates and commits. No schema change in E2.
 
 
 ## D4 lifecycle correction container verification
 
-Controller rebuilt MCP after frozen renderer fix `a1bdd7f`: `rtk docker build -f src/mcp/Dockerfile -t whiteboard-e2-mcp:local .` exited0. Linux/arm64 image ID is `sha256:4d398c66596bf8b4221dd39a8ae93a722fb3e9a0a0971b7f023b97e42f7fc8d2`. This supersedes the earlier MCP image for local packaging proof only.
+Controller rebuilt MCP after frozen renderer fix `6c64b12`: `rtk docker build -f src/mcp/Dockerfile -t whiteboard-e2-mcp:local .` exited0. Linux/arm64 image ID is `sha256:4d398c66596bf8b4221dd39a8ae93a722fb3e9a0a0971b7f023b97e42f7fc8d2`. This supersedes the earlier MCP image for local packaging proof only.
 
 `rtk proxy env PATH=/Users/dungxbuif/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin:/usr/local/bin:/usr/bin:/bin node tests/packaging/smoke.mjs` exited0. Actual native Chromium compilation and PNG export passed as nonroot pwuser under the configured memory/PID/tmpfs/init limits using the new parent-owned direct Chromium/CDP launch. MCP initialization/call/SSE/export/download and audit0700/0600 checks also passed. Signed fixture authority remains a packaging boundary; this is not full Go or production acceptance. QA resources were cleaned by the harness. Final frozen Linux/amd64 release build remains pending.
