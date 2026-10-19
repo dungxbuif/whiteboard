@@ -119,3 +119,17 @@ D4 verified the registry package and official GHSA-238p-pmpm-9mq7: affected KaTe
 D4 install verification: initial npm install retained stale KaTeX0.16.47 despite override; npm ls failed ELSPROBLEMS. Targeted npm update katex repaired lock/tree; npm ls katex --all now exits0 with0.18.2. Audit count14 (1low5moderate8high), down from17; renderer compatibility/hostile fixtures pending. No broad audit fix used.
 
 Diagram-kit ESM prerequisite verified by D4: npm run build --workspace ./packages/diagram-kit exits0 and npm test --workspace ./packages/diagram-kit passes41tests/3files. New built-import test failed without dist then passed under normal Node import with19presets. Changes are explicit .js local import specifiers and declaration/dist build, with no compiler behavior change. Renderer/MCP build integration remains in D4; frontend package declarations are covered by upcoming B3tests.
+
+## E3 frozen graph remediation intent — 2026-10-19
+
+The final root audit reports11 aggregate entries (1low,2moderate,8high). The production-only audit reports four high entries, all on one chain: Excalidraw0.18.1 declares Sass1.51.0, which resolves through Chokidar3 to affected Braces. The static frontend runtime copies only built assets into nginx, but the MCP renderer intentionally carries Excalidraw and therefore retains this installed chain even though it never invokes the Sass compiler or watch mode.
+
+Registry metadata checked on2026-10-19 reports Sass1.105.2 with Chokidar5.0.0 and no Braces dependency. Add a root override for exactly Sass1.105.2 while retaining Excalidraw0.18.1, Tailwind3 and all rendering behavior. This is a transitive build-tool remediation, not an Excalidraw feature update. Before release, prove a clean lock install; zero production audit entries; collaboration/contracts/diagram/MCP tests; frontend unit/build; native MCP renderer security/lifecycle coverage; and exact final-image inventories. The full development audit may still contain build-only findings and must be recorded separately rather than hidden by `audit fix --force`.
+
+No public API, schema, configuration or user flow changes. Human and agent-facing product guides therefore need no behavioral edit for this override; this verification note and release evidence are the affected documentation.
+
+### E3 remediation result
+
+The first package-lock-only install exposed the previously documented stale-lock behavior: `npm ls` rejected installed Sass1.51.0 against the new override. A targeted `npm update sass --ignore-scripts --no-audit`, followed by a fresh `npm ci`, resolved one Sass1.105.2 shared by Excalidraw and Vite. Sass now uses Chokidar5; Tailwind's existing Chokidar3/Braces chain remains development/build-only.
+
+`npm audit --omit=dev --json` now reports **zero production vulnerabilities**. The full development graph reports9 aggregate entries (1low,2moderate,6high), all in the already documented Tailwind/browser-target/build-server tool boundary. Root npm passes149 collaboration,43 MCP,13 contract and41 diagram tests; frontend passes93 unit tests and the production build. The MCP renderer bundle and lifecycle/security tests are included in the43-test suite. The dependency change therefore closes the shipped dormant Sass-chain finding without changing the UI or parser feature set. Final Linux/amd64 image inventory remains part of the VM100 release gate.

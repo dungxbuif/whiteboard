@@ -10,7 +10,7 @@ import {Persistence} from '../src/persistence.js';
 import {startServer} from '../src/server.js';
 import {readArchive,sealCheckpoint,verifyArchive,writeArchive} from '../src/recovery.js';
 import {checkpointFixture,recoverFixture,restoreFixture,guardDatabase} from './recovery-fixture.js';
-const database=postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable'postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable';
+const database=process.env.COLLAB_TEST_DATABASE_URL??'postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable';
 const cleanup:(()=>Promise<unknown>)[]=[];
 afterEach(async()=>{for(const close of cleanup.splice(0).reverse())await close();});
 async function setup(){guardDatabase(database);const f=await fixture();cleanup.push(()=>f.close());const dir=await mkdtemp(join(tmpdir(),'recovery-drill-'));cleanup.push(()=>rm(dir,{recursive:true,force:true}));return {...f,path:join(dir,'checkpoint.json'),store:new Persistence(f.pool,f.authority,{promoteV2:true})};}

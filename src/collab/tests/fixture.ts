@@ -7,7 +7,7 @@ import {Authority} from '../src/auth.js';
 export const secret='r'.repeat(32), grantSecret='g'.repeat(32);
 export async function signed(claims:Record<string,unknown>,key=secret){return new SignJWT(claims).setProtectedHeader({alg:'HS256'}).sign(new TextEncoder().encode(key));}
 export async function fixture(){
- const url=postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable'postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable';
+ const url=process.env.COLLAB_TEST_DATABASE_URL??'postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable';
  const parsed=new URL(url);if(!['127.0.0.1','localhost','[::1]'].includes(parsed.hostname)||!parsed.pathname.endsWith('_test'))throw new Error('Disposable loopback *_test database required');
  const admin=new Pool({connectionString:url}),schema='b2_'+randomUUID().replaceAll('-','');
  await admin.query('CREATE SCHEMA '+schema);

@@ -11,7 +11,7 @@ import {Persistence} from '../../src/collab/dist/persistence.js';
 import {startServer} from '../../src/collab/dist/server.js';
 import {HEARTBEAT_INTERVAL_MS} from '../../src/collab/dist/rooms.js';
 
-const DATABASE_URL=postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable'postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable';
+const DATABASE_URL=process.env.COLLAB_TEST_DATABASE_URL??'postgres://test:test@127.0.0.1:5432/whiteboard_test?sslmode=disable';
 const parsed=new URL(DATABASE_URL);
 assert(['127.0.0.1','localhost','[::1]'].includes(parsed.hostname)&&parsed.pathname.endsWith('_test'),'Guarded loopback *_test database required');
 const name='whiteboard-b4-idle-'+randomUUID().slice(0,8),schema='b4_idle_'+randomUUID().replaceAll('-','');
