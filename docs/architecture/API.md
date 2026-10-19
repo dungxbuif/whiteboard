@@ -40,7 +40,7 @@ Document HTTP endpoints, RPC methods, events, CLI commands, or any other public 
 | `POST /api/v1/ai/generate-diagram` | HTTP | JWT | active | Generates and validates Excalidraw JSON from text or a base64 image. |
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
 | `GET /api/v1/realtime/config` | HTTP | JWT | active | Returns the external TURN URL(s) and short-lived credentials; the backend signs credentials with `TURN_AUTH_SECRET`. |
-| `/socket.io/` | Socket.IO | JWT query token | active | The handshake requires a valid JWT; each `scene:join` also checks that the token subject owns the requested workspace before broadcasting presence, cursor, scene update, or WebRTC signaling events. |
+| `/collab/` | Custom WebSocket | Room token in first `auth` control | release candidate | One admitted socket carries durable Yjs updates, roster, cursor/selection, follow viewport and WebRTC signaling. Credentials never appear in the URL. `/socket.io/` is retired. |
 
 ## Errors
 

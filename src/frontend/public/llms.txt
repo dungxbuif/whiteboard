@@ -16,4 +16,4 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 ## Release status
 
-Collaboration v2 is implemented in stages on the collaboration-v2 branch and has not been deployed. Access, invitations, dashboard and durable agent mutations have passed task review; renderer cleanup has also passed review. Browser image lifecycle, presence/voice and full-stack release gates remain in progress. Do not assume these APIs are deployed until the release documentation confirms it.
+Collaboration v2 is a locally verified release candidate and has not yet been deployed. Access, invitations, sharing, durable Yjs editing, native image hydration, presence/follow, two-peer voice, MCP and the 50-client acceptance workload pass the real-stack suite. `/collab/` is the only realtime socket; Socket.IO is retired. Do not assume these APIs are deployed until the release documentation confirms VM100 rollout.

@@ -1,6 +1,6 @@
 # Joining and sharing a workspace
 
-Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. The B3 adapter has local unit and browser verification; full release acceptance and deployment remain pending.
+Status: browser management, durable collaboration, presence/follow and voice are implemented and verified locally as a release candidate. Production deployment remains pending.
 
 ## Invite someone
 
@@ -73,6 +73,12 @@ Room claims: HS256, issuer `whiteboard-api`, audience `whiteboard-collab`, purpo
 Errors use `{code,message,requestId}`. Invitations: 400 invalid input/link or generic registration rejection; 401 login required; 403 wrong email/prohibited operation; 404 inaccessible workspace; 410 expiry; 413 oversized body; 408 stalled input; 503 unavailable authority. Registration errors do not enumerate accounts. Sharing: 400 invalid input; 401 password/session challenge; 403 forbidden; 404 inaccessible/revoked/expired resource; 413 oversized body; 503 unavailable authority. Invitation/public-link JSON bodies are bounded at 4 KiB; unknown fields/trailing JSON are rejected. Passwords in query strings are ignored. Do not log tokens, passwords or scoped credentials.
 
 See [browser collaboration and recovery](browser-collaboration.md) for scoped queues, local undo, image retries, session lifetime and the single-writer migration policy.
+
+## People, follow and voice
+
+Open **People** in a v2 scene to list connected tabs and their effective Editor/Viewer role. Each tab has its own connection identity, even when two tabs use the same account. **Follow** tracks a participant's camera; **Stop following** or target departure ends it. Cursor, selection, camera, follow and voice metadata are ephemeral and never enter the scene document.
+
+**Join voice** requests one of ten room slots before the browser asks for microphone permission. Denial or a full room leaves drawing available. **Mute**, **Unmute**, **Leave voice** and **Play voice audio** manage the current call. Media is peer-to-peer with short-lived scoped TURN credentials; signaling shares the custom `/collab/` WebSocket. Socket.IO is no longer an API or deployment dependency.
 
 
 ## Operator recovery limits

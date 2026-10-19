@@ -125,9 +125,9 @@ func newRouter(
 	router.Use(middleware.Recoverer)
 
 	router.Get("/healthz", healthHandler)
-	if realtimeHandler != nil {
-		router.Mount("/socket.io", realtimeHandler)
-	}
+	// Realtime collaboration is served by the dedicated custom WebSocket
+	// runtime at /collab/. The retired Socket.IO handler is intentionally not
+	// mounted on the Go API.
 
 	router.Route("/api/v1", func(r chi.Router) {
 		if agents != nil {

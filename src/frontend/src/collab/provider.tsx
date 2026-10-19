@@ -4,6 +4,9 @@ import { ExcalidrawAdapter } from './excalidraw-adapter';
 import { CollabTransport, type RoomGrant } from './transport';
 import { offlineStore } from './offline-store';
 import { createLocalUndo } from './undo';
+import { Presence } from './presence';
+import { Voice } from './voice';
+import useAuthStore from '@/store/auth-store';
 import { registerContentWriter, registerLegacyConflict } from './writers';
 import api from '@/lib/api';
 import { publicApi } from '@/lib/public-api';
@@ -21,16 +24,16 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
   const recovery = useRef<unknown>(null);
   const controller = useMemo(() => {
     const adapter = new ExcalidrawAdapter(); const undo = createLocalUndo(adapter.doc);
-    const transport = new CollabTransport({ sceneRef, principalId: principal.id, adapter, store: offlineStore, url: collabURL(),
-      grant: async (): Promise<RoomGrant> => {
+    const grant = async (updateSession = true): Promise<RoomGrant> => {
         const current = principalRef.current;
         if (current.kind === 'public') {
           const result = await renewPublicRoom(current.session);
-          if (result.sceneSession) { principalRef.current = { ...current, session: result.sceneSession }; current.onSessionChange(result.sceneSession); }
+          if (updateSession && result.sceneSession) { principalRef.current = { ...current, session: result.sceneSession }; current.onSessionChange(result.sceneSession); }
           return result;
         }
         return (await api.post<RoomGrant>(`/scenes/${sceneRef.sceneId}/room-token`, {}, { headers: { 'X-Workspace-ID': sceneRef.workspaceId } })).data;
-      },
+    };
+    const transport = new CollabTransport({ sceneRef, principalId: principal.id, adapter, store: offlineStore, url: collabURL(), grant,
       onAccessLost: () => { const current = principalRef.current; if (current.kind === 'public') { const session = { ...current.session, token: '' }; principalRef.current = { ...current, session }; current.onSessionChange(session); } },
       onLegacy: async () => {
         if (principalRef.current.kind !== 'user') return false;
@@ -39,7 +42,12 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
         setLegacy(fresh); return true;
       },
     });
-    return { adapter, transport, undo };
+    const presence = new Presence(transport, () => principalRef.current.kind === 'public' ? principalRef.current.session.displayName : useAuthStore.getState().user?.name ?? 'Participant');
+    const voice = new Voice(transport, presence, { config: async () => {
+      const room = await grant(false);
+      return (await publicApi.get<RTCConfiguration & { expiresAt: string }>('/realtime/config', { headers: { Authorization: `Bearer ${room.token}`, 'X-Workspace-ID': sceneRef.workspaceId } })).data;
+    } });
+    return { adapter, transport, undo, presence, voice };
   }, [sceneRef.workspaceId, sceneRef.sceneId, principal.id]);
   const state = useSyncExternalStore(controller.transport.subscribe, controller.transport.getSnapshot);
   const [content, setContent] = useState<SceneContent>(() => controller.adapter.content());
@@ -49,9 +57,9 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
       const content = adapter.content(); setContent(content);
       if (transport.scope && principalRef.current.kind === 'user') useSceneStore.setState(state => ({ activeScene: state.activeScene?.id === sceneRef.sceneId ? { ...state.activeScene, content, writerMode: 'v2' } : state.activeScene }));
     };
-    adapter.doc.on('update', update); void transport.start();
+    adapter.doc.on('update', update); controller.presence.start(); controller.voice.start(); void transport.start();
     const removeConflict = registerLegacyConflict(sceneRef.workspaceId, sceneRef.sceneId, draft => { recovery.current = draft; setLegacy(null); transport.retry(); });
-    return () => { adapter.doc.off('update', update); transport.stop(); removeConflict(); };
+    return () => { adapter.doc.off('update', update); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
   }, [controller, sceneRef.workspaceId, sceneRef.sceneId]);
   useEffect(() => {
     if (state.status === 'legacy') return;

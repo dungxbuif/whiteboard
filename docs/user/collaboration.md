@@ -1,6 +1,6 @@
 # Joining and sharing a workspace
 
-Status: browser management controls and access APIs are implemented and verified locally on the collaboration-v2 branch. They are not deployed yet. The B3 adapter has local unit and browser verification; full release acceptance and deployment remain pending.
+Status: browser management, durable collaboration, presence/follow and voice are implemented and verified locally on the collaboration-v2 branch. Production deployment remains pending.
 
 ## Invite someone
 
@@ -38,6 +38,12 @@ For API consumers, see the internal [API reference](../architecture/API.md). An 
 The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](../architecture/BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
 
 For editing states, local undo, image retries and retained offline work, see [browser collaboration and recovery](../../src/frontend/public/docs/browser-collaboration.md).
+
+## People, follow and voice
+
+Open **People** in a v2 scene to see each connected tab, its effective Editor/Viewer role and voice status. Two tabs from the same account are separate participants. Choose **Follow** to track another participant's camera; **Stop following** or their departure ends it. Cursor, selection, camera and follow state are temporary and never enter scene history.
+
+Choose **Join voice** to request one of ten room slots. Microphone permission is requested only after the server admits the slot. Denial or a full room leaves drawing and synchronization available. Use **Mute**, **Unmute** and **Leave voice** from the same toolbar. Voice media is peer-to-peer with short-lived TURN credentials; signaling shares the admitted custom collaboration socket. A browser autoplay block exposes **Play voice audio**. Closing, revocation or connection loss stops tracks, peers and audio elements.
 
 ### Interrupted image preparation
 

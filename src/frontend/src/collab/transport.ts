@@ -6,7 +6,7 @@ import { type OfflineStore, type PendingScope, scopeKey } from './offline-store'
 export type RoomGrant = { token: string; expiresAt: string };
 export type WireSocket = Pick<WebSocket, 'readyState' | 'send' | 'close' | 'addEventListener' | 'binaryType'>;
 export type CollabStatus = 'connecting' | 'synced' | 'pending' | 'offline' | 'readonly' | 'revoked' | 'degraded' | 'legacy';
-export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string };
+export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string; connectionId?: string };
 export type Control = { type: string; requestId: string; payload: Record<string, unknown> };
 export type TransportOptions = { sceneRef: SceneRef; principalId: string; adapter: ExcalidrawAdapter; store: OfflineStore; grant: () => Promise<RoomGrant>; url: string; socket?: (url: string) => WireSocket; onAccessLost?: () => void; onLegacy?: (code: string) => Promise<boolean> };
 const MAX_HISTORY_BYTES = 64 * 1024 * 1024;
@@ -25,6 +25,10 @@ export class CollabTransport {
   private access = 'view';
   private attempts = 0;
   private lastAwareness = 0;
+  private awarenessTimer?: ReturnType<typeof setTimeout>;
+  private pendingAwareness?: {cursor?: {x:number;y:number}; selectedIds?:string[]};
+  private clearAwareness() { clearTimeout(this.awarenessTimer); this.awarenessTimer=undefined; this.pendingAwareness=undefined; this.lastAwareness=0; }
+  private ephemeralRequests = new Map<string, number>();
   private retryTimer?: ReturnType<typeof setTimeout>;
   private refreshTimer?: ReturnType<typeof setTimeout>;
   private flushTimer?: ReturnType<typeof setTimeout>;
@@ -44,7 +48,7 @@ export class CollabTransport {
   subscribeControl = (listener: (control: Control) => void) => { this.controls.add(listener); return () => { this.controls.delete(listener); }; };
   getSnapshot = () => this.state;
   isActive = () => !this.stopped;
-  private set(update: Partial<TransportState>) { this.state = { ...this.state, ...update }; this.listeners.forEach(listener => listener()); }
+  private set(update: Partial<TransportState>) { if (update.status && ['offline','revoked','degraded','legacy'].includes(update.status)) { update = {...update, connectionId: undefined}; this.ephemeralRequests.clear(); this.clearAwareness(); } this.state = { ...this.state, ...update }; this.listeners.forEach(listener => listener()); }
   private fail(error: unknown) { this.synced = false; this.set({ status: 'degraded', canEdit: false, recovery: true, error: error instanceof Error ? error.message : 'Collaboration unavailable' }); }
   private offline = () => { this.socket?.close(); this.synced = false; this.set({ status: 'offline', canEdit: this.admitted && this.access === 'edit' }); };
   private online = () => { if (!this.stopped) this.retry(); };
@@ -62,7 +66,7 @@ export class CollabTransport {
     if (this.stopped) return;
     if (!navigator.onLine) { this.set({ status: 'offline', canEdit: this.admitted && this.access === 'edit' }); return; }
     const generation = ++this.generation; this.flushing = undefined; this.synced = false; this.incoming = []; this.incomingBytes = 0; this.sent.clear(); clearTimeout(this.ackTimer);
-    this.set({ status: 'connecting', canEdit: false });
+    this.clearAwareness(); this.ephemeralRequests.clear(); this.set({ status: 'connecting', canEdit: false, connectionId: undefined });
     try {
       const grant = await this.options.grant(); if (this.stopped || generation !== this.generation) return;
       if (!Number.isFinite(Date.parse(grant.expiresAt))) throw new Error('Invalid room expiry');
@@ -120,7 +124,7 @@ export class CollabTransport {
       const scope = { ...this.options.sceneRef, principalId: this.options.principalId, documentId: p.documentId };
       if (this.scope && scopeKey(this.scope) !== scopeKey(scope)) { this.fail(new Error('Document generation changed. Export retained work before continuing.')); this.socket?.close(); return; }
       this.scope = scope; this.admitted = true; this.synced = false; this.chunks = undefined; this.access = String(p.access);
-      this.set({ canEdit: false, status: p.access === 'edit' ? 'connecting' : 'readonly' }); return;
+      this.set({ connectionId: typeof p.connectionId === 'string' ? p.connectionId : undefined, canEdit: false, status: p.access === 'edit' ? 'connecting' : 'readonly' }); return;
     }
     if (control.type === 'sync_chunk') {
       if (!this.scope || p.documentId !== this.scope.documentId) throw new Error('Snapshot generation mismatch');
@@ -149,14 +153,16 @@ export class CollabTransport {
       await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer);
       await this.updatePending(); this.scheduleFlush(); return;
     }
+    const ephemeral = this.ephemeralRequests.delete(control.requestId);
     if (control.type === 'error') {
       if (await this.legacy(String(p.code))) return;
       if (['FORBIDDEN', 'UNAUTHENTICATED'].includes(String(p.code))) { this.options.onAccessLost?.(); this.access = 'view'; this.synced = false; this.set({ status: 'revoked', canEdit: false, recovery: true, error: 'Access ended. Export pending work for recovery.' }); }
+      else if (ephemeral || /^(VOICE_|INVALID_FOLLOW$|INVALID_PRESENCE$|PRESENCE_RATE_LIMITED$)/.test(String(p.code))) { this.controls.forEach(listener => listener(control)); }
       else if (p.retryable === true || p.code === 'RATE_LIMITED') { this.synced = false; this.set({ status: 'offline', error: String(p.code) }); this.socket?.close(); }
       else { this.fail(new Error(String(p.code))); }
       return;
     }
-    if (control.type === 'resync_required') { this.access = 'view'; this.synced = false; this.set({ canEdit: false }); return; }
+    if (control.type === 'resync_required') { this.access = 'view'; this.synced = false; this.set({ canEdit: false, connectionId: undefined, status: 'connecting' }); return; }
     this.controls.forEach(listener => listener(control));
   }
   private localUpdate = (update: Uint8Array, origin: unknown) => {
@@ -190,12 +196,26 @@ export class CollabTransport {
     } finally { if (this.flushing === reservation) this.flushing = undefined; }
   }
   sendAwareness(payload: { cursor?: { x: number; y: number }; selectedIds?: string[] }) {
-    if (Date.now() - this.lastAwareness < 50) return;
-    this.lastAwareness = Date.now();
+    if (!this.synced || this.socket?.readyState !== 1) return;
     const clean = { ...(payload.cursor ? { cursor: { x: payload.cursor.x, y: payload.cursor.y } } : {}), ...(payload.selectedIds ? { selectedIds: payload.selectedIds.slice(0, 256) } : {}) };
-    if (this.synced && this.socket?.readyState === 1) this.socket.send(new Uint8Array(encodeFrame({ channel: 2, updateId: crypto.randomUUID(), payload: new Uint8Array(new TextEncoder().encode(JSON.stringify(clean))) })));
+    this.pendingAwareness={...this.pendingAwareness,...clean};
+    if(this.awarenessTimer)return;
+    const send=()=>{
+      this.awarenessTimer=undefined; const value=this.pendingAwareness; this.pendingAwareness=undefined;
+      if(!value||!this.synced||this.socket?.readyState!==1)return;
+      this.lastAwareness=Date.now();
+      this.socket.send(new Uint8Array(encodeFrame({channel:2,updateId:crypto.randomUUID(),payload:new Uint8Array(new TextEncoder().encode(JSON.stringify(value)))})));
+    };
+    const delay=50-(Date.now()-this.lastAwareness);
+    if(delay>0)this.awarenessTimer=setTimeout(send,delay);else send();
   }
-  sendControl(type: string, payload: Record<string, unknown>) { if (this.synced && this.socket?.readyState === 1) this.socket.send(JSON.stringify({ type, requestId: crypto.randomUUID(), payload })); }
+  sendControl(type: string, payload: Record<string, unknown>): string | undefined {
+    if (!this.synced || this.socket?.readyState !== 1) return;
+    const now = Date.now(); for (const [id, time] of this.ephemeralRequests) if (now - time > 30000) this.ephemeralRequests.delete(id);
+    while (this.ephemeralRequests.size >= 256) this.ephemeralRequests.delete(this.ephemeralRequests.keys().next().value!);
+    const requestId = crypto.randomUUID(); this.ephemeralRequests.set(requestId, now);
+    this.socket.send(JSON.stringify({ type, requestId, payload })); return requestId;
+  }
   retry = () => { if (!this.stopped) { this.socket?.close(); void this.connect(); } };
   async exportRecovery() {
     await this.durable;

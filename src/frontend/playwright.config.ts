@@ -4,6 +4,7 @@ const frontendURL = 'http://localhost:5173';
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore: '**/real-stack/**',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

@@ -15,7 +15,6 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/google/uuid"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
@@ -23,7 +22,6 @@ import (
 	"devtool/internal/delivery/http/handler"
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
-	"devtool/internal/realtime"
 	collabrepo "devtool/internal/repository/collab"
 	openairepo "devtool/internal/repository/openai"
 	postgresrepo "devtool/internal/repository/postgres"
@@ -53,8 +51,6 @@ type config struct {
 	AIModelFast            string
 	AIModelReasoning       string
 	TURNURL                string
-	TURNUsername           string
-	TURNPassword           string
 	TURNAuthSecret         string
 }
 
@@ -152,24 +148,6 @@ func main() {
 	assetHandler.SetCapabilityService(capabilities)
 	assetHandler.Capabilities = capabilityHandler
 	aiHandler := handler.NewAIHandler(aiUsecase)
-	realtimeServer, err := realtime.NewServer([]byte(cfg.JWTSecret))
-	if err != nil {
-		logger.Error("failed to create realtime server", "error", err)
-		os.Exit(1)
-	}
-	realtimeServer.SetTURNConfig(cfg.TURNURL, cfg.TURNUsername, cfg.TURNPassword)
-	if cfg.TURNAuthSecret != "" {
-		realtimeServer.SetTURNAuthSecret(cfg.TURNAuthSecret, cfg.TURNUsername)
-	}
-	realtimeServer.SetWorkspaceAuthorizer(func(ctx context.Context, workspaceID uuid.UUID, userID string) bool {
-		userUUID, err := uuid.Parse(userID)
-		if err != nil {
-			return false
-		}
-		workspace, err := workspaceRepo.FindByID(ctx, workspaceID)
-		return err == nil && workspace.OwnerID == userUUID
-	})
-
 	// Middlewares
 	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
 
@@ -186,7 +164,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, realtimeServer.Handler(), aiHandler.Handler(), http.HandlerFunc(realtimeServer.ConfigHandler), invitationHandler, agentHandler),
+		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -296,8 +274,6 @@ func loadConfig() (config, error) {
 		AIModelFast:            getEnv("AI_MODEL_FAST", "deepseek-chat"),
 		AIModelReasoning:       getEnv("AI_MODEL_REASONING", "deepseek-reasoner"),
 		TURNURL:                os.Getenv("TURN_URL"),
-		TURNUsername:           os.Getenv("TURN_USERNAME"),
-		TURNPassword:           os.Getenv("TURN_PASSWORD"),
 		TURNAuthSecret:         os.Getenv("TURN_AUTH_SECRET"),
 	}, nil
 }

@@ -148,3 +148,25 @@ it('collab occupied send slot still waits for caller-local durability', async ()
   try { await tick(); expect(returned).toBe(false); releaseDurable(); await second; expect(await store.pending(scope)).toHaveLength(1); }
   finally { releaseDurable(); releaseBatch(); await first; transport.stop(); vi.restoreAllMocks(); }
 });
+
+it('collab correlates ephemeral failures without degrading document admission or losing the connection ID', async () => {
+ const store=new OfflineStore(crypto.randomUUID()),server=new ExcalidrawAdapter(),socket=new Socket();server.applyLocalScene(scene());
+ const transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>socket as unknown as WireSocket});
+ const controls:unknown[]=[];transport.subscribeControl(c=>controls.push(c));
+ try {
+  await transport.start();socket.dispatchEvent(new Event('open'));synced(socket,server);await tick();
+  const id=transport.sendControl('voice_join',{});expect(id).toEqual(expect.any(String));
+  socket.receive({type:'error',requestId:id,payload:{code:'VOICE_TARGET',retryable:false}});await tick();
+  expect(transport.state.status).toBe('synced');expect(transport.state.canEdit).toBe(true);expect(controls).toContainEqual(expect.objectContaining({type:'error',requestId:id}));
+  socket.receive({type:'error',requestId:'server',payload:{code:'PRESENCE_RATE_LIMITED',retryable:false}});await tick();expect(transport.state.status).toBe('synced');
+  socket.receive({type:'error',requestId:transport.sendControl('voice_join',{}),payload:{code:'FORBIDDEN'}});await tick();expect(transport.state.status).toBe('revoked');
+ } finally {transport.stop();}
+});
+
+it('coalesces cursor and final selection within the awareness budget and drops queued state on disconnect',async()=>{
+ const store=new OfflineStore(crypto.randomUUID()),server=new ExcalidrawAdapter();server.applyLocalScene(scene());const socket=new Socket();const transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>socket as unknown as WireSocket});
+ await transport.start();socket.dispatchEvent(new Event('open'));synced(socket,server);await tick();
+ transport.sendAwareness({cursor:{x:1,y:2}});transport.sendAwareness({selectedIds:['selected']});transport.sendAwareness({cursor:{x:3,y:4}});await new Promise(r=>setTimeout(r,60));
+ const frames=socket.sent.filter((v):v is Uint8Array=>typeof v!=='string').map(decodeFrame).filter(f=>f.channel===2);expect(frames).toHaveLength(2);expect(JSON.parse(new TextDecoder().decode(frames[1].payload))).toEqual({selectedIds:['selected'],cursor:{x:3,y:4}});
+ transport.sendAwareness({selectedIds:[]});transport.stop();const count=socket.sent.length;await new Promise(r=>setTimeout(r,60));expect(socket.sent).toHaveLength(count);
+});

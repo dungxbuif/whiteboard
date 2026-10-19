@@ -1,6 +1,6 @@
 # Browser collaboration and recovery
 
-Status: implemented and locally verified on the collaboration-v2 branch; not deployed. Full release acceptance remains pending. These controls describe the branch implementation.
+Status: implemented and locally verified as a release candidate; production deployment remains pending.
 
 Open a scene and wait for **Saved** or **Read-only**. The canvas stays read-only until the server checks current access and the document finishes synchronizing. A pending count means changes are on this device and still await the server's durable acknowledgement. Closing the tab does not mean those changes were saved on the server.
 
@@ -18,7 +18,13 @@ Legacy HTTP autosave is selected only when the server explicitly reports COLLAB_
 
 Implementation contracts: CollabProvider({sceneRef,principal,children}), applyLocalScene(SceneContent), applyAgentElements(NativeElement[]), enqueuePending(scope,requestId,update), ackPending(scope,requestId). Scope includes principalId/workspaceId/sceneId/documentId. Native element fields use nested Y.Maps; ordering uses shared ID arrays; data URLs, camera, selection and credentials are excluded. Channel 3 carries durable Yjs updates. Only a matching acknowledgement on the current admitted connection clears a pending request. Unsent updates may be merged atomically before first transmission; a sent request ID always retains the same bytes.
 
-Transport hooks for presence/voice integration: subscribeControl(listener), sendControl(type,payload), sendAwareness({cursor?,selectedIds?}), subscribe/getSnapshot. Awareness strips native pointer metadata and sends at most one sample every 50 ms. B4 owns the supported presence/voice protocol; the old Socket.IO content writer is disabled.
+Transport hooks for presence/voice integration: subscribeControl(listener), sendControl(type,payload), sendAwareness({cursor?,selectedIds?}), subscribe/getSnapshot. Awareness strips native pointer metadata and sends at most one sample every 50 ms. The custom `/collab/` WebSocket is the only realtime path; the legacy Socket.IO client, server and proxy route are removed.
+
+### People, follow and voice
+
+Open **People** to inspect connected tabs and their Editor/Viewer role. Choose **Follow** to track a participant's camera and **Stop following** to exit; departure clears followers automatically. Presence, cursors, selection and camera never change the saved board.
+
+Choose **Join voice** to request one of ten room slots. The app asks for microphone permission only after admission. A denial or full room does not disable drawing. Use **Mute**, **Unmute** and **Leave voice** in the toolbar. If the browser blocks autoplay, choose **Play voice audio**. Connection loss, access revocation and leaving the call stop local tracks and remove peer/audio objects. Media uses short-lived scoped TURN credentials; secrets are never embedded in the frontend.
 
 Definitive authority rejection clears the retained guest token immediately; transient network failures preserve it. The guest principal and pending recovery remain. **Export recovery and rejoin** downloads that recovery before starting a fresh exchange, which may create a different guest identity.
 

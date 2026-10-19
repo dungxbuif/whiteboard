@@ -1,6 +1,6 @@
 # B4 presence, follow and voice verification
 
-Status: in_progress; authorized by the [approved design](../../superpowers/specs/2026-10-15-collaboration-v2-design.md), [runtime plan](../../superpowers/plans/2026-10-16-collaboration-runtime.md) and [phase](../phases/PHASE-COLLAB-V2.md). Production remains v1.
+Status: implemented and verified locally; production rollout pending. Authorized by the [approved design](../../superpowers/specs/2026-10-15-collaboration-v2-design.md), [runtime plan](../../superpowers/plans/2026-10-16-collaboration-runtime.md) and [phase](../phases/PHASE-COLLAB-V2.md).
 
 ## Design before implementation
 
@@ -33,7 +33,13 @@ Commands ran via `rtk proxy env PATH=/Users/dungxbuif/.cache/codex-runtimes/code
 
 PASS: `rtk proxy env PATH=<above> node tests/packaging/idle-collab.mjs` from repository root — elapsed 160,190ms; 25,000ms production heartbeat; six live pings; zero live closes; nonresponsive peer terminated at 47,586ms with expected abnormal close1006; stale voice admission absent; readiness200. Exact unchanged nginx image: `sha256:ed1878f5a767c7cb66f75822b2f83117f1ae05904eea4cd9da49b6b2255c3c14`. The raw TCP forwarder only bridges Docker Desktop to the random host loopback port; actual compiled Rooms/Persistence and random-schema PostgreSQL perform admission/state. Both QA containers, unique network and schema were removed in finally. This run preceded the independently tested ingress-budget change; heartbeat/lifecycle code is unchanged by that change.
 
-No frontend/media/browser or production pass is claimed yet.
+At this checkpoint no frontend/media/browser or production pass had been claimed; final evidence is recorded below.
+
+## Frontend completion and legacy transport retirement decision — 2026-10-19
+
+The real-stack browser now proves distinct same-user tabs, server-backed native follow/camera behavior, microphone-denial recovery, and two native peers exchanging generated audio with mute/leave cleanup. The first follow run exposed an Excalidraw emitter loop: projecting a new `userToFollow` object for every roster caused repeated UNFOLLOW/FOLLOW controls. A native-emitter regression now requires stable projection by server target and coalesces genuine native target changes before sending them.
+
+With the replacement path proven, remove the unused frontend Socket.IO client/types, Go Socket.IO server/package, router mount, and nginx `/socket.io/` location. The HTTP legacy scene fallback remains available for unpromoted v1 scenes; it does not require the retired presence socket. Keep `/api/v1/realtime/config` on the scoped capability handler and keep `/collab/` as the only v2 realtime ingress. Verification must include frontend unit/build, all Go tests, the complete collaboration runtime suite, the three real-stack presence/voice flows, dependency-tree checks, and documentation/API/runbook reconciliation.
 
 ## Ingress-budget ruling before implementation
 
@@ -41,4 +47,24 @@ Controller approved replacing the inherited 600-frames/minute/IP bucket: ordinar
 
 Ingress RED: the new absent limiter first failed module loading; a minimal interface stub then produced three behavioral failures for missing frame/byte enforcement, clock/window handling and expiry. GREEN implementation adds bounded IP token buckets, raw-byte accounting before decode and separate authentication/operation budgets. A concurrent-close test exposed a fixture synchronization assumption: client close can fire before the server consumes its close event. The assertion now waits for the server roster departure before retrying admission, matching the actual lifecycle contract.
 
-Final server-foundation verification after ingress changes: `npm test --workspace ./collab` PASS12 files/119 tests/0skips (17.54s). B4 remains incomplete until frontend integration/media/browser proof and controller docs reconciliation.
+Final server-foundation verification after ingress changes: `npm test --workspace ./collab` PASS12 files/119 tests/0skips (17.54s).
+
+## Frontend integration design — 2026-10-17, before code
+
+B3 fix3 reviewed; frontend ownership transferred, except wrapper image baseline repair remains temporarily owned by adapter_b3. E1 owns runtime performance files; B4 will not modify those. Per-provider Presence and Voice controllers subscribe to the existing CollabTransport, avoiding global cross-scene state or a second socket. Transport exposes connectionId and returns request IDs for bounded ephemeral request correlation; voice/follow/input errors notify controls without changing document authority or queues. Connection loss clears ephemeral state immediately; same-connection token refresh preserves it.
+
+Roster uses server connection IDs and effective editor/viewer labels. Native Excalidraw collaborators receive names/cursors/selections, userToFollow and followedBy. Native follow and an accessible roster control use the same server follow graph; viewport is throttled, applied only for the current target and never sent through content writers. Follow chains cannot form cycles. Late viewport from an old target is ignored.
+
+Explicit Join voice/Leave voice/Mute controls expose waiting, permission and failure states. Admission precedes TURN config retrieval and microphone permission. Same-user tabs remain independent. Config comes from GET /api/v1/realtime/config with X-Workspace-ID and a newly minted scene-scoped room JWT (the API rejects ordinary login JWTs); no endpoint/secret hardcoding. Denial, cancellation, connection loss, refresh failure or teardown releases admission and stops all media. Late permission/config promises are guarded by lifecycle generation and stop late tracks. Peers use deterministic offer ownership (lower connection ID initiates), serial signaling, early ICE buffering and bounded pending signals; all audio elements are cleaned. Refresh short-lived ICE configuration before expiry. Browser tests cover native roster/follow/media denial and a continued drawing edit, with screenshots. Unit tests cover delayed permission, early ICE, stable negotiation, quota and cleanup.
+
+No image-draft revision/queue/undo/content logic is to change. Existing upload tests must remain green. Old Socket.IO store becomes a compatibility export for per-provider presence types; dependency/router retirement is reported to root only after replacement proof.
+
+## Final local evidence — 2026-10-19
+
+- Frontend presence/transport/follow/native/voice tests: 24 passed. Full frontend suite after the follow and image-reopen regressions: 25 files, 93 tests passed. TypeScript/Vite production build passed.
+- Collaboration runtime: 15 files, 149 tests passed against disposable PostgreSQL. All Go packages passed with the guarded test database.
+- Real-stack browser: distinct same-user tabs, native cursor/follow/camera, target departure cleanup, microphone denial with continued durable editing, and two generated-audio peers with mute/leave cleanup all passed (3/3). The same complete real-stack run passed 17/17.
+- Load on the final local HEAD: 650/650 durable acknowledgements, p50 9.742 ms, p95 13.236 ms, delivery p95 750.461 ms, peak runtime RSS 399,097,856 bytes on Apple M4 Pro ARM64. This is local acceptance; VM100 AMD64 remains the deployment gate.
+- `npm ls socket.io-client @types/socket.io-client --all` is empty. Go Socket.IO source/module, frontend dependency and nginx location are removed. `/collab/` is the only collaboration socket; `/api/v1/realtime/config` remains scoped through the capability handler.
+
+Production proof is intentionally pending until the frozen branch is merged, deployed on VM100 and exercised through the public HTTPS proxy and external TURN path.
