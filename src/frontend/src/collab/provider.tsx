@@ -23,7 +23,7 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
   const [legacy, setLegacy] = useState<Scene | null>(null);
   const recovery = useRef<unknown>(null);
   const controller = useMemo(() => {
-    const adapter = new ExcalidrawAdapter(); const undo = createLocalUndo(adapter.doc);
+    const adapter = new ExcalidrawAdapter(); const undo = createLocalUndo(adapter);
     const grant = async (updateSession = true): Promise<RoomGrant> => {
         const current = principalRef.current;
         if (current.kind === 'public') {
@@ -65,11 +65,11 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
     if (state.status === 'legacy') return;
     return registerContentWriter(sceneRef.workspaceId, sceneRef.sceneId, input => {
       if (!controller.transport.state.canEdit) throw new Error('Scene is read-only until collaboration admission');
-      controller.adapter.applyLocalScene(input as SceneContent);
+      controller.undo.apply(input as SceneContent);
     });
   }, [controller, sceneRef.workspaceId, sceneRef.sceneId, state.status === 'legacy']);
   return { ...controller, state, content, legacy, principal: principalRef, sceneRef,
-    applyLocalScene(content: SceneContent) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); controller.adapter.applyLocalScene(content); },
+    applyLocalScene(content: SceneContent) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); controller.undo.apply(content); },
     async applyAgentElements(elements: NativeElement[]) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); await controller.adapter.applyAgentElements(elements); await controller.transport.whenDurable(); },
     async exportRecovery() { return { ...await controller.transport.exportRecovery(), legacyDraft: recovery.current }; },
     async post<T>(path: string, body: unknown): Promise<T> { const current = principalRef.current; return (await (current.kind === 'public' ? publicApi : api).post<T>(path, body, { headers: { 'X-Workspace-ID': sceneRef.workspaceId, ...(current.kind === 'public' ? { Authorization: `Bearer ${current.session.token}` } : {}) } })).data; },

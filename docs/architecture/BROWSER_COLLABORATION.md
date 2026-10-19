@@ -1,15 +1,15 @@
 # B3 browser collaboration detail design
 
 Status: implemented, included in the 17/17 local real-stack acceptance and
-deployed on VM100. Docker DNS restart/replay and controlled reboot recovery pass;
-final public roles/mobile/keyboard acceptance remains. Authorized by the
+deployed on VM100. Docker DNS restart/replay, controlled reboot recovery and
+public roles/mobile/keyboard acceptance pass. Authorized by the
 approved Collaboration v2 programme. Links:
 [programme](../superpowers/plans/2026-10-16-collaboration-v2.md),
 [phase](../work/phases/PHASE-COLLAB-V2.md).
 
 The browser uses the B2 WebSocket contract (auth/refresh, ready, bounded sync_chunk, channel 3 updates, ack), nested Y.Map element fields and ordered ID arrays. CollabProvider owns one document and transport per principal/workspace/scene. Editing is disabled until fresh ready authority and complete synchronization. Only local origin updates enter IndexedDB; writes are persisted before send. Acknowledgements are accepted only from the current admitted connection and exact principal/workspace/scene/documentId scope plus request ID. Replay loads retained updates after server sync; merge never replaces the queue. Revoke, account switch, epoch mismatch, quota/storage failure and 64 MiB history limit preserve recovery and disable transmission as appropriate. Pending edits are exportable; different identities are never silently reassigned.
 
-Native renderer callbacks are diffed by field against the last rendered content. Remote transactions update the native canvas with history capture disabled and do not echo. Yjs UndoManager tracks only local human operations; AI operations are separate atomic origins and not advertised as blindly undoable. Native undo is intercepted/hidden in v2; explicit local undo/redo uses the Yjs manager. AI additions and presentation reorder enter the same adapter; scene-store HTTP saves are fenced while v2 owns a scene.
+Native renderer callbacks are diffed by field against the last rendered content. Remote transactions update the native canvas with history capture disabled and do not echo. A bounded semantic history records only local human before/desired changes, merges the inverse or forward change into the current projection, tombstones an undone addition without replacing its nested Y.Map, and revives that same stable map on redo. It retains at most 25 entries and 32 MiB. AI operations stay outside that history. Native undo is intercepted in v2; the explicit controls and canvas keyboard shortcuts use the same semantic manager. AI additions and presentation reorder enter the same adapter; scene-store HTTP saves are fenced while v2 owns a scene.
 
 Blobs are retained durably before upload. Upload capability requests use sceneId plus assets[], actual Blob.size, returned Content-Type, and browser-managed Content-Length. Only successful PUTs produce assetId references. Failed uploads retain bytes and retry from explicit retry/reconnect; view requests include sceneId. Credentials remain outside Yjs. Public scene sessions are retained in sessionStorage for the same tab/link only; expiry/revocation clears the credential, never the IndexedDB queue, and recovery is explicitly visible when identity changes.
 

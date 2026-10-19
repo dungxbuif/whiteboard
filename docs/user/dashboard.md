@@ -1,7 +1,7 @@
 # Dashboard
 
-Status: implemented and deployed on VM100. Public desktop/deep-link checks pass;
-mobile/keyboard and the complete access-role matrix remain release canaries.
+Status: implemented and deployed on VM100. Public desktop, mobile, keyboard,
+deep-link and access-role checks pass.
 
 The dashboard follows the original devtool interface, including its original colors, sidebar, scene cards, typography and spacing. Excalidraw keeps its native canvas appearance.
 
@@ -37,7 +37,7 @@ Scene links accept existing UUIDs and public aliases. Reload, back and forward r
 
 Management and navigation have browser regression coverage and the deployed
 dashboard/settings/share/invitation/agent-key surfaces render publicly. Public
-guest mutation/revocation and the complete roles matrix remain release gates.
+guest mutation/revocation and the roles matrix pass production canaries.
 See [collaboration](collaboration.md) for invitation and sharing steps.
 
 ## Move between settings and your files

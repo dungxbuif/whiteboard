@@ -23,8 +23,8 @@ acceptance matrix is listed below.
 
 ## Verification
 
-- Frontend: 25 files / 93 unit tests passed; production build passed.
-- Collaboration/contracts/diagram/MCP workspace: 15 files / 149 tests passed.
+- Frontend: 25 files / 94 unit tests passed; production build passed.
+- Collaboration runtime: 15 files / 150 tests passed against the guarded loopback test database; contracts, diagram and MCP workspace tests also passed.
 - Backend: all Go packages passed.
 - Real stack: 17/17 Playwright cases passed against actual Go, Node runtime, MCP, PostgreSQL, SeaweedFS S3 and browsers.
 - Load: 50 principals,650/650 durable ACKs, p509.742ms, p9513.236ms, exact final convergence, peak runtime RSS399,097,856bytes on Apple M4 Pro ARM64.
@@ -58,9 +58,13 @@ on VM100.
 Public-origin verification currently includes authenticated deep-link reload,
 dashboard/settings/share/invitation/agent-key UI, an actual saved-and-reloaded
 canvas edit with cleanup, the `whiteboard` S3 bucket write/read/delete canary,
-and native MCP initialization plus workspace/scene reads over public HTTPS.
-The temporary MCP key was revoked and then rejected with HTTP 401. Anonymous
-MCP and workspace API requests also return 401.
+public-view mutation rejection, public-edit add/delete acknowledgements at
+sequences 1 and 2, owner-role preservation on self-invite and effective pending
+invite revocation. Mobile navigation and overflow checks pass. Native MCP
+initialized with 13 tools, generated and projected a nine-element diagram, and
+downloaded JSON and SVG exports over public HTTPS. The temporary MCP key was
+revoked and then rejected with HTTP 401. Anonymous MCP and workspace API
+requests also return 401.
 
 Public `/internal`, `/api/internal` and encoded/normalized variants return 404.
 Nginx access logging is disabled; inspected local nginx/backend/collab/MCP and
@@ -98,9 +102,8 @@ A freshly issued production TURN credential completed authenticated UDP
 Allocate and returned a relayed address; Refresh with lifetime zero released it.
 No credential value is recorded.
 
-Final sign-off still requires closure of the remaining public view/edit,
-invitation/role/revoke, native MCP write/export, two-peer browser voice/media
-and mobile/keyboard acceptance matrix. Live AI provider
+Final sign-off still requires the public two-peer browser voice/media canary.
+Live AI provider
 UAT is externally blocked until the user supplies `AI_API_KEY`. Retired Google
 OAuth credential revocation remains an external Google Cloud operation; the
 values are absent from reachable Git history.

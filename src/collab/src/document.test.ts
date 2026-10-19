@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import {MAX_DOCUMENT_BYTES,MAX_FRAME_BYTES,validateSceneContent,validateElementPatch,nativeElementSchema,type NativeElement,type SceneContent} from '@collab/contracts';
 import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES} from './document.js';
 
+
 const rectangle=(id='shape'):NativeElement=>({id,type:'rectangle',x:0,y:0,width:100,height:100,angle:0,strokeColor:'#111111',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:1,strokeStyle:'solid',roughness:1,opacity:100,groupIds:[],frameId:null,roundness:null,seed:1,version:1,versionNonce:1,index:null,isDeleted:false,boundElements:null,updated:1,link:null,locked:false});
 const scene=(elements:NativeElement[]=[rectangle()]):SceneContent=>({elements,appState:{},files:{}});
 const text=(value:string):NativeElement=>({...rectangle('label'),type:'text',fontSize:20,fontFamily:1,text:value,originalText:'',textAlign:'left',verticalAlign:'top',containerId:null,autoResize:true,lineHeight:1.25});
@@ -12,6 +13,23 @@ function edit(current:Y.Doc,mutate:(candidate:Y.Doc)=>void):Uint8Array {
   const update=Y.encodeStateAsUpdate(candidate,vector);candidate.destroy();return update;
 }
 describe('scene document validation',()=>{
+  it('accepts canonical local add, undo, and redo updates from a separate client document',async()=>{
+    const server=createSceneDoc(scene([])),client=new Y.Doc({gc:false});
+    Y.applyUpdate(client,Y.encodeStateAsUpdate(server));
+    try{
+      const commit=async(action:()=>void)=>{
+        const vector=Y.encodeStateVector(client);action();
+        const accepted=await validateCandidate(server,Y.encodeStateAsUpdate(client,vector));
+        Y.applyUpdate(server,accepted.update);return materializeScene(server);
+      };
+      expect((await commit(()=>client.transact(()=>{
+        const element=new Y.Map<unknown>();for(const [key,value] of Object.entries(rectangle('undoable')))element.set(key,value);
+        client.getMap<Y.Map<unknown>>('elements').set('undoable',element);client.getArray<string>('order').push(['undoable']);
+      }))).elements).toHaveLength(1);
+      expect((await commit(()=>(client.getMap('elements').get('undoable') as Y.Map<unknown>).set('isDeleted',true))).elements).toMatchObject([{id:'undoable',isDeleted:true}]);
+      expect((await commit(()=>(client.getMap('elements').get('undoable') as Y.Map<unknown>).set('isDeleted',false))).elements).toMatchObject([{id:'undoable',isDeleted:false}]);
+    }finally{client.destroy();server.destroy();}
+  });
   it('round trips native fields, tombstones, nested bindings, files and presentation order',()=>{
     const frame={...rectangle('frame'),type:'frame',name:'Slide'} as NativeElement;
     const node={...rectangle(),frameId:'frame',boundElements:[{id:'label',type:'text' as const}],isDeleted:true};

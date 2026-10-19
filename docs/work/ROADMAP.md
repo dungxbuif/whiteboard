@@ -87,7 +87,8 @@ No milestone status implies enterprise feature parity.
 - [x] Collaboration v2 local implementation and 17/17 real-stack acceptance
 - [x] VM100 cutover, migration 13, frozen Linux/amd64 images and initial public-origin health/deep-link/S3/MCP acceptance
 - [x] Controlled reboot, Docker DNS restart/replay, internal denial/log and authenticated TURN allocation acceptance
-- [ ] Public share/invite/roles, native MCP write/export, browser voice/media and mobile/keyboard acceptance
+- [x] Public share/invite/roles, native MCP write/export and mobile/keyboard acceptance
+- [ ] Public two-peer browser voice/media acceptance
 
 ## Phase 5 Plans
 

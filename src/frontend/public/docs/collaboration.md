@@ -1,6 +1,6 @@
 # Joining and sharing a workspace
 
-Status: browser management, durable collaboration, presence/follow and voice are implemented and deployed on VM100. Authenticated deep-link save/reload, Docker DNS restart/replay, TURN relay allocation and controlled reboot recovery pass; public share/invite/roles, native MCP write/export, browser voice/media and mobile/keyboard acceptance remain before sign-off.
+Status: browser management, durable collaboration, presence/follow and voice are implemented and deployed on VM100. Authenticated deep-link save/reload, Docker DNS restart/replay, TURN relay allocation, controlled reboot recovery, public share/invite/roles, native MCP write/export and mobile/keyboard acceptance pass. Public two-peer browser media remains before sign-off.
 
 ## Invite someone
 

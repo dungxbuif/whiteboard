@@ -1,8 +1,9 @@
 # Browser collaboration and recovery
 
 Status: implemented and deployed on VM100. Authenticated deep-link save/reload,
-Docker DNS restart/replay and controlled reboot recovery pass; the remaining
-public roles/mobile/keyboard acceptance is tracked in the release checklist.
+Docker DNS restart/replay, controlled reboot recovery, public roles and
+mobile/keyboard acceptance pass. Public two-peer browser media remains in the
+release checklist.
 
 Open a scene and wait for **Saved** or **Read-only**. The canvas stays read-only until the server checks current access and the document finishes synchronizing. A pending count means changes are on this device and still await the server's durable acknowledgement. Closing the tab does not mean those changes were saved on the server.
 
@@ -12,7 +13,7 @@ Use **Export recovery** before clearing browser data, changing accounts after a 
 
 The queue belongs to one principal, workspace, scene and document generation. Another signed-in account does not inherit it. A guest session is stored only in that tab's sessionStorage, keyed to its share link, so reloading the tab preserves the guest identity while its credential remains valid. It never replaces the account login token. Expired credentials are stripped when restored; identity metadata remains so the old queue can be exported. A new link exchange can create a new guest identity and does not reassign the old queue.
 
-**Undo my edit** and **Redo my edit** use local Yjs transaction history and preserve other actors' changes. Keyboard undo on the canvas uses the same history; text-field editing keeps the text editor's own keyboard behavior. AI additions are atomic separate operations and are not included in local human undo. AI additions and presentation frame reordering use the collaborative content writer.
+**Undo my edit** and **Redo my edit** use a bounded local semantic history and preserve fields changed by other actors. Undoing a local addition keeps its stable element map as a tombstone; redo revives that map instead of replacing it. History retains at most 25 entries and 32 MiB. Keyboard undo on the canvas uses the same history; text-field editing keeps the text editor's own keyboard behavior. AI additions are atomic separate operations and are not included in local human undo. AI additions and presentation frame reordering use the collaborative content writer.
 
 Images are retained locally before upload. The browser sends the actual Blob byte size, uses the upload service's Content-Type and commits an asset reference only after a successful PUT. Failed/expired uploads retain their bytes; **Retry connection / uploads** requests fresh capabilities. Original inline image data is not committed to collaborative documents. Pending image edits can delay the associated canvas draft until upload succeeds; keep recovery exports if storage or authorization fails.
 

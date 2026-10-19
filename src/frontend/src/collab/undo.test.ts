@@ -1,14 +1,26 @@
 import { it, expect } from 'vitest';
-import * as Y from 'yjs';
 import { ExcalidrawAdapter } from './excalidraw-adapter';
 import { createLocalUndo } from './undo';
-import { scene } from './fixtures';
+import { rectangle, scene } from './fixtures';
 it('collab local undo preserves another actor edits and does not undo agent additions', async () => {
   const a = new ExcalidrawAdapter(); a.applyLocalScene(scene());
-  const b = new ExcalidrawAdapter(); b.applyRemote(Y.encodeStateAsUpdate(a.doc));
-  const undo = createLocalUndo(a.doc);
-  const left = a.content(); left.elements[0].x = 20; a.applyLocalScene(left);
-  const right = b.content(); right.elements[0].y = 55; b.applyLocalScene(right);
-  a.applyRemote(Y.encodeStateAsUpdate(b.doc)); undo.undo();
+  const undo = createLocalUndo(a);
+  const left = a.content(); left.elements[0].x = 20;
+  undo.apply(left);
+  const right = a.content(); right.elements[0].y = 55; right.elements.push(rectangle('agent')); a.applyLocalScene(right);
+  undo.undo();
   expect(a.content().elements[0]).toMatchObject({ x: 0, y: 55 });
+  expect(a.content().elements.find(element => element.id === 'agent')?.isDeleted).toBe(false);
+  undo.redo();
+  expect(a.content().elements[0]).toMatchObject({ x: 20, y: 55 });
+  expect(a.content().elements.find(element => element.id === 'agent')?.isDeleted).toBe(false);
+});
+
+it('undo tombstones a local addition and redo revives the same stable element map',()=>{
+  const adapter=new ExcalidrawAdapter(),undo=createLocalUndo(adapter);
+  undo.apply(scene([rectangle('local')]));
+  const map=adapter.doc.getMap('elements').get('local');
+  undo.undo();expect(adapter.content().elements).toMatchObject([{id:'local',isDeleted:true}]);
+  undo.redo();expect(adapter.content().elements).toMatchObject([{id:'local',isDeleted:false}]);
+  expect(adapter.doc.getMap('elements').get('local')).toBe(map);
 });
