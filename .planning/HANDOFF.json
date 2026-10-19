@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "timestamp": "2026-10-19T14:03:49Z",
+  "timestamp": "2026-10-19T15:30:01Z",
   "phase": "04",
   "phase_name": "realtime-collaboration-v2-release",
   "phase_dir": ".planning/phases/04-realtime-collaboration",
@@ -11,15 +11,23 @@
   "completed_tasks": [
     {"id": 1, "name": "Implement collaboration v2 access, runtime, dashboard, MCP and diagrams", "status": "done", "commit": "9bd7055"},
     {"id": 2, "name": "Fix image recovery and Chromium renderer startup regressions", "status": "done", "commit": "d33944f"},
-    {"id": 3, "name": "Local real-stack acceptance", "status": "done", "progress": "17/17 real-stack; 650/650 durable ACKs; MCP 43/43; Go all packages and frontend build pass"}
+    {"id": 3, "name": "Local real-stack acceptance", "status": "done", "progress": "17/17 real-stack; 650/650 durable ACKs; MCP 43/43"},
+    {"id": 4, "name": "Run final sequential repository gate from merged master", "status": "done", "progress": "npm 246 tests; frontend 93 tests and production build; Go all packages"},
+    {"id": 5, "name": "Restore production v1 after VM100 reboot outage", "status": "done", "progress": "backend/frontend healthy; public /healthz HTTP 200"}
   ],
   "remaining_tasks": [
-    {"id": 4, "name": "Run final sequential repository gate from merged master", "status": "not_started"},
-    {"id": 5, "name": "Fresh VM100 backup, distinct v2 secrets, Linux/amd64 builds and migrations 7-13", "status": "not_started"},
-    {"id": 6, "name": "Production deploy, public browser canary, Homelab reconciliation and release sign-off", "status": "not_started"}
+    {"id": 6, "name": "Fix and prove automatic recovery after Docker or VM reboot", "status": "not_started"},
+    {"id": 7, "name": "Fresh VM100 backup, distinct v2 secrets, Linux/amd64 builds and migrations 7-13", "status": "not_started"},
+    {"id": 8, "name": "Whole-branch security/dependency review and production deploy", "status": "not_started"},
+    {"id": 9, "name": "Public browser canary, Homelab reconciliation and release sign-off", "status": "not_started"},
+    {"id": 10, "name": "Reconcile stale planning artifacts and promote approved enterprise/harness requirements into tickets", "status": "not_started"}
   ],
-  "blockers": [],
-  "human_actions_pending": [],
+  "blockers": [
+    {"id": "AI-PROVIDER-KEY", "description": "Production AI provider UAT requires an OpenAI-compatible API key; VM100 AI_API_KEY is empty."}
+  ],
+  "human_actions_pending": [
+    {"id": "AI-PROVIDER-KEY", "description": "Provide the promised DeepSeek/OpenAI-compatible key when live AI UAT resumes."}
+  ],
   "decisions": [
     {"decision": "Workspace is the tenant; no separate organization model", "rationale": "Confirmed by user", "phase": "04"},
     {"decision": "Use the dedicated custom /collab WebSocket and retire Socket.IO/RelayHub document transport", "rationale": "Durable single-writer architecture and user direction", "phase": "04"},
@@ -27,6 +35,6 @@
     {"decision": "Production remains v1 at pause", "rationale": "User explicitly paused before VM100 cutover", "phase": "04"}
   ],
   "uncommitted_files": [],
-  "next_action": "From merged master, run the final npm/go/build gates sequentially, then follow docs/operations/RELEASE_CHECKLIST.md from the fresh-cutover-backup step.",
-  "context_notes": "Bucket S3_BUCKET is whiteboard in both VM100 env and running backend. No production migration or v2 deployment was started. Do not treat old Socket.IO phase plans as the current architecture."
+  "next_action": "Resume with the P0 reboot-recovery fix and proof, then follow docs/operations/RELEASE_CHECKLIST.md from the fresh-cutover-backup step.",
+  "context_notes": "Bucket S3_BUCKET is whiteboard in both VM100 env and running backend. VM100 reboot caused the external-network-dependent v1 containers to exit; service was restored manually and public health is 200. No production migration or v2 deployment was started. Final merged-master source gates pass. Do not treat old Socket.IO phase plans as the current architecture. See docs/work/verification/2026-10-19-release-pause-audit.md."
 }
