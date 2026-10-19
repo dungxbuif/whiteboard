@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"devtool/internal/domain"
 
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -117,5 +119,53 @@ func TestAuthUsecaseOAuthCallbackRequiresCode(t *testing.T) {
 	usecase := NewAuthUsecase(&mockUserRepo{}, []byte("secret"))
 	if _, err := usecase.OAuthCallback(context.Background(), ""); err == nil {
 		t.Fatal("expected missing code error")
+	}
+}
+
+func TestPasswordLoginUsesDummyBcryptForUnknownAccount(t *testing.T) {
+	uc := NewAuthUsecase(&mockUserRepo{}, []byte("login-secret-0123456789abcdef0123456789")).(*authUsecase)
+	var calls int
+	var comparedHash []byte
+	uc.comparePassword = func(hash, password []byte) error {
+		calls++
+		comparedHash = append([]byte(nil), hash...)
+		if string(password) != "wrong-password" {
+			t.Fatalf("password = %q", password)
+		}
+		return errors.New("mismatch")
+	}
+
+	if _, err := uc.PasswordLogin(context.Background(), "missing@example.test", "wrong-password"); err == nil {
+		t.Fatal("unknown account authenticated")
+	}
+	if calls != 1 {
+		t.Fatalf("bcrypt comparisons = %d, want 1", calls)
+	}
+	if string(comparedHash) != dummyPasswordHash {
+		t.Fatalf("unknown account did not use the fixed dummy hash")
+	}
+}
+
+func TestPasswordLoginStillAuthenticatesKnownAccountWithOneBcryptComparison(t *testing.T) {
+	hash, err := bcrypt.GenerateFromPassword([]byte("correct-password"), bcrypt.MinCost)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := string(hash)
+	user := &domain.User{ID: uuid.New(), Email: "user@example.test", PasswordHash: &value}
+	uc := NewAuthUsecase(&mockUserRepo{user: user}, []byte("login-secret-0123456789abcdef0123456789")).(*authUsecase)
+	realCompare := uc.comparePassword
+	comparisons := 0
+	uc.comparePassword = func(hash, password []byte) error {
+		comparisons++
+		return realCompare(hash, password)
+	}
+
+	token, err := uc.PasswordLogin(context.Background(), " USER@example.test ", "correct-password")
+	if err != nil || token == "" {
+		t.Fatalf("known account login failed: token=%q err=%v", token, err)
+	}
+	if comparisons != 1 {
+		t.Fatalf("bcrypt comparisons=%d, want 1", comparisons)
 	}
 }

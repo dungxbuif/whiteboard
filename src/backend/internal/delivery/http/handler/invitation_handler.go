@@ -19,8 +19,13 @@ import (
 const invitationRequestMaxBytes int64 = 4096
 
 type InvitationHandler struct {
-	uc       domain.InvitationUsecase
-	validate *validator.Validate
+	uc                domain.InvitationUsecase
+	validate          *validator.Validate
+	credentialLimiter *middleware.CredentialRateLimiter
+}
+
+func (h *InvitationHandler) SetCredentialLimiter(limiter *middleware.CredentialRateLimiter) {
+	h.credentialLimiter = limiter
 }
 
 func NewInvitationHandler(uc domain.InvitationUsecase) *InvitationHandler {
@@ -146,6 +151,9 @@ func (h *InvitationHandler) Accept(w http.ResponseWriter, r *http.Request) {
 func (h *InvitationHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var input registerInvitationRequest
 	if !h.decode(w, r, &input) {
+		return
+	}
+	if h.credentialLimiter != nil && !middleware.EnforceCredentialRateLimit(w, r, h.credentialLimiter, middleware.CredentialRouteInvitation, input.Token) {
 		return
 	}
 	result, err := h.uc.RegisterWithInvitation(r.Context(), input.Token, input.RegistrationInput)

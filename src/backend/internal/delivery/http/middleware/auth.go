@@ -13,8 +13,16 @@ import (
 	"github.com/google/uuid"
 )
 
+type ActiveUserStore interface {
+	FindByID(context.Context, uuid.UUID) (*domain.User, error)
+}
+
 // AuthMiddleware validates the JWT token in the Authorization header.
-func AuthMiddleware(secret []byte) func(http.Handler) http.Handler {
+func AuthMiddleware(secret []byte, activeUserStores ...ActiveUserStore) func(http.Handler) http.Handler {
+	var activeUsers ActiveUserStore
+	if len(activeUserStores) > 0 {
+		activeUsers = activeUserStores[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get(domain.HeaderAuthorization)
@@ -62,6 +70,13 @@ func AuthMiddleware(secret []byte) func(http.Handler) http.Handler {
 			if err != nil {
 				writeAuthenticationError(w, r)
 				return
+			}
+			if activeUsers != nil {
+				user, lookupErr := activeUsers.FindByID(r.Context(), userID)
+				if lookupErr != nil || user == nil || user.ID != userID || user.DeletedAt.Valid {
+					writeAuthenticationError(w, r)
+					return
+				}
 			}
 
 			expiry, e := claims.GetExpirationTime()

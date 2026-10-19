@@ -6,11 +6,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"devtool/internal/delivery/http/handler"
+	deliverymiddleware "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type routerFolderUsecase struct {
@@ -109,5 +113,42 @@ func TestSceneRoutesReturnCamelCaseJSON(t *testing.T) {
 	}
 	if !strings.Contains(response.Body.String(), `"workspaceId"`) || !strings.Contains(response.Body.String(), `"contentVersion"`) {
 		t.Fatalf("expected camelCase scene JSON, got %s", response.Body.String())
+	}
+}
+
+type deletedRouterUserStore struct{ userID uuid.UUID }
+
+func (s deletedRouterUserStore) FindByID(context.Context, uuid.UUID) (*domain.User, error) {
+	return &domain.User{ID: s.userID, DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true}}, nil
+}
+
+func TestDeletedJWTSubjectCannotReachWorkspaceCreationOrAI(t *testing.T) {
+	secret := []byte("login-secret-0123456789abcdef0123456789")
+	userID := uuid.New()
+	raw, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": userID.String(), "exp": time.Now().Add(time.Hour).Unix(),
+	}).SignedString(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	called := 0
+	ai := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called++
+		w.WriteHeader(http.StatusNoContent)
+	})
+	auth := deliverymiddleware.AuthMiddleware(secret, deletedRouterUserStore{userID: userID})
+	router := newRouter(nil, handler.NewWorkspaceHandler(nil), nil, nil, nil, auth, nil, nil, nil, nil, nil, ai, nil, nil)
+
+	for _, path := range []string{"/api/v1/workspaces/", "/api/v1/ai/generate"} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+		req.Header.Set(domain.HeaderAuthorization, domain.BearerPrefix+raw)
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Fatalf("%s status=%d body=%s", path, rr.Code, rr.Body.String())
+		}
+	}
+	if called != 0 {
+		t.Fatalf("protected handler calls=%d, want 0", called)
 	}
 }

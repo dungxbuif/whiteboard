@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"devtool/internal/domain"
@@ -13,6 +14,31 @@ import (
 
 type mockAuthUsecase struct {
 	domain.AuthUsecase
+}
+
+func TestPasswordLoginRejectsUnboundedOrAmbiguousBodiesBeforeUsecase(t *testing.T) {
+	uc := &rateLimitedAuthUsecase{}
+	h := NewAuthHandler(uc)
+	for _, tc := range []struct {
+		name   string
+		body   string
+		status int
+	}{
+		{"oversized", `{"email":"` + strings.Repeat("a", loginRequestMaxBytes) + `","password":"password"}`, http.StatusRequestEntityTooLarge},
+		{"unknown field", `{"email":"user@example.test","password":"password","extra":true}`, http.StatusBadRequest},
+		{"trailing JSON", `{"email":"user@example.test","password":"password"}{}`, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			h.PasswordLogin(rr, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(tc.body)))
+			if rr.Code != tc.status {
+				t.Fatalf("status=%d want=%d body=%s", rr.Code, tc.status, rr.Body.String())
+			}
+		})
+	}
+	if uc.calls != 0 {
+		t.Fatalf("invalid bodies reached login usecase %d times", uc.calls)
+	}
 }
 
 func (mockAuthUsecase) OAuthLoginURL(state string) string {

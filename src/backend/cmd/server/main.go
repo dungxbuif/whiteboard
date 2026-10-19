@@ -136,20 +136,30 @@ func main() {
 	aiUsecase := usecase.NewAIUsecase(aiRepo, cfg.AIModelFast, cfg.AIModelReasoning)
 
 	// Handlers
+	credentialLimiter, err := middledelivery.NewDefaultCredentialRateLimiter()
+	if err != nil {
+		logger.Error("failed to configure credential rate limiting", "error", err)
+		os.Exit(1)
+	}
 	invitationHandler := handler.NewInvitationHandler(invitationUsecase)
+	invitationHandler.SetCredentialLimiter(credentialLimiter)
 	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
+	authHandler.SetCredentialLimiter(credentialLimiter)
 	workspaceHandler := handler.NewWorkspaceHandler(workspaceUsecase)
 	folderHandler := handler.NewFolderHandler(folderUsecase)
 	sceneHandler := handler.NewSceneHandler(sceneUsecase)
 	searchHandler := handler.NewSearchHandler(searchUsecase)
 	sharingHandler := handler.NewSharingHandler(scenePermissionUsecase, shareLinks)
-	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, handler.NewRoomHandler(rooms, accessService, sceneUsecase))
+	roomHandler := handler.NewRoomHandler(rooms, accessService, sceneUsecase)
+	roomHandler.SetCredentialLimiter(credentialLimiter)
+	publicHandler := handler.NewPublicHandler(scenePermissionUsecase, roomHandler)
+	publicHandler.SetCredentialLimiter(credentialLimiter)
 	assetHandler := handler.NewAssetHandler(assetUsecase)
 	assetHandler.SetCapabilityService(capabilities)
 	assetHandler.Capabilities = capabilityHandler
 	aiHandler := handler.NewAIHandler(aiUsecase)
 	// Middlewares
-	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret))
+	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret), userRepo)
 
 	agents := usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService)
 	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
@@ -206,6 +216,9 @@ func loadConfig() (config, error) {
 		if os.Getenv(key) == "" {
 			return config{}, fmt.Errorf("missing required environment variable: %s", key)
 		}
+	}
+	if len(os.Getenv("JWT_SECRET")) < 32 {
+		return config{}, fmt.Errorf("JWT_SECRET must contain at least 32 bytes")
 	}
 
 	if len(os.Getenv("COLLAB_JWT_SECRET")) < 32 || os.Getenv("COLLAB_JWT_SECRET") == os.Getenv("JWT_SECRET") {

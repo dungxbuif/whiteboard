@@ -52,8 +52,13 @@ func (h *SharingHandler) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 type PublicHandler struct {
-	usecase domain.ScenePermissionUsecase
-	Rooms   *RoomHandler
+	usecase           domain.ScenePermissionUsecase
+	Rooms             *RoomHandler
+	credentialLimiter *middleware.CredentialRateLimiter
+}
+
+func (h *PublicHandler) SetCredentialLimiter(limiter *middleware.CredentialRateLimiter) {
+	h.credentialLimiter = limiter
 }
 
 func NewPublicHandler(usecase domain.ScenePermissionUsecase, rooms ...*RoomHandler) *PublicHandler {
@@ -77,6 +82,9 @@ func (h *PublicHandler) GetScene(w http.ResponseWriter, r *http.Request) {
 		}
 		password = input.Password
 		displayName = input.DisplayName
+		if h.credentialLimiter != nil && !middleware.EnforceCredentialRateLimit(w, r, h.credentialLimiter, middleware.CredentialRoutePublicScene, chi.URLParam(r, "token")) {
+			return
+		}
 	}
 	var scene *domain.Scene
 	var err error

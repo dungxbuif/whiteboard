@@ -20,6 +20,7 @@ import (
 )
 
 const googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
+const dummyPasswordHash = "$2a$10$fVg.L7MsDdhllg9xhYREuuKgNfjqX4Gr.KPYRoFypvnbgTvlsz1M2"
 
 type OAuthConfig struct {
 	ClientID     string
@@ -31,11 +32,12 @@ type OAuthConfig struct {
 }
 
 type authUsecase struct {
-	userRepo    domain.UserRepository
-	jwtSecret   []byte
-	oauth       *oauth2.Config
-	userInfoURL string
-	httpClient  *http.Client
+	userRepo        domain.UserRepository
+	jwtSecret       []byte
+	oauth           *oauth2.Config
+	userInfoURL     string
+	httpClient      *http.Client
+	comparePassword func([]byte, []byte) error
 }
 
 func NewAuthUsecase(userRepo domain.UserRepository, jwtSecret []byte, configs ...OAuthConfig) domain.AuthUsecase {
@@ -61,8 +63,9 @@ func NewAuthUsecase(userRepo domain.UserRepository, jwtSecret []byte, configs ..
 			RedirectURL:  config.RedirectURL,
 			Scopes:       []string{"openid", "email", "profile"},
 		},
-		userInfoURL: userInfoURL,
-		httpClient:  http.DefaultClient,
+		userInfoURL:     userInfoURL,
+		httpClient:      http.DefaultClient,
+		comparePassword: bcrypt.CompareHashAndPassword,
 	}
 }
 
@@ -145,7 +148,13 @@ func (u *authUsecase) PasswordLogin(ctx context.Context, email, password string)
 		return "", errors.New("email and password are required")
 	}
 	user, err := u.userRepo.FindByEmail(ctx, email)
-	if err != nil || user.PasswordHash == nil || bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(password)) != nil {
+	passwordHash := dummyPasswordHash
+	validAccount := err == nil && user != nil && user.PasswordHash != nil && !user.DeletedAt.Valid
+	if validAccount {
+		passwordHash = *user.PasswordHash
+	}
+	passwordMatches := u.comparePassword([]byte(passwordHash), []byte(password)) == nil
+	if !validAccount || !passwordMatches {
 		return "", errors.New("invalid email or password")
 	}
 	now := time.Now()

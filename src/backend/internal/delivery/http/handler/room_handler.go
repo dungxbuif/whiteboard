@@ -11,9 +11,14 @@ import (
 )
 
 type RoomHandler struct {
-	rooms  domain.RoomService
-	access domain.AccessService
-	scenes domain.SceneUsecase
+	rooms             domain.RoomService
+	access            domain.AccessService
+	scenes            domain.SceneUsecase
+	credentialLimiter *middleware.CredentialRateLimiter
+}
+
+func (h *RoomHandler) SetCredentialLimiter(limiter *middleware.CredentialRateLimiter) {
+	h.credentialLimiter = limiter
 }
 
 func NewRoomHandler(rooms domain.RoomService, access domain.AccessService, scenes ...domain.SceneUsecase) *RoomHandler {
@@ -33,6 +38,9 @@ type publicSessionRequest struct {
 func (h *RoomHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 	var input publicSessionRequest
 	if !decodeSharing(w, r, &input) {
+		return
+	}
+	if h.credentialLimiter != nil && !middleware.EnforceCredentialRateLimit(w, r, h.credentialLimiter, middleware.CredentialRoutePublicScene, input.Token) {
 		return
 	}
 	result, e := h.rooms.ExchangePublicSession(r.Context(), input.Token, input.Password, input.DisplayName)

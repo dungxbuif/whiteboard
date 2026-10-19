@@ -26,14 +26,33 @@ type invitationUsecase struct {
 	frontendURL string
 	now         func() time.Time
 	validate    *validator.Validate
+	hasher      InvitationPasswordHasher
+}
+
+type InvitationPasswordHasher interface {
+	HashPassword(string) (string, error)
+}
+
+type bcryptInvitationPasswordHasher struct{}
+
+func (bcryptInvitationPasswordHasher) HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(hash), err
 }
 
 func NewInvitationUsecase(repo domain.InvitationRepository, access domain.AccessService, frontendURL string, clocks ...func() time.Time) domain.InvitationUsecase {
+	return NewInvitationUsecaseWithPasswordHasher(repo, access, frontendURL, bcryptInvitationPasswordHasher{}, clocks...)
+}
+
+func NewInvitationUsecaseWithPasswordHasher(repo domain.InvitationRepository, access domain.AccessService, frontendURL string, hasher InvitationPasswordHasher, clocks ...func() time.Time) domain.InvitationUsecase {
 	now := time.Now
 	if len(clocks) > 0 {
 		now = clocks[0]
 	}
-	return &invitationUsecase{repo: repo, access: access, frontendURL: strings.TrimRight(frontendURL, "/"), now: now, validate: validator.New()}
+	if hasher == nil {
+		hasher = bcryptInvitationPasswordHasher{}
+	}
+	return &invitationUsecase{repo: repo, access: access, frontendURL: strings.TrimRight(frontendURL, "/"), now: now, validate: validator.New(), hasher: hasher}
 }
 func (u *invitationUsecase) CreateInvitation(ctx domain.Context, owner, w uuid.UUID, email string, role domain.WorkspaceRole) (domain.InviteResult, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
@@ -82,35 +101,61 @@ func invitationHash(token string) string {
 	h := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(h[:])
 }
-func (u *invitationUsecase) withInvitation(ctx domain.Context, actor uuid.UUID, token string, fn func(domain.Context, *domain.Invitation, time.Time) error) error {
-	if len(token) != invitationTokenLength {
+
+func validateInvitationState(invitation *domain.Invitation, now time.Time) error {
+	if invitation == nil || invitation.AcceptedAt != nil || invitation.RevokedAt != nil {
 		return domain.ErrInvitationInvalid
 	}
+	if !now.Before(invitation.ExpiresAt) {
+		return domain.ErrInvitationExpired
+	}
+	return nil
+}
+
+func (u *invitationUsecase) prepareInvitation(ctx domain.Context, token string) (*domain.Invitation, string, error) {
+	if len(token) != invitationTokenLength {
+		return nil, "", domain.ErrInvitationInvalid
+	}
 	if _, err := base64.RawURLEncoding.DecodeString(token); err != nil {
-		return domain.ErrInvitationInvalid
+		return nil, "", domain.ErrInvitationInvalid
 	}
 	hash := invitationHash(token)
 	initial, err := u.repo.FindByHash(ctx, hash, false)
 	if err != nil {
-		return err
+		return nil, "", err
 	}
+	if err = validateInvitationState(initial, u.now()); err != nil {
+		return nil, "", err
+	}
+	return initial, hash, nil
+}
+
+func (u *invitationUsecase) withPreparedInvitation(ctx domain.Context, actor uuid.UUID, initial *domain.Invitation, hash string, fn func(domain.Context, *domain.Invitation, time.Time) error) error {
 	return u.access.WithWorkspaceLock(ctx, initial.WorkspaceID, actor, func(ctx domain.Context) error {
 		i, err := u.repo.FindByHash(ctx, hash, true)
 		if err != nil {
 			return err
 		}
-		if i.AcceptedAt != nil || i.RevokedAt != nil {
+		if i.WorkspaceID != initial.WorkspaceID {
 			return domain.ErrInvitationInvalid
 		}
 		now := u.now()
-		if !now.Before(i.ExpiresAt) {
-			return domain.ErrInvitationExpired
+		if err = validateInvitationState(i, now); err != nil {
+			return err
 		}
 		if err = u.access.RequireOwner(ctx, i.InviterID, i.WorkspaceID); err != nil {
 			return err
 		}
 		return fn(ctx, i, now)
 	})
+}
+
+func (u *invitationUsecase) withInvitation(ctx domain.Context, actor uuid.UUID, token string, fn func(domain.Context, *domain.Invitation, time.Time) error) error {
+	initial, hash, err := u.prepareInvitation(ctx, token)
+	if err != nil {
+		return err
+	}
+	return u.withPreparedInvitation(ctx, actor, initial, hash, fn)
 }
 func (u *invitationUsecase) AcceptInvitation(ctx domain.Context, user uuid.UUID, token string) (membership domain.WorkspaceMember, err error) {
 	err = u.withInvitation(ctx, user, token, func(ctx domain.Context, i *domain.Invitation, now time.Time) error {
@@ -135,13 +180,17 @@ func (u *invitationUsecase) RegisterWithInvitation(ctx domain.Context, token str
 	if u.validate.Struct(input) != nil {
 		return user, domain.ErrRegistrationRejected
 	}
-	// Hash outside the authority lock; expensive password work must not block revocation.
-	hash, e := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	initial, tokenHash, e := u.prepareInvitation(ctx, token)
+	if e != nil {
+		return user, registrationInvitationError(e)
+	}
+	// Hash only after initial token validation and outside the authority lock;
+	// expensive password work must not block revocation.
+	value, e := u.hasher.HashPassword(input.Password)
 	if e != nil {
 		return user, domain.ErrRegistrationRejected
 	}
-	value := string(hash)
-	err = u.withInvitation(ctx, uuid.Nil, token, func(ctx domain.Context, i *domain.Invitation, now time.Time) error {
+	err = u.withPreparedInvitation(ctx, uuid.Nil, initial, tokenHash, func(ctx domain.Context, i *domain.Invitation, now time.Time) error {
 		if i.Email != input.Email {
 			return domain.ErrRegistrationRejected
 		}
@@ -164,9 +213,14 @@ func (u *invitationUsecase) RegisterWithInvitation(ctx domain.Context, token str
 	})
 	if err != nil {
 		user = domain.User{}
-		if errors.Is(err, domain.ErrInvitationInvalid) || errors.Is(err, domain.ErrInvitationEmail) || errors.Is(err, domain.ErrInaccessible) || errors.Is(err, domain.ErrAccessDenied) || errors.Is(err, gorm.ErrDuplicatedKey) {
-			err = domain.ErrRegistrationRejected
-		}
+		err = registrationInvitationError(err)
 	}
 	return
+}
+
+func registrationInvitationError(err error) error {
+	if errors.Is(err, domain.ErrInvitationInvalid) || errors.Is(err, domain.ErrInvitationEmail) || errors.Is(err, domain.ErrInaccessible) || errors.Is(err, domain.ErrAccessDenied) || errors.Is(err, gorm.ErrDuplicatedKey) {
+		return domain.ErrRegistrationRejected
+	}
+	return err
 }

@@ -5,17 +5,27 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 )
 
-const oauthStateBytes = 32
+const (
+	oauthStateBytes      = 32
+	loginRequestMaxBytes = 4096
+)
 
 type AuthHandler struct {
-	authUsecase domain.AuthUsecase
-	frontendURL string
+	authUsecase       domain.AuthUsecase
+	frontendURL       string
+	credentialLimiter *middleware.CredentialRateLimiter
+}
+
+func (h *AuthHandler) SetCredentialLimiter(limiter *middleware.CredentialRateLimiter) {
+	h.credentialLimiter = limiter
 }
 
 type passwordLoginRequest struct {
@@ -71,8 +81,28 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 func (h *AuthHandler) PasswordLogin(w http.ResponseWriter, r *http.Request) {
 	var input passwordLoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, loginRequestMaxBytes))
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&input)
+	if err == nil {
+		var extra any
+		err = decoder.Decode(&extra)
+		if err == io.EOF {
+			err = nil
+		} else if err == nil {
+			err = errors.New("multiple JSON values")
+		}
+	}
+	var tooLarge *http.MaxBytesError
+	if errors.As(err, &tooLarge) {
+		http.Error(w, "Login request exceeds limit", http.StatusRequestEntityTooLarge)
+		return
+	}
+	if err != nil {
 		http.Error(w, "Invalid login request", http.StatusBadRequest)
+		return
+	}
+	if h.credentialLimiter != nil && !middleware.EnforceCredentialRateLimit(w, r, h.credentialLimiter, middleware.CredentialRouteLogin, input.Email) {
 		return
 	}
 	token, err := h.authUsecase.PasswordLogin(r.Context(), input.Email, input.Password)
