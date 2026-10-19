@@ -8,16 +8,21 @@ import { ExcalidrawAdapter } from './excalidraw-adapter';
 import { CollabTransport } from './transport';
 import { createLocalUndo } from './undo';
 import { rectangle } from './fixtures';
-const mock = vi.hoisted(() => ({ controller: undefined as unknown, change: undefined as unknown }));
+const mock = vi.hoisted(() => ({ controller: undefined as unknown, change: undefined as unknown, api: undefined as unknown }));
 vi.mock('./provider', () => ({ useCollab: () => mock.controller, CollabProvider: () => null }));
-vi.mock('@excalidraw/excalidraw', () => ({ Excalidraw: (props: { onChange: unknown }) => { mock.change = props.onChange; return null; }, restoreElements: (elements: unknown) => elements, CaptureUpdateAction: { NEVER: 'never' } }));
+vi.mock('@excalidraw/excalidraw', async () => { const { useEffect } = await import('react'); return { Excalidraw: (props: { onChange: unknown; excalidrawAPI: (api: unknown) => void }) => { mock.change = props.onChange; useEffect(() => { if (mock.api) props.excalidrawAPI(mock.api); }, [props.excalidrawAPI]); return null; }, restoreElements: (elements: unknown) => elements, CaptureUpdateAction: { NEVER: 'never' } }; });
 vi.mock('@/components/whiteboard/ai-command-panel', () => ({ AICommandPanel: () => null }));
 import { CollaborativeCanvas } from '@/components/whiteboard/excalidraw-wrapper';
-afterEach(() => { cleanup(); mock.change = undefined; vi.resetAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); mock.change = undefined; mock.api = undefined; vi.resetAllMocks(); vi.unstubAllGlobals(); });
 function deferred() { let resolve!: () => void, reject!: (error: Error) => void; const promise = new Promise<void>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
 
-it.each(['during-put', 'during-flush', 'completed-rebase-reload', 'durability-failure', 'lifetime-loss', 'newer-revision'])('retains movement of a newly inserted image while upload/save is pending: %s', async phase => {
+it.each(['during-put', 'during-flush', 'completed-rebase-reload', 'durability-failure', 'lifetime-loss', 'newer-revision', 'observed-remote-style', 'deliberate-local-style'])('retains movement of a newly inserted image while upload/save is pending: %s', async phase => {
   const { Blob: ByteBlob } = await vi.importActual<{ Blob: typeof Blob }>('node:buffer');
+  const observed = ['observed-remote-style', 'deliberate-local-style'].includes(phase);
+  if (observed) {
+    mock.api = { getAppState: () => ({}), updateScene: vi.fn(), addFiles: vi.fn(), history: { clear: vi.fn() } };
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { queueMicrotask(() => callback(0)); return 1; });
+  }
   const scope = { principalId: 'alice', workspaceId: crypto.randomUUID(), sceneId: crypto.randomUUID(), documentId: 'epoch' };
   const put = deferred(), flush = deferred(), reachedPut = deferred(), reachedFlush = deferred(), durable = deferred();
   const interrupted = ['durability-failure', 'lifetime-loss', 'newer-revision'].includes(phase);
@@ -30,7 +35,7 @@ it.each(['during-put', 'during-flush', 'completed-rebase-reload', 'durability-fa
   const transport = { scope, state: { status: 'synced', canEdit: true, pending: 0, recovery: false }, isActive: () => true, flush: async () => { reachedFlush.resolve(); await flush.promise; }, whenDurable: () => interrupted ? durable.promise : Promise.resolve(), sendAwareness: () => {}, retry: () => {} };
   mock.controller = { adapter, transport, state: transport.state, content: adapter.content(), legacy: null, sceneRef: scope, undo: createLocalUndo(adapter.doc), principal: { current: { kind: 'user', id: scope.principalId } }, applyLocalScene: (content: SceneContent) => adapter.applyLocalScene(content), post: async () => ({ urls: { file: { assetId: 'stored', uploadUrl: 'https://assets.test/image', headers: { 'Content-Type': 'image/png' } } } }) };
   async function change(x: number) {
-    await (mock.change as (elements: unknown[], state: object, files: object) => Promise<void>)([{ ...rectangle('image'), type: 'image', fileId: 'file', status: 'saved', scale: [1, 1], crop: null, x }], {}, { file: { id: 'file', mimeType: 'image/png', created: 1, dataURL: 'data:image/png;base64,Ynl0ZXM=' } });
+    await (mock.change as (elements: unknown[], state: object, files: object) => Promise<void>)([{ ...rectangle('image'), type: 'image', fileId: 'file', status: 'saved', scale: [1, 1], crop: null, x, ...(observed && x === 270 ? { strokeColor: phase === 'deliberate-local-style' ? '#ff0000' : '#00aa00' } : {}) }], {}, { file: { id: 'file', mimeType: 'image/png', created: 1, dataURL: 'data:image/png;base64,Ynl0ZXM=' } });
   }
   const canvas = render(<CollaborativeCanvas title="image movement" />);
   await waitFor(() => expect(mock.change).toBeTypeOf('function'));
@@ -42,6 +47,12 @@ it.each(['during-put', 'during-flush', 'completed-rebase-reload', 'durability-fa
     const remote = new ExcalidrawAdapter(); remote.applyRemote(Y.encodeStateAsUpdate(adapter.doc));
     remote.applyLocalScene({ ...remote.content(), elements: remote.content().elements.map(e => ({ ...e, strokeColor: '#00aa00' })) });
     adapter.applyRemote(Y.encodeStateAsUpdate(remote.doc));
+    if (observed) {
+      // Exercise incoming projection, establishing the actual native green baseline.
+      mock.controller = { ...(mock.controller as object), content: adapter.content() };
+      await act(async () => { canvas.rerender(<CollaborativeCanvas title="image movement" />); });
+      expect((mock.api as { updateScene: ReturnType<typeof vi.fn> }).updateScene).toHaveBeenLastCalledWith(expect.objectContaining({ elements: [expect.objectContaining({ strokeColor: '#00aa00', x: 90 })] }));
+    }
   }
   if (interrupted) {
     let changePromise!: Promise<void>;
@@ -86,8 +97,14 @@ it.each(['during-put', 'during-flush', 'completed-rebase-reload', 'durability-fa
     expect(reopened.content().elements[0]).toMatchObject({ x: 270, strokeColor: '#00aa00' });
     flush.resolve(); return;
   }
+  if (observed) {
+    const remote = new ExcalidrawAdapter(); remote.applyRemote(Y.encodeStateAsUpdate(adapter.doc));
+    remote.applyLocalScene({ ...remote.content(), elements: remote.content().elements.map(e => ({ ...e, strokeColor: '#0000ff' })) });
+    adapter.applyRemote(Y.encodeStateAsUpdate(remote.doc));
+  }
   await act(async () => { put.resolve(); flush.resolve(); });
   await waitFor(async () => expect(await offlineStore.blobs(scope)).toHaveLength(0));
   expect(adapter.content().elements[0]?.x).toBe(270);
   if (phase === 'during-flush') expect(adapter.content().elements[0]?.strokeColor).toBe('#00aa00');
+  if (observed) expect(adapter.content().elements[0]?.strokeColor).toBe(phase === 'deliberate-local-style' ? '#ff0000' : '#0000ff');
 });

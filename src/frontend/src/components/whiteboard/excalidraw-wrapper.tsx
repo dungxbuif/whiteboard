@@ -203,7 +203,12 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
       if (missing.length || pending.current) {
         const prior = appliedImage.current;
         const applied = pending.current && prior && assetScope && prior.scope === scopeKey(assetScope) && prior.owner === owner && prior.transport === transport ? prior : null;
-        const draft: ImageDraft = { base: pending.current?.base ?? renderedContent, desired, ...((applied || pending.current?.pendingBaseline) ? { pendingBaseline: true } : {}) };
+        // A native callback includes fields that were merely rendered from a
+        // remote update. Accumulate only this callback's before→desired delta
+        // into the pending local intent so a later retry cannot replay those
+        // observed remote fields over a newer collaborator change.
+        const localIntent = pending.current ? mergeSceneChanges(before, desired, pending.current.desired) : desired;
+        const draft: ImageDraft = { base: pending.current?.base ?? renderedContent, desired: localIntent, ...((applied || pending.current?.pendingBaseline) ? { pendingBaseline: true } : {}) };
         pending.current = draft;
         if (!assetScope) return;
         const preparation = (async () => {
