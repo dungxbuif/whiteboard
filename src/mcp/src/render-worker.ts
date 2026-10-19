@@ -111,8 +111,9 @@ export class RenderWorker {
     if(browser.error||browser.child.exitCode!==null||browser.child.signalCode!==null)throw new RenderError('RENDER_FAILED','Browser exited during startup.');
     try{
      const [port,path]= (await readFile(join(profile,'DevToolsActivePort'),'utf8')).trim().split('\n');
-     if(!/^\d+$/.test(port)||Number(port)<1||Number(port)>65535||!/^\/devtools\/browser\/[a-zA-Z0-9-]+$/.test(path))throw new RenderError('RENDER_FAILED','Invalid browser startup endpoint.');
-     endpoint=`ws://127.0.0.1:${port}${path}`;
+     // Chromium may expose DevToolsActivePort before its second line is fully
+     // written. Treat a partial endpoint as startup still in progress.
+     if(/^\d+$/.test(port)&&Number(port)>=1&&Number(port)<=65535&&/^\/devtools\/browser\/[a-zA-Z0-9-]+$/.test(path))endpoint=`ws://127.0.0.1:${port}${path}`;
     }catch(error:any){if(error.code!=='ENOENT')throw error;}
     if(!endpoint)await delay(10,undefined,{signal:abort.signal});
    }

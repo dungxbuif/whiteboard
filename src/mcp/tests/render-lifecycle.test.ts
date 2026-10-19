@@ -32,6 +32,22 @@ exec /bin/sleep 30
  }finally{for(const pid of job.browsers){try{process.kill(-pid,'SIGKILL');}catch{}}await rm(root,{recursive:true,force:true});}
 },10000);
 
+test('waits for Chromium to finish writing its two-line startup endpoint',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'d4-partial-port-test-')),executable=join(root,'browser.sh'),child=join(root,'child.cjs');
+ await writeFile(executable,`#!/bin/sh
+profile=''
+for arg in "$@"; do case "$arg" in --user-data-dir=*) profile=\${arg#--user-data-dir=} ;; esac; done
+printf '9222\\n' > "$profile/DevToolsActivePort"
+/bin/sleep 0.15
+printf '/devtools/browser/delayed-endpoint\\n' >> "$profile/DevToolsActivePort"
+exec /bin/sleep 30
+`,{mode:0o700});
+ await writeFile(child,`process.once('message',()=>process.send({result:{elements:[],files:{}}}));`);
+ const job=observed({browserExecutable:executable,childPath:child,deadlineMs:1500});
+ try{await expect(job.worker.compileMermaid('flowchart LR\\nA')).resolves.toMatchObject({elements:[]});await cleaned(job);}
+ finally{for(const pid of job.browsers){try{process.kill(-pid,'SIGKILL');}catch{}}await rm(root,{recursive:true,force:true});}
+},5000);
+
 test('repeated success and parser errors close and reap real Chromium and remove exact job storage',async()=>{
  const job=observed();
  for(let i=0;i<2;i++){

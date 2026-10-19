@@ -129,6 +129,10 @@ B3 focused browser/runtime proof now passes1/1 (6.4s): two native canvases, actu
 
 ### D3/D4 frozen review checkpoint
 
+#### D4 Chromium startup endpoint race — 2026-10-19
+
+The final workspace gate reproduced a renderer startup race: Chromium can create `DevToolsActivePort` after writing its numeric port but before writing the second endpoint-path line. Treating that partial file as permanently malformed produced intermittent `RENDER_FAILED` during otherwise valid MCP exports and lifecycle tests. A deterministic fake browser now writes the two lines in separate steps and proves the old behavior fails. The worker polls partial content within the existing wall deadline, proceeds only after both lines validate, and retains the same process ownership, timeout, cleanup and fail-closed rules. Public API/config/schema behavior is unchanged; this is internal renderer reliability evidence.
+
 Commit `b8aab4c` adds native renderer/export and D3 review corrections to `432462f`: numeric activity/recovery ordering across102events, explicit public frontend origin and cold build instructions. Final root workspace gate passes196tests (runtime105, MCP37, contracts13, diagram41), all Go packages and server build pass. Native renderer tests include isolated deadline termination, actual Chromium active-loop termination, Unicode/font containment, network denial, KaTeX0.18.2 hostile-input fixtures, current export permission and revoke/download checks. Independent review is active, including browser startup process cleanup before PID reporting. No release approval or production deployment follows from this checkpoint.
 
 E2 local Linux/arm64 image builds and nginx routing proof are separate from final frozen-source Linux/amd64 release images. Actual two-network generated audio passed with the gateway IP; the configured TURN hostname failed due to local split DNS. See [packaging evidence](collaboration-v2-packaging.md) for both results and fixture boundaries.
