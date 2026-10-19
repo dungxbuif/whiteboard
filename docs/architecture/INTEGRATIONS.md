@@ -19,11 +19,11 @@ shared_fields: [status, trace]
 
 | System | Purpose | Contract | Owner | Status |
 | --- | --- | --- | --- | --- |
-| PostgreSQL 16 | Users, workspaces, ACL, scenes, durable Yjs state, receipts and audits | SQL migrations 1–13 and repository transactions | Whiteboard operator | active; production v2 migration pending |
-| S3-compatible object storage | Immutable raster scene assets | AWS S3 signing/API; scoped capability endpoints | Whiteboard operator | active; v2 public canary pending |
+| PostgreSQL 16 | Users, workspaces, ACL, scenes, durable Yjs state, receipts and audits | SQL migrations 1–13 and repository transactions | Whiteboard operator | active; production at migration 13, clean |
+| S3-compatible object storage | Immutable raster scene assets | AWS S3 signing/API; scoped capability endpoints | Whiteboard operator | active; production `whiteboard` bucket write/read/delete canary passed |
 | Coturn | STUN/TURN relay for WebRTC voice | TURN REST credentials issued after current scene authorization | Homelab gateway operator | active release candidate; tested gateway IP required until split DNS is fixed |
 | OpenAI-compatible provider | Chat, diagram generation, image reasoning and diagram-to-code | Backend-only OpenAI-compatible HTTP API | Product owner | implementation active; live production UAT blocked on key |
-| Chromium renderer | Isolated PNG/SVG export for MCP | Local Playwright CDP process with network denial and bounded lifecycle | Whiteboard MCP service | locally verified; Linux/amd64 release image pending |
+| Chromium renderer | Isolated PNG/SVG export for MCP | Local Playwright CDP process with network denial and bounded lifecycle | Whiteboard MCP service | deployed in the frozen Linux/amd64 MCP image; public authenticated read canary passed, write/export remains |
 
 ## Credentials And Secrets
 
@@ -59,6 +59,6 @@ Document required secret names only. Do not store secret values.
 
 The custom Node WebSocket shares the admitted scene scope for Yjs, roster, cursor/selection, follow and WebRTC signaling. Go room credentials and current ACL remain authoritative; a server connection UUID identifies each tab independently of its principal. Voice has ten active connections per scene; rejected voice admission leaves document collaboration available. Camera/follow/voice state is ephemeral. Browser media uses API-issued short-lived Coturn credentials, never credentials embedded in the frontend. See the [B4 contract and verification record](../work/verification/collaboration-presence.md).
 
-A 25-second server protocol heartbeat maintains the bounded nginx tunnel and removes nonresponsive connections by the following interval. Disconnect/revoke cleanup releases voice admission and clears followers. Browser integration is verified with native same-user tabs, follow/camera, permission denial, generated audio, mute and leave cleanup. The legacy Socket.IO client/server/proxy path is retired; `/collab/` is the sole collaboration socket. VM100 deployment verification remains pending.
+A 25-second server protocol heartbeat maintains the bounded nginx tunnel and removes nonresponsive connections by the following interval. Disconnect/revoke cleanup releases voice admission and clears followers. Browser integration is verified with native same-user tabs, follow/camera, permission denial, generated audio, mute and leave cleanup. The legacy Socket.IO client/server/proxy path is retired; `/collab/` is the sole collaboration socket. VM100 is deployed; runtime restart/replay and deployed TURN audio remain final canaries.
 
 Ingress limits separate shared-IP transport resource protection from operations: 2,000 frames/second/IP, 64 MiB/minute byte refill with 8 MiB burst; authentication60/minute/IP; cursor/viewport share30/second/connection; other ephemeral controls120/minute/connection. Document writes retain120/minute/principal and1 MiB frames. Raw received bytes are charged before decoding; limiter entries expire and active entry counts are bounded. These limits accommodate normal cursor traffic from50 clients sharing one IP without consuming their authentication or durable-write budgets.

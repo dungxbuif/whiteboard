@@ -17,8 +17,9 @@ shared_fields: [status, trace]
 
 ## API Surface
 
-This index records the implemented contract and clearly marks the Collaboration
-v2 endpoints that remain local release candidates until VM100 cutover.
+This index records the implemented contract. Collaboration v2 endpoints are
+deployed on VM100; the release checklist distinguishes completed public checks
+from the remaining operational canaries.
 
 | Contract | Type | Auth | Status | Notes |
 | --- | --- | --- | --- | --- |
@@ -40,8 +41,8 @@ v2 endpoints that remain local release candidates until VM100 cutover.
 | `POST /api/v1/ai/chat` | HTTP | JWT | active | Proxies text or image context to the configured OpenAI-compatible provider. |
 | `POST /api/v1/ai/generate-diagram` | HTTP | JWT | active | Generates and validates Excalidraw JSON from text or a base64 image. |
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
-| `GET /api/v1/realtime/config` | HTTP | Scoped scene session or room token | release candidate | Rechecks current scene access and returns external TURN URL(s) plus short-lived credentials; a login JWT alone is denied. |
-| `/collab/` | Custom WebSocket | Room token in first `auth` control | release candidate | One admitted socket carries durable Yjs updates, roster, cursor/selection, follow viewport and WebRTC signaling. Credentials never appear in the URL. `/socket.io/` is retired. |
+| `GET /api/v1/realtime/config` | HTTP | Scoped scene session or room token | active | Rechecks current scene access and returns external TURN URL(s) plus short-lived credentials; a login JWT alone is denied. |
+| `/collab/` | Custom WebSocket | Room token in first `auth` control | active | One admitted socket carries durable Yjs updates, roster, cursor/selection, follow viewport and WebRTC signaling. Credentials never appear in the URL. `/socket.io/` is retired. |
 
 ## Errors
 
@@ -94,7 +95,7 @@ Phase 1 HTTP contracts are versioned under `/api/v1`.
 - [ADR 0011 — native MCP](../decisions/0011-native-mcp.md)
 - [ADR 0012 — legacy dashboard presentation](../decisions/0012-legacy-dashboard-presentation.md)
 
-## Collaboration A1 contract (implemented locally; deployment pending)
+## Collaboration A1 contract (deployed; complete production roles canary pending)
 
 Approved programme A1 replaces owner-only tenancy with database-backed owner/editor/viewer membership. Editors write; viewers read; owner-only management cannot remove or demote any owner. Scene editor/viewer overrides require membership and affect content only. Workspace and scene UUIDs remain canonical; optional 21-character URL-safe aliases resolve before ACL checks and never grant access. Removed members and deleted resources are denied. Trash metadata/restore is owner-only. Folder mutations require edit access to every descendant scene. Workspace lists contain current memberships; search and scene lists use the same current policy.
 
@@ -114,7 +115,7 @@ The gateway resolves aliases before access checks, holds the workspace row lock 
 
 A1 request-body protection: authenticated scoped requests are fully buffered before acquiring workspace authority. Scene bodies allow 26 MiB (25 MiB materialized-document allowance plus JSON/metadata envelope); other metadata bodies allow 1 MiB. Network body reading has a ten-second deadline, cleared after a complete read. Oversized bodies return structured `413 BODY_TOO_LARGE`; stalled bodies return `408 BODY_TIMEOUT`. Failure closes the request connection and never enters the authority transaction. Deadline support is required for requests with bodies; unsupported transports fail closed with 503. These limits apply to scoped HTTP requests; the custom WebSocket applies its own bounded protocol/frame limits.
 
-## Collaboration A2 invitation contract (implemented locally; deployment pending)
+## Collaboration A2 invitation contract (deployed; production acceptance canary pending)
 
 Owner-only GET/POST `/api/v1/workspaces/{id}/invitations` lists pending metadata or creates `{email,role:"editor"|"viewer"}`. Creation returns 201 `{invitation,inviteUrl}` with the approved browser route `/invite/:token`; only that response contains the raw token. `FRONTEND_URL` must be an HTTP(S) origin (an optional trailing slash is accepted); startup rejects credentials, path prefixes, query strings and fragments. DELETE `/api/v1/workspaces/{id}/invitations/{inviteId}` revokes a pending invitation. Workspace UUIDs and aliases are accepted. Metadata includes ID, workspace ID, normalized email, role, inviter, created/expiry/accepted/revoked times; SHA-256 hashes are never exposed.
 
@@ -126,7 +127,7 @@ New invitation errors use `{code,message,requestId}`: 400 invalid input/link or 
 
 `usecase.EnsureDefaultWorkspace(ctx, tx domain.UserProvisioningRepository, userID)` shares the default-personal-workspace behavior with `userctl`. `tx` is a transaction-scoped repository: invitation repositories reuse A1's context-bound GORM transaction, while `userctl` supplies a repository built from its existing GORM transaction. New personal workspaces receive a public alias and the A1 database trigger creates their owner membership. Creating and revoking invitations bumps the durable workspace ACL/audit; accepting uses the membership trigger. Migration 000011 stores invitations and ships with the remaining v2 migrations; never apply it ahead of reserved 000008–000010 in a deployed migration stream.
 
-## Collaboration A3 public links and room credentials (implemented locally; deployment pending)
+## Collaboration A3 public links and room credentials (deployed; guest mutation/revocation canary pending)
 
 Owners manage independent links for an active scene with login JWT and X-Workspace-ID:
 
@@ -149,7 +150,7 @@ Errors use `{code,message,requestId}`: 400 INVALID_INPUT, 401 SHARE_PASSWORD_REQ
 
 Migration 000008 preserves active/inactive legacy view links and bcrypt hashes. Legacy PUT share updates synchronize only their mapped link; new links store SHA-256 digests only. Down migration refuses multiple links and any new/edit/expiring grant that the legacy table cannot represent. See [public-link authority and migration](public-links.md) and [deployment](../operations/DEPLOYMENT.md). Browser controls and live collab-runtime behavior remain C2/B integration; no v2 deployment is claimed.
 
-## A4 mutation and scene assets (implemented locally; deployment pending)
+## A4 mutation and scene assets (deployed; production storage canary passed)
 
 Private Go mutation decisions and public scene assets follow the [authority contract](mutation-authority.md). The private listener authenticates a service credential plus a scoped room token; it is absent from public API routing. Scene-session upload/view routes use current access and bounded object-store URLs; public view sessions cannot upload. [Human guide](../user/scene-assets.md) and [agent reference](../../src/frontend/public/docs/scene-assets.md) describe the same contract. Verification includes PostgreSQL revoke races, scene isolation, expiry and authority failure.
 
@@ -164,7 +165,7 @@ Private Go mutation decisions and public scene assets follow the [authority cont
 Existing login `/api/v1/assets/presign-upload` remains compatible with the new upload limits and short URLs. New scoped upload responses include `headers.Content-Type`; PUT the original Blob so the browser supplies exact Content-Length. MIME allowlist is PNG/JPEG/GIF/WebP; 1 byte–10 MiB; at most 100 unique file IDs. Existing SVG/AVIF references remain readable. URL expiry is bounded by credential/link expiry; already-issued object-store URLs last until their expiration despite revocation. New Go authority decision lifetimes are <=5s. Runtime reverse-proxy and object-store integration validation remains E-owned.
 
 
-## Scoped agent keys and MCP (implemented locally; deployment pending)
+## Scoped agent keys and MCP (deployed; authenticated read/revocation canary passed)
 
 Owner login routes: `GET/POST /api/v1/workspaces/{id}/agent-keys`, `DELETE /api/v1/workspaces/{id}/agent-keys/{keyId}`. POST accepts `{scopes:string[],sceneIds:UUID[]}` and returns metadata plus `key` once. Lists/revocations never return the raw key or digest. Each key targets one workspace; empty sceneIds means all its scenes. Explicit scene targets cannot include `scene:create`. Scopes: `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, `scene:export`; no scope implies another. Key mutations audit key IDs and bump the workspace ACL transactionally.
 
@@ -222,7 +223,7 @@ replay and real API+DB+WebSocket browser behavior now pass the 17/17 local
 real-stack suite. Public-origin VM100 proof remains the E3 release gate.
 
 
-## Durable agent operations and export (implemented locally; deployment pending)
+## Durable agent operations and export (deployed; production write/export canary pending)
 
 D3 replaces materialized-snapshot reads with current durable projection: `sequence` is a decimal bigint string, accompanied by `documentId`, `stateVector` and native content. `contentVersion` is not a mutation precondition. The normal read retains its500element/256KiB bound. Exact scopes are independent; write-only keys do not receive read access.
 

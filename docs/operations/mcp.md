@@ -1,7 +1,9 @@
 # MCP rendering operations
 
-D4 is implemented and locally verified on merged master. Production remains
-v1 until the release gate. See the [Collaboration v2 programme](../superpowers/plans/2026-10-16-collaboration-v2.md).
+D4 is implemented and deployed on VM100. Public MCP authentication, discovery,
+workspace/scene reads and revoked-key rejection pass; native production
+write/export remains a final release canary. See the
+[Collaboration v2 programme](../superpowers/plans/2026-10-16-collaboration-v2.md).
 
 ## Configuration and build
 

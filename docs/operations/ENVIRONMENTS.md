@@ -18,7 +18,7 @@ Document secret names only. Do not store secret values.
 - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL_FAST`, `AI_MODEL_REASONING`
 - `TURN_URL`, `TURN_USERNAME`, `TURN_PASSWORD`, `TURN_AUTH_SECRET`, `TURN_REALM`, `TURN_MIN_PORT`, `TURN_MAX_PORT`
 
-## A4 private mutation authority (backend verified; deployment pending)
+## A4 private mutation authority (deployed; final production denial checks pending)
 
 Require separate >=32-byte `AUTHORITY_SERVICE_SECRET` and `MUTATION_GRANT_SECRET`, each different from `JWT_SECRET`, `COLLAB_JWT_SECRET`, and one another. `AUTHORITY_LISTEN_ADDR` defaults to `127.0.0.1:8081`; only explicit loopback/private IP binds are accepted. Expose this listener to trusted collab peers only and never in a public reverse proxy. Deployers must supply both new secrets before startup. Decision TTL is five seconds maximum; storage upload/view URLs use at most 60 seconds. TURN scene configuration requires `TURN_AUTH_SECRET` when `TURN_URL` is configured and returns short-lived credentials after scene authorization. See [protocol](../architecture/mutation-authority.md) for exact byte/hash and lock contract. Real storage signature enforcement and ingress isolation require E-stage deployment checks.
 

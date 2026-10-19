@@ -1,54 +1,63 @@
-# Collaboration v2 release pause audit — 2026-10-19
+# Collaboration v2 release audit — 2026-10-19
 
-Status: paused by the user before production v2 cutover. This file is the machine-readable and human-readable resume inventory for the next session.
+Status: superseded by the active VM100 release. This file records the transition
+from the earlier pause checkpoint to the deployed state; the release checklist
+is the current source for remaining gates.
 
-## Proven at this checkpoint
+## Completed since the pause
 
-- Local `master` contains the collaboration v2 implementation through merge commit `6082845`.
-- Root workspace tests pass: collaboration runtime149, MCP43, contracts13 and diagram kit41 (246 total).
-- Frontend unit tests pass25 files/93 tests and the production build succeeds.
-- All Go packages pass.
-- Prior guarded real-stack acceptance remains valid:17/17 flows,650/650 durable ACKs and MCP43/43.
-- Production remains v1. After the VM100 reboot outage, backend/frontend were manually restarted and `https://whiteboard.dungxbuif.com/healthz` returned HTTP200.
-- Production S3 bucket is `whiteboard`.
+- Reachable Git history is scrubbed of the retired Google OAuth client values;
+  rewritten `master` was accepted by GitHub Push Protection without bypass.
+- Whole-branch auth/deployment review is complete. All Go packages, the root
+  collaboration149/MCP43/contracts13/diagram41 tests, frontend93 unit tests and
+  production build pass.
+- `npm audit --omit=dev` reports zero production findings. Nine development/build
+  entries remain classified in the dependency review.
+- A Homelab recovery unit is installed and enabled; it waits for Swarm/network
+  metadata and reapplies the stack. Its non-reboot proof passes.
+- The fresh cutover PostgreSQL dump was listed, restored in isolation and matched
+  across all14 table row counts. Production advanced from migration6 to13 with
+  `dirty=false`.
+- Four independent collaboration service secrets of at least32 bytes are
+  installed and distinct from the login JWT secret; values were not printed.
+- Frozen Linux/amd64 backend, collaboration, MCP and frontend image IDs plus the
+  v1 rollback images are recorded in the release note.
+- Collaboration v2 is deployed from `d885975`; all four services are healthy and
+  `COLLAB_V2_ENABLED=true`.
+- Public HTTPS health, authenticated deep-link save/reload, dashboard/settings
+  access UI, S3 bucket write/read/delete, native MCP authentication/reads and
+  revoked-key rejection pass.
+- Internal-route variants return 404; inspected local service/proxy logs contain
+  no credential-bearing URL. Scoped production TURN config and its
+  unauthenticated STUN challenge pass without exposing credential values.
+- The Compose tmpfs YAML parsing incident is corrected and the actual container
+  tmpfs maps are verified.
+- Homelab commit `9722490` reconciles the deployment template, semantic Compose
+  regression, recovery tests, architecture, runbook and release evidence. The
+  Homelab repository has no configured remote.
 
-## P0 release blockers
+## Remaining release gates
 
-1. **Retired OAuth credential revocation:** GitHub Push Protection found a
-   Google OAuth client ID and secret in historical
-   `src/frontend/playwright.config.ts`. The complete Git history was rewritten,
-   the rewritten `master` was pushed without the values, and push protection
-   was not bypassed. Revoke the retired credential in Google Cloud.
-2. **Automatic reboot recovery:** external Docker networks were unavailable when v1 containers restarted after the VM reboot. Backend/frontend exited and `restart: unless-stopped` did not reattach them. Define service/network ordering or a retry unit, then prove a controlled Docker/VM restart returns public health to HTTP200 without manual `compose up`.
-3. **Fresh cutover backup:** create a private custom-format PostgreSQL dump immediately before migration; record SHA-256, inspect with `pg_restore --list`, restore into an isolated database and compare migration state and row counts.
-4. **Four distinct v2 service secrets:** install `COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and `COLLAB_INTERNAL_SECRET`, each at least32 bytes and different from login JWT. Verify without printing values.
-5. **Frozen Linux/amd64 release artifacts:** build from reviewed source, record exact image IDs/platforms, run migrations7–13 and verify schema version13 with `dirty=false`.
-6. **Production canary:** verify roles, invitations, revocation, public view/edit, UUID/alias deep-link refresh, S3 paste/reload, custom `/collab/`, MCP native mutation/export, denial paths, runtime restart/replay and TURN voice with multiple principals/browsers.
+1. **Controlled reboot:** reboot VM100 and prove the recovery unit restores
+   external networks, all four services and public health without manual
+   intervention.
+2. **Final production canaries:** finish public view/edit mutation,
+   invitation/role/revoke, native MCP write/export, collaboration runtime
+   restart/replay and authenticated deployed TURN allocation/audio. Complete
+   mobile/keyboard coverage.
+3. **Live AI provider UAT (external):** requires the user-provided backend-only
+   `AI_API_KEY`.
+4. **Retired OAuth revocation (external):** revoke the retired credential in
+   Google Cloud. Its values are absent from reachable Git history.
 
-## P1 release work
+## Separate product backlog
 
-- Use the proven TURN endpoint `turn:103.82.21.202:5349` until split DNS is corrected, then repeat relay/audio proof on the deployed configuration.
-- Inspect proxy/upstream logs for credential leakage; record health/readiness, ACK, compaction, RSS/error metrics and `/internal` denial.
-- Review the whole diff from the pre-programme base through the release commit for correctness, authorization, security and deployment risks.
-- Run a fresh dependency audit on the frozen lock/images and disposition inherited advisories by reachability or remediation. The last install reported1 low,2 moderate and8 high aggregate findings.
-- Reconcile application and Homelab architecture, runbooks, deployment records, release notes/checklist, context, backlog and validation evidence with the actual deployment.
-- Run live OpenAI-compatible AI UAT after the user supplies the promised provider key; keep the key backend-only.
+Enterprise parity still includes comments/guest comments, screen sharing, live
+presentation/spotlight/waiting-room/activity UI, version history/restore,
+libraries/collections, domain capture, SSO/SCIM and retention. Harness CLI hard
+gates, loop guard and security-standard enforcement also remain separate
+milestone work. Neither backlog changes the accuracy of the deployed v2 status;
+neither is claimed as part of this release.
 
-## Product and planning backlog
-
-- Approved-design enterprise parity still includes comments/guest comments, screen sharing, live presentation/spotlight/waiting-room/activity UI, version history/restore, libraries/collections, domain capture, SSO/SCIM and retention. Create requirements/tickets or record an explicit owner decision removing each item.
-- Harness `PHASE-2.md` remains ready but unimplemented for CLI hard gates, loop guard and the security standard.
-- Requirements/user stories, epic/ticket/roadmap/validation/API state, password
-  auth, custom `/collab/`, and BL-001 standards were reconciled on 2026-10-19.
-  This docs-only closure does not close any production release gate.
-- Preserve copied font license bytes or explicitly document any normalization; current whole-tree whitespace checks encounter upstream license formatting.
-
-## Resume order
-
-1. Fix and prove automatic reboot recovery.
-2. Finish whole-branch and dependency review.
-3. Take the fresh backup, install secrets, build frozen artifacts and migrate.
-4. Deploy and run the full public canary.
-5. Reconcile app/Homelab/public/agent-readable docs and close the release only when the evidence exists.
-
-Do not perform image-only rollback after a v2 scene is promoted. Use the replacement-scene recovery procedure or a verified database restore.
+Do not perform image-only rollback after a v2 scene is promoted. Use the
+replacement-scene recovery procedure or a verified database restore.

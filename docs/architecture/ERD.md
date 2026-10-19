@@ -61,14 +61,14 @@ Migration `000011_workspace_invitations` stores workspace/email/role/inviter, a 
 
 Version 11 follows reserved share-link, collab and agent migrations 8–10. Ship the complete v2 migration stream together from production version 6; do not apply 11 early and add lower versions afterward. A2 isolated fixtures explicitly apply 1–7 and 11. [Invitation behavior](../user/collaboration.md), [proof](../work/verification/collaboration-v2.md).
 
-## A4 scene asset capabilities (backend verified; deployment pending)
+## A4 scene asset capabilities (deployed and production storage-canary verified)
 
 `scene_assets` remains scene-owned. Migration 000012 adds `uploaded_principal_id` and `uploaded_principal_type` for guest audit while `uploaded_by` remains nullable and references real users only. Active file IDs are unique within `(workspace_id,scene_id,file_id)`; metadata reads require both workspace and scene. Grants are transient signed decisions, not durable ACL truth. [Authority protocol](mutation-authority.md) defines workspace-lock/version validation and revocation proof. Verification uses isolated PostgreSQL schemas and tests public guest uploads, scene isolation, and revoke races.
 
 Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene. Down migration recreates the legacy unique index first and intentionally fails if two scenes share a live file ID; operators must resolve collisions explicitly. It never deletes user assets to make rollback fit. User-principal audit strings survive user deletion; `uploaded_by` can become NULL through its existing foreign key. Historical rows without uploader keep nullable principal audit fields. Public rows require guest identity and nullable user UUID. No new durable capability table is introduced.
 
 
-## Complete v2 durable schema (branch implemented; deployment pending)
+## Complete v2 durable schema (deployed at migration 13, clean)
 
 | Migration / table | Durable contract |
 | --- | --- |

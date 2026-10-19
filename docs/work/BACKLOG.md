@@ -91,10 +91,10 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 | ID | Type | Lane | Status | Scope | Next artifact |
 | --- | --- | --- | --- | --- | --- |
-| COLLAB-V2 | phase | high-risk | in_review | Local implementation and real-stack acceptance are complete: legacy dashboard style, ACL/invites/public edit, Yjs/custom socket, presence/voice, native MCP and diagram catalog. Production cutover remains open. | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
-| COLLAB-V2-RELEASE | release | high-risk | in_progress | Fresh VM100 backup, secrets, Linux/amd64 images, migrations7–13, public deploy/canary, Homelab reconciliation and final release sign-off | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md), [.continue-here](../../.planning/phases/04-realtime-collaboration/.continue-here.md) |
-| PROD-REBOOT-RECOVERY | bug | high-risk | open_p0 | Ensure Docker/VM reboot recreates required external networks before Whiteboard starts or retries the stack automatically; prove public health recovery without manual intervention. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |
-| RELEASE-SECURITY-REVIEW | release | high-risk | open_p1 | Whole-branch correctness/security/deployment review plus final dependency reachability assessment for the frozen Linux/amd64 artifacts. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |
+| COLLAB-V2 | phase | high-risk | in_review | Deployed on VM100: legacy dashboard style, ACL/invites/public edit, Yjs/custom socket, presence/voice, native MCP and diagram catalog. Final public-origin operational acceptance remains open. | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
+| COLLAB-V2-RELEASE | release | high-risk | in_progress | Fresh backup/restore, distinct secrets, Linux/amd64 images, migrations 7–13, public deploy, denial/log checks and Homelab reconciliation are complete. Controlled reboot, runtime restart/replay, authenticated TURN allocation/audio, complete roles matrix and sign-off remain. | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md) |
+| PROD-REBOOT-RECOVERY | bug | high-risk | in_review | Homelab retry unit is installed/enabled and non-reboot proof passes. Prove a controlled VM reboot recreates/awaits external networks and restores public health without manual Compose intervention. | [Release checklist](../operations/RELEASE_CHECKLIST.md) |
+| RELEASE-SECURITY-REVIEW | release | high-risk | done | Whole-branch correctness/auth/deployment review passed; production audit is clean and all nine development/build findings are classified. | [Dependency review](verification/collaboration-dependencies.md) |
 | PLANNING-RECONCILIATION | maintenance | normal | done | Epic/ticket/roadmap/validation/API status now distinguishes shipped local behavior, retired transports and open release gates. | [Requirements](../requirements/REQUIREMENTS.md), [validation](VALIDATION_MATRIX.md) |
 | ENTERPRISE-PARITY | phase | high-risk | needs_tickets | Promote approved-design items: comments, screen sharing, live presentation controls, activity UI, version history, libraries, domain capture, SSO/SCIM and retention. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |
 | HARNESS-MILESTONE | phase | normal | needs_tickets | Implement the ready Harness CLI hard gates, loop guard and security standard, or record an owner decision removing the milestone. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |
@@ -104,7 +104,14 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 Design and implementation are complete. Local real-stack acceptance passes17/17, including native S3 image reload/recovery, browser presence/follow, generated two-browser audio, MCP mutations/exports and650/650 durable ACKs at p9513.236ms. The pending-image movement/reopen regressions and Chromium startup endpoint race have deterministic tests and fixes. The final merged-master sequential gate passes: root npm246 tests, frontend93 unit tests and production build, and all Go packages.
 
-The user requested another pause checkpoint after the source gate. No VM100 v2 deployment is part of this pause checkpoint. A VM100 reboot left the v1 containers exited because their external networks were not ready; manual compose recovery restored public health to HTTP200. Resume at `PROD-REBOOT-RECOVERY`, then continue `COLLAB-V2-RELEASE`: fresh cutover backup, distinct v2 service secrets, frozen Linux/amd64 images, migrations6→13, deployment, public-origin authorization/S3/MCP/WebSocket/voice/browser canaries, app/Homelab reconciliation and final release sign-off.
+Collaboration v2 is running on VM100 from `d885975`. The fresh cutover dump was
+restored and compared, four service secrets are installed, the frozen
+Linux/amd64 images are recorded, migration 13 is clean, and public
+health/deep-link/S3/MCP checks pass. A Compose tmpfs parsing defect found during
+create is fixed and verified. Continue `PROD-REBOOT-RECOVERY` and the remaining
+authenticated TURN allocation/audio, restart/replay and browser-role canaries, then sign off the
+release. Homelab reconciliation is committed locally as `9722490`; that
+repository has no remote.
 
 User confirmed org means workspace. Actual two-network TURN audio passes using the gatewayIP; local hostname DNS still needs correction or the testedIP release setting. See [release checklist](../operations/RELEASE_CHECKLIST.md), [real-stack evidence](verification/collaboration-v2-real-stack.md) and [backup evidence](verification/collaboration-v2-backup.md). The older epic/ticket tables below preserve v1 planning history and do not represent v2 acceptance.
 

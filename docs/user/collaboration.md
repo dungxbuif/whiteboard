@@ -1,8 +1,9 @@
 # Joining and sharing a workspace
 
 Status: browser management, durable collaboration, presence/follow and voice
-are implemented and verified locally on merged master. Production deployment
-remains pending.
+are implemented and deployed on VM100. Authenticated deep-link save/reload is
+verified publicly; the complete public roles/restart/TURN/denial matrix remains
+before final release sign-off.
 
 ## Invite someone
 
@@ -39,14 +40,14 @@ A view link reads only its scene. An edit link asks guests for a display name; t
 
 The public scene remains read-only until fresh room admission and
 synchronization. Live guest edit, reload, renewal, revocation and native
-offline replay pass the local 17/17 real-stack suite. They have not been
-deployed; full public-origin VM100 acceptance remains a release gate. Legacy
+offline replay pass the local 17/17 real-stack suite. The runtime is deployed;
+full public-origin guest mutation/revocation acceptance remains a release gate. Legacy
 public URLs still work through current access checks. Passwords in query
 strings are ignored.
 
 For API consumers, see the internal [API reference](../architecture/API.md). An agent-readable copy of this guide is served at `/docs/collaboration.md`; the shared `SceneSession` contract is documented in the C2 API section.
 
-## Browser integration (implemented locally; deployment pending)
+## Browser integration (deployed; final production canaries pending)
 
 The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](../architecture/BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
 

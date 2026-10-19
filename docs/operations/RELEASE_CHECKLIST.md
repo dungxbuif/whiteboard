@@ -62,7 +62,7 @@ The checked items below describe the prior v1 release. They are not v2 acceptanc
   remain human-owned production gates.
 
 
-## Collaboration v2 release — pending
+## Collaboration v2 release — deployed, final canaries pending
 
 User authorization covers implementation, local merge and VM100 deploy. The following technical gates remain required; prior v1 checks above do not satisfy them.
 
@@ -75,17 +75,20 @@ User authorization covers implementation, local merge and VM100 deploy. The foll
 - [x] D4 browser startup and per-job process/temp cleanup corrections reviewed (`6c64b12`); local nonroot image smoke passed.
 - [x] E1 real API/browser/S3/MCP role/recovery suite passed 17/17; 50-client load completed650/650 durable ACKs at p9513.236ms.
 - [x] E2 idle socket through nginx exceeds75seconds after heartbeat fix (160seconds, six pings, zero live disconnects; scoped review passed).
-- [ ] Final reviewed source rebuilt for VM100 Linux/amd64; exact image IDs captured.
-- [ ] Existing environment/service ownership checked before secret changes; distinct v2 secrets installed without printing values.
+- [x] Final reviewed source built for VM100 Linux/amd64; exact image IDs are captured in the [release note](../releases/2026-10-19-collaboration-v2.md).
+- [x] Existing environment/service ownership checked; four distinct v2 secrets of at least 32 bytes are installed and verified without printing values.
 - [x] Preflight PostgreSQL backup restored in an isolated container; actual migrator7–13 passed, final13clean. [Evidence](../work/verification/collaboration-v2-backup.md).
-- [ ] Fresh cutover backup recorded immediately before production migrations.
+- [x] Fresh cutover backup recorded and restore-checked immediately before production migrations; all 14 table counts matched. [Evidence](../work/verification/collaboration-v2-backup.md).
+- [ ] Controlled VM reboot recreates/awaits external networks through the installed recovery unit and restores all four application services plus public health without manual Compose intervention. Non-reboot unit proof already passes.
 - [x] Controlled replacement-scene recovery rehearsal reviewed (`93d57a1`,24independent checks): preserve latest content, receipts and original quarantined identity; assets/overrides refuse. Image-only rollback forbidden after promotion.
-- [ ] Apply tested TURN gatewayIP endpoint, repeat actual deployed configuration proof; DNS hostname remains unverified until corrected.
-- [ ] Public HTTPS canary: two browsers, public view/edit, invite, roles/revoke, agent native write/export, restart and denied requests.
-- [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; original dashboard and native scene style retained.
-- [ ] Upstream proxy logs checked for secret-bearing URLs; health/readiness/ack/compaction observation recorded.
-- [ ] Internal architecture/API/schema/runbooks plus human and AI-readable public docs reconciled with deployed behavior.
-- [ ] Whole-branch review complete and release commit recorded. The Git remote
+- [x] Applied the tested `turn:103.82.21.202:5349` endpoint with the existing realm; deployed allocation/audio proof remains unchecked below.
+- [ ] Public HTTPS canary: authenticated deep-link save/reload and cleanup, dashboard/settings/share/invitation/agent-key UI, public S3 write/read/delete, native MCP authentication/read and revoked-key denial, internal-route denial, scoped TURN config and unauthenticated STUN challenge pass. Public view/edit mutation, invitation acceptance/role/revoke, native MCP write/export, runtime restart/replay and authenticated TURN allocation/audio remain.
+- [ ] Browser screenshots/desktop/mobile/keyboard/deep links reviewed; visible desktop/deep-link checks preserve the original dashboard and native scene style. Mobile/keyboard coverage and the complete roles matrix remain.
+- [x] Public `/internal` and encoded/normalized variants return 404. Nginx access logging is disabled and local nginx/backend/collab/MCP/Cloudflared logs inspected on VM100 contain no credential-bearing URL; Cloudflare dashboard retention policy was outside VM access.
+- [ ] Final health/readiness/ACK/compaction observation recorded after restart/reboot canaries.
+- [ ] Internal architecture/API/schema/runbooks plus human and AI-readable public docs reconciled with deployed behavior. Application docs are updated in this release commit and Homelab reconciliation is committed as `9722490`; final canary evidence remains.
+- [x] Whole-branch source/security review and frozen dependency review complete. `npm audit --omit=dev` reports zero production findings; the nine remaining development/build entries are classified in [dependency evidence](../work/verification/collaboration-dependencies.md).
+- [ ] Final release sign-off commit recorded. The Git remote
   is configured and the history-scrubbed master push succeeded.
 
-Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md), [recovery evidence](../work/verification/collaboration-recovery.md) and [recovery runbook](collaboration-recovery.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one.
+Latest evidence: [collaboration verification](../work/verification/collaboration-v2.md), [packaging/TURN](../work/verification/collaboration-v2-packaging.md), [cutover backup](../work/verification/collaboration-v2-backup.md), [tmpfs incident](../work/verification/compose-tmpfs-vm100-2026-10-19.md), [release note](../releases/2026-10-19-collaboration-v2.md), [recovery evidence](../work/verification/collaboration-recovery.md) and [recovery runbook](collaboration-recovery.md). AI provider calls remain dependent on an actual configured API key; MCP native diagram generation does not require one. Retired Google credential revocation remains an external provider operation.

@@ -1,6 +1,8 @@
 # MCP live scene tools
 
-Status: collaboration v2 implementation; deployment pending.
+Status: collaboration v2 is deployed on VM100. Public MCP authentication,
+discovery, workspace/scene reads and revoked-key rejection pass; native
+production write/export remains a final release canary.
 
 - Scopes are independent: `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, `scene:export`.
 - Build from `src/` in order: `npm run build --workspace ./packages/collab-contracts`, `npm run build --workspace ./packages/diagram-kit`, then `npm run build --workspace ./mcp` (includes export renderer).
@@ -18,7 +20,8 @@ Status: collaboration v2 implementation; deployment pending.
 Read the human agent guide for setup, scopes, audit retention and failure
 handling. Real MCP → Go → Node → PostgreSQL integration, live socket
 convergence, restart, native browser IDs, rendered export and revoked downloads
-pass locally. VM100 deployment verification remains a release gate.
+pass locally. VM100 authentication/read/revocation verification also passes;
+native production write/export remains a release gate.
 
 ## Export a scene
 

@@ -1,6 +1,8 @@
 # Collaboration v2 preflight database restore
 
-Verified on2026-10-17Asia/Ho_Chi_Minh, before production deployment. Production remains v1 at migration6, clean. This is a preflight backup; create a fresh cutover backup if production changes before migration.
+Preflight restore verification completed on 2026-10-17 Asia/Ho_Chi_Minh. A
+fresh cutover backup was then verified on 2026-10-19 immediately before the
+production migration.
 
 ## Backup and ownership
 
@@ -25,8 +27,42 @@ The actual `migrate/migrate:v4.17.1` container then applied the repository's unm
 
 Two setup corrections were required before successful evidence: VM100 Python3.10 lacks `hashlib.file_digest`, so the completed dump was hashed in bounded chunks; initial Unix-socket readiness saw PostgreSQL's temporary bootstrap server, so the clean retry waited for final TCP loopback readiness. Neither issue touched production data. The first failed restore fixture was removed before retry.
 
+## Fresh production cutover backup — 2026-10-19
+
+The private cutover bundle is stored on VM100 at
+`/opt/apps/whiteboard/backups/collab-v2-cutover-20261019T155632Z`. The custom
+PostgreSQL dump is 35,037 bytes with SHA-256
+`ee45fff0d0d1c0fd99c1ab5467e7eda3de67d8dd5eb55464262001697c00e953`.
+`pg_restore --list` read the archive successfully.
+
+The dump was restored into an isolated PostgreSQL container on network
+`none`. All 14 source/restore table row counts matched and both source and
+restored databases reported migration 6 with `dirty=false`. Production then
+applied migrations 7–13 and reported version 13 with `dirty=false`; owner
+workspace memberships were present after migration.
+
+The rollback bundle retained the pre-cutover manifest/configuration and v1
+images. Its archive is 42,890,152 bytes with SHA-256
+`5db116506e05cb87b2f577bec7a8376aec38f8ba107261a3a19423295810fef0`.
+The captured Linux/amd64 rollback images are:
+
+- Backend: `sha256:35301824c0273d6528b88949b8b7a5817e4fd79096291888b45bd9ab6ed9fef2`
+  (`homelab/whiteboard-backend:rollback-20261019-v1`).
+- Frontend: `sha256:48cb747e8e422fc1cbe9001f1874544289c730c08d49fa3841615c3947a0fd5d`
+  (`homelab/whiteboard-frontend:rollback-20261019-v1`).
+
+No secret values, connection URL or account data are stored in this
+repository. The private bundle remains on VM100 and its access mode remains an
+operator responsibility.
+
 ## Limits and next steps
 
-This is database backup/restore and forward-migration proof, not the replacement-scene recovery drill or an S3 object backup. Source currently has no asset rows; preserve existing S3 data regardless. Private backup remains on VM100, so independent off-host disaster-recovery storage is not demonstrated. Keep the current release images/config and take a fresh cutover backup before deployment. Public canary, restart/replay, browser roles, voice, native MCP export and full release review remain required.
+This is database backup/restore and forward-migration proof, not an S3 object
+backup. Existing immutable S3 objects must remain available. Independent
+off-host disaster-recovery storage is not demonstrated. Public browser
+management checks, authenticated MCP reads, S3 write/read/delete and deep-link
+persistence have passed; controlled VM reboot recovery, native MCP
+write/export, deployed TURN allocation/audio and the remaining denial/log
+canaries stay on the release checklist.
 
 See [release checklist](../../operations/RELEASE_CHECKLIST.md) and [replacement-scene recovery](../../operations/collaboration-recovery.md).

@@ -15,7 +15,10 @@ intersection, revoked owner/key, hash-only storage and room credential
 revocation. Real MCP HTTP and stdio tests check initialization, tool discovery,
 authentication on each call, origin validation, principal-bound sessions and
 bounded tenant-filtered pagination. Owner dashboard routing and local
-MCP-to-browser mutation/export acceptance pass; production deployment remains.
+MCP-to-browser mutation/export acceptance passes locally. The production HTTP
+adapter authenticates and exposes the expected 13 tools; public workspace and
+scene reads pass with a short-lived key, and the revoked key returns HTTP 401.
+Native production write/export remains a final release canary.
 
 
 ### Remote stdio setup
@@ -30,7 +33,8 @@ dedicated tools. Export uses its independent scope and separately authorized
 projection; rendering and downloads use the bounded export service described
 below. A projection error means the scene is too large for this discovery
 response; it is not a partial or empty scene. Dashboard route integration is
-implemented; VM100 deployment remains pending.
+implemented and deployed on VM100. Production native write/export remains a
+final release canary.
 
 `get_scene` returns the live durable projection with `sequence`, `documentId`, `stateVector` and `content`. The sequence is a decimal string and is independent of the older materialized `contentVersion`. If the durable service is unavailable, reads fail; they do not substitute a potentially stale snapshot.
 

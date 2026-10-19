@@ -1,6 +1,8 @@
-# Collaboration protocol (v2, locally verified release candidate)
+# Collaboration protocol (v2, deployed)
 
-Go owns access decisions; the custom Node service owns Yjs content. These contracts are internal and are not a claim that collaboration is deployed.
+Go owns access decisions; the custom Node service owns Yjs content. These
+contracts describe the deployed VM100 runtime; the release checklist records
+the remaining restart/TURN/denial/roles acceptance boundaries.
 
 ## B1 behavior and verification
 
@@ -34,7 +36,7 @@ Run `npm ci` from `src`, then `npm test --workspace ./collab -- document.test.ts
 
 The root lock is authoritative for workspace installs. Frontend versions follow the reviewed root patched dependency graph; the older standalone lock remains temporarily for the existing frontend-only Docker context until E2 migrates the build context. `.npmrc` preserves legacy peer resolution because npm's automatic peer graph failed during migration. Shared root dev dependencies explicitly provide Vite, jsdom, React/ReactDOM and their types, avoiding inaccessible nested peers and duplicate hook implementations. After migrating an existing checkout, run `npm exec --workspace ./frontend -- tsc -b --force` once if stale TypeScript incremental caches retain old module resolution. Fresh-checkout builds need no cache repair.
 
-## B2 durable service contract (implemented, deployment pending)
+## B2 durable service contract (deployed; final runtime canaries pending)
 
 Public WebSocket endpoint `/collab` accepts no credentials in its URL. First text message within five seconds is `{type:"auth",requestId,payload:{token}}`. Subsequent refresh uses the same shape with `type:"refresh"`. Tokens bind one room; refresh cannot change principal or scope. Server replies `{type:"ready",requestId,payload:{workspaceId,sceneId,principalId,access,documentId,sequence,stateVector}}`. All JSON controls use `{type,requestId,payload}`; printable ASCII request IDs are 1–128 characters. Clients retain pending updates until a matching `ack` with payload `{requestId,sequence,stateVector}`; sequence is a decimal string. The authenticated connection is never rebound by binary data.
 
@@ -66,7 +68,7 @@ Inactive scenes/workspaces are omitted from due scans and rechecked under the wo
 
 The scheduler runs one due scan and one scene job at a time. It retains at most 64 queued scene jobs and 64 five-second/count timer entries, deduplicating scan/timer/count work against queued and running scenes. Each due query returns at most64 refs with a stable workspace/scene cursor; later pages recover overflow work from PostgreSQL. Timer/count thresholds request work; storage backlog can delay execution rather than create unbounded parallel jobs. Shutdown stops intake, clears queued/timed work (retained durably), and drains the bounded in-flight tasks. Direct compactDue() handles one bounded page, continuing after individual failures before returning an AggregateError.
 
-## D3 agent bridge (implemented; deployment pending)
+## D3 agent bridge (deployed; production write/export canary pending)
 
 The authenticated Go agent API bridges POST `/api/v1/agent/workspaces/:workspaceId/scenes/:sceneId/commands` with `{mutationBase64,tool}` and GET the existing scene route (durable projection), `/activity?cursor=<sequence>&limit=1..50`, and `/export-projection` (distinct `scene:export` scope). Remote MCP only holds its agent key. Go mints/verifies a room credential, signs the exact decoded command bytes through A4 and forwards `{grant,mutationBase64}` to B2. The `tool` discriminator is allowlisted and checked against the command operation. There is no whole-scene replacement. Go does not hold a workspace transaction during Node HTTP. Go boundary audit success follows the Node result; only B2 receipt/audit proves durable append. An audit completion failure after append is uncertain and retains the same request bytes/ID.
 

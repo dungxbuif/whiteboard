@@ -1,6 +1,6 @@
 # Joining and sharing a workspace
 
-Status: browser management, durable collaboration, presence/follow and voice are implemented and verified locally as a release candidate. Production deployment remains pending.
+Status: browser management, durable collaboration, presence/follow and voice are implemented and deployed on VM100. Authenticated deep-link save/reload passes publicly; the complete public roles/restart/TURN/denial matrix remains before sign-off.
 
 ## Invite someone
 
@@ -35,7 +35,7 @@ Editors create and change content; viewers have reading controls. A scene overri
 
 A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then retains the scoped, short-lived scene session in the current tab's sessionStorage so reload preserves its guest identity. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
 
-The public scene remains read-only until fresh room admission and synchronization. The B3 browser implementation has local protocol, guest reload/revocation UI, and native browser offline-replay verification. It has not been deployed; full public production-path acceptance remains a release gate. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
+The public scene remains read-only until fresh room admission and synchronization. The B3 browser implementation has local protocol, guest reload/revocation UI, and native browser offline-replay verification. The runtime is deployed; full public guest mutation/revocation acceptance remains a release gate. Legacy public URLs still work through current access checks. Passwords in query strings are ignored.
 
 Agent API contract: POST `/api/v1/invitations/accept` accepts `{token}` with account bearer. POST `/api/v1/invitations/register` accepts `{token,email,name,password}` without bearer. POST `/api/v1/public/scene-session` accepts `{token,password?,displayName?}` without account bearer and returns `{token,expiresAt,workspaceId,sceneId,access,principalId,displayName}`. POST `/api/v1/public/scenes/:token` accepts `{password?,displayName?}` for the initial snapshot. Use the scoped session bearer only for `/api/v1/scenes/:sceneId/room-token`; never store it as the account login token. Share lists contain `{id,access,active,expiresAt}` only; the create response additionally contains a one-time token. Workspace responses include current `role`; authenticated scene responses include effective `access` and `owner`.
 
@@ -95,7 +95,7 @@ associated with their original scene; they are not automatically replayed into
 the replacement. Keep a downloaded recovery copy and ask the workspace owner
 which link to use.
 
-Scenes containing images/assets or scene-specific access overrides require an operator mapping procedure before replacement. The bounded rehearsal refuses those cases. This is not an automatic restore button, version-history feature, or proof of a production backup restore. Production rollout remains pending.
+Scenes containing images/assets or scene-specific access overrides require an operator mapping procedure before replacement. The bounded rehearsal refuses those cases. This is not an automatic restore button or version-history feature. The production database cutover backup restored successfully, but that whole-database proof does not remove these per-scene mapping limits.
 
 ### Interrupted image preparation
 

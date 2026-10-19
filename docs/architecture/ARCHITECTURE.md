@@ -12,7 +12,12 @@ shared_fields: [status, linked_decisions]
 
 ## Implementation and deployment status
 
-This document describes the collaboration-v2 release candidate. Production still runs v1 until the recorded VM100 cutover. Access/dashboard, durable persistence, browser transport, presence/follow/voice, agent commands and native rendering have passed local acceptance. The production rollout remains. See the [release checklist](../operations/RELEASE_CHECKLIST.md) for current gates and [real-stack verification](../work/verification/collaboration-v2-real-stack.md) for evidence boundaries.
+This document describes the collaboration-v2 system deployed on VM100 from
+`d885975`. Access/dashboard, durable persistence, browser transport,
+presence/follow/voice, agent commands and native rendering passed local
+acceptance; initial public deep-link/S3/MCP canaries also pass. See the
+[release checklist](../operations/RELEASE_CHECKLIST.md) for the remaining
+controlled-reboot/TURN/denial/roles gates and [real-stack verification](../work/verification/collaboration-v2-real-stack.md) for local evidence boundaries.
 
 The tenant is a workspace. There is no separate organization hierarchy. Dashboard components reuse the original reference layout, colors and light/dark tokens. The scene retains native Excalidraw styling.
 
@@ -80,7 +85,10 @@ SVG, PNG and Excalidraw JSON export use the current authorized durable projectio
 
 ## Deployment and recovery
 
-Ship migrations7–13 together from the production v1 version6. Keep prior images, private configuration and a successfully restored database backup before applying migrations. Production uses one active collab runtime; scaling replicas requires a different ownership design.
+Migrations7–13 shipped together from production v1 version6; production now
+reports version13 with `dirty=false`. Prior images, private configuration and a
+successfully restored cutover backup are retained. Production uses one active
+collab runtime; scaling replicas requires a different ownership design.
 
 Image rollback alone cannot recover promoted scenes. The bounded recovery procedure verifies an archive and creates a replacement scene with a new scene/document identity, retaining the original quarantined history. It refuses assets/images or scene-specific overrides until an operator maps them safely. Existing queued edits stay bound to their original scene. See [recovery runbook](../operations/collaboration-recovery.md).
 

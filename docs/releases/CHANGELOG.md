@@ -12,17 +12,17 @@ shared_fields: [status]
 
 ## Unreleased
 
-- Collaboration v2 release candidate: the custom authenticated `/collab/` WebSocket is now the only realtime path; legacy Socket.IO server/client/proxy code is removed. Durable Yjs collaboration, role-aware access/invitations/public edit links, presence/follow, WebRTC voice signaling, scoped MCP agent writes/exports and 19 native diagram presets are integrated. Local real-stack acceptance passed17/17, including native S3 image reload/recovery and650/650 durable ACKs at p9513.236ms. Production VM100 rollout remains to be recorded.
+- Collaboration v2 is deployed on VM100 from `d885975`: the custom authenticated `/collab/` WebSocket is the only realtime path; legacy Socket.IO is removed. Fresh backup/restore, distinct secrets, frozen Linux/amd64 images, migration13, public deep-link/S3/MCP checks and the Compose tmpfs correction are recorded in the [release note](2026-10-19-collaboration-v2.md). Controlled reboot, deployed TURN/restart/denial/log and complete roles canaries remain before sign-off.
 
 - Access UI C2 (merged and reviewed): invitations, independent public links, membership/override controls, scoped agent keys, role-aware controls and stable scene/settings routes. Workspace, folder, Starred, Trash and search navigation work from Settings; original dashboard styling and native scene styling remain.
 
-- Durable runtime B2 (merged and reviewed): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration passes local real-stack acceptance; VM100 deployment remains pending. [Protocol](../architecture/collaboration-protocol.md).
+- Durable runtime B2 (deployed): custom authenticated WebSocket service, transactional Yjs updates/receipts, permission invalidation, bounded sync, lossless promotion checkpoints and HTTP writer fencing. Browser integration passes local real-stack acceptance and authenticated production save/reload. [Protocol](../architecture/collaboration-protocol.md).
 
 - Agent access D1 (merged and reviewed): workspace-bound scoped keys, HTTP/stdio MCP discovery and scene tools, plus an owner settings component. Native mutation/export pass local real-stack acceptance. Calls receive correlated metadata-only audit, including malformed HTTP/stdio tool requests. [Agent guide](../user/agents.md).
 - Scoped assets A4 (merged and reviewed): current scene authority, private signed mutation decisions, guest asset audit and bounded TURN credentials. Asset URL deadlines survive database/signing delays, compatible uploads can renew without duplicate metadata, and native S3 paste/reload/recovery passes locally; conflicting metadata returns 409. [Assets guide](../user/scene-assets.md).
 
 - Dependency patch subset (merged): verified Axios, NanoID, lodash-es, PostCSS and Vitest updates with unchanged dashboard goldens. Remaining frozen-artifact reachability checks are documented in [triage](../work/verification/collaboration-dependencies.md).
-- Public links A3 (merged and reviewed): independent view/edit links, scoped guest sessions, separate room credentials, current permission checks and renewal. Browser/runtime integration passes locally; public-origin VM100 proof remains pending.
+- Public links A3 (deployed): independent view/edit links, scoped guest sessions, separate room credentials, current permission checks and renewal. Browser/runtime integration passes locally; the public share UI renders in production and full guest mutation/revocation proof remains.
 
 - Diagram catalog D2 (merged and reviewed): 19 native editable diagram presets, deterministic layout and explicit supported Mermaid subset. Forty-one compiler/validation tests and local renderer/export integration pass. [Catalog](../user/diagram-catalog.md).
 - Protocol B1 (merged and reviewed): strict binary framing and native scene schemas, isolated Yjs candidate validation with bounded resources, malformed/history checks. Durable server/browser integration passes locally. [Evidence](../work/verification/collaboration-v2.md).
@@ -30,7 +30,7 @@ shared_fields: [status]
 
 - Access A1 (merged and reviewed): current workspace/scene role enforcement, short public aliases retaining UUID links, owner-only membership controls, scene asset isolation and transactional ACL invalidation. Bounded request reads prevent a stalled client from holding authority and blocking revocation. [Evidence](../work/verification/collaboration-v2.md).
 
-- Dashboard C1 (merged, not deployed): ported original dashboard colors and layout; responsive navigation, scoped light/dark portals, native previews and validated scene import. [Guide](../user/dashboard.md), [verification](../work/verification/collaboration-v2.md).
+- Dashboard C1 (deployed): ported original dashboard colors and layout; responsive navigation, scoped light/dark portals, native previews and validated scene import. Public desktop/deep-link/settings checks pass. [Guide](../user/dashboard.md), [verification](../work/verification/collaboration-v2.md).
 
 - Historical planning entry (2026-10-16): approved collaboration-v2/legacy-dashboard design and prepared [five implementation plans](../superpowers/plans/2026-10-16-collaboration-v2.md), covering ACL, durable Yjs, scoped MCP and editable diagrams. Current implementation state is recorded above.
 

@@ -11,8 +11,8 @@ updated: 2026-10-19
 ## Current Focus
 
 - **Active Phase:** Production release review — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
-- **Active Work:** Local implementation and 17/17 real-stack acceptance are complete. Planning/requirements now reflect password auth, custom /collab/, delivered E01–E03, implemented E04/E05 code, and open production/enterprise gates. Production remains on v1 while release hardening and cutover work continue.
-- **Next Work:** Finish [COLLAB-V2-RELEASE](work/BACKLOG.md): automatic reboot recovery, security/dependency review, fresh cutover backup, distinct v2 secrets, frozen Linux/amd64 images, migrations6→13, public deploy/canaries, Homelab reconciliation and release sign-off.
+- **Active Work:** Collaboration v2 is deployed on VM100 from `d885975`. The fresh cutover backup/restore, distinct secrets, frozen Linux/amd64 images, migrations 7–13, public health/deep-link/S3/MCP, internal-route denial, scoped TURN config/STUN challenge and local log checks are verified. Release sign-off remains open for controlled reboot, runtime restart/replay, authenticated TURN allocation/audio and the complete browser roles matrix.
+- **Next Work:** Finish [COLLAB-V2-RELEASE](work/BACKLOG.md): controlled reboot recovery, remaining public-origin canaries and final release sign-off.
 
 ## Project
 
@@ -35,7 +35,7 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Context-based tenancy via middleware (D-04).
 - Legacy v1 uses last-write-wins scene persistence (D-06); promoted v2 scenes use the durable Yjs writer and reject legacy content PATCH.
 - Email/password is the active interactive login path; JWT middleware and authenticated API contracts remain stable. Google OAuth is not required by the runtime.
-- Production v1 uses Socket.IO coordination and HTTP scene PATCH until cutover. The completed v2 release replaces Socket.IO with one custom authenticated WebSocket runtime; promoted scenes reject HTTP content PATCH.
+- Production uses the custom authenticated `/collab/` WebSocket runtime; promoted scenes reject HTTP content PATCH. Legacy Socket.IO is retired.
 - Shared Coturn runs on the gateway. The configured hostname currently resolves incorrectly on the local network; two-network relay/audio passed with `turn:103.82.21.202:5349`. Release configuration will use that verified endpoint until split DNS is corrected and tested. Credentials remain short-lived and API-issued.
 - OpenAI-compatible AI calls are backend-proxied and optional locally when `AI_API_KEY` is absent; DeepSeek is the default target.
 
@@ -43,9 +43,15 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 - Retired Google OAuth history was scrubbed before the remote push; provider-side credential revocation is still required.
 - Live AI provider UAT requires the user-provided backend-only OpenAI-compatible key.
-- Production release still requires reboot recovery, fresh backup/restore, v2 secrets, frozen images, migration/deploy and public canaries; see [release audit](work/verification/2026-10-19-release-pause-audit.md).
+- Final release sign-off still requires controlled reboot recovery, authenticated TURN allocation/audio, runtime restart/replay and the remaining browser roles matrix; see [release checklist](operations/RELEASE_CHECKLIST.md).
 
 ## Recent Changes
+
+- 2026-10-19: Deployed Collaboration v2 on VM100 from `d885975`. Four Linux/amd64 services are healthy, migration 13 is clean, the fresh backup restored with 14/14 table counts matching, and public deep-link/S3/MCP canaries pass. The tmpfs manifest parsing incident is corrected and verified. Final reboot/TURN/log/role canaries remain.
+
+- 2026-10-19: Homelab commit `9722490` reconciles the VM100 template,
+  Compose semantic regression, recovery tests, architecture, runbook,
+  deployment evidence and infrastructure release note. Homelab has no remote.
 
 - 2026-10-19: Reconciled master requirements, user stories, roadmap, backlog,
   validation, phase summaries and API docs with merged source and local

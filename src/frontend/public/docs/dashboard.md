@@ -1,6 +1,6 @@
 # Dashboard
 
-Status: implemented and locally verified on merged master; not deployed yet.
+Status: implemented and deployed on VM100. Public desktop/deep-link checks pass; mobile/keyboard and the complete access-role matrix remain release canaries.
 
 The dashboard follows the original devtool interface, including its original colors, sidebar, scene cards, typography and spacing. Excalidraw keeps its native canvas appearance.
 
@@ -34,7 +34,10 @@ Editors see content creation controls. Viewers see reading controls; owner manag
 
 Scene links accept existing UUIDs and public aliases. Reload, back and forward restore the selected workspace and scene. Returning to the dashboard closes the scene, and late scene-open responses cannot replace a newer selection. Search results open a scene route too.
 
-Management and navigation have browser regression coverage. Public live editing/revocation and production rollout remain separate release gates. See [collaboration](collaboration.md) for invitation and sharing steps.
+Management and navigation have browser regression coverage and deployed public
+surface checks. Public guest mutation/revocation and the complete roles matrix
+remain release gates. See [collaboration](collaboration.md) for invitation and
+sharing steps.
 
 ## Move between settings and your files
 

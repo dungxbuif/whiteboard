@@ -1,6 +1,10 @@
 # Production Deployment
 
-Status: this procedure describes the collaboration-v2 release candidate and its cutover from the existing v1 deployment. Until the recorded cutover finishes, production remains v1. After promotion, use the [replacement-scene recovery runbook](collaboration-recovery.md); image-only rollback is not valid for a promoted v2 scene.
+Status: collaboration v2 is deployed on VM100 from application commit
+`d885975`. Final reboot/TURN/log and complete browser-role canaries remain on
+the release checklist. For promoted scenes, use the
+[replacement-scene recovery runbook](collaboration-recovery.md); image-only
+rollback is not valid.
 
 ## Deployment Target
 
@@ -15,8 +19,9 @@ stack must not start another TURN listener.
 
 Create an untracked `.env.prod` at the repository root from `src/.env.example`.
 Set production values for `DATABASE_URL`, `JWT_SECRET`, S3 credentials,
-`FRONTEND_URL`, `AI_API_KEY`, `TURN_URL`, `TURN_AUTH_SECRET`,
-and `TURN_REALM`. Also configure distinct values of at least 32 bytes for
+`FRONTEND_URL`, `TURN_URL`, `TURN_AUTH_SECRET`, and `TURN_REALM`. Configure
+`AI_API_KEY` only when enabling the optional AI provider workflow. Also
+configure distinct values of at least 32 bytes for
 `COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and
 `COLLAB_INTERNAL_SECRET`. `TURN_AUTH_SECRET` must match the
 VPS-only Coturn secret and never be exposed to the browser. Never put secret
@@ -82,8 +87,7 @@ returned once and cannot be recovered from link metadata.
 Do not run its down migration as routine rollback: it refuses multiple links
 or grants that cannot be represented by the legacy model. Preserve the schema
 and disable v2 entry points, or use a verified backup and explicit migration
-plan. A3 is implemented and locally verified on merged master; the existing
-production deployment remains v1.
+plan. A3 is implemented, deployed and covered by current authorization checks.
 Public refresh returns a renewed scene session before expiry, capped to link
 expiry. A monotonic link revision invalidates existing sessions after password
 or link changes. Release wiring must pass COLLAB_JWT_SECRET to both Go and
@@ -100,7 +104,7 @@ Record the running whiteboard image IDs and protect a copy of the existing manif
 The dump includes account and token data. Keep it private, outside Git and browser artifacts. This database-only proof does not back up S3 objects; existing immutable objects must remain available throughout release. Repeat the dump immediately before the migration cutover if production changed after this preparation. Record exact evidence separately; no successful restore is claimed until the commands pass.
 
 
-## V2 rollout procedure (prepared, not yet executed)
+## V2 rollout procedure and current result
 
 1. Complete task/whole-branch review and the current release checklist. Build frozen-source Linux/amd64 images for backend, collab, MCP and frontend; record their exact IDs. Keep the v1 manifest/environment/images captured in the private release directory.
 2. Preserve existing external networks and verify the dedicated authority subnet remains unused. Generate four separate v2 secrets in the private environment, each at least32bytes and distinct from the login secret. Set both public origins to the public HTTPS app. Use the tested `turn:103.82.21.202:5349` endpoint with the existing matching TURN secret/realm. Start with `COLLAB_V2_ENABLED=false`.
@@ -111,3 +115,21 @@ The dump includes account and token data. Keep it private, outside Git and brows
 7. Record canary evidence, migration/image IDs and remaining limitations. On failure, disable new promotions and use the current-release recovery procedure; never deploy an old writer against promoted history. Publish final human and agent-readable docs only with accurate deployment status.
 
 The existing v1 instructions above are retained for historical context; they are not the v2 content or authorization acceptance contract.
+
+The 2026-10-19 deployment completed the fresh backup, four-secret installation,
+Linux/amd64 build, forward migration and four-service rollout. The database is
+at migration 13 with `dirty=false`; `COLLAB_V2_ENABLED=true`. Exact image IDs,
+cutover/rollback checks and completed public canaries are recorded in the
+[release note](../releases/2026-10-19-collaboration-v2.md) and
+[backup evidence](../work/verification/collaboration-v2-backup.md).
+
+Docker Compose v5.6.0 exposed a YAML flow-sequence parsing problem for tmpfs
+values containing commas. The manifest now uses block-sequence scalars; inspect
+`HostConfig.Tmpfs` after future Compose upgrades because config validation alone
+did not catch the invalid mount split. See
+[VM100 tmpfs verification](../work/verification/compose-tmpfs-vm100-2026-10-19.md).
+
+An installed Homelab systemd recovery unit waits for Swarm/network metadata and
+re-applies the Compose stack. Non-reboot execution is verified. Do not close the
+recovery gate until a controlled VM reboot restores external overlay networks,
+all four services and public health without manual intervention.

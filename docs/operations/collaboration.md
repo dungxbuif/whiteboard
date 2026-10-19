@@ -16,7 +16,7 @@ Before enabling promotions, inventory legacy files. Each persisted file ID must 
 
 Local verification uses COLLAB_TEST_DATABASE_URL (default the documented loopback devtool_a1_test fixture) and creates a random b2_ schema per test. The URL guard rejects remote/non-*_test databases. No database skip counts as a pass. Run `npm test --workspace ./collab` after a clean root npm ci, and the backend suite with ACCESS_TEST_DATABASE_URL set to the isolated fixture database. Runtime tests launch built dist/server.js and its real dist validation worker; deployment/proxy smoke remains E-owned.
 
-## B2 review correction: ownership and maintenance (implemented, deployment pending)
+## B2 review correction: ownership and maintenance (deployed; final restart proof pending)
 
 The primary exclusive session advisory key remains `(hashtext(current_database()), hashtext(current_schema() || ':collab-writer'))`. A separate handoff key is `(hashtext(current_database()), hashtext(current_schema() || ':collab-handoff'))`. Runtime transactions take a shared transaction-level handoff lock before workspace then scene/document row locks. They verify the exact primary owner PID and backend_start against pg_locks/pg_stat_activity before work and before commit. Local generation and the database owner are checked again after commit before publication/acknowledgement. A new owner takes the primary lock then an exclusive handoff barrier and becomes ready only after old transactions have drained. If ownership disappears in the final-check/commit gap, the durable receipt survives, the old runtime does not publish/ack, and the new owner replays that receipt. Lock/statement/pool acquisition and shutdown waits are bounded. No schema or document-identity change is required.
 
