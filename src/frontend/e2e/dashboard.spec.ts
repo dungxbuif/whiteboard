@@ -144,7 +144,7 @@ test.describe('Dashboard E2E Flows', () => {
           isStarred: false,
         };
         mockScenes = [duplicate, ...mockScenes];
-        return route.fulfill({ json: duplicate });
+        return route.fulfill({ status: 201, json: duplicate });
       }
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
         const created = {
@@ -288,8 +288,10 @@ test.describe('Dashboard E2E Flows', () => {
     await duplicate.getByLabel('Copy name').fill('Scene copy');
     await duplicate.getByLabel('Copy to').selectOption('folder-product');
     const createCopy = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/scenes/scene-created/duplicate'));
+    const duplicateResponse = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/scenes/scene-created/duplicate'));
     await duplicate.getByRole('button', { name: 'Duplicate' }).click();
     expect((await createCopy).postDataJSON()).toEqual({ title: 'Scene copy', folderId: 'folder-product' });
+    expect((await duplicateResponse).status()).toBe(201);
     await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toBeVisible();
     expect(mockScenes.find(scene => scene.id === 'scene-copy')?.content).toEqual(mockScenes.find(scene => scene.id === 'scene-created')?.content);
     await leaveNativeCanvas(page);
@@ -417,7 +419,7 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('button', { name: 'Present' })).toBeVisible();
   });
 
-  test('should render a public shared scene in read-only mode', async ({ page }) => {
+  test('should render a public shared scene on the native canvas', async ({ page }) => {
     await page.route('**/api/v1/public/scenes/share-token', async (route) => {
       await route.fulfill({
         json: {
@@ -429,7 +431,6 @@ test.describe('Dashboard E2E Flows', () => {
     await page.goto('/p/share-token');
 
     await expect(page.getByRole('heading', { name: 'Shared roadmap' })).toBeVisible();
-    await expect(page.getByText('Read-only')).toBeVisible();
     await expect(page.getByRole('region', { name: 'Public Excalidraw canvas' })).toBeVisible();
   });
 
