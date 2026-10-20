@@ -118,8 +118,10 @@ func main() {
 	}
 	features := usecase.NewFeatureService(postgresrepo.NewFeatureRepository(db), access)
 	notifications := usecase.NewNotificationService(postgresrepo.NewNotificationRepository(db), features, access)
+	retention := usecase.NewRetentionService(postgresrepo.NewRetentionRepository(db), access, features)
 	jobs, err := usecase.NewFeatureJobs(postgresrepo.NewJobRepository(db), cfg.WorkerID, map[string]usecase.FeatureJobHandler{
 		"notification.deliver": notificationJobHandler(notifications),
+		"retention.purge":      retention.JobHandler,
 	})
 	if err != nil {
 		logger.Error("feature worker setup failed", "error", err)
