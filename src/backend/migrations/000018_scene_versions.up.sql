@@ -24,7 +24,8 @@ CREATE TABLE scene_versions (
     FOREIGN KEY (workspace_id, scene_id) REFERENCES scenes(workspace_id, id) ON DELETE CASCADE,
     UNIQUE (scene_id, request_id),
     UNIQUE (workspace_id, scene_id, id),
-    CHECK (byte_size = octet_length(content_bytes))
+    CHECK (byte_size = octet_length(content_bytes)),
+    CHECK (convert_from(content_bytes, 'UTF8')::jsonb = content)
 );
 CREATE INDEX scene_versions_scene_created ON scene_versions(scene_id, created_at DESC, id DESC);
 CREATE INDEX scene_versions_automatic ON scene_versions(scene_id, created_at DESC) WHERE kind = 'automatic';

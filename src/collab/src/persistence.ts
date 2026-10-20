@@ -154,6 +154,18 @@ export class Persistence extends EventEmitter {
    }finally{doc.destroy();}
   },true);
  }
+ async listDueVersionScenes(limit=64,after?:SceneRef):Promise<Array<{ref:SceneRef;sequence:string}>>{
+  this.ownership?.assert();
+  const rows=await this.pool.query(`SELECT d.workspace_id,d.scene_id,d.sequence::text FROM collab_documents d
+   JOIN workspaces w ON w.id=d.workspace_id AND w.deleted_at IS NULL
+   JOIN scenes s ON s.id=d.scene_id AND s.workspace_id=d.workspace_id AND s.deleted_at IS NULL
+   LEFT JOIN LATERAL (SELECT max(source_sequence) AS sequence FROM scene_versions WHERE scene_id=d.scene_id) v ON true
+   JOIN LATERAL (SELECT min(created_at) AS dirty_at FROM collab_mutation_audit WHERE scene_id=d.scene_id AND sequence>COALESCE(v.sequence,-1)) dirty ON dirty.dirty_at IS NOT NULL
+   WHERE d.sequence>COALESCE(v.sequence,-1) AND dirty.dirty_at<=clock_timestamp()-interval '5 minutes'
+    AND ($2::uuid IS NULL OR (d.workspace_id,d.scene_id)>($2::uuid,$3::uuid))
+   ORDER BY d.workspace_id,d.scene_id LIMIT $1`,[Math.max(1,Math.min(64,limit)),after?.workspaceId??null,after?.sceneId??null]);
+  return rows.rows.map(row=>({ref:{workspaceId:row.workspace_id,sceneId:row.scene_id},sequence:row.sequence}));
+ }
  private async append(ref:SceneRef,decision:Decision,original:Uint8Array,makeUpdate:(doc:Y.Doc)=>Uint8Array):Promise<MutationReceipt>{
   if(decision.access!=='edit')throw new CollabError('FORBIDDEN');
   const requestId=decision.requestId!,payloadHash=hash(original);if(payloadHash!==decision.payloadHash)throw new CollabError('FORBIDDEN');

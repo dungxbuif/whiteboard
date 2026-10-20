@@ -114,7 +114,7 @@ export async function startServer(store:Persistence,config:ServerConfig){
  try{
   await subscribe();
   compact=new Compactor(store,(_error,ref)=>{if(ref)rooms.invalidateScene(ref.sceneId,'COMPACTION_FAILED');});
-  checkpointer=new VersionCheckpointer(store,(_error,ref)=>rooms.invalidateScene(ref.sceneId,'VERSION_CHECKPOINT_FAILED'));
+  checkpointer=new VersionCheckpointer(store,(_error,ref)=>{if(ref)rooms.invalidateScene(ref.sceneId,'VERSION_CHECKPOINT_FAILED');});
   projector=new ActivityProjector(new PostgresActivityProjectionStore(store.pool),()=>{});
   await listen(publicServer,config.host,config.port);await listen(internalServer,config.internalHost,config.internalPort);
  }catch(error){await close();throw error;}

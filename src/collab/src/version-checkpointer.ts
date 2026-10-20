@@ -7,11 +7,23 @@ const CAPACITY=64;
 export class VersionCheckpointer {
  private dirty=new Map<string,{ref:SceneRef;sequence:string;dirtyAt:number}>();
  private running:Promise<void>|undefined;
+ private scanTask:Promise<void>|undefined;
+ private cursor:SceneRef|undefined;
  private closed=false;
  private timer:NodeJS.Timeout;
- constructor(private store:Pick<Persistence,'on'|'off'|'captureAutomaticVersion'>,private onFailure:(error:unknown,ref:SceneRef)=>void,private delayMs=300_000,private now=()=>Date.now()){
+ constructor(private store:Pick<Persistence,'on'|'off'|'captureAutomaticVersion'|'listDueVersionScenes'>,private onFailure:(error:unknown,ref?:SceneRef)=>void,private delayMs=300_000,private now=()=>Date.now()){
   store.on('committed',this.committed);
-  this.timer=setInterval(()=>void this.flushDue(),1000);this.timer.unref();
+  this.timer=setInterval(()=>void this.tick(),1000);this.timer.unref();
+ }
+ private tick(){void this.scanDue();void this.flushDue();}
+ scanDue():Promise<void>|undefined{
+  if(this.closed||this.scanTask||this.dirty.size>=CAPACITY)return;
+  const limit=CAPACITY-this.dirty.size;
+  this.scanTask=this.store.listDueVersionScenes(limit,this.cursor).then(rows=>{
+   this.cursor=rows.length===limit?rows[rows.length-1].ref:undefined;
+   if(!this.closed)for(const row of rows)if(!this.dirty.has(row.ref.sceneId))this.dirty.set(row.ref.sceneId,{...row,dirtyAt:this.now()-this.delayMs});
+  }).catch(error=>this.onFailure(error)).finally(()=>{this.scanTask=undefined;});
+  return this.scanTask;
  }
  private committed=({ref,receipt}:{ref:SceneRef;receipt:MutationReceipt})=>{
   if(this.closed)return;
@@ -34,6 +46,6 @@ export class VersionCheckpointer {
   return this.running;
  }
  async close():Promise<void>{
-  this.closed=true;clearInterval(this.timer);this.store.off('committed',this.committed);this.dirty.clear();await this.running;
+  this.closed=true;clearInterval(this.timer);this.store.off('committed',this.committed);this.dirty.clear();await Promise.allSettled([this.running,this.scanTask].filter((task):task is Promise<void>=>task!==undefined));
  }
 }

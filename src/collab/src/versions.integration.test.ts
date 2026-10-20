@@ -127,6 +127,8 @@ it('automaticCheckpointUsesLatestSequenceAndOneMinuteFloor', async () => {
   client.destroy();
 
   expect(await f.store.captureAutomaticVersion(f.ref)).toBeUndefined();
+  await f.pool.query("UPDATE collab_mutation_audit SET created_at=created_at-interval '6 minutes' WHERE scene_id=$1 AND sequence=$2", [f.ref.sceneId, receipt.sequence]);
+  expect(await f.store.listDueVersionScenes()).toEqual([{ ref: f.ref, sequence: receipt.sequence }]);
   now += 120_000;
   const second = await f.store.captureAutomaticVersion(f.ref);
   expect(second?.sequence).toBe(receipt.sequence);
