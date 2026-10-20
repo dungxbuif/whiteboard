@@ -43,6 +43,7 @@ export class CollabTransport {
   private incoming: Uint8Array[] = [];
   private incomingBytes = 0;
   private chunks?: { requestId: string; count: number; total: number; chunks: Uint8Array[] };
+  private authoritative?:ExcalidrawAdapter;
   constructor(readonly options: TransportOptions) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   subscribeControl = (listener: (control: Control) => void) => { this.controls.add(listener); return () => { this.controls.delete(listener); }; };
@@ -113,7 +114,7 @@ export class CollabTransport {
       const frame = decodeFrame(new Uint8Array(data as ArrayBuffer));
       if (frame.channel === 3) {
         if (!this.synced) { this.incomingBytes += frame.payload.length; if (this.incomingBytes > MAX_HISTORY_BYTES) throw new Error('Sync buffer limit; reconnect required'); this.incoming.push(frame.payload); }
-        else { this.options.adapter.applyRemote(frame.payload); await this.cache(); }
+        else { this.authoritative?.applyRemote(frame.payload);this.options.adapter.applyRemote(frame.payload); await this.cache(); }
       }
       return;
     }
@@ -137,10 +138,18 @@ export class CollabTransport {
       if (group.chunks.length === group.count) {
         const size = group.chunks.reduce((sum, chunk) => sum + chunk.length, 0); if (size !== group.total) throw new Error('Snapshot length mismatch');
         const bytes = new Uint8Array(size); let offset = 0; for (const chunk of group.chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-        this.options.adapter.applyRemote(bytes);
-        for (const update of this.incoming) this.options.adapter.applyRemote(update); this.incoming = []; this.incomingBytes = 0;
-        const pending = await this.options.store.pending(this.scope); if (!this.current(generation)) return;
+        this.options.adapter.applyRemote(bytes);const incoming=this.incoming;
+        for (const update of incoming) this.options.adapter.applyRemote(update); this.incoming = []; this.incomingBytes = 0;
+        this.authoritative?.doc.destroy();this.authoritative=new ExcalidrawAdapter();this.authoritative.applyRemote(bytes);for(const update of incoming)this.authoritative.applyRemote(update);
+        await this.whenDurable();if(!this.current(generation))return;
+        let pending = await this.options.store.pending(this.scope); if (!this.current(generation)) return;
         for (const row of pending) Y.applyUpdate(this.options.adapter.doc, new Uint8Array(row.update), REPLAY_ORIGIN);
+        if(pending.length&&pending.every(row=>!row.sent&&row.intent)){
+          const rebaseBase=this.authoritative.content(),causal:Uint8Array[]=[];for(const row of pending){const update=this.authoritative.reapplyIntent(row.intent!.base,row.intent!.desired);causal.push(update);this.options.adapter.applyRemote(update);}
+          const replacement={scope:this.scope,requestId:crypto.randomUUID(),update:Y.mergeUpdates(causal),created:pending[0].created,intent:{base:rebaseBase,desired:this.authoritative.content()}};
+          if(!await this.options.store.replaceUnsent(this.scope,pending,replacement))throw new Error('Pending edits changed during causal replay; reconnect required');
+          pending=[replacement];
+        }
         this.synced = true; this.attempts = 0; this.chunks = undefined;
         await this.cache(); if (!this.current(generation)) return;
         this.set({ status: this.access === 'edit' ? pending.length ? 'pending' : 'synced' : 'readonly', canEdit: this.access === 'edit', pending: pending.length, recovery: pending.length > 0, error: undefined });
@@ -150,7 +159,8 @@ export class CollabTransport {
     }
     if (control.type === 'ack') {
       if (!this.scope || !this.synced || p.requestId !== control.requestId || !this.sent.has(control.requestId) || typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence)) return;
-      await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer); this.set({ sequence: p.sequence });
+      const acknowledged=(await this.options.store.pending(this.scope)).find(row=>row.requestId===control.requestId);if(acknowledged)this.authoritative?.applyRemote(new Uint8Array(acknowledged.update));
+      await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer); this.noteCommittedSequence(p.sequence);
       await this.updatePending(); this.scheduleFlush(); return;
     }
     const ephemeral = this.ephemeralRequests.delete(control.requestId);
@@ -176,7 +186,8 @@ export class CollabTransport {
     if (!scope || !this.state.canEdit) { this.fail(new Error('Edit without current admission')); return; }
     const id = crypto.randomUUID(), snapshot = Y.encodeStateAsUpdate(this.options.adapter.doc); this.set({ status: this.synced ? 'pending' : 'offline', recovery: true });
     this.durable = this.durable.then(async () => {
-      await this.options.store.enqueuePending(scope, id, update, snapshot); if (snapshot.length > MAX_HISTORY_BYTES) throw new Error('SNAPSHOT_HISTORY_LIMIT: export recovery'); await this.updatePending(); this.scheduleFlush();
+      const intent=this.authoritative?{base:this.authoritative.content(),desired:this.options.adapter.content()}:undefined;
+      await this.options.store.enqueuePending(scope, id, update, snapshot,intent); if (snapshot.length > MAX_HISTORY_BYTES) throw new Error('SNAPSHOT_HISTORY_LIMIT: export recovery'); await this.updatePending(); this.scheduleFlush();
     }).catch(error => { this.durableError = error; this.fail(error); });
   };
   private async cache() { if (this.scope) { const bytes = Y.encodeStateAsUpdate(this.options.adapter.doc); if (bytes.length > MAX_HISTORY_BYTES) throw new Error('SNAPSHOT_HISTORY_LIMIT: export recovery'); await this.options.store.saveSnapshot(this.scope, bytes); } }
@@ -236,5 +247,5 @@ export class CollabTransport {
       blobs: await Promise.all((await this.options.store.blobs(scope)).map(async ({ blob, ...metadata }) => ({ ...metadata, size: blob.size, blobBase64: await encodeRecoveryBlob(blob) }))),
     }))) };
   }
-  stop() { window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online); this.stopped = true; this.generation++; this.flushing = undefined; this.synced = false; this.admitted = false; this.access = 'view'; this.set({ status: 'offline', canEdit: false }); this.options.adapter.doc.off('update', this.localUpdate); clearTimeout(this.retryTimer); clearTimeout(this.refreshTimer); clearTimeout(this.flushTimer); clearTimeout(this.ackTimer); this.socket?.close(); }
+  stop() { window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online); this.stopped = true; this.generation++; this.flushing = undefined; this.synced = false; this.admitted = false; this.access = 'view'; this.set({ status: 'offline', canEdit: false }); this.options.adapter.doc.off('update', this.localUpdate);this.authoritative?.doc.destroy();this.authoritative=undefined; clearTimeout(this.retryTimer); clearTimeout(this.refreshTimer); clearTimeout(this.flushTimer); clearTimeout(this.ackTimer); this.socket?.close(); }
 }

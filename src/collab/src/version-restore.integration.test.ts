@@ -5,7 +5,7 @@ import * as Y from 'yjs';
 import {hash} from './auth.js';
 import {Persistence} from './persistence.js';
 import {canonicalRestorePayload,type RestoreVersionInput} from './version-restore.js';
-import {canonicalVersionPayload,type CaptureVersionInput} from './versions.js';
+import {canonicalSceneBytes,canonicalVersionPayload,type CaptureVersionInput} from './versions.js';
 import {fixture,grantSecret,rectangle,signed} from '../tests/fixture.js';
 
 const cleanup:Array<()=>Promise<void>>=[];afterEach(async()=>{for(const close of cleanup.splice(0).reverse())await close();});
@@ -45,4 +45,15 @@ it('rejects a restore request ID already used by a checkpoint without partial wr
  await expect(f.store.restoreVersion(f.ref,await token(f,'version:restore',input.requestId,input.expectedSequence,canonicalRestorePayload(f.ref,input)),input)).rejects.toMatchObject({code:'REQUEST_ID_REUSED'});
  expect((await f.pool.query("SELECT count(*) FROM collab_receipts WHERE action='version:restore'")).rows[0].count).toBe('0');
  expect((await f.pool.query('SELECT count(*) FROM scene_versions')).rows[0].count).toBe('1');
+});
+
+it('restores a valid version whose trusted delta exceeds one socket frame',async()=>{
+ const f=await setup(),versionId=randomUUID();
+ const label={...rectangle('large-label'),type:'text',fontSize:20,fontFamily:1,text:'x'.repeat(1024*1024+64),originalText:'',textAlign:'left',verticalAlign:'top',containerId:null,autoResize:true,lineHeight:1.25};
+ const content={elements:[label],appState:{},files:{}},bytes=canonicalSceneBytes(content as any);
+ await f.pool.query(`INSERT INTO scene_versions(id,workspace_id,scene_id,document_id,source_sequence,content,content_bytes,content_hash,byte_size,pinned,kind,creator_kind,creator_id,request_id,payload_hash)
+  VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,false,'manual','user',$10,$11,$12)`,[versionId,f.ref.workspaceId,f.ref.sceneId,f.state.documentId,f.state.sequence,JSON.stringify(content),Buffer.from(bytes),hash(bytes),bytes.length,f.principal.principalId,randomUUID(),hash(new Uint8Array())]);
+ const input:RestoreVersionInput={versionId,requestId:randomUUID(),expectedSequence:f.state.sequence};let accepted=0;f.store.on('committed',({update})=>accepted=update.byteLength);
+ const result=await f.store.restoreVersion(f.ref,await token(f,'version:restore',input.requestId,input.expectedSequence,canonicalRestorePayload(f.ref,input)),input);
+ expect(accepted).toBeGreaterThan(1024*1024);expect(result.sequence).toBe('1');const state=await f.store.read(f.ref,f.principal);expect((state.content.elements[0] as any).text).toHaveLength(1024*1024+64);state.doc.destroy();
 });

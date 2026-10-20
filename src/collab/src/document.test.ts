@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import * as Y from 'yjs';
 import {MAX_DOCUMENT_BYTES,MAX_FRAME_BYTES,validateSceneContent,validateElementPatch,nativeElementSchema,type NativeElement,type SceneContent} from '@collab/contracts';
-import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES} from './document.js';
+import {createSceneDoc,materializeScene,validateCandidate,validateRestoreCandidate,MAX_SNAPSHOT_BYTES} from './document.js';
 
 
 const rectangle=(id='shape'):NativeElement=>({id,type:'rectangle',x:0,y:0,width:100,height:100,angle:0,strokeColor:'#111111',backgroundColor:'transparent',fillStyle:'solid',strokeWidth:1,strokeStyle:'solid',roughness:1,opacity:100,groupIds:[],frameId:null,roundness:null,seed:1,version:1,versionNonce:1,index:null,isDeleted:false,boundElements:null,updated:1,link:null,locked:false});
@@ -105,6 +105,14 @@ describe('scene document validation',()=>{
     expect(accepted.content.elements[0].x).toBe(11);expect(accepted.update).toEqual(update);
     expect(Y.encodeStateAsUpdate(doc)).toEqual(before);
     Y.applyUpdate(doc,accepted.update);expect(materializeScene(doc).elements[0].x).toBe(11);
+  });
+  it('validates a trusted restore update larger than the socket frame limit',async()=>{
+    const doc=createSceneDoc(scene([text('before')]));
+    const update=edit(doc,c=>(c.getMap('elements').get('label') as Y.Map<unknown>).set('text','x'.repeat(MAX_FRAME_BYTES+64)));
+    expect(update.byteLength).toBeGreaterThan(MAX_FRAME_BYTES);
+    const accepted=await validateRestoreCandidate(doc,update);
+    expect(accepted.content.elements[0]).toMatchObject({text:'x'.repeat(MAX_FRAME_BYTES+64)});
+    doc.destroy();
   });
   it.each(['id','type','remove','replace map','unknown root','invalid shape','invalid shared type','dangling order','missing dependency'])('rejects malicious %s updates without touching live state',async(kind)=>{
     const doc=createSceneDoc(scene());const before=Y.encodeStateAsUpdate(doc);

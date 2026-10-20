@@ -4,19 +4,20 @@ import type { RestoreVersionResult, SceneVersion, VersionClient, VersionSceneRef
 
 export function RestoreDialog({ api, currentSequence, onCancel, onRestored, sceneRef, version }: { api: Pick<VersionClient, 'restore'>; currentSequence: string; onCancel: () => void; onRestored: (result: RestoreVersionResult) => void; sceneRef: VersionSceneRef; version: SceneVersion }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
-  const requestId = useRef(crypto.randomUUID());
+  const restoreInput = useRef({requestId:crypto.randomUUID(),expectedSequence:currentSequence});
   const [conflictedSequence, setConflictedSequence] = useState<string | null>(null);
-  useEffect(() => { if (conflictedSequence !== null && conflictedSequence !== currentSequence) { requestId.current = crypto.randomUUID(); setConflictedSequence(null); setError(''); } }, [currentSequence, conflictedSequence]);
+  useEffect(() => { if (conflictedSequence !== null && conflictedSequence !== currentSequence) { restoreInput.current = {requestId:crypto.randomUUID(),expectedSequence:currentSequence}; setConflictedSequence(null); setError(''); } }, [currentSequence, conflictedSequence]);
   const restore = async () => {
     setBusy(true); setError('');
     try {
-      const result = await api.restore(sceneRef, version.id, { requestId: requestId.current, expectedSequence: currentSequence });
+      const result = await api.restore(sceneRef, version.id, restoreInput.current);
       onRestored(result);
     } catch (cause) {
       const status=(cause as {response?:{status?:number}}).response?.status;
-      if(status===409){setConflictedSequence(currentSequence);setError('The scene changed. Waiting for the latest collaboration sequence before this confirmation can be rebased.');}
+      const code=(cause as {response?:{data?:{code?:string}}}).response?.data?.code;
+      if(status===409&&code==='CONFLICT'){setConflictedSequence(restoreInput.current.expectedSequence);setError('The scene changed. Waiting for the latest collaboration sequence before this confirmation can be rebased.');}
       else if(status===undefined||status>=500)setError('Restore acknowledgement is uncertain. Retrying will safely reuse the same request.');
-      else {requestId.current=crypto.randomUUID();setError('Restore was rejected. Review access and version availability before trying again.');}
+      else {restoreInput.current={requestId:crypto.randomUUID(),expectedSequence:currentSequence};setError('Restore was rejected. Review access and version availability before trying again.');}
       setBusy(false);
     }
   };

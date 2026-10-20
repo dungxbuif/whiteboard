@@ -3,7 +3,7 @@ import {EventEmitter} from 'node:events';
 import * as Y from 'yjs';
 import {Rooms} from './rooms.js';
 import {CollabError} from './auth.js';
-import {decodeFrame} from '@collab/contracts';
+import {decodeFrame,MAX_FRAME_BYTES} from '@collab/contracts';
 const wait=(ms:number)=>new Promise(r=>setTimeout(r,ms));
 function fixture(fail?:Error){
  const store=new EventEmitter() as any;let reads=0;store.read=async()=>{reads++;if(fail)throw fail;return {doc:new Y.Doc(),access:'edit'};};
@@ -44,5 +44,11 @@ it('announces the highest durable sequence after update frames',async()=>{
  const f=fixture(),doc=new Y.Doc();try{doc.getMap('values').set('x',1);f.store.emit('committed',{ref:f.ref,receipt:{requestId:'one',sequence:'9'},update:Y.encodeStateAsUpdate(doc)});await wait(250);
  const control=f.sent.filter(value=>typeof value==='string').map(value=>JSON.parse(value)).find(value=>value.type==='committed');expect(control?.payload.sequence).toBe('9');
  expect(typeof f.sent[0]).not.toBe('string');
+ }finally{doc.destroy();await f.rooms.close();}
+});
+it('fans an oversized trusted restore out as bounded sync chunks before its sequence',async()=>{
+ const f=fixture(),doc=new Y.Doc();doc.getMap('values').set('large','x'.repeat(MAX_FRAME_BYTES+64));f.store.read=async()=>({doc,access:'edit',documentId:'document',sequence:'12',stateVector:''});
+ try{f.store.emit('committed',{ref:f.ref,receipt:{requestId:'restore',sequence:'12'},update:Y.encodeStateAsUpdate(doc)});await wait(250);
+  const controls=f.sent.map(value=>typeof value==='string'?JSON.parse(value):null).filter(Boolean);const chunks=controls.filter(value=>value.type==='sync_chunk');expect(chunks.length).toBeGreaterThan(1);expect(chunks.every(value=>value.payload.data.length<700000)).toBe(true);expect(controls.at(-1)).toMatchObject({type:'committed',payload:{sequence:'12'}});expect(f.sent.every(value=>typeof value==='string')).toBe(true);
  }finally{doc.destroy();await f.rooms.close();}
 });

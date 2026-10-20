@@ -18,6 +18,13 @@ it('collab request identity cannot be reused with changed bytes', async () => {
   await expect(store.enqueuePending(scope, 'request', new Uint8Array([2]))).rejects.toThrow(/conflict/i);
 });
 
+it('atomically replaces every never-sent row in creation order rather than IndexedDB key order',async()=>{
+  const store=new OfflineStore(crypto.randomUUID());await store.enqueuePending(scope,'z-request',new Uint8Array([1]));await store.enqueuePending(scope,'a-request',new Uint8Array([2]));const rows=await store.pending(scope);
+  expect(rows.map(row=>row.requestId)).toEqual(['z-request','a-request']);
+  expect(await store.replaceUnsent(scope,rows,{scope,requestId:'rebased',update:new Uint8Array([3]),created:rows[0].created})).toBe(true);
+  expect((await store.pending(scope)).map(row=>row.requestId)).toEqual(['rebased']);
+});
+
 it('collab checkpoint and pending bytes commit together, and batch retries preserve sent bytes', async () => {
   const Y = await import('yjs'); const doc = new Y.Doc(); const store = new OfflineStore(crypto.randomUUID());
   doc.getMap('appState').set('theme', 'dark'); const one = Y.encodeStateAsUpdate(doc);

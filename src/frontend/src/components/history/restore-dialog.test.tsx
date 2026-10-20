@@ -12,6 +12,13 @@ describe('RestoreDialog retry identity',()=>{
   fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));expect(await screen.findByRole('alert')).toHaveTextContent(/acknowledgement is uncertain/i);
   fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));await waitFor(()=>expect(restore).toHaveBeenCalledTimes(2));
   expect(restore.mock.calls[1][2].requestId).toBe(restore.mock.calls[0][2].requestId);
+  expect(restore.mock.calls[1][2].expectedSequence).toBe('7');
+ });
+ it('keeps the uncertain request pair even if live collaboration advances',async()=>{
+  const restore=vi.fn().mockRejectedValueOnce({response:{status:503}}).mockResolvedValue({requestId:'r',sequence:'9',stateVector:'AA==',preRestoreVersionId:'p'});
+  const props={api:{restore},onCancel:vi.fn(),onRestored:vi.fn(),sceneRef:ref,version};const view=render(<RestoreDialog {...props} currentSequence="7"/>);
+  fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));await screen.findByRole('alert');view.rerender(<RestoreDialog {...props} currentSequence="8"/>);
+  fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));await waitFor(()=>expect(restore).toHaveBeenCalledTimes(2));expect(restore.mock.calls[1][2]).toEqual(restore.mock.calls[0][2]);
  });
  it('waits for a fresh sequence after a definitive conflict and then rebases request identity',async()=>{
   const restore=vi.fn().mockRejectedValueOnce({response:{status:409,data:{code:'CONFLICT'}}}).mockResolvedValue({requestId:'r',sequence:'9',stateVector:'AA==',preRestoreVersionId:'p'});
@@ -19,5 +26,11 @@ describe('RestoreDialog retry identity',()=>{
   fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));expect(await screen.findByRole('alert')).toHaveTextContent(/waiting for the latest collaboration sequence/i);expect(screen.getByRole('button',{name:'Confirm restore'})).toBeDisabled();
   const first=restore.mock.calls[0][2].requestId;view.rerender(<RestoreDialog {...props} currentSequence="8"/>);expect(screen.getByRole('button',{name:'Confirm restore'})).toBeEnabled();
   fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));await waitFor(()=>expect(restore).toHaveBeenCalledTimes(2));expect(restore.mock.calls[1][2].requestId).not.toBe(first);
+ });
+ it('treats non-sequence 409 codes as definitive rejections',async()=>{
+  const restore=vi.fn().mockRejectedValueOnce({response:{status:409,data:{code:'REQUEST_ID_REUSED'}}}).mockResolvedValue({requestId:'r',sequence:'9',stateVector:'AA==',preRestoreVersionId:'p'});
+  render(<RestoreDialog api={{restore}} currentSequence="7" onCancel={vi.fn()} onRestored={vi.fn()} sceneRef={ref} version={version}/>);
+  fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));expect(await screen.findByRole('alert')).toHaveTextContent(/rejected/i);expect(screen.getByRole('button',{name:'Confirm restore'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button',{name:'Confirm restore'}));await waitFor(()=>expect(restore).toHaveBeenCalledTimes(2));expect(restore.mock.calls[1][2].requestId).not.toBe(restore.mock.calls[0][2].requestId);
  });
 });

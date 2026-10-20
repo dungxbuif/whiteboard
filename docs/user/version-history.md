@@ -9,8 +9,10 @@ checkpoints are created.
 A conflict means somebody edited after the history panel loaded. The restore
 dialog waits for the latest collaboration sequence before allowing another
 confirmation, then uses a new request ID. If a network or server interruption
-makes the outcome uncertain, retrying reuses the same request ID so it returns
-the original result instead of restoring twice.
+makes the outcome uncertain, retrying reuses the same request ID and expected
+sequence so it returns the original result instead of restoring twice. Other
+conflicts, such as a reused request ID or incompatible version, are shown as
+final rejections and do not wait for collaboration state.
 
 Referenced images are pinned with the checkpoint. Missing, deleted or foreign
 scene images make the whole create fail. A scene larger than 25 MiB cannot be
@@ -30,5 +32,9 @@ review the latest diff and confirm again. The app advances that sequence when a
 collaborator's durable update arrives. Local and canvas undo histories clear only
 after the restore acknowledgement. Durable queued edits are retained; an offline
 device can replay them later as newer edits. Image metadata needed by a later
-tombstoned element is retained so that offline edit can safely revive the image.
+tombstoned element is retained. Never-sent offline edits record their semantic
+intent. Reconnect first waits for those local writes to finish, then atomically
+replaces the complete creation-ordered pending set with one causal update based on
+the fresh restore sync. Editing an image offline therefore revives it
+deterministically instead of depending on CRDT client-ID or IndexedDB key order.
 Coordinate with offline collaborators before restoring an important scene.

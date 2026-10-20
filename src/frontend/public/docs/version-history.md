@@ -44,14 +44,24 @@ sequence. Node rechecks edit authority and policy under the writer lock. Success
 keeps `documentId`, creates one pinned pre-restore version, then atomically commits
 one validated Yjs update, receipt, audit row and safe events. Stale input commits
 nothing. Identical retry returns the same receipt and recovery checkpoint.
-An uncertain HTTP result must be retried with the same request ID. A definitive
-sequence conflict must first rebase to the latest sequence and then use a new
-request ID. Reusing an ID that already captured a checkpoint returns
+An uncertain HTTP result must be retried with the same request ID and exact
+`expectedSequence` pair. Only `409 CONFLICT` waits for a newer durable sequence;
+after rebase it uses a new request ID. Other 409 codes are definitive. Reusing an
+ID that already captured a checkpoint returns
 `REQUEST_ID_REUSED` and commits nothing. Authorized room recipients receive the
 durable sequence after the corresponding update frame so their next request is
 based on current state.
 `VERSION_INCOMPATIBLE` rejects another document generation. Missing image pins
 reject the whole restore. File records referenced by later tombstoned image
 elements remain available for an offline edit to revive. Queued offline updates
-remain and may replay later. Acknowledgement clears both the collaboration-local
-undo stack and Excalidraw's native history.
+remain and may replay later. Never-sent pending edits persist base/desired intent;
+after sync the browser waits for local durability and atomically replaces the
+complete creation-ordered pending set with one causal rebase update. A restore
+therefore cannot win through a client-ID or IndexedDB key-order tie-break.
+If that atomic replacement observes another local writer, no raw update is sent;
+the pending rows remain recoverable and the client requires a fresh reconnect.
+Already-sent ambiguous requests retain their original identity and bytes. Restore validation
+accepts internal deltas up to the 64 MiB snapshot ceiling while client mutation
+frames remain capped at 1 MiB. Oversized restore fanout uses 512 KiB durable sync
+chunks followed by the committed sequence. Acknowledgement clears both the
+collaboration-local undo stack and Excalidraw's native history.

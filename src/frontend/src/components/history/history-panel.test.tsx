@@ -24,7 +24,7 @@ describe('HistoryPanel', () => {
   });
 
   it('keeps the panel actionable after a stale sequence conflict', async () => {
-    const api = { list: vi.fn().mockResolvedValue({ items: [version] }), diff: vi.fn(), restore: vi.fn().mockRejectedValue({ response: { status: 409 } }) };
+    const api = { list: vi.fn().mockResolvedValue({ items: [version] }), diff: vi.fn(), restore: vi.fn().mockRejectedValue({ response: { status: 409, data: { code: 'CONFLICT' } } }) };
     render(<HistoryPanel api={api} canRestore currentSequence="7" onRestored={vi.fn()} sceneRef={{ workspaceId: 'workspace-1', sceneId: 'scene-1' }} />);
     await screen.findByText('Pinned checkpoint');
     fireEvent.click(screen.getByRole('button', { name: 'Restore version' }));

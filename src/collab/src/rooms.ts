@@ -267,15 +267,17 @@ export class Rooms {
     const updates=pending.updates;pending.updates=[];pending.bytes=0;const id='s'; // Broadcast identity is not an ACK; durable receipts retain original request IDs.
     // Avoid a merged frame exceeding the existing transport ceiling. Each accepted
     // update fits already; small updates share a frame, large updates stand alone.
+    const oversized=updates.some(item=>item.bytes.length>MAX_FRAME_BYTES-256);
     const frames:Uint8Array[]=[];let group:Uint8Array[]=[];let bytes=0;
     const flush=()=>{if(group.length){frames.push(encodeFrame({channel:3,updateId:id,payload:group.length===1?group[0]:Y.mergeUpdates(group)}));group=[];bytes=0;}};
-    for(const item of updates){const update=item.bytes;if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();
+    if(!oversized){for(const item of updates){const update=item.bytes;if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();}
     const sequence=updates.map(item=>item.sequence).filter((value):value is string=>typeof value==='string'&&/^\d+$/.test(value)).sort((a,b)=>BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:0).at(-1);
     for(const session of this.matching(pending.ref)){
      // No cached authorization: the fresh read keeps current ACL and ownership
      // fences and reconstructs current durable state before any batch is delivered.
      if(!await this.recipient(session))continue;
-     for(const frame of frames)await this.send(session,frame);
+     if(oversized){const state=await this.readCurrent(session);try{await this.sync(session,'server',state);}finally{state.doc.destroy();}}
+     else for(const frame of frames)await this.send(session,frame);
      if(sequence)await this.control(session,'committed','server',{sequence});
     }
    }

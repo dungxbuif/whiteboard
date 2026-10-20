@@ -17,11 +17,19 @@ browser history controls, offline replay guidance and production API wiring.
   durable sequence once. Identical retry returns the original receipt/checkpoint.
 - Browser confirmation explains that queued offline edits remain durable and may
   replay after restore as later edits. Acknowledgement clears collaboration-local
-  and native canvas undo history. Uncertain retries retain their request ID;
-  conflicts wait for a newer sequence before creating a new request identity.
+  and native canvas undo history. Uncertain retries retain their exact request ID
+  and expected sequence pair. Only sequence `CONFLICT` waits for a newer sequence
+  before creating a new request identity; other 409 codes are definitive.
 - Authorized fanout sends committed update frames before their durable sequence.
   Tombstoned image file metadata survives restore so an offline edit can revive
   the stable element map without losing its referenced asset.
+- Never-sent offline intent is causally rewritten after fresh sync, independent
+  of Yjs client-ID ordering. Reconnect waits for local durability and atomically
+  replaces the complete creation-ordered pending set, independent of IndexedDB
+  key order. Ambiguous sent rows keep immutable request bytes.
+- Restore uses trusted worker validation up to the 64 MiB snapshot ceiling.
+  Ordinary inbound frames remain 1 MiB; oversized restore fanout sends authorized
+  512 KiB durable sync chunks before publishing its committed sequence.
 
 ## Verification plan
 
@@ -36,22 +44,26 @@ browser history controls, offline replay guidance and production API wiring.
 
 ## Verification results
 
-- Focused collab review suite: 3 files, 13 tests passed against guarded
-  PostgreSQL. It covers bindings/order/images, tombstone image revival, atomic
-  stale rejection, idempotency, request-ID collision and ordered sequence fanout.
-- Focused frontend review suite: 4 files, 23 tests passed, followed by a
-  successful TypeScript/Vite production build. It covers actual local undo reset,
-  transport sequence advancement, uncertain retry identity and conflict rebase.
+- Focused offline-replay race suite passed three consecutive runs. It covers a
+  delayed local durability write crossing reconnect, multi-row replacement whose
+  creation order differs from IndexedDB key order, and a 32-iteration Yjs
+  client-ID loop for image revival. If atomic replacement loses a concurrent
+  storage race, the transport degrades without sending raw bytes and preserves
+  the pending rows for recovery.
+- Focused collab restore/integration coverage passed inside the full guarded
+  suite. It covers bindings/order/images, tombstone image revival, a valid restore
+  update above the socket frame ceiling, atomic stale rejection, idempotency,
+  request-ID collision and ordered/chunked sequence fanout.
 - Real stack: 1 Playwright test passed against browser + Go API + private Node
   writer + PostgreSQL. It pastes a real PNG, captures it, observes a second
   actor's update and fresh sequence, denies viewer restore, queues an offline edit,
   restores the image version, verifies both undo stacks are unavailable, then
   reconnects and replays the edit while preserving the image, document UUID and
   exactly one pinned pre-restore checkpoint.
-- Full collab: 26 files, 193 tests passed against guarded PostgreSQL.
-- Full workspace `npm test`: collab 193, MCP 43, collaboration contracts 22
-  and diagram kit 41 tests passed; dependent TypeScript bundles built.
-- Full frontend: 40 files, 151 tests passed; TypeScript/Vite production build
+- Full collab: 26 files, 196 tests passed against guarded PostgreSQL.
+- Full guarded workspace `npm test`: collab 196, MCP 43, collaboration
+  contracts 22 and diagram kit 41 tests passed; dependent bundles built.
+- Full frontend: 43 files, 169 tests passed; TypeScript/Vite production build
   completed successfully. The replay assertion waits for its observable outbound
   frame, avoiding a fixed-delay race exposed only by the parallel full suite.
 - Full backend: guarded `go test ./...` passed, including the authenticated

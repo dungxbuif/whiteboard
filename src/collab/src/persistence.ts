@@ -4,7 +4,7 @@ import type {Pool,PoolClient} from 'pg';
 import * as Y from 'yjs';
 import {MAX_FRAME_BYTES,validateSceneContent,type SceneRef,type MutationReceipt,type SceneContent} from '@collab/contracts';
 import {Authority,CollabError,hash,requestID,revision,type Principal,type Decision,type PresentationDecision} from './auth.js';
-import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
+import {createSceneDoc,materializeScene,validateCandidate,validateRestoreCandidate,MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import {parseMutation,commandUpdate} from './commands.js';
 import {promoteLegacy} from './promotion.js';
 import {RateLimit} from './rate-limit.js';
@@ -195,7 +195,7 @@ export class Persistence extends EventEmitter {
     const current=materializeScene(doc),currentBytes=canonicalSceneBytes(current),currentAssets=referencedAssetIDs(current);
     if(currentBytes.byteLength>MAX_VERSION_BYTES)throw new CollabError('VERSION_TOO_LARGE','Recovery version exceeds 25 MiB',413);
     if(currentAssets.length){const assets=await client.query('SELECT id FROM scene_assets WHERE workspace_id=$1 AND scene_id=$2 AND id=ANY($3::uuid[]) AND deleted_at IS NULL FOR SHARE',[ref.workspaceId,ref.sceneId,currentAssets]);if(assets.rowCount!==currentAssets.length)throw new CollabError('VERSION_ASSET_UNAVAILABLE','A recovery image is unavailable',409);}
-    let validated;try{validated=await validateCandidate(doc,restoreUpdate(doc,target));}catch(error){if(error instanceof SnapshotHistoryLimitError)throw error;throw new CollabError('INVALID_UPDATE',error instanceof Error?error.message:'Invalid restore',400);}
+    let validated;try{validated=await validateRestoreCandidate(doc,restoreUpdate(doc,target));}catch(error){if(error instanceof SnapshotHistoryLimitError)throw error;throw new CollabError('INVALID_UPDATE',error instanceof Error?error.message:'Invalid restore',400);}
     Y.applyUpdate(doc,validated.update);if(Y.encodeStateAsUpdate(doc).length>MAX_SNAPSHOT_BYTES)throw new SnapshotHistoryLimitError();
     const preRestoreVersionId=randomUUID();
     await client.query(`INSERT INTO scene_versions(id,workspace_id,scene_id,document_id,source_sequence,content,content_bytes,content_hash,byte_size,label,pinned,kind,creator_kind,creator_id,request_id,payload_hash)
