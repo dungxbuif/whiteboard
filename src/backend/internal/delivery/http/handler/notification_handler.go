@@ -22,10 +22,13 @@ func NewNotificationHandler(notifications domain.NotificationUsecase) *Notificat
 
 func (h *NotificationHandler) Routes(auth func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
-	router.Use(auth)
-	router.Get("/notifications", h.List)
-	router.Post("/notifications/{id}/read", h.MarkRead)
+	h.Register(router, auth)
 	return router
+}
+
+func (h *NotificationHandler) Register(router chi.Router, auth func(http.Handler) http.Handler) {
+	router.With(auth).Get("/notifications", h.List)
+	router.With(auth).Post("/notifications/{id}/read", h.MarkRead)
 }
 
 func writeNotificationError(w http.ResponseWriter, r *http.Request, err error) {

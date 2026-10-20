@@ -41,18 +41,18 @@ Go `VersionService.Create/List/Get/SetMetadata` consume F1 version rights.
 snapshot response contains canonical content and fresh authorized image URLs.
 Captures and version asset pins commit in the same Node transaction.
 
-- [ ] Add `checkpointMatchesExactSequence`, `checkpointRetryIsImmutable`,
+- [x] Add `checkpointMatchesExactSequence`, `checkpointRetryIsImmutable`,
   `checkpointPinsImageBeforeRetention`, `versionSurvivesCompaction`,
   `TestGuestHistoryDenied`: 409 on stale sequence; digest/source sequence
   correspond exactly; no version appears if asset pin/capture fails.
-- [ ] Run `rtk npm test --workspace ./collab -- versions` and backend version
+- [x] Run `rtk npm test --workspace ./collab -- versions` and backend version
   tests (RED), implement immutable rows/indexes and signed version read/create
   private actions with purpose/action-specific verification; no new public Node route.
-- [ ] Register dirty checkpoint scheduling in Node maintenance under its existing
+- [x] Register dirty checkpoint scheduling in Node maintenance under its existing
   ownership fence. At five minutes of unsnapshotted change create one automatic
   checkpoint, preserve manual/pinned entries, let R1 expire excess automatic rows.
   Return explicit unsupported/corrupt asset errors rather than silently omit images.
-- [ ] Run real DB concurrency/compaction/migration cases; add history API/ERD
+- [x] Run real DB concurrency/compaction/migration cases; add history API/ERD
   and reference ownership ADR; commit `feat(history): capture immutable scene versions`.
 
 ## Task 2: V2 — Semantic diff and durable restore with recovery checkpoint

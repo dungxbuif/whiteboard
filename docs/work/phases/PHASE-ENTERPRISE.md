@@ -21,9 +21,10 @@ control header consuming viewport height.
 ## Current stage
 
 The detail design and 22 bounded execution tasks were approved for implementation
-on 2026-10-20. Wave 0/1 foundation work is active; task checkboxes remain tied to
-real verification evidence. The already approved v2 baseline is reused rather
-than relabeled as enterprise parity.
+on 2026-10-20. Foundation, canvas UI, durable comments and immutable V1
+checkpoints have passed their focused implementation reviews; later engagement,
+media, content, identity, retention and release tasks remain active. The already
+approved v2 baseline is reused rather than relabeled as enterprise parity.
 
 ## Trace
 
@@ -55,7 +56,7 @@ when each reviewed boundary ships, avoiding invented accepted decisions.
 | Feature authority/events/jobs | F1–F3 | Existing ACL/audit | complete |
 | Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | in_progress |
 | Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | in_progress |
-| Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | draft |
+| Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | in_progress |
 | Collections/native libraries | L1–L2 | F1–F3/UI1–UI2 | draft |
 | Domain/SSO/SCIM | I1–I3 | F1–F3 | draft |
 | Retention/referenced storage | R1–R2 | F1–F3/C/V/L models | draft |
