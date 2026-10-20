@@ -14,6 +14,8 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Comments and notifications](docs/comments-and-notifications.md): anchored threads, guest policy, moderation, pagination, inbox routes and current-authority rules.
 - [Activity](docs/activity.md): authorized workspace/scene event pages, opaque cursors, retained boundary and privacy rules.
 - [Collections](docs/collections.md): workspace/private scene-link containers, canonical routes, revisioned mutations and access invariants.
+- [Workspace OIDC SSO](docs/workspace-sso.md): issuer/subject identity, authenticated linking, session assurance, enforcement and recovery constraints.
+- [Retention](docs/retention.md): owner preview, seven-day scheduling, holds, metadata limits and protected collaboration history.
 
 - [Scene assets](docs/scene-assets.md): locally verified release-candidate scoped upload/view, size/MIME limits, expiry and required headers.
 

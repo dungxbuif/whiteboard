@@ -151,19 +151,19 @@ requestID) (RetentionPolicy,error)`, `SetHold(ctx,p,ref,versionID?,held,requestI
 Preview binds proposed policy hash+revision, counts and earliest destructive date;
 all jobs re-read effective policy and holds under locks before mutation.
 
-- [ ] Add `TestRetentionDefaultCutoffs`, `TestRetentionSevenDayActivation`,
+- [x] Add `TestRetentionDefaultCutoffs`, `TestRetentionSevenDayActivation`,
   `TestHoldWinsAgainstClaimedPurge`, `TestPolicyRevisionCancelsStaleJob`,
   `TestRetentionNeverDeletesCanonicalHistory`: activity90days, notifications30,
   auto versions beyond100; manual/pinned/comments indefinitely unless configured,
   Trash hard purge disabled; no collab receipt/log/tombstone SQL deletion.
-- [ ] Run focused real-DB retention tests (RED). Implement policy preview and
+- [x] Run focused real-DB retention tests (RED). Implement policy preview and
   explicit schedule, 7day delay, hold records, bounded metadata purge/idempotency,
   version-reference removal and preserved minimal purge audit. For any live
   comment retention, leave redaction markers/consistent thread pagination.
 - [ ] Browser test preview/effect counts, hold/unhold/review policy, keyboard/
   mobile and restricted owner route. Dry-run worker report contains counts/IDs
   only, never raw comment/version content. Do not enable deletion on production.
-- [ ] Reconcile ERD/retention/user/public docs and commit
+- [x] Reconcile ERD/retention/user/public docs and commit
   `feat(retention): preview and enforce workspace retention policies`.
 
 ## Task 5: R2 — Reference-aware object lifecycle and backup protection

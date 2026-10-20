@@ -380,3 +380,38 @@ The owner-fenced checkpointer waits five dirty minutes and captures at most once
 per scene per minute. R1 owns the 100 automatic-version retention policy;
 manual and pinned versions are preserved. See [ADR 0014](../decisions/0014-version-writer-ownership.md),
 [human guide](../user/version-history.md), and [agent reference](../../src/frontend/public/docs/version-history.md).
+
+## I2 workspace OIDC SSO and session assurance (implemented locally; wiring pending)
+
+| Method | Endpoint | Contract |
+| --- | --- | --- |
+| POST | `/api/v1/sso/begin` | Strict `{connectionId,returnPath}`; creates a hashed, browser-bound 10-minute state/nonce/PKCE transaction and returns the provider authorization URL. |
+| GET | `/api/v1/sso/callback` | Consumes state and provider code; redirects with only a 60-second opaque exchange code and safe relative return path. |
+| POST | `/api/v1/sso/exchange` | Strict `{code}` plus HttpOnly browser binding; consumes once and returns the login result. |
+| POST | `/api/v1/sso/link/begin` | Authenticated strict `{connectionId,returnPath,requestId}`; binds the current user and retry ID before the verified callback. |
+| GET | `/api/v1/workspaces/{id}/sso` | Owner-only connection metadata; provider secret is never returned. |
+| PUT | `/api/v1/workspaces/{id}/sso` | Owner-only exact-retry configuration with revision, explicit public-link policy, recent reauth and tested recovery before enforcement. |
+
+OIDC identity is exact issuer plus subject. Verified email is bootstrap profile
+data only and never auto-links an existing user. Member authority uses JWT
+`sid`, `auth_method` and `auth_time`, then rechecks the current enterprise login
+session and workspace connection. Missing `sid` is accepted only where password
+access remains allowed. Room and mutation capabilities bind the source session
+so renewal cannot outlive revocation.
+
+## R1 workspace retention (implemented locally; wiring pending, production activation disabled)
+
+Owner-authenticated routes expose the current policy, a persisted dry-run
+preview, explicit schedule, and holds under
+`/api/v1/workspaces/{workspace}/retention`. Preview is non-destructive and binds
+the canonical proposed policy plus current policy revision. Schedule and hold
+requests require a UUID request ID; exact retries return the stored response,
+while a changed principal, action, or body returns `409 REQUEST_ID_REUSED`.
+
+Scheduled policies activate no sooner than seven days. The worker re-locks the
+workspace and re-reads the current revision and holds. It removes bounded
+activity/inbox metadata, unpinned automatic-version metadata beyond the limit,
+and optionally redacts old comment bodies in place. It never targets manual or
+pinned versions, scene content, collaboration updates, receipts, tombstones, or
+object storage. See the [operator runbook](../operations/enterprise-retention.md)
+and [machine-readable reference](../../src/frontend/public/docs/retention.md).

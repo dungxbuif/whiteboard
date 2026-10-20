@@ -105,7 +105,26 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000019 / `user_notifications` | In-app comment notifications unique by user/event, idempotent read requests and event-triggered `notification.deliver` jobs |
 | 000020 / `presentation_links` | Hash-only 24-hour presentation invites scoped to one workspace/scene/session; participants and host state are not persisted |
 | 000022 / `collections`, `collection_scenes`, receipt operation discriminator | Workspace/private containers and stable scene order; composite workspace references enforce tenant identity, collection deletion cascades membership only, case-folded indexes enforce the visibility scope's name uniqueness, and `feature_mutation_receipts.collection_operation` prevents cross-operation replay |
+| 000026 / `workspace_retention_policies`, `retention_previews` | Revisioned proposed/active policy plus hash-bound dry-run counts and earliest activation |
+| 000026 / `retention_holds`, `retention_mutation_receipts`, `retention_purge_audit` | Workspace-scoped deletion vetoes, principal/action/body-bound retries, and content-free purge evidence |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 
 Presence, cursor, viewport/follow and voice signaling remain ephemeral. Agent operation audit and durable scene mutation audit have different provenance and purposes. Public short IDs remain aliases; UUIDs are canonical keys and foreign-key targets. All API sequences are decimal strings to avoid JavaScript number precision loss.
+
+## I2 identity assurance schema
+
+| Migration / table | Durable contract |
+| --- | --- |
+| 000025 / `workspace_sso_connections` | One encrypted OIDC configuration per workspace, optional/enforced mode, explicit public-link decision and optimistic revision. |
+| 000025 / `sso_flow_transactions`, `sso_exchange_codes` | Hash-only, browser-bound, one-time authorization and login exchanges; link transactions bind authenticated user and request ID. |
+| 000025 / `sso_external_identities` | Globally unique exact issuer/subject identity linked explicitly to one user and connection. |
+| 000025 / `enterprise_login_sessions` | Revocable password, OIDC or operator-recovery assurance session; legacy refresh-token `auth_sessions` remains unchanged. |
+| 000025 / `workspace_break_glass`, `workspace_break_glass_audit` | Hash-only owner recovery credential and append-only lifecycle/use audit. |
+| 000025 / `sso_mutation_receipts` | Exact principal/action/body retry binding with byte-preserved response. |
+
+Retention foreign keys cascade policy/preview/hold/receipt/audit metadata only
+when the workspace itself is deleted. Holds are checked under the same policy
+row lock as purge. Version reference rows are removed before eligible automatic
+version metadata; object deletion remains R2 and therefore cannot be caused by
+R1 alone.
