@@ -96,6 +96,36 @@ Inactive scenes/workspaces are omitted from due scans and rechecked under the wo
 
 The scheduler runs one due scan and one scene job at a time. It retains at most 64 queued scene jobs and 64 five-second/count timer entries, deduplicating scan/timer/count work against queued and running scenes. Each due query returns at most64 refs with a stable workspace/scene cursor; later pages recover overflow work from PostgreSQL. Timer/count thresholds request work; storage backlog can delay execution rather than create unbounded parallel jobs. Shutdown stops intake, clears queued/timed work (retained durably), and drains the bounded in-flight tasks. Direct compactDue() handles one bounded page, continuing after individual failures before returning an AggregateError.
 
+## M2 presentation waiting-room contract (implemented locally; release pending)
+
+`presentation_auth` accepts only a signed five-minute
+`presentation-pending` credential. The connection is registered in the
+session-local waiting queue without a scene principal, room reference,
+awareness entry or durable read. It receives `presentation_waiting` for its own
+connection only. Binary frames and ordinary ephemeral controls fail before any
+scene, roster or media data is read.
+
+An editor authenticated through the ordinary room starts a session with
+`presentation_start`. Host controls recheck `presentation:host` against the Go
+private authority. `presentation_admit` carries the exact waiting connection,
+expected decimal session revision and Go-issued `presentation-audience` token.
+Node verifies token/session/principal binding and revision again, then performs
+presentation-specific view-only durable sync and refreshes. Each refresh
+rechecks active audience membership plus the workspace ACL version rather than
+using ordinary room authority. Host disconnect, explicit stop or current-authority
+denial ends the ephemeral session. Restart retains stored invite links but no
+active host, waiting or audience state.
+
+`@collab/contracts` exposes strict bounded parsers for the audience's own
+`presentation_waiting` payload and host `presentation_state` snapshots. Pending
+disconnects increment the session revision and publish the new state to the
+host so a stale admission cannot succeed.
+
+Private service-authenticated `POST /internal/presentations/resolve` exposes
+only active host/pending/audience decisions to Go. It uses the same isolated
+private listener, ownership fence, request limit and service secret as durable
+agent/version operations and must never be publicly proxied.
+
 ## D3 agent bridge (deployed; production write/export canary pending)
 
 The authenticated Go agent API bridges POST `/api/v1/agent/workspaces/:workspaceId/scenes/:sceneId/commands` with `{mutationBase64,tool}` and GET the existing scene route (durable projection), `/activity?cursor=<sequence>&limit=1..50`, and `/export-projection` (distinct `scene:export` scope). Remote MCP only holds its agent key. Go mints/verifies a room credential, signs the exact decoded command bytes through A4 and forwards `{grant,mutationBase64}` to B2. The `tool` discriminator is allowlisted and checked against the command operation. There is no whole-scene replacement. Go does not hold a workspace transaction during Node HTTP. Go boundary audit success follows the Node result; only B2 receipt/audit proves durable append. An audit completion failure after append is uncertain and retains the same request bytes/ID.

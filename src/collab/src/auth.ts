@@ -6,6 +6,7 @@ export class CollabError extends Error {
 }
 export type Principal={roomToken:string;principalId:string;principalType:string};
 export type Decision=JWTPayload & SceneRef & {purpose:string;principalId:string;principalType:string;grantId:string;grantVersion?:string;access:'view'|'edit';aclVersion:string;action?:string;requestId?:string;payloadHash?:string;expectedSequence?:string;exp:number;iat:number};
+export type PresentationDecision=JWTPayload & SceneRef & {purpose:'presentation-host'|'presentation-pending'|'presentation-audience';sessionId:string;principalId:string;principalType:'user'|'public';grantId:string;grantVersion?:string;displayName:string;access:'edit'|'pending'|'view';aclVersion:string;exp:number;iat:number};
 export const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
 export const revision=(value:unknown):value is string=>typeof value==='string'&&/^(0|[1-9][0-9]*)$/.test(value)&&BigInt(value)<=9223372036854775807n;
 const uuid=(value:unknown):value is string=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(value)&&value!=='00000000-0000-0000-0000-000000000000';
@@ -30,6 +31,19 @@ export class Authority {
   }catch {throw new CollabError('UNAUTHENTICATED','Invalid or expired credential',401);}
  }
  verifyRoom(token:string):Promise<Decision>{return this.verify(token,false);}
+ async verifyPresentation(token:string,purpose?:PresentationDecision['purpose']):Promise<PresentationDecision>{
+  try{
+   if(typeof token!=='string'||token.length>16384)throw new Error();
+   const {payload:p}=await jwtVerify(token,new TextEncoder().encode(this.config.roomSecret),{algorithms:['HS256'],issuer:'whiteboard-api',audience:'whiteboard-presentation',requiredClaims:['exp','iat','jti','sub'],clockTolerance:0});
+   const now=Date.now()/1000;if(!['presentation-host','presentation-pending','presentation-audience'].includes(String(p.purpose))||purpose&&p.purpose!==purpose||!Number.isInteger(p.iat)||!Number.isInteger(p.exp)||p.iat!>now||p.exp!<=p.iat!||p.exp!-p.iat!>(p.purpose==='presentation-pending'?300:600)||typeof p.jti!=='string'||!p.jti||p.sub!==p.principalId||!uuid(p.workspaceId)||!uuid(p.sceneId)||!uuid(p.sessionId)||typeof p.principalId!=='string'||!p.principalId||typeof p.displayName!=='string'||p.displayName.length>100)throw new Error();
+   if(p.purpose==='presentation-host'){
+    if(p.principalType!=='user'||!uuid(p.principalId)||p.grantId!=='membership:'+p.workspaceId+':'+p.principalId||p.grantVersion!==''||p.access!=='edit'||!revision(p.aclVersion)||p.aclVersion==='0')throw new Error();
+   }else if(p.purpose==='presentation-pending'){
+    if(p.principalType!=='public'||!p.principalId.startsWith('presentation:')||!uuid(p.grantId)||!revision(p.grantVersion)||p.grantVersion==='0'||p.access!=='pending'||p.aclVersion!=='0')throw new Error();
+   }else if(p.principalType!=='public'||!p.principalId.startsWith('presentation:')||p.grantId!=='session:'+p.sessionId||!revision(p.grantVersion)||p.grantVersion==='0'||p.access!=='view'||!revision(p.aclVersion)||p.aclVersion==='0')throw new Error();
+   return p as PresentationDecision;
+  }catch{throw new CollabError('UNAUTHENTICATED','Invalid or expired presentation credential',401);}
+ }
  async verifyDecision(token:string,binding:Record<string,unknown>):Promise<Decision>{
   const decision=await this.verify(token,true);
   for(const [key,value] of Object.entries(binding))if(decision[key]!==value)throw new CollabError('FORBIDDEN','Decision binding mismatch');

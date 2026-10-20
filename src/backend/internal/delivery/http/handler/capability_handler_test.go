@@ -63,6 +63,36 @@ type screenFeatureAuthority struct {
 	action    domain.FeatureAction
 }
 
+type presentationAuthorityStub struct {
+	identity domain.SceneSessionIdentity
+	session  uuid.UUID
+	resolved int
+}
+
+func (s *presentationAuthorityStub) ParseAudience(string) (domain.SceneSessionIdentity, uuid.UUID, error) {
+	return s.identity, s.session, nil
+}
+func (s *presentationAuthorityStub) ResolveAudience(domain.Context, domain.Principal, domain.SceneRef, uuid.UUID) error {
+	s.resolved++
+	return nil
+}
+
+type capabilityPresentationAccessStub struct{ domain.AccessService }
+
+func (capabilityPresentationAccessStub) WithWorkspaceLock(ctx domain.Context, _ uuid.UUID, _ uuid.UUID, fn func(domain.Context) error) error {
+	return fn(ctx)
+}
+
+type presentationAssetViewer struct {
+	domain.AssetUsecase
+	called bool
+}
+
+func (s *presentationAssetViewer) PresignScopedView(domain.Context, domain.SceneRef, []string, time.Time) (map[string]domain.AssetViewResponse, error) {
+	s.called = true
+	return map[string]domain.AssetViewResponse{}, nil
+}
+
 func (s *screenFeatureAuthority) Require(_ domain.Context, principal domain.Principal, ref domain.SceneRef, action domain.FeatureAction) error {
 	s.principal, s.ref, s.action = principal, ref, action
 	return s.err
@@ -143,5 +173,48 @@ func TestScreenFeatureAuthorityUsesCurrentFeaturePolicy(t *testing.T) {
 				t.Fatalf("status=%d principal=%s ref=%+v action=%s body=%s", response.StatusCode, features.principal.ID, features.ref, features.action, raw)
 			}
 		})
+	}
+}
+
+func TestPresentationFeatureAuthorityUsesPresentationPolicy(t *testing.T) {
+	principal := domain.UserPrincipal(uuid.New())
+	principal.CredentialExpiresAt = time.Now().Add(time.Minute)
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	features := &screenFeatureAuthority{}
+	h, _ := NewCapabilityHandler(authorityUnavailable{}, validRoom{domain.SceneSessionIdentity{Principal: principal, SceneRef: ref}}, nil, nil, []byte(strings.Repeat("s", 32)))
+	h.SetFeatureService(features)
+	if h.features == nil {
+		t.Fatal("feature service was not bound")
+	}
+	body, _ := json.Marshal(map[string]any{"roomToken": "room", "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String(), "action": "presentation:host"})
+	server := httptest.NewServer(h.AuthorityHandler())
+	defer server.Close()
+	request, _ := http.NewRequest(http.MethodPost, server.URL+"/internal/authority/features", bytes.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+strings.Repeat("s", 32))
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusNoContent || features.action != domain.FeaturePresentationHost {
+		raw, _ := io.ReadAll(response.Body)
+		t.Fatalf("status=%d action=%s body=%s", response.StatusCode, features.action, raw)
+	}
+}
+
+func TestAdmittedPresentationAudienceCanReadScopedAssets(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	session := uuid.New()
+	principal := domain.Principal{Kind: domain.PrincipalPublic, ID: "presentation:guest", GrantID: "session:" + session.String(), GrantVersion: "1", CredentialExpiresAt: time.Now().Add(time.Minute)}
+	authority := &presentationAuthorityStub{identity: domain.SceneSessionIdentity{Principal: principal, SceneRef: ref, ExpiresAt: principal.CredentialExpiresAt}, session: session}
+	assets := &presentationAssetViewer{}
+	h, _ := NewCapabilityHandler(authorityUnavailable{}, invalidRoom{}, capabilityPresentationAccessStub{}, assets, []byte(strings.Repeat("s", 32)))
+	h.SetPresentationAuthority(authority)
+	request := httptest.NewRequest(http.MethodPost, "/public/scenes/scene/assets/presign-view", strings.NewReader(`{"fileIds":["image"]}`))
+	request.Header.Set("Authorization", "Bearer audience")
+	response := httptest.NewRecorder()
+	h.PublicView(response, request)
+	if response.Code != http.StatusOK || !assets.called || authority.resolved < 2 {
+		t.Fatalf("status=%d assets=%t resolved=%d body=%s", response.Code, assets.called, authority.resolved, response.Body.String())
 	}
 }

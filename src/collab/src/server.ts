@@ -75,11 +75,14 @@ export async function startServer(store:Persistence,config:ServerConfig){
  const internalServer=createServer(async(request,response)=>{
   let requestId='unknown';
   try{
-   if(request.method!=='POST'||!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection|versions)$/.test(request.url??'')){response.writeHead(404).end();return;}
+   if(request.method!=='POST'||(!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection|versions)$/.test(request.url??'')&&request.url!=='/internal/presentations/resolve')){response.writeHead(404).end();return;}
    ownership.assert();
    internalRates.take('ip:'+request.socket.remoteAddress,600);
    if(!secretEquals(request.headers.authorization??'','Bearer '+config.internalSecret))throw new CollabError('UNAUTHENTICATED','Invalid service credential',401);
    const envelope=await body(request) as Record<string,unknown>;
+   if(request.url==='/internal/presentations/resolve'){
+    const allowed=['kind','workspaceId','sceneId','sessionId','principalId','connectionId','expectedRevision'];if(!envelope||Object.keys(envelope).some(k=>!allowed.includes(k))||!['host','pending','audience'].includes(String(envelope.kind))||typeof envelope.workspaceId!=='string'||typeof envelope.sceneId!=='string'||typeof envelope.sessionId!=='string')throw new CollabError('INVALID_UPDATE','Invalid presentation decision envelope',400);const ref={workspaceId:envelope.workspaceId,sceneId:envelope.sceneId};let result:unknown;if(envelope.kind==='pending'){if(typeof envelope.principalId!=='string'||typeof envelope.connectionId!=='string'||typeof envelope.expectedRevision!=='number')throw new CollabError('INVALID_UPDATE','Invalid pending decision',400);result=rooms.resolvePresentationPending(ref,envelope.sessionId,envelope.principalId,envelope.connectionId,envelope.expectedRevision);}else{if(typeof envelope.principalId!=='string')throw new CollabError('INVALID_UPDATE','Invalid presentation principal',400);result=envelope.kind==='host'?rooms.resolvePresentationHost(ref,envelope.sessionId,envelope.principalId):rooms.resolvePresentationAudience(ref,envelope.sessionId,envelope.principalId);}response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify(result));return;
+   }
    const operation=request.url!.split('/').pop();
    if(operation==='versions'){
     const allowed=['grant','workspaceId','sceneId','input'];

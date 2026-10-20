@@ -18,3 +18,15 @@ func TestPublicLegacyQueryRedaction(t *testing.T) {
 		}
 	})).ServeHTTP(httptest.NewRecorder(), req)
 }
+
+func TestPresentationInvitePathRedaction(t *testing.T) {
+	req := httptest.NewRequest("POST", "/api/v1/presentations/private-token/join?ignored=secret", nil)
+	RedactPublicCredentials(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.RequestURI != "/api/v1/presentations/[REDACTED]/join" || r.URL.RawQuery != "" {
+			t.Fatalf("presentation token exposed to logging: %s", r.RequestURI)
+		}
+		if r.URL.Path != "/api/v1/presentations/private-token/join" {
+			t.Fatal("route lookup corrupted")
+		}
+	})).ServeHTTP(httptest.NewRecorder(), req)
+}

@@ -31,6 +31,7 @@ shared_fields: [status, trace]
 | user_notifications | Authorized member inbox item | Notification worker/API | Unique user/event delivery, scene/thread deep-link identity and per-user read receipt. |
 | scene_versions | Immutable product checkpoint plus mutable label/pin metadata | Node writer / Go reader | Exact document UUID/source sequence, canonical JSON bytes, SHA-256, creator, kind and request binding; 25 MiB maximum. |
 | version_assets | Asset retention pins for a version | Node writer | Composite version/scene/workspace and asset/scene/workspace foreign keys prevent cross-scene pins. |
+| presentation_links | Revocable hash-only presentation invite | Presentation service | Workspace/scene/session binding, positive revision, 24-hour expiry; active runtime participants remain ephemeral. |
 
 ## Relationships
 
@@ -46,6 +47,7 @@ shared_fields: [status, trace]
 | comment_subscriptions | comment_threads, users | Composite many-to-one | Thread scope and real user identity are both enforced by foreign keys. |
 | scene_versions | scenes | Composite many-to-one | `(workspace_id,scene_id)` fixes each checkpoint to one tenant scene. |
 | version_assets | scene_versions, scene_assets | Composite many-to-one | Both references carry workspace and scene, so a version cannot pin a foreign asset. |
+| presentation_links | scenes, users | Composite scene and creator references | Invite revocation cannot alter workspace membership or ordinary public links. |
 
 ## Constraints
 
@@ -97,6 +99,7 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000017 / `comment_threads`, `comments`, `comment_subscriptions` | Scene-scoped anchored discussions, revisioned plain-text/redaction messages and authenticated-user subscriptions; feature receipts and workspace events remain the transaction/idempotency layers |
 | 000018 / `scene_versions`, `version_assets` | Immutable canonical checkpoints, exact writer sequence/document ID, request retry binding and same-transaction asset pins; label/pin use a separate metadata revision |
 | 000019 / `user_notifications` | In-app comment notifications unique by user/event, idempotent read requests and event-triggered `notification.deliver` jobs |
+| 000020 / `presentation_links` | Hash-only 24-hour presentation invites scoped to one workspace/scene/session; participants and host state are not persisted |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 

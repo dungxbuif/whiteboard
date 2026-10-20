@@ -3,7 +3,7 @@ import {EventEmitter} from 'node:events';
 import type {Pool,PoolClient} from 'pg';
 import * as Y from 'yjs';
 import {MAX_FRAME_BYTES,type SceneRef,type MutationReceipt,type SceneContent} from '@collab/contracts';
-import {Authority,CollabError,hash,requestID,revision,type Principal,type Decision} from './auth.js';
+import {Authority,CollabError,hash,requestID,revision,type Principal,type Decision,type PresentationDecision} from './auth.js';
 import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import {parseMutation,commandUpdate} from './commands.js';
 import {promoteLegacy} from './promotion.js';
@@ -65,6 +65,11 @@ export class Persistence extends EventEmitter {
   const decision=await this.authority.decide(principal.roomToken,ref,'scene:read',randomUUID(),new Uint8Array());
   this.bindPrincipal(decision,principal);
   return this.transaction(ref,decision,async client=>{const {row,doc}=await this.load(client,ref);try{return {doc,content:materializeScene(doc),documentId:row.document_id,sequence:row.sequence,stateVector:Buffer.from(Y.encodeStateVector(doc)).toString('base64'),access:decision.access};}catch(error){doc.destroy();throw error;}});
+ }
+ async readPresentation(ref:SceneRef,principal:Principal,credential:PresentationDecision):Promise<SceneState>{
+  if(credential.purpose!=='presentation-audience'||credential.access!=='view'||credential.workspaceId!==ref.workspaceId||credential.sceneId!==ref.sceneId||credential.principalId!==principal.principalId||principal.principalType!=='public')throw new CollabError('FORBIDDEN');
+  const decision={...credential,purpose:'room',access:'view'} as Decision;
+  return this.transaction(ref,decision,async client=>{const {row,doc}=await this.load(client,ref);try{return {doc,content:materializeScene(doc),documentId:row.document_id,sequence:row.sequence,stateVector:Buffer.from(Y.encodeStateVector(doc)).toString('base64'),access:'view'};}catch(error){doc.destroy();throw error;}});
  }
  async readProjection(grant:string,ref:SceneRef,exporting=false):Promise<Record<string,unknown>>{
   const decision=await this.authority.verifyDecision(grant,{...ref,action:exporting?'scene:export':'scene:read',payloadHash:hash(new Uint8Array())});

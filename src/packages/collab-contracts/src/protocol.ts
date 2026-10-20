@@ -50,3 +50,27 @@ export function parseScreenAdmission(value:unknown):ScreenAdmission {
  else if(!['MEDIA_FULL','SCREEN_BUSY'].includes(String(input.reason))||input.publisher!==undefined||input.receiving!==undefined||input.sessionId!==undefined)throw new Error('Invalid screen admission');
  return input as ScreenAdmission;
 }
+
+export type PresentationWaiting={sessionId:string;status:'pending';connectionId:string};
+export type PresentationParticipant={connectionId:string;principalId:string;displayName:string};
+export type PresentationState={sessionId:string;hostConnectionId:string;hostPrincipalId:string;revision:number;pending:PresentationParticipant[];admitted:PresentationParticipant[]};
+const presentationConnection=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128;
+const presentationParticipant=(value:unknown):value is PresentationParticipant=>{
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['connectionId','principalId','displayName'].includes(key)))return false;
+ const input=value as Record<string,unknown>;
+ return presentationConnection(input.connectionId)&&typeof input.principalId==='string'&&input.principalId.length>0&&input.principalId.length<=256&&typeof input.displayName==='string'&&input.displayName.length>0&&input.displayName.length<=200;
+};
+export function parsePresentationWaiting(value:unknown):PresentationWaiting {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','status','connectionId'].includes(key)))throw new Error('Invalid presentation waiting status');
+ const input=value as Record<string,unknown>;
+ if(!screenSessionId(input.sessionId)||input.status!=='pending'||!presentationConnection(input.connectionId))throw new Error('Invalid presentation waiting status');
+ return input as PresentationWaiting;
+}
+export function parsePresentationState(value:unknown):PresentationState {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','hostConnectionId','hostPrincipalId','revision','pending','admitted'].includes(key)))throw new Error('Invalid presentation state');
+ const input=value as Record<string,unknown>,pending=input.pending,admitted=input.admitted;
+ if(!screenSessionId(input.sessionId)||!presentationConnection(input.hostConnectionId)||typeof input.hostPrincipalId!=='string'||!input.hostPrincipalId||!Number.isSafeInteger(input.revision)||Number(input.revision)<1||!Array.isArray(pending)||!Array.isArray(admitted)||pending.length>100||admitted.length>100||pending.some(item=>!presentationParticipant(item))||admitted.some(item=>!presentationParticipant(item)))throw new Error('Invalid presentation state');
+ const ids=[...pending,...admitted].map(item=>(item as PresentationParticipant).connectionId);
+ if(new Set(ids).size!==ids.length)throw new Error('Invalid presentation state');
+ return input as PresentationState;
+}

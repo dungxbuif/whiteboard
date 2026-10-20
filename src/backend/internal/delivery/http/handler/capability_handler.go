@@ -26,12 +26,17 @@ type RoomTokenVerifier interface {
 type CapabilityHandler struct {
 	capabilities  domain.CapabilityService
 	rooms         RoomTokenVerifier
+	presentations domain.PresentationAudienceAuthority
 	access        domain.AccessService
 	assets        domain.AssetUsecase
 	features      domain.FeatureService
 	serviceSecret []byte
 	turnURL       string
 	turnSecret    []byte
+}
+
+func (h *CapabilityHandler) SetPresentationAuthority(p domain.PresentationAudienceAuthority) {
+	h.presentations = p
 }
 
 func NewCapabilityHandler(c domain.CapabilityService, r RoomTokenVerifier, a domain.AccessService, u domain.AssetUsecase, secret []byte) (*CapabilityHandler, error) {
@@ -81,9 +86,13 @@ func (h *CapabilityHandler) featureDecision(w http.ResponseWriter, r *http.Reque
 		RoomToken   string `json:"roomToken" validate:"required,max=8192"`
 		WorkspaceID string `json:"workspaceId" validate:"required,uuid"`
 		SceneID     string `json:"sceneId" validate:"required,uuid"`
-		Action      string `json:"action" validate:"required,oneof=screen:publish"`
+		Action      string `json:"action" validate:"required,max=64"`
 	}
 	if !decodeSharing(w, r, &in) {
+		return
+	}
+	if in.Action != string(domain.FeatureScreenPublish) && in.Action != string(domain.FeaturePresentationHost) {
+		capabilityError(w, r, domain.ErrInvalidCapability)
 		return
 	}
 	identity, err := h.rooms.VerifyRoomToken(in.RoomToken)
@@ -99,7 +108,11 @@ func (h *CapabilityHandler) featureDecision(w http.ResponseWriter, r *http.Reque
 		writeFeatureError(w, r, errors.New("feature authority unavailable"))
 		return
 	}
-	if err = h.features.Require(r.Context(), identity.Principal, identity.SceneRef, domain.FeatureScreenPublish); err != nil {
+	action := domain.FeatureScreenPublish
+	if in.Action == string(domain.FeaturePresentationHost) {
+		action = domain.FeaturePresentationHost
+	}
+	if err = h.features.Require(r.Context(), identity.Principal, identity.SceneRef, action); err != nil {
 		writeFeatureError(w, r, err)
 		return
 	}
@@ -141,6 +154,13 @@ func (h *CapabilityHandler) identity(r *http.Request) (domain.SceneSessionIdenti
 	if e != nil {
 		identity, e = h.rooms.VerifyRoomToken(raw)
 	}
+	if e != nil && h.presentations != nil {
+		var session uuid.UUID
+		identity, session, e = h.presentations.ParseAudience(raw)
+		if e == nil {
+			e = h.presentations.ResolveAudience(r.Context(), identity.Principal, identity.SceneRef, session)
+		}
+	}
 	if e != nil {
 		return identity, e
 	}
@@ -157,6 +177,27 @@ func (h *CapabilityHandler) identity(r *http.Request) (domain.SceneSessionIdenti
 		}
 	}
 	return identity, nil
+}
+
+func (h *CapabilityHandler) authorizeScene(ctx domain.Context, identity domain.SceneSessionIdentity, ttl time.Duration) (time.Time, error) {
+	if !strings.HasPrefix(identity.Principal.ID, "presentation:") {
+		return h.capabilities.AuthorizeScene(ctx, identity.Principal, identity.SceneRef, ttl)
+	}
+	if h.presentations == nil || !strings.HasPrefix(identity.Principal.GrantID, "session:") {
+		return time.Time{}, domain.ErrAccessDenied
+	}
+	session, e := uuid.Parse(strings.TrimPrefix(identity.Principal.GrantID, "session:"))
+	if e != nil || session == uuid.Nil {
+		return time.Time{}, domain.ErrAccessDenied
+	}
+	if e = h.presentations.ResolveAudience(ctx, identity.Principal, identity.SceneRef, session); e != nil {
+		return time.Time{}, e
+	}
+	expires := time.Now().Add(ttl)
+	if identity.ExpiresAt.Before(expires) {
+		expires = identity.ExpiresAt
+	}
+	return expires, nil
 }
 func (h *CapabilityHandler) PublicUpload(w http.ResponseWriter, r *http.Request) {
 	identity, e := h.identity(r)
@@ -211,7 +252,7 @@ func (h *CapabilityHandler) PublicView(w http.ResponseWriter, r *http.Request) {
 	}
 	var result map[string]domain.AssetViewResponse
 	e = h.access.WithWorkspaceLock(r.Context(), identity.SceneRef.WorkspaceID, uuid.Nil, func(c domain.Context) error {
-		expires, e := h.capabilities.AuthorizeScene(c, identity.Principal, identity.SceneRef, domain.AssetCapabilityLifetime)
+		expires, e := h.authorizeScene(c, identity, domain.AssetCapabilityLifetime)
 		if e != nil {
 			return e
 		}
@@ -239,7 +280,7 @@ func (h *CapabilityHandler) RealtimeConfig(w http.ResponseWriter, r *http.Reques
 		capabilityError(w, r, e)
 		return
 	}
-	expires, e := h.capabilities.AuthorizeScene(r.Context(), identity.Principal, identity.SceneRef, domain.RoomTokenLifetime)
+	expires, e := h.authorizeScene(r.Context(), identity, domain.RoomTokenLifetime)
 	if e != nil {
 		capabilityError(w, r, e)
 		return
