@@ -132,9 +132,23 @@ test.describe('Dashboard E2E Flows', () => {
         await route.fulfill({ json: mockScenes.filter(scene => scene.folderId === folderId) });
         return;
       }
+      if (request.method() === 'POST' && url.pathname.endsWith('/duplicate') && sceneId) {
+        const source = mockScenes.find(scene => scene.id === sceneId);
+        if (!source) return route.fulfill({ status: 404, json: { code: 'SCENE_NOT_FOUND' } });
+        const duplicate = {
+          ...source,
+          id: 'scene-copy',
+          title: body?.title as string,
+          folderId: (body?.folderId as string | null) ?? null,
+          content: structuredClone(source.content),
+          isStarred: false,
+        };
+        mockScenes = [duplicate, ...mockScenes];
+        return route.fulfill({ json: duplicate });
+      }
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
         const created = {
-          id: mockScenes.length ? 'scene-copy' : 'scene-created',
+          id: 'scene-created',
           access: 'edit', writerMode: 'v1',
           owner: true,
           workspaceId: mockWorkspaces[0].id,
@@ -273,10 +287,11 @@ test.describe('Dashboard E2E Flows', () => {
     const duplicate = page.getByRole('dialog', { name: 'Duplicate scene' });
     await duplicate.getByLabel('Copy name').fill('Scene copy');
     await duplicate.getByLabel('Copy to').selectOption('folder-product');
-    const createCopy = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/scenes/'));
+    const createCopy = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/scenes/scene-created/duplicate'));
     await duplicate.getByRole('button', { name: 'Duplicate' }).click();
-    expect((await createCopy).postDataJSON()).toEqual({ title: 'Scene copy', folderId: 'folder-product', content: { ...emptySceneContent, presentationOrder: [] } });
+    expect((await createCopy).postDataJSON()).toEqual({ title: 'Scene copy', folderId: 'folder-product' });
     await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toBeVisible();
+    expect(mockScenes.find(scene => scene.id === 'scene-copy')?.content).toEqual(mockScenes.find(scene => scene.id === 'scene-created')?.content);
     await leaveNativeCanvas(page);
 
     await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
@@ -289,6 +304,7 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('region', { name: 'Scenes' }).getByText('Untitled scene')).toHaveCount(0);
     await page.getByRole('button', { name: 'Product Boards', exact: true }).first().click();
     await expect(page.getByRole('region', { name: 'Scenes' }).getByText('Untitled scene')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Scenes' }).getByText('Scene copy')).toBeVisible();
   });
 
   test('should handle empty workspace state gracefully', async ({ page }) => {
