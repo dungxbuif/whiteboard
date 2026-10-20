@@ -11,6 +11,8 @@ capture confirms the server-issued session and clears the reservation.
 The client waits for that activation admission and offers to every validated
 peer returned by the server, including receivers that joined between reservation
 and the second click.
+If a receiver leaves before activation completes, its targeted stop removes only
+that receiver; the publisher can still finish capture and activate the share.
 
 `screen_signal` accepts only current same-room admitted connection and session
 IDs. `screen_stop`, authority loss, disconnect, picker cancellation, late

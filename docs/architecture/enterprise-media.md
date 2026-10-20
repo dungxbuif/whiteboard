@@ -39,6 +39,11 @@ enter sharing state until the matching `screen_admission` arrives. It merges the
 validated activation `peers` with receiver admissions observed during the
 reservation, so receivers that join before the publisher's second click receive
 an offer after activation instead of being dropped.
+Receiver-targeted `screen_stop` controls remove that connection from both the
+pre-activation waiting set and any live peer in every publisher state. Only a
+session-level stop clears the publisher reservation, pending capture, or share.
+The departure is retained for that screen session so an older activation peer
+snapshot cannot recreate an offer; a later fresh receiver admission clears it.
 
 Browser capture has two explicit steps: request admission, then select **Start
 sharing**. The second click calls `getDisplayMedia` with video limited to

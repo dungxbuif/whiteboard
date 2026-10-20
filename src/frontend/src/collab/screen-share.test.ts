@@ -39,6 +39,24 @@ it('offers to a receiver that joins after reservation and before activation',asy
  expect(fixture.transport.sent.find(control=>control.type==='screen_signal'&&control.payload.to==='receiver')?.payload).toMatchObject({description:{type:'offer'}});
 });
 
+it('receiver departure before the second click preserves the publisher reservation',async()=>{
+ const fixture=setup();const joined=fixture.screen.join();fixture.admitPublisher();await joined;
+ fixture.transport.emit('screen_admission',{admitted:true,connectionId:'receiver',kind:'screen',publisher:'self',receiving:true,sessionId:'00000000-0000-4000-8000-000000000001',peers:['self']},'server');fixture.transport.emit('screen_stop',{sessionId:'00000000-0000-4000-8000-000000000001',connectionId:'receiver'});
+ expect(fixture.screen.getSnapshot().status).toBe('ready');const started=fixture.screen.startSharing();await vi.waitFor(()=>expect(fixture.transport.sent.filter(control=>control.type==='screen_request')).toHaveLength(2));const activation=lastScreenRequest(fixture.transport.sent)!;
+ fixture.transport.emit('screen_admission',{admitted:true,connectionId:'self',kind:'screen',publisher:'self',receiving:false,sessionId:'00000000-0000-4000-8000-000000000001',peers:['receiver']},activation.requestId);await started;expect(fixture.screen.getSnapshot().status).toBe('sharing');expect(fixture.peers).toHaveLength(0);
+});
+
+it('receiver departure during capture configuration preserves pending activation',async()=>{
+ const fixture=setup();let release!:(config:RTCConfiguration&{expiresAt:string})=>void;fixture.config.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));const joined=fixture.screen.join();fixture.admitPublisher();await joined;
+ const started=fixture.screen.startSharing();fixture.transport.emit('screen_admission',{admitted:true,connectionId:'receiver',kind:'screen',publisher:'self',receiving:true,sessionId:'00000000-0000-4000-8000-000000000001',peers:['self']},'server');fixture.transport.emit('screen_stop',{sessionId:'00000000-0000-4000-8000-000000000001',connectionId:'receiver'});expect(fixture.screen.getSnapshot().status).toBe('permission');
+ release({iceServers:[],expiresAt:new Date(Date.now()+600000).toISOString()});await vi.waitFor(()=>expect(fixture.transport.sent.filter(control=>control.type==='screen_request')).toHaveLength(2));const activation=lastScreenRequest(fixture.transport.sent)!;fixture.transport.emit('screen_admission',{admitted:true,connectionId:'self',kind:'screen',publisher:'self',receiving:false,sessionId:'00000000-0000-4000-8000-000000000001',peers:[]},activation.requestId);
+ await started;expect(fixture.screen.getSnapshot().status).toBe('sharing');expect(fixture.peers).toHaveLength(0);
+});
+
+it('session-level stop still clears the publisher reservation',async()=>{
+ const fixture=setup();const joined=fixture.screen.join();fixture.admitPublisher();await joined;fixture.transport.emit('screen_stop',{sessionId:'00000000-0000-4000-8000-000000000001'});expect(fixture.screen.getSnapshot().status).toBe('idle');
+});
+
 it('lateCaptureStopsAllTracks',async()=>{
  const fixture=setup();let release!:(stream:MediaStream)=>void;fixture.media.mockImplementationOnce(()=>new Promise(resolve=>release=resolve));
  const joined=fixture.screen.join();fixture.admitPublisher();await joined;const starting=fixture.screen.startSharing();fixture.screen.leave();release(fixture.stream);await starting;await tick();
