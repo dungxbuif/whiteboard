@@ -71,18 +71,18 @@ dashboard sidebar and route wiring; add notification migration.
 `MarkRead(ctx,userID,id,requestID) error`. Deliver only currently authorized
 subscribers, unique `(user_id,event_id)`; no guest private inbox.
 
-- [ ] Add `anchorTracksMoveAndDeletedElement`, `guestReplyAndOwnerRedaction`,
+- [x] Add `anchorTracksMoveAndDeletedElement`, `guestReplyAndOwnerRedaction`,
   `commentPanelKeepsCanvasFull`, `TestNotificationRetryAndRevocation`: moves
   follow native geometry, deleted anchor falls back with unavailable label,
   duplicate job produces one inbox row, revoked recipient cannot read it.
-- [ ] Run `rtk npm run test:unit --workspace ./frontend -- comments` in `src`
+- [x] Run `rtk npm run test:unit --workspace ./frontend -- comments` in `src`
   and backend notification tests; expect RED. Implement plain-text rendering,
   escaped names, revision conflict UI with draft preserved, subscribe/read and
   actionable deeplink `/w/{workspace}/scenes/{scene}?thread={thread}`.
-- [ ] Add `src/frontend/e2e/real-stack/enterprise-comments.spec.ts`: member and
+- [x] Add `src/frontend/e2e/real-stack/enterprise-comments.spec.ts`: member and
   guest thread flows, desktop/mobile keyboard, Escape/focus, malicious text,
   resolve/reopen, deleted element, revocation while composer has a draft.
-- [ ] Run focused unit/Go/browser tests and frontend build; add human/public
+- [x] Run focused unit/Go/browser tests and frontend build; add human/public
   comment and inbox guides plus llms links; commit
   `feat(comments): add canvas discussion and notifications`.
 
