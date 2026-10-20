@@ -42,15 +42,15 @@ without changing voice controls. `ScreenShare.join():Promise<void>`, `leave():vo
 Controls `screen_request`, `screen_admission`, `screen_stop`, `screen_signal`
 carry connection/session IDs and use current sender/recipient authority.
 
-- [ ] Write `screenIndependentOfMic`, `voiceScreenCountOnceAtTen`,
+- [x] Write `screenIndependentOfMic`, `voiceScreenCountOnceAtTen`,
   `eleventhMediaDeniedButDrawingWorks`, `lateCaptureStopsAllTracks`,
   `publisherLeaseExpires`, `signalCannotCrossRoom`: union capacity <=10, one
   publisher, reservation expires in30s, permission only after admission and
   explicit click, leave stops late tracks and revokes sender routing.
-- [ ] Run `rtk npm test --workspace ./collab -- screen-share voice` and
+- [x] Run `rtk npm test --workspace ./collab -- screen-share voice` and
   `rtk npm run test:unit --workspace ./frontend -- screen-share` in `src`;
   expect RED, then implement bounded control parsing and separate peer objects.
-- [ ] After asynchronous admission show Start sharing; invoke getDisplayMedia
+- [x] After asynchronous admission show Start sharing; invoke getDisplayMedia
   synchronously from that second trusted user click, capturing video only.
   apply 1280x720/15fps constraints, handle unsupported browser without losing
   voice/drawing, replace no microphone tracks. Track-ended/authority loss closes
