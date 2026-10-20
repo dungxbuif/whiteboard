@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-Programme constraints apply; draft pending review. Depends on F1–F3/UI1–UI2.
+Programme constraints apply; approved for implementation. Depends on F1–F3/UI1–UI2.
 No epoch reset, map replacement, receipt/history deletion or HTTP content writes.
 Versions <=25 MiB; auto checkpoint dirty5min, max1/minute, max100/scene.
 Manual/pinned versions default indefinite. Library import <=500 items/25 MiB.

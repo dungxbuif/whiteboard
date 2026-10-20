@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-Programme constraints apply; draft pending review. Depends on F1/UI1/UI2.
+Programme constraints apply; approved for implementation. Depends on F1/UI1/UI2.
 One publisher/room, ten active media connections total, 720p/15fps target,
 no recording/system audio. Audience waiting must receive no scene/assets/roster
 until admitted. Host disconnect ends session; view lock never alters edit ACL.

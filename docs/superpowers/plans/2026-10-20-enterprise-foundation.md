@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-All programme constraints apply. Status draft; proposed contracts require review.
+All programme constraints apply. Status approved for implementation on 2026-10-20.
 Canvas is `100dvh`; no separate control header. Preserve native editor tools,
 legacy dashboard tokens, authority, document identities and permanent receipts.
 New mutations use principal-bound UUID requestIds and decimal revisions.

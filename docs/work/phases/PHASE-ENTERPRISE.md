@@ -1,10 +1,10 @@
 ---
 artifact_type: phase
 id: ENTERPRISE-PARITY
-status: draft
+status: in_progress
 owner: shared
 updated: 2026-10-20
-approval: pending_review
+approval: approved_2026-10-20
 ---
 
 # Enterprise parity programme
@@ -20,10 +20,9 @@ control header consuming viewport height.
 
 ## Current stage
 
-Planning only: the proposed detail design and 22 bounded execution tasks exist;
-no enterprise runtime code, migration, dependency or deployment has changed.
-Implementation requires review of the new contracts/defaults. All task
-checkboxes remain unchecked. The already approved v2 baseline is reused rather
+The detail design and 22 bounded execution tasks were approved for implementation
+on 2026-10-20. Wave 0/1 foundation work is active; task checkboxes remain tied to
+real verification evidence. The already approved v2 baseline is reused rather
 than relabeled as enterprise parity.
 
 ## Trace
@@ -52,8 +51,8 @@ when each reviewed boundary ships, avoiding invented accepted decisions.
 
 | Slice | Tasks | Dependency | Status |
 | --- | --- | --- | --- |
-| Full-viewport canvas controls | UI1–UI2 | Existing editor | draft |
-| Feature authority/events/jobs | F1–F3 | Existing ACL/audit | draft |
+| Full-viewport canvas controls | UI1–UI2 | Existing editor | in_progress |
+| Feature authority/events/jobs | F1–F3 | Existing ACL/audit | in_progress |
 | Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | draft |
 | Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | draft |
 | Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | draft |
@@ -86,12 +85,12 @@ deletion boundaries. No execution agent was started for the planning task.
 
 ## Review decisions
 
-The proposed defaults awaiting design review are comment access policy,
+The approved defaults are comment access policy,
 ten-connection media capacity/one publisher, editor restore rights, private
 collection visibility, OIDC-first SSO, SCIM membership provenance, and retention
-duration/grace. These are written choices with tests, not unnamed implementation
-decisions. The user's canvas-control placement and existing dashboard preference
-are direct constraints, not pending design choices.
+duration/grace. These are written choices with tests; changing one requires a
+recorded design ruling. The user's canvas-control placement and existing dashboard
+preference are direct constraints.
 
 ## Out of this planning goal
 

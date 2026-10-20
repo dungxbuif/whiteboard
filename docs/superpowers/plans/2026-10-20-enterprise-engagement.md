@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-Programme constraints apply; draft pending review. F1–F3 and UI1–UI2 are
+Programme constraints apply; approved for implementation. F1–F3 and UI1–UI2 are
 prerequisites. Guest comments default off independently of view/edit access;
 plain text 1–4,000 code points, pages50, writes30/minute/principal/scene.
 No raw content in events, no email delivery, no comments embedded as elements.

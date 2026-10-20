@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-Programme constraints apply; draft pending review. Depends on F1–F3;
+Programme constraints apply; approved for implementation. Depends on F1–F3;
 R1/R2 additionally depend on comments/version/library reference models.
 Workspace is the enterprise boundary. No automatic email-based identity merge,
 global SCIM deletion, canonical Yjs purge, receipt truncation or bucket-only expiry.
