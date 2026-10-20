@@ -164,6 +164,7 @@ func main() {
 	agents := usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService)
 	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
 	features := usecase.NewFeatureService(postgresrepo.NewFeatureRepository(db), accessService)
+	capabilityHandler.SetFeatureService(features)
 	featureHandler := handler.NewFeatureHandler(features)
 	events := usecase.NewEventService(postgresrepo.NewEventRepository(db), accessService)
 	comments := usecase.NewCommentService(postgresrepo.NewCommentRepository(db), features, accessService, events)
