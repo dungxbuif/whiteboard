@@ -188,9 +188,19 @@ func main() {
 	notificationHandler := handler.NewNotificationHandler(notifications)
 	activity := usecase.NewActivityService(postgresrepo.NewActivityRepository(db), features, accessService)
 	activityHandler := handler.NewActivityHandler(activity, accessService)
+	presentations, err := usecase.NewPresentationService(postgresrepo.NewPresentationRepository(db), features, accessService, []byte(cfg.CollabJWTSecret))
+	if err != nil {
+		logger.Error("failed to configure presentation admission", "error", err)
+		os.Exit(1)
+	}
+	if runtime, ok := collabRemote.(domain.PresentationRuntimeVerifier); ok {
+		presentations.SetRuntimeVerifier(runtime)
+	}
+	presentationHandler := handler.NewPresentationHandler(presentations, accessService)
+	capabilityHandler.SetPresentationAuthority(presentations)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
