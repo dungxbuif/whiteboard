@@ -14,7 +14,7 @@ transaction. The row stores document UUID, source sequence, canonical JSON bytes
 and SHA-256. Every image must resolve to an active asset in the same workspace
 and scene. Version row, asset pins, safe event and outbox commit together.
 Content fields and request binding are immutable; label and pinned metadata use
-a separate revision.
+a separate revision and emit a cursor-only event in the same Go transaction.
 
 The runtime owner runs a bounded checkpointer. The first edit starts a
 five-minute dirty interval, later edits coalesce, and the database prevents

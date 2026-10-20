@@ -48,8 +48,8 @@ func (s *versionRepoStub) ListVersions(domain.Context, domain.SceneRef, *uuid.UU
 func (s *versionRepoStub) Version(domain.Context, domain.SceneRef, uuid.UUID) (domain.SceneVersion, error) {
 	return s.version, nil
 }
-func (*versionRepoStub) SetVersionMetadata(domain.Context, domain.SceneRef, uuid.UUID, int64, *string, *bool) (domain.SceneVersion, error) {
-	return domain.SceneVersion{}, nil
+func (s *versionRepoStub) SetVersionMetadata(domain.Context, domain.SceneRef, uuid.UUID, int64, *string, *bool) (domain.SceneVersion, error) {
+	return s.version, nil
 }
 
 type versionCapsStub struct{ mutation domain.SceneMutation }
@@ -81,6 +81,13 @@ type versionAssetViewerStub struct{ files []string }
 func (s *versionAssetViewerStub) PresignScopedView(_ domain.Context, _ domain.SceneRef, files []string, _ time.Time) (map[string]domain.AssetViewResponse, error) {
 	s.files = files
 	return map[string]domain.AssetViewResponse{"file-1": {AssetID: uuid.New(), ViewUrl: "https://assets.test/file-1", MimeType: "image/png", ExpiresAt: time.Now().Add(time.Minute)}}, nil
+}
+
+type versionEventStub struct{ input domain.EventInput }
+
+func (s *versionEventStub) AppendEvent(_ domain.Context, input domain.EventInput) (domain.WorkspaceEvent, error) {
+	s.input = input
+	return domain.WorkspaceEvent{ID: "1"}, nil
 }
 
 func TestGuestHistoryDenied(t *testing.T) {
@@ -138,5 +145,22 @@ func TestVersionGetMintsFreshImageURLs(t *testing.T) {
 	}
 	if features.action != domain.FeatureVersionRead || len(viewer.files) != 1 || viewer.files[0] != "file-1" || got.Assets["file-1"].ViewUrl == "" {
 		t.Fatalf("version=%+v files=%v action=%s", got, viewer.files, features.action)
+	}
+}
+
+func TestVersionMetadataEmitsSafeAtomicEvent(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	versionID, requestID := uuid.New(), uuid.New()
+	pinned := true
+	repo := &versionRepoStub{version: domain.SceneVersion{ID: versionID, MetadataRevision: 2}}
+	features, events := &versionFeatureStub{}, &versionEventStub{}
+	service := NewVersionService(repo, features, nil, nil)
+	service.SetEventService(events)
+	_, err := service.SetMetadata(context.Background(), domain.UserPrincipal(uuid.New()), ref, versionID, domain.VersionMetadataInput{RequestID: requestID, ExpectedRevision: 1, Pinned: &pinned})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if events.input.Kind != "version.metadata_updated" || events.input.SourceKey != versionID.String()+":revision:2" {
+		t.Fatalf("event=%+v", events.input)
 	}
 }

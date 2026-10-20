@@ -22,9 +22,15 @@ type VersionService struct {
 	caps     domain.CapabilityService
 	remote   domain.AgentCollabRepository
 	assets   domain.ScopedAssetViewer
+	events   versionEventService
 }
 
 func (s *VersionService) SetAssetViewer(assets domain.ScopedAssetViewer) { s.assets = assets }
+func (s *VersionService) SetEventService(events versionEventService)     { s.events = events }
+
+type versionEventService interface {
+	AppendEvent(domain.Context, domain.EventInput) (domain.WorkspaceEvent, error)
+}
 
 func NewVersionService(repo domain.SceneVersionRepository, features domain.FeatureService, caps domain.CapabilityService, remote domain.AgentCollabRepository) *VersionService {
 	return &VersionService{repo: repo, features: features, caps: caps, remote: remote}
@@ -150,7 +156,7 @@ func (s *VersionService) Get(ctx domain.Context, principal domain.Principal, ref
 }
 
 func (s *VersionService) SetMetadata(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, id uuid.UUID, input domain.VersionMetadataInput) (domain.SceneVersion, error) {
-	if id == uuid.Nil || input.RequestID == uuid.Nil || input.ExpectedRevision < 1 || input.Label == nil && input.Pinned == nil || !validVersionLabel(input.Label) || s.repo == nil || s.features == nil {
+	if id == uuid.Nil || input.RequestID == uuid.Nil || input.ExpectedRevision < 1 || input.Label == nil && input.Pinned == nil || !validVersionLabel(input.Label) || s.repo == nil || s.features == nil || s.events == nil {
 		return domain.SceneVersion{}, domain.ErrInvalidVersionInput
 	}
 	payload, err := json.Marshal(struct {
@@ -163,6 +169,9 @@ func (s *VersionService) SetMetadata(ctx domain.Context, principal domain.Princi
 	stored, err := s.features.Mutate(ctx, principal, ref, domain.FeatureVersionCreate, input.RequestID, payload, func(txCtx domain.Context) (domain.StoredFeatureResponse, error) {
 		updated, e := s.repo.SetVersionMetadata(txCtx, ref, id, input.ExpectedRevision, input.Label, input.Pinned)
 		if e != nil {
+			return domain.StoredFeatureResponse{}, e
+		}
+		if _, e = s.events.AppendEvent(txCtx, domain.EventInput{WorkspaceID: ref.WorkspaceID, SceneID: &ref.SceneID, ActorKind: domain.EventActorUser, ActorID: principal.ID, Kind: "version.metadata_updated", SubjectID: id.String(), SafeMetadata: map[string]any{"versionId": id.String(), "metadataRevision": updated.MetadataRevision, "requestId": input.RequestID.String(), "labelChanged": input.Label != nil, "pinnedChanged": input.Pinned != nil}, Source: "scene_version_metadata", SourceKey: id.String() + ":revision:" + strconv.FormatInt(updated.MetadataRevision, 10)}); e != nil {
 			return domain.StoredFeatureResponse{}, e
 		}
 		body, e := json.Marshal(updated)
