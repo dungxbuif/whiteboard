@@ -15,6 +15,7 @@ const mock = vi.hoisted(() => {
   };
   return {
     props: null as Record<string, unknown> | null,
+    commentPrincipal: null as Record<string, unknown> | null,
     exportRecovery,
     collab: {
       adapter: { content: () => content, reorderPresentation: vi.fn() },
@@ -63,12 +64,27 @@ vi.mock('@/components/whiteboard/excalidraw-module', () => ({
   },
 }));
 
+vi.mock('@/components/activity/activity-panel', () => ({
+  ActivityPanel: ({ sceneId, workspaceId }: { sceneId: string; workspaceId: string }) => <div>{`${workspaceId}:${sceneId}`}</div>,
+}));
+
+vi.mock('@/components/comments/comment-panel', () => ({
+  CommentPanel: ({ principal }: { principal: Record<string, unknown> }) => {
+    mock.commentPrincipal = principal;
+    return <div data-testid="comment-panel-stub" />;
+  },
+}));
+
 import { CollaborativeCanvas } from '@/components/whiteboard/excalidraw-wrapper';
+import useWorkspaceStore from '@/store/workspace-store';
 
 afterEach(() => {
   cleanup();
   mock.props = null;
+  mock.commentPrincipal = null;
   mock.collab.state.status = 'synced';
+  mock.collab.state.canEdit = true;
+  useWorkspaceStore.setState({ workspaces: [], activeWorkspaceId: null });
   mock.exportRecovery.mockReset();
   mock.exportRecovery.mockResolvedValue({});
   vi.unstubAllGlobals();
@@ -101,4 +117,26 @@ it('waits for the recovery export before rejoining a revoked scene', async () =>
   expect(onRejoin).not.toHaveBeenCalled();
   finishExport({ format: 'recovery' });
   await waitFor(() => expect(onRejoin).toHaveBeenCalledOnce());
+});
+
+it('opens scene activity as an overlay and returns focus on Escape', async () => {
+  render(<CollaborativeCanvas title="Activity scene" />);
+  const trigger = await screen.findByRole('button', { name: 'Open activity' });
+  fireEvent.click(trigger);
+  expect(screen.getByRole('dialog', { name: 'Activity' })).toBeInTheDocument();
+  expect(screen.getByText('workspace:scene')).toBeInTheDocument();
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(screen.queryByRole('dialog', { name: 'Activity' })).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+});
+
+it('does not grant comment moderation when a workspace editor is a scene viewer', async () => {
+  useWorkspaceStore.setState({
+    activeWorkspaceId: 'workspace',
+    workspaces: [{ id: 'workspace', name: 'Workspace', ownerId: 'owner', role: 'editor', createdAt: '2026-10-20T00:00:00Z' }],
+  });
+  mock.collab.state.canEdit = false;
+  render(<CollaborativeCanvas title="Read-only scene" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open comments' }));
+  await waitFor(() => expect(mock.commentPrincipal).toMatchObject({ kind: 'user', canResolve: false }));
 });

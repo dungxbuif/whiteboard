@@ -43,4 +43,5 @@ row, including filtered rows; clients must follow `nextCursor` until absent and
 deduplicate by notification ID. Authorization denials are filtered, while
 policy/database failures fail the request. Reusing a read `requestId` for a
 different notification returns `409 REQUEST_ID_REUSED`. Guests never have a
-private inbox. Resolve/reopen controls require current editor or owner authority.
+private inbox. Resolve/reopen controls require current edit authority on the
+specific scene, including its latest scene-level override.

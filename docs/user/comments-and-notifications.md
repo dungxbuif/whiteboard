@@ -21,7 +21,9 @@ comments. Guest permission never grants drawing access. Guests can reply and
 see moderation results, but they do not receive a private workspace inbox.
 
 Authors can redact their own messages. Workspace owners can redact any message;
-editors and owners can resolve or reopen threads. Redacted text is replaced by
+members with edit access to the current scene can resolve or reopen threads.
+A workspace editor whose scene override is view-only cannot moderate that scene.
+Redacted text is replaced by
 a visible removal marker. When another participant changes a thread while you
 are writing, the panel reports the conflict and keeps your draft so you can
 reload and submit again.
