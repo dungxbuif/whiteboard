@@ -29,8 +29,8 @@ func TestSceneCopyStagesImageAndRewritesReferences(t *testing.T) {
 	db := accessTestDB(t, 999)
 	owner, _, workspace := accessFixture(t, db)
 	source, target, asset, requestID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
-	for _, scene := range []uuid.UUID{source, target} {
-		if err := db.Exec(`INSERT INTO scenes(id,workspace_id,title,content,created_by) VALUES(?,?,?,?::jsonb,?)`, scene, workspace, "Scene", `{"elements":[],"appState":{},"files":{}}`, owner).Error; err != nil {
+	for index, scene := range []uuid.UUID{source, target} {
+		if err := db.Exec(`INSERT INTO scenes(id,workspace_id,title,content,created_by) VALUES(?,?,?,?::jsonb,?)`, scene, workspace, "Scene "+string(rune('A'+index)), `{"elements":[],"appState":{},"files":{}}`, owner).Error; err != nil {
 			t.Fatal(err)
 		}
 	}

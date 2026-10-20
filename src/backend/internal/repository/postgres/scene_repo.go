@@ -27,7 +27,13 @@ func (r *SceneRepository) Create(ctx context.Context, scene *domain.Scene) error
 		}
 		scene.PublicID = &id
 	}
-	if err := accessDB(ctx, r.db).Create(scene).Error; err != nil {
+	query := accessDB(ctx, r.db)
+	// Let the database defaults supply these flags for ordinary scenes. Older
+	// schema fixtures intentionally predate migration 000029.
+	if !scene.PendingDuplicate && !scene.DuplicateCleanupStarted {
+		query = query.Omit("PendingDuplicate", "DuplicateCleanupStarted")
+	}
+	if err := query.Create(scene).Error; err != nil {
 		return fmt.Errorf("failed to create scene: %w", err)
 	}
 	return nil
@@ -44,11 +50,13 @@ func (r *SceneRepository) HardDelete(ctx context.Context, workspaceID, id uuid.U
 	return nil
 }
 
-// ClaimDuplicateCleanup serializes compensation against publication. A
-// publisher can only commit before this claim or not at all.
+// ClaimDuplicateCleanup grants one caller ownership of compensation. A
+// publisher can only commit before this claim or not at all. A failed second
+// claim must not retry object deletion; an interrupted owner requires
+// operator reconciliation of the pending scene and its stage records.
 func (r *SceneRepository) ClaimDuplicateCleanup(ctx context.Context, workspaceID, id uuid.UUID) (bool, error) {
 	result := accessDB(ctx, r.db).Unscoped().Model(&domain.Scene{}).
-		Where("workspace_id=? AND id=? AND pending_duplicate=TRUE AND deleted_at IS NOT NULL", workspaceID, id).
+		Where("workspace_id=? AND id=? AND pending_duplicate=TRUE AND duplicate_cleanup_started=FALSE AND deleted_at IS NOT NULL", workspaceID, id).
 		Update("duplicate_cleanup_started", true)
 	if result.Error != nil {
 		return false, result.Error

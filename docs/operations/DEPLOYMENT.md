@@ -91,6 +91,44 @@ replicas resume before migration succeeds. After the upgrade, pending copies
 are excluded from Trash/search/Restore, and cleanup failures carry a scene ID
 in structured logs for operator reconciliation.
 
+If migration `000029` aborts on an ambiguous row, golang-migrate may record
+`version=29, dirty=true` even though PostgreSQL rolled back the migration's
+DDL. Keep all old and new backend writers stopped. Inspect `schema_migrations`
+and verify **both** new columns are absent before changing migration metadata:
+
+```sql
+SELECT version, dirty FROM schema_migrations;
+SELECT column_name FROM information_schema.columns
+WHERE table_schema=current_schema() AND table_name='scenes'
+  AND column_name IN ('pending_duplicate','duplicate_cleanup_started');
+```
+
+Classify every row from the candidate query above and resolve it as described
+before retrying. Only when the recorded state is `29/true` **and** both columns
+are absent, reset the migration marker to 28 using the same migration image and
+private environment as the deployment job:
+
+```sh
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm \
+  --entrypoint /bin/sh db-migrate -ec 'migrate -path=/migrations -database="$DATABASE_URL" force 28'
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm db-migrate
+```
+
+Confirm `version=29, dirty=false`, both columns exist, and the staged hidden
+copies have `pending_duplicate=true` before restarting backends. If either
+column exists after the failed migration, or the recorded version differs,
+**do not force 28**: preserve the database, inspect the partial state and
+recover from a verified backup or a reviewed repair. `force` changes only the
+migration marker; it does not roll back schema or data.
+
+For a runtime duplicate that remains `pending_duplicate=true` with
+`duplicate_cleanup_started=true`, the first claimant owns cleanup. Later
+requests cannot reclaim it or delete its objects. If that owner has stopped,
+operators must first quiesce duplicate requests, correlate the scene ID with
+structured failure logs and `library_asset_stages`, reconcile object keys and
+rows, and only then remove the hidden scene. Never reset the claim flag or
+retry deletion blindly: a prior owner may already have deleted some objects.
+
 1. Run the pre-release checklist and all repository tests.
 2. Build and start the migration job, backend, collaboration runtime, MCP adapter, and frontend:
    `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.

@@ -13,7 +13,7 @@ All commands ran in the dashboard-management-parity worktree on 2026-10-21.
 
 | Command | Location | Result |
 | --- | --- | --- |
-| `rtk go test ./...` | `src/backend` | pass: 367 tests in 14 packages after duplicate recovery fixes |
+| `rtk go test ./...` | `src/backend` | pass: 367 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after cleanup-claim and migration-fixture fixes |
 | `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 233 tests in 51 files |
 | `rtk npm run build --workspace ./frontend` | `src` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
 | `rtk npx playwright test e2e/dashboard-style.spec.ts e2e/dashboard.spec.ts --workers=1 --reporter=line` | `src/frontend` | pass: 18 browser tests |
@@ -26,10 +26,15 @@ return. Go tests cover current scene-read authorization, durable un-compacted
 projection, and `Cache-Control: no-store` on unauthenticated and service-error
 projection responses. The added tests cover commit-then-error duplicate
 publication, state-uncertain preservation, pending copy exclusion from restore,
-and conditional cleanup. PostgreSQL-backed concurrent Restore/Publish and asset
-cleanup tests are gated by `ACCESS_TEST_DATABASE_URL` and were skipped on this
-host; the real-stack suite attempted earlier could not start because the local
-PostgreSQL role `test` is absent. These are local automated checks, not VM100 canaries.
+and conditional cleanup. PostgreSQL-backed Restore/Publish and asset cleanup
+tests are gated by `ACCESS_TEST_DATABASE_URL` and passed against a dedicated
+local PostgreSQL test database for this follow-up.
+The Restore/Publish fixture starts two goroutines but uses a single database
+connection, so it checks the final outcome, not truly parallel transactions.
+A separate migration fixture passed ambiguous-row abort/DDL rollback and
+staged-copy backfill under the same database gate. The earlier real-stack
+Playwright suite could not start because its expected local PostgreSQL role
+`test` is absent. These are local automated checks, not VM100 canaries.
 
 ## Release boundary
 

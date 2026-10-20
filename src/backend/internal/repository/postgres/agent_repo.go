@@ -75,7 +75,7 @@ func (r *AgentRepository) Scene(ctx domain.Context, ref domain.SceneRef) (domain
 	return x, accessError(e)
 }
 func (r *AgentRepository) CreateScene(ctx domain.Context, s *domain.Scene) error {
-	return r.dbFor(ctx).Omit("WriterMode").Create(s).Error
+	return r.dbFor(ctx).Omit("WriterMode", "PendingDuplicate", "DuplicateCleanupStarted").Create(s).Error
 }
 func (r *AccessRepository) AgentSceneState(ctx domain.Context, p domain.Principal, ref domain.SceneRef) (domain.AccessDecision, error) {
 	if p.UserID != nil {

@@ -144,6 +144,13 @@ func TestSceneRepository(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("claim=%v err=%v", claimed, err)
 	}
+	claimedAgain, err := repo.ClaimDuplicateCleanup(ctx, workspaceID, claimedCopy.ID)
+	if err != nil || claimedAgain {
+		t.Fatalf("second caller must not own cleanup: claim=%v err=%v", claimedAgain, err)
+	}
+	if pending, err := repo.FindDuplicateState(ctx, workspaceID, claimedCopy.ID); err != nil || pending == nil || !pending.PendingDuplicate || !pending.DuplicateCleanupStarted {
+		t.Fatalf("failed second claim changed pending copy: %+v err=%v", pending, err)
+	}
 	if err := repo.PublishDuplicate(ctx, claimedCopy); err == nil {
 		t.Fatal("cleanup claim did not block publish")
 	}
