@@ -25,6 +25,8 @@ interface FolderState {
   fetchFolders: (workspaceId: string) => Promise<void>;
   createFolder: (workspaceId: string, name: string, parentId: string | null) => Promise<Folder>;
   moveFolder: (workspaceId: string, folderId: string, newParentId: string | null) => Promise<void>;
+  renameFolder: (workspaceId: string, folderId: string, name: string) => Promise<void>;
+  updateFolder: (workspaceId: string, folderId: string, changes: { name?: string; newParentId?: string | null }) => Promise<void>;
   setFolderStar: (workspaceId: string, folderId: string) => Promise<void>;
   trashFolder: (workspaceId: string, folderId: string) => Promise<void>;
   setCurrentFolderId: (folderId: string | null) => void;
@@ -103,6 +105,15 @@ const useFolderStore = create<FolderState>((set) => ({
       { newParentId },
       { headers: workspaceHeaders(workspaceId) },
     );
+    await useFolderStore.getState().fetchFolders(workspaceId);
+  },
+
+  renameFolder: async (workspaceId, folderId, name) => {
+    await useFolderStore.getState().updateFolder(workspaceId, folderId, { name });
+  },
+
+  updateFolder: async (workspaceId, folderId, changes) => {
+    await api.patch(`/folders/${folderId}`, changes, { headers: workspaceHeaders(workspaceId) });
     await useFolderStore.getState().fetchFolders(workspaceId);
   },
 

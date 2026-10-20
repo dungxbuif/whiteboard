@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Plus, Folder } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Folder, Pencil } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,15 @@ import useWorkspaceStore from "@/store/workspace-store";
 export function WorkspaceSwitcher() {
   const { workspaces, activeWorkspaceId } = useWorkspaceStore();
   const createWorkspace = useWorkspaceStore((state) => state.createWorkspace);
+  const renameWorkspace = useWorkspaceStore((state) => state.renameWorkspace);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [workspaceName, setWorkspaceName] = React.useState("");
   const [createError, setCreateError] = React.useState("");
   const [isCreating, setIsCreating] = React.useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = React.useState(false);
+  const [renameName, setRenameName] = React.useState("");
+  const [renameError, setRenameError] = React.useState("");
+  const [isRenaming, setIsRenaming] = React.useState(false);
 
   const activeWorkspace = Array.isArray(workspaces) ? workspaces.find((w) => w.id === activeWorkspaceId) : null;
 
@@ -64,6 +69,12 @@ export function WorkspaceSwitcher() {
             {activeWorkspaceId === workspace.id && <Check className="h-4 w-4" />}
           </DropdownMenuItem>
         ))}
+        {activeWorkspace?.role === "owner" && <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="gap-2" onSelect={() => { setRenameName(activeWorkspace.name); setRenameError(""); setRenameDialogOpen(true); }}>
+            <Pencil className="h-4 w-4" /> Rename workspace
+          </DropdownMenuItem>
+        </>}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="gap-2 font-medium"
@@ -117,6 +128,25 @@ export function WorkspaceSwitcher() {
             <Button disabled={isCreating} onClick={() => setCreateDialogOpen(false)} type="button" variant="outline">Cancel</Button>
             <Button disabled={isCreating} type="submit">{isCreating ? "Creating..." : "Create"}</Button>
           </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+    <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Rename workspace</DialogTitle><DialogDescription>Choose a name for this workspace.</DialogDescription></DialogHeader>
+        <form className="grid gap-4" onSubmit={async (event) => {
+          event.preventDefault();
+          if (!activeWorkspace) return;
+          const name = renameName.trim();
+          if (name.length < 3) { setRenameError("Workspace name must be at least 3 characters"); return; }
+          setIsRenaming(true); setRenameError("");
+          try { await renameWorkspace(activeWorkspace.id, name); setRenameDialogOpen(false); }
+          catch { setRenameError("Could not rename workspace"); }
+          finally { setIsRenaming(false); }
+        }}>
+          <label className="grid gap-2 text-sm font-medium" htmlFor="rename-workspace-name">Workspace name<Input autoFocus id="rename-workspace-name" maxLength={100} value={renameName} onChange={(event) => setRenameName(event.target.value)} /></label>
+          {renameError ? <p className="text-sm text-destructive" role="alert">{renameError}</p> : null}
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setRenameDialogOpen(false)}>Cancel</Button><Button type="submit" disabled={isRenaming || renameName.trim().length < 3}>{isRenaming ? "Saving..." : "Save"}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>

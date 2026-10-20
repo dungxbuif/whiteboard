@@ -68,4 +68,23 @@ describe("folder store", () => {
     );
     expect(useFolderStore.getState().folders).toContainEqual(child);
   });
+
+  it("renames a folder and reloads paths while keeping the selected folder", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: undefined });
+    vi.mocked(api.get).mockResolvedValue({ data: [{ ...root, name: "Renamed" }, child] });
+    useFolderStore.getState().setCurrentFolderId("root");
+
+    await useFolderStore.getState().renameFolder("workspace", "root", "Renamed");
+
+    expect(api.patch).toHaveBeenCalledWith("/folders/root", { name: "Renamed" }, { headers: { "X-Workspace-ID": "workspace" } });
+    expect(useFolderStore.getState().folders[0].name).toBe("Renamed");
+    expect(useFolderStore.getState().currentFolderId).toBe("root");
+  });
+
+  it("updates folder name and parent in one request", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: undefined });
+    vi.mocked(api.get).mockResolvedValue({ data: [{ ...root, name: "Renamed", parentId: "other" }] });
+    await useFolderStore.getState().updateFolder("workspace", "root", { name: "Renamed", newParentId: "other" });
+    expect(api.patch).toHaveBeenCalledWith("/folders/root", { name: "Renamed", newParentId: "other" }, { headers: { "X-Workspace-ID": "workspace" } });
+  });
 });

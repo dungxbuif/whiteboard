@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import api from "@/lib/api";
 import { writeCollaborativeContent, legacyConflict } from "@/collab/writers";
+import useFolderStore from "@/store/folder-store";
 
 export const SCENE_SAVE_DEBOUNCE_MS = 750;
 export const EMPTY_SCENE_CONTENT = {
@@ -63,6 +64,8 @@ interface SceneState {
   scheduleSave: (workspaceId: string, sceneId: string, content: SceneContent) => void;
   flushSave: () => Promise<void>;
   renameScene: (workspaceId: string, sceneId: string, title: string) => Promise<void>;
+  moveScene: (workspaceId: string, sceneId: string, folderId: string | null, currentFolderId: string | null) => Promise<void>;
+  duplicateScene: (workspaceId: string, sceneId: string, title: string, folderId: string | null) => Promise<Scene>;
   setSceneStar: (workspaceId: string, sceneId: string, isStarred: boolean) => Promise<void>;
   trashScene: (workspaceId: string, sceneId: string) => Promise<void>;
   updatePresentationOrder: (workspaceId: string, sceneId: string, presentationOrder: string[]) => void;
@@ -211,6 +214,22 @@ const useSceneStore = create<SceneState>((set, get) => {
         scenes: updateScene(state.scenes, response.data),
         activeScene: state.activeScene?.id === sceneId ? response.data : state.activeScene,
       }));
+    },
+
+    moveScene: async (workspaceId, sceneId, folderId, currentFolderId) => {
+      const response = await api.patch<Scene>(`/scenes/${sceneId}/`, { folderId }, { headers: workspaceHeaders(workspaceId) });
+      set((state) => ({
+        scenes: updateScene(state.scenes, response.data),
+        activeScene: state.activeScene?.id === sceneId ? response.data : state.activeScene,
+      }));
+      await get().fetchScenes(workspaceId, currentFolderId);
+    },
+
+    duplicateScene: async (workspaceId, sceneId, title, folderId) => {
+      const source = await api.get<Scene>(`/scenes/${sceneId}/`, { headers: workspaceHeaders(workspaceId) });
+      const duplicate = await get().createScene(workspaceId, folderId, title, source.data.content);
+      await get().fetchScenes(workspaceId, useFolderStore.getState().currentFolderId).catch(() => undefined);
+      return duplicate;
     },
 
     setSceneStar: async (workspaceId, sceneId, isStarred) => {

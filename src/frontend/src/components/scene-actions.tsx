@@ -1,4 +1,4 @@
-import { MoreHorizontal, Pencil, Share2, Star, Trash2 } from "lucide-react";
+import { Copy, FolderInput, MoreHorizontal, Pencil, Share2, Star, Trash2 } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,22 @@ import type { Scene } from "@/store/scene-store";
 import useSceneStore from "@/store/scene-store";
 import useWorkspaceStore from "@/store/workspace-store";
 import { ShareDialog } from "@/components/share-dialog";
+import { SceneDuplicateDialog, SceneMoveDialog } from "@/components/scene-duplicate-dialog";
+import useFolderStore from "@/store/folder-store";
+import { navigate } from "@/lib/router";
+import { workspaceDashboardPath } from "@/lib/dashboard-navigation";
 
 export function SceneActions({ scene }: { scene: Scene }) {
   const [shareOpen, setShareOpen] = useState(false);
+  const [duplicateOpen, setDuplicateOpen] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
   const activeWorkspaceId = useWorkspaceStore((state) => state.activeWorkspaceId);
+  const activeWorkspace = useWorkspaceStore((state) => state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId));
+  const folders = useFolderStore((state) => state.folders);
+  const currentFolderId = useFolderStore((state) => state.currentFolderId);
   const renameScene = useSceneStore((state) => state.renameScene);
+  const moveScene = useSceneStore((state) => state.moveScene);
+  const duplicateScene = useSceneStore((state) => state.duplicateScene);
   const setSceneStar = useSceneStore((state) => state.setSceneStar);
   const trashScene = useSceneStore((state) => state.trashScene);
 
@@ -27,9 +38,9 @@ export function SceneActions({ scene }: { scene: Scene }) {
     await renameScene(activeWorkspaceId, scene.id, title);
   }
 
-  if (scene.access !== "edit" && !scene.owner) return null;
+  if ((activeWorkspace?.role !== "owner" && activeWorkspace?.role !== "editor") || (scene.access !== "edit" && !scene.owner)) return null;
 
-  return (
+  return <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button aria-label={`Actions for ${scene.title}`} size="icon" type="button" variant="ghost">
@@ -40,6 +51,8 @@ export function SceneActions({ scene }: { scene: Scene }) {
         <DropdownMenuItem onSelect={() => void handleRename()}>
           <Pencil size={16} aria-hidden="true" /> Rename
         </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setMoveOpen(true)}><FolderInput size={16} aria-hidden="true" /> Move</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setDuplicateOpen(true)}><Copy size={16} aria-hidden="true" /> Duplicate</DropdownMenuItem>
         <DropdownMenuItem
           onSelect={() => {
             if (activeWorkspaceId) void setSceneStar(activeWorkspaceId, scene.id, !scene.isStarred);
@@ -59,7 +72,16 @@ export function SceneActions({ scene }: { scene: Scene }) {
           <Trash2 size={16} aria-hidden="true" /> Move to trash
         </DropdownMenuItem>
       </DropdownMenuContent>
-      <ShareDialog onOpenChange={setShareOpen} open={shareOpen} scene={scene} />
     </DropdownMenu>
-  );
+    <SceneMoveDialog folderId={scene.folderId} folders={folders} open={moveOpen} onOpenChange={setMoveOpen} onMove={async (folderId) => {
+      if (!activeWorkspaceId) return;
+      await moveScene(activeWorkspaceId, scene.id, folderId, currentFolderId);
+    }} />
+    <SceneDuplicateDialog title={scene.title} folderId={scene.folderId} folders={folders} open={duplicateOpen} onOpenChange={setDuplicateOpen} onDuplicate={async (title, folderId) => {
+      if (!activeWorkspaceId) return;
+      const copy = await duplicateScene(activeWorkspaceId, scene.id, title, folderId);
+      navigate(`${workspaceDashboardPath(activeWorkspace)}/scenes/${encodeURIComponent(copy.publicId || copy.id)}`);
+    }} />
+    <ShareDialog onOpenChange={setShareOpen} open={shareOpen} scene={scene} />
+  </>;
 }

@@ -17,6 +17,7 @@ interface WorkspaceState {
   fetchWorkspaces: () => Promise<void>;
   setActiveWorkspaceId: (id: string) => void;
   createWorkspace: (name: string) => Promise<Workspace>;
+  renameWorkspace: (id: string, name: string) => Promise<Workspace>;
 }
 
 const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
@@ -53,6 +54,12 @@ const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       activeWorkspaceId: state.activeWorkspaceId || newWorkspace.id,
     }));
     return newWorkspace;
+  },
+
+  renameWorkspace: async (id, name) => {
+    const response = await api.patch<Workspace>(`/workspaces/${id}`, { name }, { headers: { "X-Workspace-ID": id } });
+    set((state) => ({ workspaces: state.workspaces.map((workspace) => workspace.id === id ? { ...workspace, ...response.data } : workspace) }));
+    return response.data;
   },
 }));
 

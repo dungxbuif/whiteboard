@@ -6,6 +6,7 @@ vi.mock('../lib/api', () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -41,5 +42,17 @@ describe('WorkspaceStore', () => {
     const state = useWorkspaceStore.getState();
     expect(state.workspaces).toContainEqual(newWS);
     expect(state.activeWorkspaceId).toBe('2');
+  });
+
+  it('renames an active workspace without changing its id', async () => {
+    const original = { id: 'w1', name: 'Old', ownerId: 'user', role: 'owner' as const, createdAt: 'date' };
+    useWorkspaceStore.setState({ workspaces: [original], activeWorkspaceId: 'w1' });
+    vi.mocked(api.patch).mockResolvedValue({ data: { ...original, name: 'New' } });
+
+    await useWorkspaceStore.getState().renameWorkspace('w1', 'New');
+
+    expect(api.patch).toHaveBeenCalledWith('/workspaces/w1', { name: 'New' }, { headers: { 'X-Workspace-ID': 'w1' } });
+    expect(useWorkspaceStore.getState().workspaces[0].name).toBe('New');
+    expect(useWorkspaceStore.getState().activeWorkspaceId).toBe('w1');
   });
 });

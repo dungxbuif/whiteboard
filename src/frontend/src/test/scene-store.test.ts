@@ -127,4 +127,35 @@ describe("scene store", () => {
     });
     expect(useSceneStore.getState().scenes).toEqual([]);
   });
+
+  it("duplicates canonical server content and opens the new scene", async () => {
+    const canonical = { ...scene, content: { elements: [{ id: "saved" }], appState: { zoom: 1 }, files: {}, presentationOrder: [] }, writerMode: "v2" as const };
+    const duplicate = { ...canonical, id: "scene-2", title: "Scene copy", folderId: "folder-2" };
+    vi.mocked(api.get).mockResolvedValueOnce({ data: canonical }).mockResolvedValueOnce({ data: [scene] });
+    vi.mocked(api.post).mockResolvedValue({ data: duplicate });
+
+    const result = await useSceneStore.getState().duplicateScene("workspace-1", scene.id, "Scene copy", "folder-2");
+
+    expect(api.get).toHaveBeenCalledWith("/scenes/scene-1/", { headers: { "X-Workspace-ID": "workspace-1" } });
+    expect(api.post).toHaveBeenCalledWith("/scenes/", { title: "Scene copy", folderId: "folder-2", content: canonical.content }, { headers: { "X-Workspace-ID": "workspace-1" } });
+    expect(api.get).toHaveBeenCalledWith("/scenes", { headers: { "X-Workspace-ID": "workspace-1" }, params: undefined });
+    expect(result.id).toBe("scene-2");
+    expect(useSceneStore.getState().activeScene?.id).toBe("scene-2");
+  });
+
+  it("moves a scene with the existing update route and reloads its list", async () => {
+    vi.mocked(api.patch).mockResolvedValue({ data: { ...scene, folderId: "folder-2" } });
+    vi.mocked(api.get).mockResolvedValue({ data: [] });
+    await useSceneStore.getState().moveScene("workspace-1", scene.id, "folder-2", null);
+    expect(api.patch).toHaveBeenCalledWith("/scenes/scene-1/", { folderId: "folder-2" }, { headers: { "X-Workspace-ID": "workspace-1" } });
+    expect(api.get).toHaveBeenCalledWith("/scenes", { headers: { "X-Workspace-ID": "workspace-1" }, params: undefined });
+  });
+
+  it("returns a created duplicate even if refreshing the list fails", async () => {
+    const duplicate = { ...scene, id: "scene-2" };
+    vi.mocked(api.get).mockResolvedValueOnce({ data: scene }).mockRejectedValueOnce(new Error("refresh failed"));
+    vi.mocked(api.post).mockResolvedValue({ data: duplicate });
+    await expect(useSceneStore.getState().duplicateScene("workspace-1", scene.id, "Copy", null)).resolves.toEqual(duplicate);
+    expect(useSceneStore.getState().activeScene?.id).toBe("scene-2");
+  });
 });
