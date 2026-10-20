@@ -67,6 +67,7 @@ type presentationAuthorityStub struct {
 	identity domain.SceneSessionIdentity
 	session  uuid.UUID
 	resolved int
+	err      error
 }
 
 func (s *presentationAuthorityStub) ParseAudience(string) (domain.SceneSessionIdentity, uuid.UUID, error) {
@@ -74,7 +75,7 @@ func (s *presentationAuthorityStub) ParseAudience(string) (domain.SceneSessionId
 }
 func (s *presentationAuthorityStub) ResolveAudience(domain.Context, domain.Principal, domain.SceneRef, uuid.UUID) error {
 	s.resolved++
-	return nil
+	return s.err
 }
 
 type capabilityPresentationAccessStub struct{ domain.AccessService }
@@ -216,5 +217,38 @@ func TestAdmittedPresentationAudienceCanReadScopedAssets(t *testing.T) {
 	h.PublicView(response, request)
 	if response.Code != http.StatusOK || !assets.called || authority.resolved < 2 {
 		t.Fatalf("status=%d assets=%t resolved=%d body=%s", response.Code, assets.called, authority.resolved, response.Body.String())
+	}
+}
+
+func TestDisabledPresentationAudienceCannotReadScopedAssets(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	session := uuid.New()
+	principal := domain.Principal{Kind: domain.PrincipalPublic, ID: "presentation:guest", GrantID: "session:" + session.String(), GrantVersion: "1", CredentialExpiresAt: time.Now().Add(time.Minute)}
+	authority := &presentationAuthorityStub{identity: domain.SceneSessionIdentity{Principal: principal, SceneRef: ref, ExpiresAt: principal.CredentialExpiresAt}, session: session, err: domain.ErrFeatureDisabled}
+	assets := &presentationAssetViewer{}
+	h, _ := NewCapabilityHandler(authorityUnavailable{}, invalidRoom{}, capabilityPresentationAccessStub{}, assets, []byte(strings.Repeat("s", 32)))
+	h.SetPresentationAuthority(authority)
+	request := httptest.NewRequest(http.MethodPost, "/public/scenes/scene/assets/presign-view", strings.NewReader(`{"fileIds":["image"]}`))
+	request.Header.Set("Authorization", "Bearer audience")
+	response := httptest.NewRecorder()
+	h.PublicView(response, request)
+	if response.Code != http.StatusForbidden || assets.called {
+		t.Fatalf("status=%d assets=%t body=%s", response.Code, assets.called, response.Body.String())
+	}
+}
+
+func TestPresentationFeatureAuthorityAcceptsActiveAudienceCredential(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	session := uuid.New()
+	principal := domain.Principal{Kind: domain.PrincipalPublic, ID: "presentation:guest", GrantID: "session:" + session.String(), GrantVersion: "1", CredentialExpiresAt: time.Now().Add(time.Minute)}
+	authority := &presentationAuthorityStub{identity: domain.SceneSessionIdentity{Principal: principal, SceneRef: ref, ExpiresAt: principal.CredentialExpiresAt}, session: session}
+	h, _ := NewCapabilityHandler(authorityUnavailable{}, invalidRoom{}, capabilityPresentationAccessStub{}, &presentationAssetViewer{}, []byte(strings.Repeat("s", 32)))
+	h.SetPresentationAuthority(authority)
+	body, _ := json.Marshal(map[string]any{"roomToken": "audience", "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String(), "action": "presentation:host"})
+	request := httptest.NewRequest(http.MethodPost, "/internal/authority/features", bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	h.featureDecision(response, request)
+	if response.Code != http.StatusNoContent || authority.resolved != 1 {
+		t.Fatalf("status=%d resolved=%d body=%s", response.Code, authority.resolved, response.Body.String())
 	}
 }

@@ -52,6 +52,7 @@ export function parseScreenAdmission(value:unknown):ScreenAdmission {
 }
 
 export type PresentationWaiting={sessionId:string;status:'pending';connectionId:string};
+export type PresentationAdmitted={sessionId:string;token:string;expiresAt:number};
 export type PresentationParticipant={connectionId:string;principalId:string;displayName:string};
 export type PresentationState={sessionId:string;hostConnectionId:string;hostPrincipalId:string;revision:number;pending:PresentationParticipant[];admitted:PresentationParticipant[]};
 const presentationConnection=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128;
@@ -65,6 +66,12 @@ export function parsePresentationWaiting(value:unknown):PresentationWaiting {
  const input=value as Record<string,unknown>;
  if(!screenSessionId(input.sessionId)||input.status!=='pending'||!presentationConnection(input.connectionId))throw new Error('Invalid presentation waiting status');
  return input as PresentationWaiting;
+}
+export function parsePresentationAdmitted(value:unknown):PresentationAdmitted {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','token','expiresAt'].includes(key)))throw new Error('Invalid presentation admitted credential');
+ const input=value as Record<string,unknown>;
+ if(!screenSessionId(input.sessionId)||typeof input.token!=='string'||input.token.length<1||input.token.length>16384||!Number.isSafeInteger(input.expiresAt)||Number(input.expiresAt)<1)throw new Error('Invalid presentation admitted credential');
+ return input as PresentationAdmitted;
 }
 export function parsePresentationState(value:unknown):PresentationState {
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','hostConnectionId','hostPrincipalId','revision','pending','admitted'].includes(key)))throw new Error('Invalid presentation state');

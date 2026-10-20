@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -156,13 +154,7 @@ func (h *PresentationHandler) CreateLink(w http.ResponseWriter, r *http.Request)
 	writeJSONResponse(w, http.StatusCreated, out)
 }
 func (h *PresentationHandler) allowJoin(r *http.Request) bool {
-	host, _, e := net.SplitHostPort(r.RemoteAddr)
-	if e != nil {
-		host = r.RemoteAddr
-	}
-	if parsed := net.ParseIP(strings.Trim(host, "[]")); parsed != nil {
-		host = parsed.String()
-	}
+	host := middleware.TrustedClientIP(r)
 	now := h.now()
 	h.mu.Lock()
 	defer h.mu.Unlock()

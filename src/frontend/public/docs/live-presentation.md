@@ -22,8 +22,16 @@ sync, send binary frames, obtain roster/media state or use asset routes.
 Presentation controls carry server-derived connection IDs and session revision;
 do not infer authority from their UI state.
 
+Successful admission sends `presentation_admitted` only to the selected
+pending socket. Its strict payload is `{sessionId,token,expiresAt}`. Use that
+audience token for subsequent refresh, state-vector resync and scoped asset
+requests. The host and other waiting connections never receive it. The token's
+grant version must match the admitted expected revision.
+
 An admitted audience credential can fetch scoped scene-asset downloads only
 while the in-memory presentation session still contains that principal. It is
 never accepted as an ordinary room or scene-session credential and cannot mint
-upload capability.
+upload capability. Every sync, fanout and asset request also rechecks the
+host's current scene authority and `presentation_enabled` setting. Disabling
+the feature ends the active presentation and invalidates audience access.
 

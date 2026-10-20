@@ -11,10 +11,13 @@ voice and screen sharing become available only after the host admits that exact
 connection. A pending credential expires after five minutes, so reload the
 invite if the waiting page expires.
 
-After admission, view-only scene images load through the live presentation
-session. Audience access cannot upload or change scene assets.
+After admission, the selected browser receives its own short-lived audience
+credential and uses it for view-only scene sync and images. It is never shared
+with the host or other people in the waiting room. Audience access cannot
+upload or change scene assets.
 
-A live session ends when the host leaves or the collaboration service restarts.
+A live session ends when the host leaves, an administrator disables live
+presentation for that scene, or the collaboration service restarts.
 The host can then start a new session and copy a new invite. Up to 100 guests
 may wait at once. Repeated join attempts are limited to 60 per minute per IP.
 

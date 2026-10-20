@@ -90,7 +90,7 @@ export class Rooms {
   let update=payload;
   if(channel===1){
    const {subtype,bytes}=invalidInput(()=>{const decoder=createDecoder(payload);const subtype=readVarUint(decoder);const bytes=readVarUint8Array(decoder);if(hasContent(decoder))throw new CollabError('INVALID_UPDATE','Trailing sync bytes',400);return {subtype,bytes};});authorizeSync(session.access!,subtype);
-   if(subtype===0){this.rates.take('read:'+session.principal.principalId,120);if(bytes.length>65536)throw new CollabError('INVALID_UPDATE','State vector too large',400);const state=await this.store.read(session.ref,session.principal);try{session.access=state.access;await this.sync(session,id,state,bytes);}finally{state.doc.destroy();}return;}
+   if(subtype===0){this.rates.take('read:'+session.principal.principalId,120);if(bytes.length>65536)throw new CollabError('INVALID_UPDATE','State vector too large',400);const state=await this.readCurrent(session);try{session.access=state.access;await this.sync(session,id,state,bytes);}finally{state.doc.destroy();}return;}
    update=bytes;
   }
   if(channel===2){
@@ -107,10 +107,12 @@ export class Rooms {
  }
  private async fresh(session:Session){
   if(session.invalid||!session.principal||!session.ref||!session.claims||Date.now()>=session.claims.exp*1000)throw new CollabError('UNAUTHENTICATED','Fresh room credential required',401);
-  let state:SceneState;
-  if(session.presentation?.kind==='audience'&&session.presentation.credential){this.resolvePresentationAudience(session.ref,session.presentation.sessionId,session.principal.principalId);state=await this.store.readPresentation(session.ref,session.principal,session.presentation.credential);}
-  else state=await this.store.read(session.ref,session.principal);
+  const state=await this.readCurrent(session);
   try{if(session.invalid)throw new CollabError('UNAUTHENTICATED');session.access=state.access;this.awareness.register(session.ref,{connectionId:session.connectionId,principalId:session.principal.principalId,principalType:session.principal.principalType,access:state.access});}finally{state.doc.destroy();}
+ }
+ private async readCurrent(session:Session):Promise<SceneState>{
+  if(session.presentation?.kind==='audience'&&session.presentation.credential){await requireFeature(this.store.authority,session.principal!.roomToken,session.ref!,'presentation:host');this.resolvePresentationAudience(session.ref!,session.presentation.sessionId,session.principal!.principalId);return this.store.readPresentation(session.ref!,session.principal!,session.presentation.credential);}
+  return this.store.read(session.ref!,session.principal!);
  }
  private matching(ref:SceneRef){return [...this.sessions].filter(s=>!s.invalid&&s.ref&&roomKey(s.ref)===roomKey(ref));}
  private async recipient(session:Session){try{await this.fresh(session);return true;}catch(error){this.invalidate(session,error instanceof CollabError&&['UNAUTHENTICATED','FORBIDDEN','STALE_AUTHORITY'].includes(error.code)?'AUTHORITY_CHANGED':'UNAVAILABLE');return false;}}
@@ -167,9 +169,10 @@ export class Rooms {
   if(type==='presentation_admit'){
    const input=parsePresentationAdmit(payload),claims=await this.store.authority.verifyPresentation(input.token,'presentation-audience'),state=this.presentations.state(room);
    if(!state||claims.workspaceId!==ref.workspaceId||claims.sceneId!==ref.sceneId||claims.sessionId!==state.sessionId||claims.principalId!==state.pending.find(p=>p.connectionId===input.connectionId)?.principalId)throw new CollabError('PRESENTATION_TARGET','Audience credential binding mismatch',403);
+   if(claims.grantVersion!==String(input.expectedRevision))throw new CollabError('PRESENTATION_CONFLICT','Audience credential revision changed',409);
    const target=[...this.sessions].find(value=>value.connectionId===input.connectionId&&value.presentation?.kind==='pending'&&value.presentation.sessionId===claims.sessionId);if(!target)throw new CollabError('PRESENTATION_TARGET','Waiting participant disconnected',404);
    const principal={roomToken:input.token,principalId:claims.principalId,principalType:'public'},audienceRef={workspaceId:claims.workspaceId,sceneId:claims.sceneId},scene=await this.store.readPresentation(audienceRef,principal,claims);
-   try{const admitted=this.presentations.admit(room,claims.sessionId,session.connectionId,input.connectionId,input.expectedRevision);target.ref=audienceRef;target.principal=principal;target.claims={...claims,purpose:'room',access:'view'} as Decision;target.access='view';target.presentation={kind:'audience',sessionId:claims.sessionId,room,credential:claims};clearTimeout(target.expires);target.expires=setTimeout(()=>this.invalidate(target,'TOKEN_EXPIRED'),Math.max(0,claims.exp*1000-Date.now()));this.awareness.register(audienceRef,{connectionId:target.connectionId,principalId:principal.principalId,principalType:'public',access:'view'});await this.control(target,'ready',id,{...audienceRef,connectionId:target.connectionId,principalId:principal.principalId,access:'view',documentId:scene.documentId,sequence:scene.sequence,stateVector:scene.stateVector,presentationSessionId:claims.sessionId});await this.sync(target,id,scene);await this.control(session,'presentation_state',id,admitted.state);await this.roster(ref,id);}finally{scene.doc.destroy();}return;
+   try{const admitted=this.presentations.admit(room,claims.sessionId,session.connectionId,input.connectionId,input.expectedRevision);target.ref=audienceRef;target.principal=principal;target.claims={...claims,purpose:'room',access:'view'} as Decision;target.access='view';target.presentation={kind:'audience',sessionId:claims.sessionId,room,credential:claims};clearTimeout(target.expires);target.expires=setTimeout(()=>this.invalidate(target,'TOKEN_EXPIRED'),Math.max(0,claims.exp*1000-Date.now()));this.awareness.register(audienceRef,{connectionId:target.connectionId,principalId:principal.principalId,principalType:'public',access:'view'});await this.control(target,'presentation_admitted',id,{sessionId:claims.sessionId,token:input.token,expiresAt:claims.exp});await this.control(target,'ready',id,{...audienceRef,connectionId:target.connectionId,principalId:principal.principalId,access:'view',documentId:scene.documentId,sequence:scene.sequence,stateVector:scene.stateVector,presentationSessionId:claims.sessionId});await this.sync(target,id,scene);await this.control(session,'presentation_state',id,admitted.state);await this.roster(ref,id);}finally{scene.doc.destroy();}return;
   }
   const input=fields(payload,['sessionId'],'PRESENTATION_INVALID');if(typeof input.sessionId!=='string')throw new CollabError('PRESENTATION_INVALID','Invalid presentation session',400);const ended=this.presentations.stop(room,input.sessionId,session.connectionId);for(const target of this.sessions)if(target.presentation?.sessionId===input.sessionId){await this.control(target,'presentation_stop','server',{sessionId:input.sessionId,reason:'HOST_ENDED'});this.invalidate(target,'PRESENTATION_ENDED');}await this.control(session,'presentation_state',id,ended);
  }
@@ -294,11 +297,12 @@ export class Rooms {
  featureChanged(workspaceId:string,sceneId:string|undefined,eventCursor:string){
   this.track((async()=>{
    const recipients=[...this.sessions].filter(session=>!session.invalid&&session.principal?.principalType==='user'&&session.ref?.workspaceId===workspaceId&&(!sceneId||session.ref.sceneId===sceneId));
+   const rooms=new Set(recipients.map(session=>roomKey(session.ref!)));for(const room of rooms){const state=this.presentations.state(room);if(!state)continue;this.presentations.disconnect(state.hostConnectionId);for(const target of this.sessions)if(target.presentation?.sessionId===state.sessionId){await this.control(target,'presentation_stop','server',{sessionId:state.sessionId,reason:'AUTHORITY_CHANGED'});this.invalidate(target,'PRESENTATION_ENDED');}}
    for(const session of recipients)if(await this.recipient(session))await this.control(session,'feature_changed','server',{eventCursor});
   })());
  }
  resolvePresentationHost(ref:SceneRef,sessionId:string,principalId:string){const state=this.presentations.state(roomKey(ref));if(!state||state.sessionId!==sessionId||state.hostPrincipalId!==principalId)throw new CollabError('PRESENTATION_ENDED','Presentation host is not active',409);return {active:true,revision:state.revision};}
  resolvePresentationPending(ref:SceneRef,sessionId:string,hostPrincipalId:string,connectionId:string,expectedRevision:number){const state=this.presentations.state(roomKey(ref)),participant=state?.pending.find(value=>value.connectionId===connectionId);if(!state||state.sessionId!==sessionId||state.hostPrincipalId!==hostPrincipalId||state.revision!==expectedRevision||!participant)throw new CollabError('PRESENTATION_TARGET','Waiting participant is unavailable',409);return {sessionId,...ref,principalId:participant.principalId,displayName:participant.displayName};}
- resolvePresentationAudience(ref:SceneRef,sessionId:string,principalId:string){const state=this.presentations.state(roomKey(ref));if(!state||state.sessionId!==sessionId||!state.admitted.some(value=>value.principalId===principalId))throw new CollabError('PRESENTATION_TARGET','Audience participant is unavailable',409);return {active:true};}
+ resolvePresentationAudience(ref:SceneRef,sessionId:string,principalId:string){const state=this.presentations.state(roomKey(ref));if(!state||state.sessionId!==sessionId||!state.admitted.some(value=>value.principalId===principalId))throw new CollabError('PRESENTATION_TARGET','Audience participant is unavailable',409);return {active:true,hostPrincipalId:state.hostPrincipalId};}
  async close(){this.closing=true;clearInterval(this.heartbeat);this.media.close();this.store.off('committed',this.committed);const sessions=[...this.sessions];for(const session of sessions){this.detach(session);session.socket.terminate();}await Promise.allSettled([...this.tasks,...sessions.map(s=>s.chain)]);}
 }

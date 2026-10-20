@@ -150,6 +150,10 @@ func credentialClientIP(r *http.Request) string {
 	return parsedForwarded.String()
 }
 
+// TrustedClientIP uses the direct peer captured before RealIP rewrites
+// RemoteAddr and accepts one X-Real-IP value only from a private proxy peer.
+func TrustedClientIP(r *http.Request) string { return credentialClientIP(r) }
+
 func normalizeCredentialIdentity(route CredentialRoute, identity string) string {
 	identity = strings.TrimSpace(identity)
 	if route == CredentialRouteLogin {

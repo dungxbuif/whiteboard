@@ -4,6 +4,7 @@ import (
 	"context"
 	"devtool/internal/domain"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -43,6 +44,12 @@ func (presentationFeatures) Require(domain.Context, domain.Principal, domain.Sce
 	return nil
 }
 
+type presentationDisabledFeatures struct{ presentationFeatures }
+
+func (presentationDisabledFeatures) Require(domain.Context, domain.Principal, domain.SceneRef, domain.FeatureAction) error {
+	return domain.ErrFeatureDisabled
+}
+
 type presentationCaptureFeatures struct {
 	presentationFeatures
 	body []byte
@@ -78,8 +85,8 @@ func (s presentationRuntime) ResolvePending(_ domain.Context, _ domain.SceneRef,
 	}
 	return s.decision, nil
 }
-func (presentationRuntime) ResolveAudience(domain.Context, domain.SceneRef, uuid.UUID, string) error {
-	return nil
+func (s presentationRuntime) ResolveAudience(_ domain.Context, ref domain.SceneRef, session uuid.UUID, principal string) (domain.PresentationRuntimeDecision, error) {
+	return domain.PresentationRuntimeDecision{SessionID: session, WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, PrincipalID: principal, HostPrincipalID: s.expectedHost}, nil
 }
 
 func TestPendingTokenCannotMintRoomOrReadAssets(t *testing.T) {
@@ -165,5 +172,16 @@ func TestPresentationAdmitBindsRuntimeAudience(t *testing.T) {
 	identity, parsedSession, err := service.ParseAudience(out.Token)
 	if err != nil || parsedSession != session || identity.SceneRef != ref || identity.Principal.ID != "presentation:guest" {
 		t.Fatalf("identity=%+v session=%s err=%v", identity, parsedSession, err)
+	}
+}
+
+func TestPresentationAudienceRechecksCurrentHostFeature(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	host := uuid.New()
+	service, _ := NewPresentationService(&presentationRepoStub{}, presentationDisabledFeatures{}, featureAccessStub{}, []byte(strings.Repeat("p", 32)))
+	service.SetRuntimeVerifier(presentationRuntime{expectedHost: host.String()})
+	err := service.ResolveAudience(context.Background(), domain.Principal{Kind: domain.PrincipalPublic, ID: "presentation:guest"}, ref, uuid.New())
+	if !errors.Is(err, domain.ErrFeatureDisabled) {
+		t.Fatalf("audience remained authorized after presentation disable: %v", err)
 	}
 }

@@ -21,7 +21,9 @@ invite cannot affect independent workspace membership or public links.
   idempotency, cross-scene denial, pending-token purpose, and the 60/minute/IP
   join boundary.
 - Node tests cover the waiting cap, metadata-only waiting messages, binary and
-  media denial, audience binding, and host-disconnect teardown.
+  media denial, audience binding, target-only credential delivery,
+  presentation-authorized resync, stale-grant rejection, feature-disable
+  teardown, and host-disconnect teardown.
 - Migration 000020 is exercised on the guarded disposable database. Router and
   server construction remain a root integration step after this slice commits.
 
@@ -44,4 +46,22 @@ remote collab `AgentClient` as runtime verifier; constructs
 `PresentationHandler`; registers its routes inside `/api/v1`; and calls
 `CapabilityHandler.SetPresentationAuthority` so admitted viewers can fetch
 scoped assets. No new environment variable is required.
+
+Post-review authority regressions add direct coverage for all protected paths:
+
+- Current host feature/scene authority is rechecked for audience resolution;
+  disabling presentation ends active waiting/audience state, and denied assets
+  never reach the asset viewer.
+- Admission rejects a token whose grant version differs from the expected
+  session revision. Only the exact pending target receives its audience bearer.
+- Audience channel-1 state-vector resync uses presentation read authority and
+  never asks for ordinary room authority.
+- Join throttling uses the captured direct peer IP; changing spoofed
+  `X-Forwarded-For` and `X-Real-IP` headers from a public peer cannot evade the
+  60/minute limit.
+
+Focused post-review evidence: Go presentation/capability/middleware tests 17
+passed; collaboration presentation tests 6 passed; strict protocol tests 9
+passed. The final guarded full suites passed: Go 247 tests in 12 packages,
+collaboration 190 tests in 26 files, and shared contracts 22 tests in 2 files.
 

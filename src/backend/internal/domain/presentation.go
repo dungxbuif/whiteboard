@@ -75,17 +75,18 @@ type PresentationUsecase interface {
 }
 
 type PresentationRuntimeDecision struct {
-	SessionID   uuid.UUID
-	WorkspaceID uuid.UUID
-	SceneID     uuid.UUID
-	PrincipalID string
-	DisplayName string
+	SessionID       uuid.UUID
+	WorkspaceID     uuid.UUID
+	SceneID         uuid.UUID
+	PrincipalID     string
+	HostPrincipalID string
+	DisplayName     string
 }
 
 type PresentationRuntimeVerifier interface {
 	ResolveHost(Context, SceneRef, uuid.UUID, string) error
 	ResolvePending(Context, SceneRef, uuid.UUID, string, string, int64) (PresentationRuntimeDecision, error)
-	ResolveAudience(Context, SceneRef, uuid.UUID, string) error
+	ResolveAudience(Context, SceneRef, uuid.UUID, string) (PresentationRuntimeDecision, error)
 }
 
 type PresentationAudienceAuthority interface {

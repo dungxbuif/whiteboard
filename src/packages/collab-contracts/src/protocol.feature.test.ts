@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {parseFeatureChanged,parsePresentationState,parsePresentationWaiting,parseScreenAdmission} from './protocol.js';
+import {parseFeatureChanged,parsePresentationAdmitted,parsePresentationState,parsePresentationWaiting,parseScreenAdmission} from './protocol.js';
 
 describe('parseFeatureChanged',()=>{
  it('accepts cursor-only invalidations',()=>expect(parseFeatureChanged({eventCursor:'42'})).toEqual({eventCursor:'42'}));
@@ -18,6 +18,10 @@ describe('presentation protocol',()=>{
  it('parses only the waiting participant own status',()=>{
   expect(parsePresentationWaiting({sessionId,status:'pending',connectionId:'guest'})).toEqual({sessionId,status:'pending',connectionId:'guest'});
   expect(()=>parsePresentationWaiting({sessionId,status:'pending',connectionId:'guest',scene:{elements:[]}})).toThrow(/presentation waiting/i);
+ });
+ it('parses a target-only audience bearer delivery',()=>{
+  expect(parsePresentationAdmitted({sessionId,token:'signed-audience-token',expiresAt:1770000000})).toEqual({sessionId,token:'signed-audience-token',expiresAt:1770000000});
+  expect(()=>parsePresentationAdmitted({sessionId,token:'signed-audience-token',expiresAt:1770000000,connectionId:'other'})).toThrow(/presentation admitted/i);
  });
  it('parses bounded host state and rejects duplicate participants',()=>{
   const participant={connectionId:'guest',principalId:'presentation:guest',displayName:'Guest'};

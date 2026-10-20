@@ -67,15 +67,22 @@ func (c *AgentClient) ResolvePending(ctx domain.Context, ref domain.SceneRef, se
 	}
 	return domain.PresentationRuntimeDecision{SessionID: sid, WorkspaceID: wid, SceneID: scene, PrincipalID: out.PrincipalID, DisplayName: out.DisplayName}, nil
 }
-func (c *AgentClient) ResolveAudience(ctx domain.Context, ref domain.SceneRef, sessionID uuid.UUID, principalID string) error {
+func (c *AgentClient) ResolveAudience(ctx domain.Context, ref domain.SceneRef, sessionID uuid.UUID, principalID string) (domain.PresentationRuntimeDecision, error) {
 	var out struct {
-		Active bool `json:"active"`
+		Active          bool   `json:"active"`
+		HostPrincipalID string `json:"hostPrincipalId"`
 	}
 	err := c.presentationDecision(ctx, map[string]any{"kind": "audience", "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String(), "sessionId": sessionID.String(), "principalId": principalID}, &out)
-	if err == nil && !out.Active {
-		return domain.ErrPresentationEnded
+	if err != nil {
+		return domain.PresentationRuntimeDecision{}, err
 	}
-	return err
+	if !out.Active {
+		return domain.PresentationRuntimeDecision{}, domain.ErrPresentationEnded
+	}
+	if host, e := uuid.Parse(out.HostPrincipalID); e != nil || host == uuid.Nil {
+		return domain.PresentationRuntimeDecision{}, domain.ErrInvalidPresentation
+	}
+	return domain.PresentationRuntimeDecision{SessionID: sessionID, WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, PrincipalID: principalID, HostPrincipalID: out.HostPrincipalID}, nil
 }
 
 var _ domain.PresentationRuntimeVerifier = (*AgentClient)(nil)

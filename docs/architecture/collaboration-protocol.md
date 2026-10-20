@@ -109,12 +109,16 @@ An editor authenticated through the ordinary room starts a session with
 `presentation_start`. Host controls recheck `presentation:host` against the Go
 private authority. `presentation_admit` carries the exact waiting connection,
 expected decimal session revision and Go-issued `presentation-audience` token.
-Node verifies token/session/principal binding and revision again, then performs
-presentation-specific view-only durable sync and refreshes. Each refresh
-rechecks active audience membership plus the workspace ACL version rather than
-using ordinary room authority. Host disconnect, explicit stop or current-authority
-denial ends the ephemeral session. Restart retains stored invite links but no
-active host, waiting or audience state.
+Node verifies token/session/principal binding and requires the token grant
+version to equal that expected revision. Only the selected pending socket
+receives `presentation_admitted {sessionId,token,expiresAt}`; the bearer is not
+sent to the host or other waiters. Initial sync, channel-1 sync-step-1 resync,
+refresh and committed fanout all resolve presentation audience authority and
+never fall back to ordinary room reads. The Go resolution path rechecks the
+active host's current scene edit authority and `presentation_enabled` flag.
+Feature invalidation, host disconnect, explicit stop or current-authority
+denial ends the ephemeral session before further protected delivery. Restart
+retains stored invite links but no active host, waiting or audience state.
 
 `@collab/contracts` exposes strict bounded parsers for the audience's own
 `presentation_waiting` payload and host `presentation_state` snapshots. Pending
@@ -125,6 +129,10 @@ Private service-authenticated `POST /internal/presentations/resolve` exposes
 only active host/pending/audience decisions to Go. It uses the same isolated
 private listener, ownership fence, request limit and service secret as durable
 agent/version operations and must never be publicly proxied.
+
+The public join limiter keys requests by the direct peer IP captured before
+Chi's `RealIP` middleware may rewrite `RemoteAddr`. Forwarding headers from an
+untrusted public peer therefore cannot create extra rate-limit buckets.
 
 ## D3 agent bridge (deployed; production write/export canary pending)
 

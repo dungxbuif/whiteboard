@@ -54,6 +54,10 @@ func capabilityError(w http.ResponseWriter, r *http.Request, e error) {
 		writeSharingError(w, r, http.StatusBadRequest, "INVALID_INPUT", "Invalid capability request")
 		return
 	}
+	if errors.Is(e, domain.ErrFeatureDisabled) {
+		writeFeatureError(w, r, e)
+		return
+	}
 	sharingError(w, r, e)
 }
 func (h *CapabilityHandler) AuthorityHandler() http.Handler {
@@ -96,6 +100,15 @@ func (h *CapabilityHandler) featureDecision(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	identity, err := h.rooms.VerifyRoomToken(in.RoomToken)
+	audience := false
+	if err != nil && in.Action == string(domain.FeaturePresentationHost) && h.presentations != nil {
+		var session uuid.UUID
+		identity, session, err = h.presentations.ParseAudience(in.RoomToken)
+		if err == nil {
+			err = h.presentations.ResolveAudience(r.Context(), identity.Principal, identity.SceneRef, session)
+			audience = err == nil
+		}
+	}
 	if err != nil {
 		capabilityError(w, r, err)
 		return
@@ -104,17 +117,19 @@ func (h *CapabilityHandler) featureDecision(w http.ResponseWriter, r *http.Reque
 		capabilityError(w, r, domain.ErrAccessDenied)
 		return
 	}
-	if h.features == nil {
+	if !audience && h.features == nil {
 		writeFeatureError(w, r, errors.New("feature authority unavailable"))
 		return
 	}
-	action := domain.FeatureScreenPublish
-	if in.Action == string(domain.FeaturePresentationHost) {
-		action = domain.FeaturePresentationHost
-	}
-	if err = h.features.Require(r.Context(), identity.Principal, identity.SceneRef, action); err != nil {
-		writeFeatureError(w, r, err)
-		return
+	if !audience {
+		action := domain.FeatureScreenPublish
+		if in.Action == string(domain.FeaturePresentationHost) {
+			action = domain.FeaturePresentationHost
+		}
+		if err = h.features.Require(r.Context(), identity.Principal, identity.SceneRef, action); err != nil {
+			writeFeatureError(w, r, err)
+			return
+		}
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)

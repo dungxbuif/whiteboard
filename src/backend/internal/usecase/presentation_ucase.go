@@ -218,7 +218,15 @@ func (s *PresentationService) ResolveAudience(ctx domain.Context, p domain.Princ
 	if p.Kind != domain.PrincipalPublic || !strings.HasPrefix(p.ID, "presentation:") || sessionID == uuid.Nil || s.runtime == nil {
 		return domain.ErrAccessDenied
 	}
-	return s.runtime.ResolveAudience(ctx, ref, sessionID, p.ID)
+	decision, e := s.runtime.ResolveAudience(ctx, ref, sessionID, p.ID)
+	if e != nil {
+		return e
+	}
+	hostID, e := uuid.Parse(decision.HostPrincipalID)
+	if e != nil || hostID == uuid.Nil {
+		return domain.ErrAccessDenied
+	}
+	return s.features.Require(ctx, domain.UserPrincipal(hostID), ref, domain.FeaturePresentationHost)
 }
 
 func (s *PresentationService) ParseAudience(raw string) (domain.SceneSessionIdentity, uuid.UUID, error) {
