@@ -60,6 +60,7 @@ services:
       FEATURE_WORKER_ADDR: 127.0.0.1:8090
       CASBIN_MODEL_PATH: /app/configs/casbin_model.conf
     networks:
+      - pg-net
       - whiteboard-app
     depends_on:
       db-migrate:
@@ -188,6 +189,8 @@ networks:
     ipam:
       config:
         - subnet: 172.29.240.0/28
+    pg-net:
+      external: true
   homelab-net:
     external: true
   whiteboard-app:
