@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
+import {readFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 
 const root=resolve(import.meta.dirname,'../..');
@@ -28,6 +29,11 @@ const waitReady=async container=>{
   throw new Error('worker did not become ready: '+docker('logs',container));
 };
 
+const compose=readFileSync(resolve(root,'docker-compose.prod.yml'),'utf8');
+const workerCompose=compose.match(/\n  feature-worker:\n([\s\S]*?)\n  collab:/)?.[1] ?? '';
+assert.doesNotMatch(workerCompose,/\benv_file:/,'worker must not inherit unrelated production secrets');
+assert.match(workerCompose,/DATABASE_URL:\s*\$\{DATABASE_URL:\?database required\}/,'worker must receive only its explicit database credential');
+
 try{
   docker('network','create',network);
   const db=run('db',['--network-alias','db','-e','POSTGRES_PASSWORD=fixture','-e','POSTGRES_USER=fixture','-e','POSTGRES_DB=packaging_test','postgres:16-alpine']);
@@ -48,21 +54,24 @@ try{
   const first=run('worker-a',workerArgs('fixture-a'));
   await waitReady(first);
   assert.notEqual(docker('exec',first,'id','-u'),'0');
+  const firstEnv=JSON.parse(docker('inspect','-f','{{json .Config.Env}}',first));
+  assert.equal(firstEnv.some(value=>/^(JWT|TURN|AI|COLLAB|AUTHORITY|MUTATION|S3)_/.test(value)),false,'worker received an unrelated secret');
+  docker('exec',db,'psql','-U','fixture','-d','packaging_test','-v','ON_ERROR_STOP=1','-c',
+    "INSERT INTO feature_jobs(kind,payload,available_at,lease_owner,lease_expires_at,attempts) VALUES ('fixture.unknown','{}',now()-interval '2 minutes','fixture-a',now()+interval '2 seconds',1)");
   docker('rm','-f',first);
   containers.splice(containers.indexOf(first),1);
 
-  docker('exec',db,'psql','-U','fixture','-d','packaging_test','-v','ON_ERROR_STOP=1','-c',
-    "INSERT INTO feature_jobs(kind,payload,available_at,lease_owner,lease_expires_at,attempts) VALUES ('fixture.unknown','{}',now()-interval '2 minutes','stopped-worker',now()-interval '1 minute',1)");
   const replacement=run('worker-b',workerArgs('fixture-b'));
   await waitReady(replacement);
-  let deadLettered='0';
+  let deadLettered=docker('exec',db,'psql','-U','fixture','-d','packaging_test','-Atc',"SELECT count(*) FROM feature_jobs WHERE dead_lettered_at IS NOT NULL");
+  assert.equal(deadLettered,'0','replacement stole an unexpired lease from the stopped worker');
   for(let attempt=0;attempt<40;attempt++){
     deadLettered=docker('exec',db,'psql','-U','fixture','-d','packaging_test','-Atc',"SELECT count(*) FROM feature_jobs WHERE dead_lettered_at IS NOT NULL");
     if(deadLettered==='1')break;
     await pause(250);
   }
   assert.equal(deadLettered,'1','expired lease was not resumed after worker restart');
-  console.log(JSON.stringify({pass:true,checks:['nonroot read-only worker','database readiness','process restart','expired lease recovery','unknown-kind safe dead letter']}));
+  console.log(JSON.stringify({pass:true,checks:['nonroot read-only worker','least-privilege environment','database readiness','process restart','unexpired lease exclusion','expired lease recovery','unknown-kind safe dead letter']}));
 }finally{
   for(const container of containers.reverse()){
     try{docker('rm','-f',container);}catch{}

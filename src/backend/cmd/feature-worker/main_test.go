@@ -1,9 +1,43 @@
 package main
 
 import (
+	"context"
+	"devtool/internal/domain"
+	"devtool/internal/usecase"
+	"io"
+	"log/slog"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/google/uuid"
 )
+
+type drainRepo struct {
+	mu        sync.Mutex
+	job       *domain.FeatureJob
+	completed chan struct{}
+}
+
+func (r *drainRepo) Claim(_ context.Context, _ time.Time, _ int, workerID string, _ time.Duration) ([]domain.FeatureJob, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.job == nil {
+		return nil, nil
+	}
+	job := *r.job
+	job.LeaseOwner = workerID
+	r.job = nil
+	return []domain.FeatureJob{job}, nil
+}
+func (r *drainRepo) Complete(context.Context, uuid.UUID, string) error {
+	close(r.completed)
+	return nil
+}
+func (r *drainRepo) Retry(context.Context, uuid.UUID, string, time.Time, string) error { return nil }
+func (r *drainRepo) DeadLetter(context.Context, uuid.UUID, string, string) error       { return nil }
 
 func TestLoadConfigRequiresWorkerSettings(t *testing.T) {
 	for _, key := range []string{"DATABASE_URL", "FEATURE_WORKER_ID", "FEATURE_WORKER_ADDR"} {
@@ -24,5 +58,54 @@ func TestLoadConfigAcceptsExplicitSettings(t *testing.T) {
 	}
 	if cfg.DatabaseURL != os.Getenv("DATABASE_URL") || cfg.WorkerID != "worker-a" || cfg.Addr != "127.0.0.1:8090" {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestShutdownDrainsActiveWorkAndPersistsOutcome(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	contextCanceled := make(chan bool, 1)
+	repo := &drainRepo{job: &domain.FeatureJob{ID: uuid.New(), Kind: "blocking", Attempts: 1}, completed: make(chan struct{})}
+	jobs, err := usecase.NewFeatureJobs(repo, "worker-a", map[string]usecase.FeatureJobHandler{
+		"blocking": func(ctx context.Context, _ domain.FeatureJob) error {
+			close(started)
+			select {
+			case <-ctx.Done():
+				contextCanceled <- true
+			case <-release:
+				contextCanceled <- false
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stopCtx, stop := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	var ready atomic.Bool
+	go func() {
+		defer close(done)
+		runWorker(stopCtx, jobs, &ready, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}()
+	<-started
+	stop()
+	select {
+	case canceled := <-contextCanceled:
+		if canceled {
+			t.Fatal("shutdown canceled active work instead of draining it")
+		}
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-repo.completed:
+	case <-time.After(time.Second):
+		t.Fatal("active outcome was not persisted")
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not stop after active work drained")
 	}
 }

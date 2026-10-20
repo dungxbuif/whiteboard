@@ -10,9 +10,11 @@ rtk node tests/packaging/feature-worker.mjs
 ```
 
 The fixture creates a unique network and disposable PostgreSQL database, applies
-all migrations, starts the real non-root/read-only worker, kills it, and verifies
-a replacement claims an expired lease. Cleanup removes only resources prefixed
-with the fixture process ID. The fixture uses no production database or secrets.
+all migrations, starts the real non-root/read-only worker with only its database
+credential, assigns it a live lease, kills it, verifies a replacement cannot
+steal the lease early, and then verifies recovery after expiry. Cleanup removes
+only resources prefixed with the fixture process ID. The fixture uses no
+production database or secrets.
 
 Build from repository root using the root workspace lock:
 

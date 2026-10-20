@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"devtool/internal/domain"
 	postgresrepo "devtool/internal/repository/postgres"
 	"devtool/internal/usecase"
 	"errors"
@@ -101,17 +100,20 @@ func runWorker(ctx context.Context, jobs *usecase.FeatureJobs, ready *atomic.Boo
 	ticker := time.NewTicker(workerPollInterval)
 	defer ticker.Stop()
 	for {
-		result, err := jobs.RunOnce(ctx, time.Now().UTC(), domain.FeatureJobBatchLimit)
+		if ctx.Err() != nil {
+			return
+		}
+		// A stop signal prevents the next claim. The active bounded operation keeps a
+		// live context so its handler and completion/retry write can drain safely.
+		result, err := jobs.RunOnce(context.WithoutCancel(ctx), time.Now().UTC(), 1)
 		if err != nil {
 			ready.Store(false)
-			if ctx.Err() != nil {
-				return
-			}
 			logger.Error("feature job batch failed", "error", err)
 		} else {
 			ready.Store(true)
 			if result.Claimed > 0 {
 				logger.Info("feature job batch processed", "claimed", result.Claimed, "completed", result.Completed, "retried", result.Retried, "deadLettered", result.DeadLettered)
+				continue
 			}
 		}
 		select {

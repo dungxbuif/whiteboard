@@ -8,17 +8,22 @@ writer.
 ## Runtime contract
 
 - Required environment: `DATABASE_URL`, `FEATURE_WORKER_ID`, and
-  `FEATURE_WORKER_ADDR`.
+  `FEATURE_WORKER_ADDR`. Production Compose passes those variables explicitly;
+  the worker does not inherit account, collaboration, TURN, AI, or unrelated S3
+  secrets from the application environment.
 - Production Compose binds health endpoints to `127.0.0.1:8090` inside the
   container. `/healthz` proves the process is alive; `/readyz` is successful only
   after a database claim cycle succeeds.
-- One batch claims at most 100 due rows with `FOR UPDATE SKIP LOCKED` and a
-  60-second lease. Each handler receives a 30-second context deadline.
+- One run processes at most 100 due rows. It claims each row with `FOR UPDATE
+  SKIP LOCKED` immediately before its handler, using a 60-second single-job
+  lease, so later work never waits behind another handler with an aging lease.
+  Each handler receives a 30-second context deadline.
 - Failures retry after 1, 2, 4, 8, 16, 32, then 60 minutes. Ten claimed attempts
   move the row to dead letter. Handler side effects must be idempotent because a
   process may stop after the effect and before completion is recorded.
-- Shutdown marks readiness false, stops claiming work, and allows up to 30
-  seconds for the active operation to return.
+- Shutdown marks readiness false and prevents the next claim. The active
+  operation retains a live context for its bounded handler and completion/retry
+  write; the process allows up to 30 seconds for that operation to drain.
 
 ## Operations
 

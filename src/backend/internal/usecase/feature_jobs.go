@@ -14,6 +14,7 @@ type FeatureJobs struct {
 	repo     domain.FeatureJobRepository
 	workerID string
 	handlers map[string]FeatureJobHandler
+	now      func() time.Time
 }
 
 var featureJobBackoff = [...]time.Duration{
@@ -37,22 +38,34 @@ func NewFeatureJobs(repo domain.FeatureJobRepository, workerID string, handlers 
 		}
 		copyHandlers[kind] = handler
 	}
-	return &FeatureJobs{repo: repo, workerID: workerID, handlers: copyHandlers}, nil
+	return &FeatureJobs{repo: repo, workerID: workerID, handlers: copyHandlers, now: func() time.Time { return time.Now().UTC() }}, nil
 }
 
 func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (domain.JobBatchResult, error) {
 	if limit <= 0 || limit > domain.FeatureJobBatchLimit {
 		limit = domain.FeatureJobBatchLimit
 	}
-	claimed, err := s.repo.Claim(ctx, now, limit, s.workerID, domain.FeatureJobLeaseDuration)
-	if err != nil {
-		return domain.JobBatchResult{}, err
-	}
-	result := domain.JobBatchResult{Claimed: len(claimed)}
-	for _, job := range claimed {
+	result := domain.JobBatchResult{}
+	for processed := 0; processed < limit; processed++ {
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
+		claimNow := now
+		if processed > 0 {
+			claimNow = s.now()
+		}
+		claimed, err := s.repo.Claim(ctx, claimNow, 1, s.workerID, domain.FeatureJobLeaseDuration)
+		if err != nil {
+			return result, err
+		}
+		if len(claimed) == 0 {
+			break
+		}
+		if len(claimed) != 1 {
+			return result, errors.New("feature job repository returned more than one single-job lease")
+		}
+		job := claimed[0]
+		result.Claimed++
 		handler, ok := s.handlers[job.Kind]
 		if !ok {
 			if err := s.repo.DeadLetter(ctx, job.ID, s.workerID, "no handler registered"); err != nil {
@@ -80,7 +93,7 @@ func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (do
 			continue
 		}
 		delay := featureJobBackoff[min(max(job.Attempts, 1)-1, len(featureJobBackoff)-1)]
-		if err := s.repo.Retry(ctx, job.ID, s.workerID, now.Add(delay), message); err != nil {
+		if err := s.repo.Retry(ctx, job.ID, s.workerID, claimNow.Add(delay), message); err != nil {
 			return result, fmt.Errorf("schedule feature job retry: %w", err)
 		}
 		result.Retried++
