@@ -6,6 +6,11 @@ The dashboard follows the original devtool interface, including its original col
 
 Use the workspace switcher to choose where scenes and folders are saved. Use search, All files, Starred and Trash to find content. The sidebar can collapse on desktop; on mobile it opens as a keyboard-accessible drawer.
 
+When enabled by workspace policy, Collections appears beside folder navigation.
+Workspace and creator-private containers use canonical reloadable routes and
+organize links without moving scenes or changing scene access. See
+[Collections](collections.md).
+
 New scene opens an empty canvas. Import scenes accepts an Excalidraw JSON file up to 25 MiB. Invalid files show an error without creating a scene. Imported content is submitted in the scene creation request, preserving native editable elements.
 
 Theme and navigation preferences are local to this browser. The account menu exposes theme switching and sign out. Workspace owners also have Members and Agent keys settings links.
