@@ -275,7 +275,8 @@ real-stack suite. Public-origin VM100 proof remains the E3 release gate.
 Authenticated members use `GET /api/v1/workspaces/{workspace}/activity` or
 `GET /api/v1/scenes/{scene}/activity` with `X-Workspace-ID` for scene aliases.
 Both accept `cursor` and `limit` (1–50) and return
-`{items,nextCursor?,retainedSince}`. The cursor is opaque and binds the stable
+`{items,nextCursor?,retainedSince?}`. `retainedSince` is omitted when the
+authorized scope contains no retained events. The cursor is opaque and binds the stable
 descending `(occurredAt,id)` boundary.
 
 Current membership, live-scene visibility, feature policy and owner-only event

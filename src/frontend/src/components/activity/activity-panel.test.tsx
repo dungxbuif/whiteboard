@@ -25,9 +25,10 @@ describe('activity', () => {
   });
 
   it('keeps an authorized empty and error state inside the panel', async () => {
-    const empty: ActivityClient = { list: vi.fn().mockResolvedValue({ items: [], retainedSince: '2026-10-01T00:00:00Z' }) };
+    const empty: ActivityClient = { list: vi.fn().mockResolvedValue({ items: [] }) };
     const view = render(<ActivityPanel api={empty} sceneId="scene-1" workspaceId="workspace-1" />);
     expect(await screen.findByText('No activity yet.')).toBeInTheDocument();
+    expect(screen.queryByText(/Available since/)).not.toBeInTheDocument();
     const failed: ActivityClient = { list: vi.fn().mockRejectedValue(new Error('Activity unavailable')) };
     view.rerender(<ActivityPanel api={failed} sceneId="scene-1" workspaceId="workspace-1" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Activity unavailable');

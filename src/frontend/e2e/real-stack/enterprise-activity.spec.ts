@@ -23,7 +23,15 @@ test('activityMobileAndKeyboard keeps paging authorized and the scene panel insi
 
   const ownerContext = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const viewerContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const emptyContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
+    await stack.pool.query('UPDATE workspace_feature_policies SET activity_enabled=true WHERE workspace_id=$1', [stack.outsider.workspaceId]);
+    const empty = await emptyContext.newPage();
+    await login(empty, stack, stack.outsider);
+    await empty.goto(`${stack.baseURL}/w/${stack.outsider.workspaceId}/activity`);
+    await expect(empty.getByText('No activity yet.')).toBeVisible();
+    await expect(empty.getByText(/Available since/)).toHaveCount(0);
+
     const owner = await ownerContext.newPage();
     await login(owner, stack);
     await owner.goto(`${stack.baseURL}/w/${stack.owner.workspaceId}/activity`);
@@ -56,6 +64,7 @@ test('activityMobileAndKeyboard keeps paging authorized and the scene panel insi
   } finally {
     await ownerContext.close();
     await viewerContext.close();
+    await emptyContext.close();
   }
 });
 

@@ -26,7 +26,7 @@ export function ActivityPanel({ workspaceId, sceneId, api = activityClient, regi
     setError('');
     try {
       const page = await api.list(workspaceId, sceneId);
-      setItems(page.items); setNextCursor(page.nextCursor ?? ''); setRetainedSince(page.retainedSince);
+      setItems(page.items); setNextCursor(page.nextCursor ?? ''); setRetainedSince(page.retainedSince ?? '');
     } catch (reason) {
       clearForError(reason);
       throw reason;
@@ -46,7 +46,7 @@ export function ActivityPanel({ workspaceId, sceneId, api = activityClient, regi
     setError('');
     try {
       const page = await api.list(workspaceId, sceneId, nextCursor);
-      setItems(current => [...current, ...page.items]); setNextCursor(page.nextCursor ?? ''); setRetainedSince(page.retainedSince);
+      setItems(current => [...current, ...page.items]); setNextCursor(page.nextCursor ?? ''); setRetainedSince(page.retainedSince ?? '');
     } catch (reason) { clearForError(reason); }
   };
 

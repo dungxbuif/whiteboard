@@ -12,7 +12,7 @@ export type ActivityItem = {
   safeMetadata: Record<string, string | number | boolean>;
 };
 
-export type ActivityPage = { items: ActivityItem[]; nextCursor?: string; retainedSince: string };
+export type ActivityPage = { items: ActivityItem[]; nextCursor?: string; retainedSince?: string };
 
 export interface ActivityClient {
   list(workspaceId: string, sceneId?: string, cursor?: string): Promise<ActivityPage>;

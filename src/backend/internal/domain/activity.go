@@ -29,7 +29,7 @@ type ActivityItem struct {
 type ActivityPage struct {
 	Items         []ActivityItem `json:"items"`
 	NextCursor    string         `json:"nextCursor,omitempty"`
-	RetainedSince time.Time      `json:"retainedSince"`
+	RetainedSince *time.Time     `json:"retainedSince,omitempty"`
 }
 
 type ActivityRepository interface {

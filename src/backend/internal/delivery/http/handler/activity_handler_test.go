@@ -5,6 +5,7 @@ import (
 	"devtool/internal/domain"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +38,8 @@ func (s activityHandlerAccessStub) ResolveSceneID(domain.Context, uuid.UUID, str
 
 func TestActivityHandlerBindsWorkspaceAndSceneRoutes(t *testing.T) {
 	workspaceID, sceneID, userID := uuid.New(), uuid.New(), uuid.New()
-	uc := &activityUsecaseStub{page: domain.ActivityPage{Items: []domain.ActivityItem{}, RetainedSince: time.Now().UTC()}}
+	retainedSince := time.Now().UTC()
+	uc := &activityUsecaseStub{page: domain.ActivityPage{Items: []domain.ActivityItem{}, RetainedSince: &retainedSince}}
 	h := NewActivityHandler(uc, activityHandlerAccessStub{workspaceID: workspaceID, sceneID: sceneID})
 	auth := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -74,5 +76,22 @@ func TestActivityHandlerRejectsInvalidLimit(t *testing.T) {
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestActivityHandlerOmitsRetainedSinceForEmptyFeed(t *testing.T) {
+	workspaceID, userID := uuid.New(), uuid.New()
+	h := NewActivityHandler(&activityUsecaseStub{page: domain.ActivityPage{Items: []domain.ActivityItem{}}}, activityHandlerAccessStub{workspaceID: workspaceID})
+	auth := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.ContextKeyUserID, userID)))
+		})
+	}
+	router := chi.NewRouter()
+	h.Register(router, auth)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/workspaces/workspace/activity", nil))
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "retainedSince") {
+		t.Fatalf("empty activity status=%d body=%s", response.Code, response.Body.String())
 	}
 }

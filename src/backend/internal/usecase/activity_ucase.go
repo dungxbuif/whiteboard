@@ -98,7 +98,10 @@ func (s *ActivityService) List(ctx domain.Context, principal domain.Principal, w
 		rows = rows[:limit]
 	}
 	page.Items = rows
-	page.RetainedSince, err = s.repo.ActivityRetainedSince(ctx, *principal.UserID, workspaceID, sceneID, decision.Owner)
+	retainedSince, err := s.repo.ActivityRetainedSince(ctx, *principal.UserID, workspaceID, sceneID, decision.Owner)
+	if !retainedSince.IsZero() {
+		page.RetainedSince = &retainedSince
+	}
 	return page, err
 }
 

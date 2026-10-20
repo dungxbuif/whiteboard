@@ -8,7 +8,8 @@ event projection. This task does not alter MCP `get_scene_activity`.
 - `GET /api/v1/workspaces/{workspace}/activity` and
   `GET /api/v1/scenes/{scene}/activity` require login authentication and the
   current `activity:read` feature policy.
-- Pages contain `items`, an opaque stable cursor, and `retainedSince`. Scene
+- Pages contain `items`, an opaque stable cursor, and optional `retainedSince`.
+  The retained boundary is omitted for an authorized empty feed. Scene
   visibility and owner-only security/admin filtering happen before the SQL
   limit, so hidden rows cannot change counts or cursors.
 - Actor display names are resolved only for authorized rows. Historical actor
@@ -31,9 +32,11 @@ Workspace and scene cursor indexes use
 `(workspace_id[,scene_id],occurred_at DESC,id DESC)` so authorization filters
 run before the keyset limit without replacing the F2 projection indexes.
 
-`retainedSince` is the oldest currently retained event timestamp in the same
-authorized scope. R1 will later enforce the 90-day deletion policy; C3 exposes
-the actual retained boundary rather than claiming a cutoff that has not run.
+`retainedSince`, when present, is the oldest currently retained event timestamp
+in the same authorized scope. R1 will later enforce the 90-day deletion policy;
+C3 exposes the actual retained boundary rather than claiming a cutoff that has
+not run. Empty and fully filtered feeds omit it instead of serializing Go's zero
+time.
 
 ## Verification plan
 
@@ -74,4 +77,12 @@ checks on 2026-10-20 were:
 - Full guarded Go run passed every C3 package. The final repository-wide run
   had one concurrent M2 presentation-authority test failure; C3 did not modify
   that handler and its focused/full-package checks remain green.
+
+Review follow-up: an empty or fully filtered repository scope returns no
+retained timestamp. A handler regression requires the JSON field to be absent,
+and the matching frontend regression requires the empty panel to omit the
+**Available since** label. The backend regression first failed with Go's
+`0001-01-01T00:00:00Z` serialization before the optional contract was applied.
+The production-stack browser case also logs into a distinct empty workspace and
+verifies the empty panel end to end; the expanded case passed **1/1 in 35.7 s**.
 

@@ -6,8 +6,9 @@ Login-authenticated members can list authorized activity:
 - `GET /api/v1/scenes/{scene}/activity?limit=50&cursor=...` with
   `X-Workspace-ID`.
 
-The response is `{items,nextCursor?,retainedSince}`. Treat `nextCursor` as an
-opaque stable token and pass it back unchanged. Limits are 1–50. Items contain
+The response is `{items,nextCursor?,retainedSince?}`. `retainedSince` is absent
+when the authorized feed is empty. Treat `nextCursor` as an opaque stable token
+and pass it back unchanged. Limits are 1–50. Items contain
 the event ID, workspace/optional scene ID, server-resolved actor kind/name,
 bounded event kind, subject ID, timestamp and allowlisted safe metadata.
 

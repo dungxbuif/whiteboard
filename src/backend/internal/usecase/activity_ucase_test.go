@@ -65,7 +65,7 @@ func TestActivityListCarriesOwnerAndSceneScope(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !repo.owner || repo.sceneID == nil || *repo.sceneID != sceneID || len(page.Items) != 1 || page.NextCursor == "" || !page.RetainedSince.Equal(repo.retained) {
+	if !repo.owner || repo.sceneID == nil || *repo.sceneID != sceneID || len(page.Items) != 1 || page.NextCursor == "" || page.RetainedSince == nil || !page.RetainedSince.Equal(repo.retained) {
 		t.Fatalf("page=%+v owner=%v scene=%v", page, repo.owner, repo.sceneID)
 	}
 }

@@ -12,9 +12,10 @@ revoked, its entries disappear from later pages. Security and membership
 administration entries are visible only to workspace owners. Guests and agent
 keys do not have this member feed.
 
-**Available since** is the oldest entry retained in the authorized scope. The
-future retention worker may advance this boundary; it is not a promise that an
-event will exist for every action. Activity contains safe event kinds and
+**Available since** is shown only when the authorized scope contains an entry;
+it is the oldest entry retained in that scope. An empty feed has no retained
+boundary. The future retention worker may advance this boundary; it is not a
+promise that an event will exist for every action. Activity contains safe event kinds and
 display names only. It never displays comment bodies, canvas content, tokens,
 media signaling or stored credentials.
 
