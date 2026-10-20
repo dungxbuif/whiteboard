@@ -2,13 +2,14 @@ package usecase
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 
 	"devtool/internal/domain"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type mockFolderRepo struct {
@@ -24,7 +25,7 @@ func (m *mockFolderRepo) FindByID(ctx context.Context, workspaceID uuid.UUID, id
 	if f, ok := m.folders[id]; ok {
 		return f, nil
 	}
-	return nil, fmt.Errorf("not found")
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (m *mockFolderRepo) Save(ctx context.Context, f *domain.Folder) error {
@@ -173,5 +174,20 @@ func TestFolderUsecase_UpdateNameAndParent(t *testing.T) {
 	child := &childID
 	if err := NewFolderUsecase(repo).Update(context.Background(), workspaceID, folderID, nil, &child); err == nil {
 		t.Fatal("descendant move succeeded")
+	}
+}
+
+func TestFolderUsecase_UpdateMissingParent(t *testing.T) {
+	workspaceID, folderID, parentID := uuid.New(), uuid.New(), uuid.New()
+	repo := &mockFolderRepo{folders: map[uuid.UUID]*domain.Folder{
+		folderID: {ID: folderID, WorkspaceID: workspaceID, Path: "/folder/"},
+	}}
+	parent := &parentID
+	err := NewFolderUsecase(repo).Update(context.Background(), workspaceID, folderID, nil, &parent)
+	if !errors.Is(err, domain.ErrInaccessible) {
+		t.Fatalf("want inaccessible, got %v", err)
+	}
+	if repo.saved != nil {
+		t.Fatal("missing parent changed folder")
 	}
 }

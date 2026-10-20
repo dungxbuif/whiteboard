@@ -66,6 +66,10 @@ func (h *FolderHandler) Update(w http.ResponseWriter, r *http.Request) {
 			writeJSONResponse(w, http.StatusBadRequest, map[string]string{"code": "INVALID_INPUT", "message": err.Error(), "requestId": chimiddleware.GetReqID(r.Context())})
 			return
 		}
+		if errors.Is(err, domain.ErrInaccessible) {
+			middleware.WriteAccessError(w, r, err)
+			return
+		}
 		writeJSONResponse(w, http.StatusInternalServerError, map[string]string{"code": "INTERNAL_ERROR", "message": "Unable to update folder", "requestId": chimiddleware.GetReqID(r.Context())})
 		return
 	}

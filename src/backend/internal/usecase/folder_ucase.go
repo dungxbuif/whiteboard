@@ -2,12 +2,14 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"devtool/internal/domain"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type folderUsecase struct {
@@ -81,6 +83,9 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 
 		parent, err := u.repo.FindByID(ctx, workspaceID, *newParentID)
 		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, domain.ErrInaccessible) {
+				return domain.ErrInaccessible
+			}
 			return fmt.Errorf("new parent not found: %w", err)
 		}
 
