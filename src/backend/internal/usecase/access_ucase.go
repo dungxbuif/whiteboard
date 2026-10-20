@@ -57,6 +57,9 @@ func principalSession(ctx domain.Context, p domain.Principal) domain.Principal {
 	if at, ok := ctx.Value(domain.ContextKeyAuthTime).(time.Time); ok {
 		p.AuthenticatedAt = at
 	}
+	if workspace, ok := ctx.Value(domain.ContextKeyRecoveryWorkspace).(uuid.UUID); ok {
+		p.RecoveryWorkspaceID = workspace
+	}
 	return p
 }
 func (s *AccessService) requireAssurance(ctx domain.Context, p domain.Principal, w uuid.UUID) error {
@@ -161,6 +164,15 @@ func (s *AccessService) ResolveWorkspace(ctx domain.Context, p domain.Principal,
 	return s.decision(p, state)
 }
 func (s *AccessService) RequireOwner(ctx domain.Context, u, w uuid.UUID) error {
+	// RequireOwner is also used to validate a different subject's owner
+	// invariant (for example, an invitation's original inviter). Only attach
+	// request-session assurance when the subject is the current principal.
+	requestUser, hasRequestUser := ctx.Value(domain.ContextKeyUserID).(uuid.UUID)
+	if !hasRequestUser || requestUser == u {
+		if e := s.requireAssurance(ctx, domain.UserPrincipal(u), w); e != nil {
+			return e
+		}
+	}
 	state, e := s.repo.WorkspaceState(ctx, u, w)
 	if e != nil {
 		return e

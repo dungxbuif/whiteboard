@@ -117,9 +117,9 @@ Presence, cursor, viewport/follow and voice signaling remain ephemeral. Agent op
 | Migration / table | Durable contract |
 | --- | --- |
 | 000025 / `workspace_sso_connections` | One encrypted OIDC configuration per workspace, optional/enforced mode, explicit public-link decision and optimistic revision. |
-| 000025 / `sso_flow_transactions`, `sso_exchange_codes` | Hash-only, browser-bound, one-time authorization and login exchanges; link transactions bind authenticated user and request ID. |
+| 000025 / `sso_flow_transactions`, `sso_exchange_codes` | Hash-only, browser-bound, one-time authorization and login exchanges; link transactions bind authenticated user, source login session and request ID. |
 | 000025 / `sso_external_identities` | Globally unique exact issuer/subject identity linked explicitly to one user and connection. |
-| 000025 / `enterprise_login_sessions` | Revocable password, OIDC or operator-recovery assurance session; legacy refresh-token `auth_sessions` remains unchanged. |
+| 000025 / `enterprise_login_sessions` | Revocable password, workspace-bound OIDC or workspace-bound 15-minute operator-recovery assurance session; legacy refresh-token `auth_sessions` remains unchanged. |
 | 000025 / `workspace_break_glass`, `workspace_break_glass_audit` | Hash-only owner recovery credential and append-only lifecycle/use audit. |
 | 000025 / `sso_mutation_receipts` | Exact principal/action/body retry binding with byte-preserved response. |
 

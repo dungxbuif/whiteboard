@@ -9,6 +9,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"devtool/internal/usecase"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/term"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -29,7 +31,7 @@ func main() {
 	name := flag.String("name", "", "display name (defaults to email)")
 	breakGlassWorkspace := flag.String("break-glass-workspace", "", "workspace UUID for operator recovery")
 	breakGlassAction := flag.String("break-glass-action", "", "create, test, recover, or revoke an operator recovery credential")
-	breakGlassCredential := flag.String("break-glass-credential", "", "credential required by break-glass test or recovery")
+	breakGlassCredentialFD := flag.Int("break-glass-credential-fd", 0, "file descriptor containing the recovery credential; terminal input is hidden")
 	flag.Parse()
 	if strings.TrimSpace(*email) == "" || (*breakGlassAction == "" && *password == "") {
 		log.Fatal("--email and --password are required unless managing break-glass recovery")
@@ -61,7 +63,14 @@ func main() {
 		if user.ID == uuid.Nil {
 			log.Fatal("break-glass user must already exist")
 		}
-		message, err := manageBreakGlass(ctx, db, user, workspaceID, *breakGlassAction, *breakGlassCredential)
+		credential := ""
+		if *breakGlassAction == "test" || *breakGlassAction == "recover" {
+			credential, err = readRecoveryCredential(*breakGlassCredentialFD)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		message, err := manageBreakGlass(ctx, db, user, workspaceID, *breakGlassAction, credential)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -90,6 +99,41 @@ func main() {
 	fmt.Printf("user upserted and default workspace ensured: %s (%s)\n", user.Email, user.ID)
 }
 
+func readRecoveryCredential(fd int) (string, error) {
+	if fd < 0 {
+		return "", errors.New("--break-glass-credential-fd must be non-negative")
+	}
+	if term.IsTerminal(fd) {
+		_, _ = fmt.Fprint(os.Stderr, "Break-glass credential: ")
+		value, err := term.ReadPassword(fd)
+		_, _ = fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", err
+		}
+		credential := strings.TrimSpace(string(value))
+		if credential == "" {
+			return "", errors.New("break-glass credential is empty")
+		}
+		return credential, nil
+	}
+	file := os.NewFile(uintptr(fd), "break-glass-credential")
+	if file == nil {
+		return "", errors.New("invalid break-glass credential file descriptor")
+	}
+	value, err := io.ReadAll(io.LimitReader(file, 4097))
+	if err != nil {
+		return "", err
+	}
+	if len(value) > 4096 {
+		return "", errors.New("break-glass credential exceeds 4096 bytes")
+	}
+	credential := strings.TrimSpace(string(value))
+	if credential == "" {
+		return "", errors.New("break-glass credential is empty")
+	}
+	return credential, nil
+}
+
 func manageBreakGlass(ctx context.Context, db *gorm.DB, user domain.User, workspaceID uuid.UUID, action, credential string) (string, error) {
 	var message string
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -115,7 +159,7 @@ func manageBreakGlass(ctx context.Context, db *gorm.DB, user domain.User, worksp
 			message = "break-glass credential (shown once): " + raw
 		case "test", "recover":
 			if credential == "" {
-				return errors.New("--break-glass-credential is required for test or recovery")
+				return errors.New("break-glass credential input is required for test or recovery")
 			}
 			var recovery struct {
 				CredentialHash []byte

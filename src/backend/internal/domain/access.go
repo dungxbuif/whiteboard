@@ -34,6 +34,7 @@ type Principal struct {
 	SessionID           uuid.UUID
 	AuthMethod          string
 	AuthenticatedAt     time.Time
+	RecoveryWorkspaceID uuid.UUID
 }
 
 func UserPrincipal(id uuid.UUID) Principal {

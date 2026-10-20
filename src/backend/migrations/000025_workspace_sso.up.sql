@@ -25,12 +25,13 @@ CREATE TABLE sso_flow_transactions (
     return_path text NOT NULL,
     link_user_id uuid REFERENCES users(id) ON DELETE CASCADE,
     link_request_id uuid,
+    source_session_id uuid,
     expires_at timestamptz NOT NULL,
     consumed_at timestamptz
 );
 
 ALTER TABLE sso_flow_transactions ADD CONSTRAINT sso_flow_link_pair
-    CHECK ((link_user_id IS NULL) = (link_request_id IS NULL));
+    CHECK ((link_user_id IS NULL) = (link_request_id IS NULL) AND (link_user_id IS NULL) = (source_session_id IS NULL));
 
 CREATE INDEX sso_flow_transactions_expiry_idx ON sso_flow_transactions(expires_at);
 
@@ -51,14 +52,22 @@ CREATE TABLE enterprise_login_sessions (
     user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     method text NOT NULL CHECK (method IN ('password','oidc','break_glass')),
     connection_id uuid REFERENCES workspace_sso_connections(id) ON DELETE CASCADE,
+    workspace_id uuid REFERENCES workspaces(id) ON DELETE CASCADE,
     authenticated_at timestamptz NOT NULL,
     expires_at timestamptz NOT NULL,
     revoked_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-    CONSTRAINT auth_session_connection_check CHECK ((method='oidc' AND connection_id IS NOT NULL) OR (method<>'oidc' AND connection_id IS NULL))
+    CONSTRAINT auth_session_scope_check CHECK (
+        (method='oidc' AND connection_id IS NOT NULL AND workspace_id IS NOT NULL) OR
+        (method='break_glass' AND connection_id IS NULL AND workspace_id IS NOT NULL) OR
+        (method='password' AND connection_id IS NULL AND workspace_id IS NULL)
+    )
 );
 
 CREATE INDEX enterprise_login_sessions_active_user_idx ON enterprise_login_sessions(user_id,expires_at) WHERE revoked_at IS NULL;
+
+ALTER TABLE sso_flow_transactions ADD CONSTRAINT sso_flow_source_session_fk
+    FOREIGN KEY (source_session_id) REFERENCES enterprise_login_sessions(id) ON DELETE CASCADE;
 
 CREATE TABLE sso_exchange_codes (
     code_hash bytea PRIMARY KEY CHECK (octet_length(code_hash)=32),

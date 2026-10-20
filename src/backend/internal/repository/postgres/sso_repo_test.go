@@ -11,6 +11,8 @@ import (
 	"devtool/internal/domain"
 
 	"github.com/google/uuid"
+	pg "gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 func ssoTestHash(value string) []byte { sum := sha256.Sum256([]byte(value)); return sum[:] }
@@ -57,12 +59,12 @@ func TestSSOSessionRepositoryRevocation(t *testing.T) {
 	mustExec(t, db, "INSERT INTO workspace_sso_connections(id,workspace_id,issuer,client_id,client_secret_cipher,mode,public_links_enabled) VALUES (?,?,?,?,?,'enforced',false)", connection, workspace, "https://idp.example", "client", []byte("cipher"))
 	repo := NewAuthSessionRepository(db)
 	now := time.Now().UTC()
-	row := domain.AuthSession{ID: uuid.New(), UserID: owner, Method: domain.AuthMethodOIDC, ConnectionID: &connection, AuthenticatedAt: now, ExpiresAt: now.Add(time.Hour)}
+	row := domain.AuthSession{ID: uuid.New(), UserID: owner, Method: domain.AuthMethodOIDC, ConnectionID: &connection, WorkspaceID: &workspace, AuthenticatedAt: now, ExpiresAt: now.Add(time.Hour)}
 	if e := repo.CreateSession(context.Background(), row); e != nil {
 		t.Fatal(e)
 	}
 	got, e := repo.GetSession(context.Background(), row.ID)
-	if e != nil || got.UserID != owner || got.ConnectionID == nil || *got.ConnectionID != connection {
+	if e != nil || got.UserID != owner || got.ConnectionID == nil || *got.ConnectionID != connection || got.WorkspaceID == nil || *got.WorkspaceID != workspace {
 		t.Fatalf("got=%+v err=%v", got, e)
 	}
 	if e = repo.RevokeWorkspaceSessions(context.Background(), workspace, owner, &connection, now.Add(time.Minute)); e != nil {
@@ -71,6 +73,67 @@ func TestSSOSessionRepositoryRevocation(t *testing.T) {
 	got, e = repo.GetSession(context.Background(), row.ID)
 	if e != nil || got.RevokedAt == nil {
 		t.Fatalf("revoked=%+v err=%v", got, e)
+	}
+}
+
+func TestSSOProviderRotationSerializesWithSessionAuthority(t *testing.T) {
+	db := accessTestDB(t, 25)
+	owner, workspace := domainRepositoryWorkspace(t, db, "SSO lock")
+	connection := uuid.New()
+	mustExec(t, db, "INSERT INTO workspace_sso_connections(id,workspace_id,issuer,client_id,client_secret_cipher,mode,public_links_enabled) VALUES (?,?,?,?,?,'enforced',false)", connection, workspace, "https://idp.example", "client", []byte("cipher"))
+	now := time.Now().UTC()
+	session := domain.AuthSession{ID: uuid.New(), UserID: owner, Method: domain.AuthMethodOIDC, ConnectionID: &connection, WorkspaceID: &workspace, AuthenticatedAt: now, ExpiresAt: now.Add(time.Hour)}
+	if err := NewAuthSessionRepository(db).CreateSession(context.Background(), session); err != nil {
+		t.Fatal(err)
+	}
+	var schema string
+	if err := db.Raw("SELECT current_schema()").Scan(&schema).Error; err != nil {
+		t.Fatal(err)
+	}
+	parallelDB, err := gorm.Open(pg.Open(os.Getenv("ACCESS_TEST_DATABASE_URL")+"&search_path="+schema), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parallelSQL, err := parallelDB.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = parallelSQL.Close() })
+
+	locked, release, authorityDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+	go func() {
+		authorityDone <- NewAccessRepository(db).WithWorkspaceLock(context.Background(), workspace, owner, func(lockCtx context.Context) error {
+			close(locked)
+			<-release
+			current, lookupErr := NewAuthSessionRepository(db).GetSession(lockCtx, session.ID)
+			if lookupErr != nil || current.RevokedAt != nil {
+				return errors.New("session authority changed inside the existing workspace lock")
+			}
+			return nil
+		})
+	}()
+	<-locked
+	revokeDone := make(chan error, 1)
+	go func() {
+		revokeDone <- NewAccessRepository(parallelDB).WithWorkspaceLock(context.Background(), workspace, owner, func(lockCtx context.Context) error {
+			return NewAuthSessionRepository(parallelDB).RevokeConnectionSessions(lockCtx, connection, now.Add(time.Minute))
+		})
+	}()
+	select {
+	case err := <-revokeDone:
+		t.Fatalf("provider rotation bypassed workspace lock: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	close(release)
+	if err := <-authorityDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-revokeDone; err != nil {
+		t.Fatal(err)
+	}
+	got, err := NewAuthSessionRepository(db).GetSession(context.Background(), session.ID)
+	if err != nil || got.RevokedAt == nil {
+		t.Fatalf("rotation did not revoke session: %+v err=%v", got, err)
 	}
 }
 
@@ -94,9 +157,18 @@ func TestSSOTransactionAndExchangeConsumeOnce(t *testing.T) {
 	owner := uuid.New()
 	mustExec(t, db, "INSERT INTO users(id,email,name) VALUES (?,?,'Owner')", owner, owner.String()+"@example.test")
 	sessionRepo := NewAuthSessionRepository(db)
-	session := domain.AuthSession{ID: uuid.New(), UserID: owner, Method: domain.AuthMethodOIDC, ConnectionID: &connection, AuthenticatedAt: now, ExpiresAt: now.Add(time.Hour)}
+	session := domain.AuthSession{ID: uuid.New(), UserID: owner, Method: domain.AuthMethodOIDC, ConnectionID: &connection, WorkspaceID: &workspace, AuthenticatedAt: now, ExpiresAt: now.Add(time.Hour)}
 	if e := sessionRepo.CreateSession(context.Background(), session); e != nil {
 		t.Fatal(e)
+	}
+	linkState := ssoTestHash("link-state")
+	requestID := uuid.New()
+	if e := repo.CreateTransaction(context.Background(), domain.SSOTransaction{StateHash: linkState, ConnectionID: connection, WorkspaceID: workspace, BrowserBindingHash: browser, NonceHash: nonce, PKCEVerifierCipher: []byte("cipher"), ReturnPath: "/", LinkUserID: &owner, LinkRequestID: &requestID, SourceSessionID: &session.ID, ExpiresAt: now.Add(time.Minute)}); e != nil {
+		t.Fatal(e)
+	}
+	linked, e := repo.ConsumeTransaction(context.Background(), linkState, browser, now)
+	if e != nil || linked.SourceSessionID == nil || *linked.SourceSessionID != session.ID || linked.LinkUserID == nil || *linked.LinkUserID != owner {
+		t.Fatalf("link transaction=%+v err=%v", linked, e)
 	}
 	code := ssoTestHash("code")
 	if e := repo.CreateExchange(context.Background(), domain.ExchangeCode{CodeHash: code, SessionID: session.ID, BrowserBindingHash: browser, ReturnPath: "/", ExpiresAt: now.Add(time.Minute)}); e != nil {

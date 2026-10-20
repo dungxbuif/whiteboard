@@ -88,6 +88,7 @@ type ssoTransactionRow struct {
 	ReturnPath         string
 	LinkUserID         *uuid.UUID
 	LinkRequestID      *uuid.UUID
+	SourceSessionID    *uuid.UUID
 	ExpiresAt          time.Time
 	ConsumedAt         *time.Time
 }
@@ -95,7 +96,7 @@ type ssoTransactionRow struct {
 func (ssoTransactionRow) TableName() string { return "sso_flow_transactions" }
 
 func (r *SSORepository) CreateTransaction(ctx domain.Context, value domain.SSOTransaction) error {
-	return accessDB(ctx, r.db).Create(&ssoTransactionRow{StateHash: value.StateHash, ConnectionID: value.ConnectionID, WorkspaceID: value.WorkspaceID, BrowserBindingHash: value.BrowserBindingHash, NonceHash: value.NonceHash, PKCEVerifierCipher: value.PKCEVerifierCipher, ReturnPath: value.ReturnPath, LinkUserID: value.LinkUserID, LinkRequestID: value.LinkRequestID, ExpiresAt: value.ExpiresAt}).Error
+	return accessDB(ctx, r.db).Create(&ssoTransactionRow{StateHash: value.StateHash, ConnectionID: value.ConnectionID, WorkspaceID: value.WorkspaceID, BrowserBindingHash: value.BrowserBindingHash, NonceHash: value.NonceHash, PKCEVerifierCipher: value.PKCEVerifierCipher, ReturnPath: value.ReturnPath, LinkUserID: value.LinkUserID, LinkRequestID: value.LinkRequestID, SourceSessionID: value.SourceSessionID, ExpiresAt: value.ExpiresAt}).Error
 }
 
 func (r *SSORepository) ConsumeTransaction(ctx domain.Context, stateHash, browserHash []byte, now time.Time) (domain.SSOTransaction, error) {
@@ -117,7 +118,7 @@ func (r *SSORepository) ConsumeTransaction(ctx domain.Context, stateHash, browse
 		if err := tx.Model(&row).Update("consumed_at", now).Error; err != nil {
 			return err
 		}
-		out = domain.SSOTransaction{StateHash: row.StateHash, ConnectionID: row.ConnectionID, WorkspaceID: row.WorkspaceID, BrowserBindingHash: row.BrowserBindingHash, NonceHash: row.NonceHash, PKCEVerifierCipher: row.PKCEVerifierCipher, ReturnPath: row.ReturnPath, LinkUserID: row.LinkUserID, LinkRequestID: row.LinkRequestID, ExpiresAt: row.ExpiresAt, ConsumedAt: &now}
+		out = domain.SSOTransaction{StateHash: row.StateHash, ConnectionID: row.ConnectionID, WorkspaceID: row.WorkspaceID, BrowserBindingHash: row.BrowserBindingHash, NonceHash: row.NonceHash, PKCEVerifierCipher: row.PKCEVerifierCipher, ReturnPath: row.ReturnPath, LinkUserID: row.LinkUserID, LinkRequestID: row.LinkRequestID, SourceSessionID: row.SourceSessionID, ExpiresAt: row.ExpiresAt, ConsumedAt: &now}
 		return nil
 	})
 	return out, err

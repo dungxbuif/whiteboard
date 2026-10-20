@@ -398,7 +398,10 @@ data only and never auto-links an existing user. Member authority uses JWT
 `sid`, `auth_method` and `auth_time`, then rechecks the current enterprise login
 session and workspace connection. Missing `sid` is accepted only where password
 access remains allowed. Room and mutation capabilities bind the source session
-so renewal cannot outlive revocation.
+so renewal cannot outlive revocation. Recovery tokens additionally bind
+`recovery_workspace_id`, expire after 15 minutes, and are accepted only for that
+workspace while SSO is enforced. Link callback and exchange recheck their source
+session and current connection under the workspace lock.
 
 ## R1 workspace retention (implemented locally; wiring pending, production activation disabled)
 

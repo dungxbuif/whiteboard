@@ -7,7 +7,9 @@
   tested operator break-glass session, may access member resources.
 
 Existing JWTs without `sid` are transition credentials. They cannot access an
-enforced workspace. Public links use their explicit scene policy.
+enforced workspace. Every JWT with a `sid` is checked against the current login
+session before workspace authority is evaluated. Public links use their explicit
+scene policy.
 
 ## Browser flow
 
@@ -29,11 +31,17 @@ the same request ID; change it after a definitive result or explicit cancel.
 
 Authenticated linking begins with `POST /api/v1/sso/link/begin`. Provider
 profile claims are accepted only from the verified callback, never from a
-browser-submitted identity object.
+browser-submitted identity object. Link completion rechecks the source session
+and current workspace membership. Changing the issuer, client ID or provider
+secret revokes sessions from the previous provider configuration.
 
 ## Operator dependency
 
 Enforced mode requires recent owner authentication and a tested break-glass
 credential created by `userctl`. Real identity-provider UAT is required before
 production activation; the disposable test provider is fixture evidence only.
+Recovery sessions last 15 minutes, apply only to the selected enforced
+workspace, and are rejected by optional, unconfigured and other workspaces.
+Enter the recovery credential at the hidden terminal prompt or supply a
+protected file descriptor; never place it on the command line.
 

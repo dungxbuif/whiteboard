@@ -17,9 +17,10 @@ const (
 	AuthMethodOIDC       = "oidc"
 	AuthMethodBreakGlass = "break_glass"
 
-	SSOTransactionLifetime = 10 * time.Minute
-	SSOExchangeLifetime    = time.Minute
-	RecentAuthLifetime     = 10 * time.Minute
+	SSOTransactionLifetime    = 10 * time.Minute
+	SSOExchangeLifetime       = time.Minute
+	RecentAuthLifetime        = 10 * time.Minute
+	BreakGlassSessionLifetime = 15 * time.Minute
 )
 
 var (
@@ -101,6 +102,7 @@ type AuthSession struct {
 	UserID          uuid.UUID  `json:"userId"`
 	Method          string     `json:"method"`
 	ConnectionID    *uuid.UUID `json:"connectionId,omitempty"`
+	WorkspaceID     *uuid.UUID `json:"workspaceId,omitempty"`
 	AuthenticatedAt time.Time  `json:"authenticatedAt"`
 	ExpiresAt       time.Time  `json:"expiresAt"`
 	RevokedAt       *time.Time `json:"revokedAt,omitempty"`
@@ -116,6 +118,7 @@ type SSOTransaction struct {
 	ReturnPath         string
 	LinkUserID         *uuid.UUID
 	LinkRequestID      *uuid.UUID
+	SourceSessionID    *uuid.UUID
 	ExpiresAt          time.Time
 	ConsumedAt         *time.Time
 }
@@ -151,6 +154,7 @@ type SessionRepository interface {
 	CreateSession(Context, AuthSession) error
 	GetSession(Context, uuid.UUID) (AuthSession, error)
 	RevokeWorkspaceSessions(Context, uuid.UUID, uuid.UUID, *uuid.UUID, time.Time) error
+	RevokeConnectionSessions(Context, uuid.UUID, time.Time) error
 	HasTestedBreakGlass(Context, uuid.UUID, uuid.UUID, time.Time) (bool, error)
 }
 

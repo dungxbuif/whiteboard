@@ -37,3 +37,47 @@ gate. Unit fixture evidence does not prove a real external IdP configuration.
 Production release still requires its exact issuer, client, secret and redirect
 UAT.
 
+## Security remediation plan
+
+The independent audit found five current-authority gaps. The remediation keeps
+assurance centralized in `AccessService`, validates every login session at the
+authentication boundary, and adds pre-write scene authorization. Owner/member,
+invitation, feature, domain, room, command, media and asset operations must all
+fail after source-session revocation.
+
+Break-glass sessions will persist and sign one exact workspace, expire after 15
+minutes, and be rejected for every other, optional or unconfigured workspace.
+The CLI will read the recovery credential from protected terminal input or a
+caller-selected file descriptor; command-line secret arguments are removed.
+
+Authenticated link transactions will persist the source session as well as the
+workspace/user/request binding. Callback completion will lock the workspace and
+recheck that source session, current membership and assurance before linking or
+issuing a replacement OIDC session. Exchange will re-read the session under the
+same workspace lock and reject revoked, expired or stale-connection sessions.
+
+Changing issuer, client ID or provider secret will revoke every session for the
+connection in the configuration transaction. Verification adds negative unit
+matrices plus guarded PostgreSQL race tests for reconfiguration, exchange and
+current room/asset authority.
+
+## Security remediation result
+
+The implementation now validates `sid` at the authentication boundary and
+composes workspace assurance through `AccessService`, including owner, member,
+feature, domain, invitation and scene operations. Scene creation authorizes
+before persistence. Negative tests cover the workspace operation matrix plus
+current room and asset capability minting after revocation.
+
+Link transactions persist the source session. Callback and exchange re-read the
+session, membership and connection while holding the workspace lock. Provider
+identity or secret changes revoke existing connection sessions in that same
+transaction. A guarded PostgreSQL concurrency test proves rotation waits for an
+in-flight workspace authority lock before revocation becomes visible.
+
+Recovery sessions persist their exact workspace and use a 15-minute lifetime.
+The login token carries the same scope, and assurance rejects recovery tokens
+outside that enforced workspace. `userctl` reads recovery credentials from a
+hidden terminal or bounded file descriptor using `golang.org/x/term`; its BSD
+license and transitive `x/sys` dependency were audited with the module update.
+

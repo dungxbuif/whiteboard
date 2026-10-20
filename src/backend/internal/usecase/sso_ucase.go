@@ -72,11 +72,11 @@ type verifierBundle struct {
 }
 
 func (s *SSOService) Begin(ctx domain.Context, connectionID uuid.UUID, returnPath string) (domain.AuthorizationRedirect, error) {
-	return s.begin(ctx, connectionID, returnPath, nil, nil)
+	return s.begin(ctx, connectionID, returnPath, nil, nil, nil)
 }
 
 func (s *SSOService) BeginLink(ctx domain.Context, principal domain.Principal, connectionID uuid.UUID, returnPath string, requestID uuid.UUID) (domain.AuthorizationRedirect, error) {
-	if principal.UserID == nil || *principal.UserID == uuid.Nil || requestID == uuid.Nil {
+	if principal.UserID == nil || *principal.UserID == uuid.Nil || principal.SessionID == uuid.Nil || requestID == uuid.Nil {
 		return domain.AuthorizationRedirect{}, domain.ErrSSOInvalid
 	}
 	connection, err := s.repo.GetConnectionByID(ctx, connectionID)
@@ -90,10 +90,10 @@ func (s *SSOService) BeginLink(ctx domain.Context, principal domain.Principal, c
 	if _, err = s.access.ResolveWorkspace(ctx, principal, connection.WorkspaceID); err != nil {
 		return domain.AuthorizationRedirect{}, err
 	}
-	return s.begin(ctx, connectionID, returnPath, principal.UserID, &requestID)
+	return s.begin(ctx, connectionID, returnPath, principal.UserID, &requestID, &principal.SessionID)
 }
 
-func (s *SSOService) begin(ctx domain.Context, connectionID uuid.UUID, returnPath string, linkUserID, linkRequestID *uuid.UUID) (domain.AuthorizationRedirect, error) {
+func (s *SSOService) begin(ctx domain.Context, connectionID uuid.UUID, returnPath string, linkUserID, linkRequestID, sourceSessionID *uuid.UUID) (domain.AuthorizationRedirect, error) {
 	binding, e := bindingFromContext(ctx)
 	if e != nil {
 		return domain.AuthorizationRedirect{}, e
@@ -128,6 +128,7 @@ func (s *SSOService) begin(ctx domain.Context, connectionID uuid.UUID, returnPat
 	transaction := domain.SSOTransaction{StateHash: opaqueHash(state), ConnectionID: connection.ID, WorkspaceID: connection.WorkspaceID, BrowserBindingHash: opaqueHash(binding), NonceHash: opaqueHash(nonce), PKCEVerifierCipher: encrypted, ReturnPath: safeReturnPath(returnPath), ExpiresAt: expires}
 	transaction.LinkUserID = linkUserID
 	transaction.LinkRequestID = linkRequestID
+	transaction.SourceSessionID = sourceSessionID
 	if e = s.repo.CreateTransaction(ctx, transaction); e != nil {
 		return domain.AuthorizationRedirect{}, e
 	}
@@ -164,45 +165,70 @@ func (s *SSOService) Callback(ctx domain.Context, state, code, browserBinding st
 		return domain.OneTimeExchange{}, e
 	}
 	identity.ConnectionID = connection.ID
+	actor := uuid.Nil
 	if transaction.LinkUserID != nil {
-		if transaction.LinkRequestID == nil {
-			return domain.OneTimeExchange{}, domain.ErrSSOInvalid
-		}
-		if e = s.Link(ctx, *transaction.LinkUserID, identity, *transaction.LinkRequestID); e != nil {
-			return domain.OneTimeExchange{}, e
-		}
-		user, e := s.repo.FindUser(ctx, *transaction.LinkUserID)
-		if e != nil {
-			return domain.OneTimeExchange{}, e
-		}
-		return s.createExchange(ctx, user, connection, browserBinding, transaction.ReturnPath, now)
+		actor = *transaction.LinkUserID
 	}
-	linked, e := s.repo.FindIdentity(ctx, identity.Issuer, identity.Subject)
-	var user *domain.User
-	if e == nil {
-		user, e = s.repo.FindUser(ctx, linked.UserID)
-	} else if errors.Is(e, gorm.ErrRecordNotFound) {
-		if existing, findErr := s.repo.FindUserByEmail(ctx, identity.Email); findErr == nil && existing != nil {
-			return domain.OneTimeExchange{}, domain.ErrSSOEmailLinkDenied
-		} else if findErr != nil && !errors.Is(findErr, gorm.ErrRecordNotFound) {
-			return domain.OneTimeExchange{}, findErr
+	var result domain.OneTimeExchange
+	e = s.access.WithWorkspaceLock(ctx, transaction.WorkspaceID, actor, func(lockCtx domain.Context) error {
+		current, err := s.repo.GetConnection(lockCtx, transaction.WorkspaceID)
+		if err != nil || current.ID != connection.ID || current.Revision != connection.Revision {
+			return domain.ErrSessionRevoked
 		}
-		name := strings.TrimSpace(identity.Name)
-		if name == "" {
-			name = identity.Email
+		if transaction.LinkUserID != nil {
+			if transaction.LinkRequestID == nil || transaction.SourceSessionID == nil {
+				return domain.ErrSSOInvalid
+			}
+			source, sourceErr := s.sessions.repo.GetSession(lockCtx, *transaction.SourceSessionID)
+			if sourceErr != nil {
+				return domain.ErrSessionRevoked
+			}
+			principal := domain.UserPrincipal(*transaction.LinkUserID)
+			principal.SessionID, principal.AuthMethod = source.ID, source.Method
+			if source.WorkspaceID != nil && source.Method == domain.AuthMethodBreakGlass {
+				principal.RecoveryWorkspaceID = *source.WorkspaceID
+			}
+			if err = s.sessions.RequireWorkspaceAssurance(lockCtx, principal, transaction.WorkspaceID); err != nil {
+				return err
+			}
+			if _, err = s.access.ResolveWorkspace(lockCtx, principal, transaction.WorkspaceID); err != nil {
+				return err
+			}
+			if err = s.linkVerified(lockCtx, *transaction.LinkUserID, identity, *transaction.LinkRequestID); err != nil {
+				return err
+			}
+			user, findErr := s.repo.FindUser(lockCtx, *transaction.LinkUserID)
+			if findErr != nil {
+				return findErr
+			}
+			result, err = s.createExchange(lockCtx, user, current, browserBinding, transaction.ReturnPath, now)
+			return err
 		}
-		user = &domain.User{ID: uuid.New(), Email: identity.Email, Name: name, AvatarURL: identity.Picture}
-		row := domain.ExternalIdentity{ID: uuid.New(), ConnectionID: connection.ID, Issuer: identity.Issuer, Subject: identity.Subject, Email: identity.Email, Name: name, Picture: identity.Picture, UserID: user.ID}
-		if e = s.repo.CreateUserIdentityWithDefaultWorkspace(ctx, user, row); e != nil {
-			return domain.OneTimeExchange{}, e
+		linked, findErr := s.repo.FindIdentity(lockCtx, identity.Issuer, identity.Subject)
+		var user *domain.User
+		if findErr == nil {
+			user, findErr = s.repo.FindUser(lockCtx, linked.UserID)
+		} else if errors.Is(findErr, gorm.ErrRecordNotFound) {
+			if existing, emailErr := s.repo.FindUserByEmail(lockCtx, identity.Email); emailErr == nil && existing != nil {
+				return domain.ErrSSOEmailLinkDenied
+			} else if emailErr != nil && !errors.Is(emailErr, gorm.ErrRecordNotFound) {
+				return emailErr
+			}
+			name := strings.TrimSpace(identity.Name)
+			if name == "" {
+				name = identity.Email
+			}
+			user = &domain.User{ID: uuid.New(), Email: identity.Email, Name: name, AvatarURL: identity.Picture}
+			row := domain.ExternalIdentity{ID: uuid.New(), ConnectionID: current.ID, Issuer: identity.Issuer, Subject: identity.Subject, Email: identity.Email, Name: name, Picture: identity.Picture, UserID: user.ID}
+			findErr = s.repo.CreateUserIdentityWithDefaultWorkspace(lockCtx, user, row)
 		}
-	} else {
-		return domain.OneTimeExchange{}, e
-	}
-	if e != nil {
-		return domain.OneTimeExchange{}, e
-	}
-	return s.createExchange(ctx, user, connection, browserBinding, transaction.ReturnPath, now)
+		if findErr != nil {
+			return findErr
+		}
+		result, err = s.createExchange(lockCtx, user, current, browserBinding, transaction.ReturnPath, now)
+		return err
+	})
+	return result, e
 }
 
 func (s *SSOService) createExchange(ctx domain.Context, user *domain.User, connection domain.SSOConnection, browserBinding, returnPath string, now time.Time) (domain.OneTimeExchange, error) {
@@ -241,20 +267,65 @@ func (s *SSOService) Exchange(ctx domain.Context, code, browserBinding string) (
 	}
 	session, e := s.sessions.repo.GetSession(ctx, row.SessionID)
 	if e != nil {
-		return domain.LoginResult{}, e
+		return domain.LoginResult{}, domain.ErrSessionRevoked
 	}
-	user, e := s.repo.FindUser(ctx, session.UserID)
-	if e != nil {
-		return domain.LoginResult{}, e
+	if session.Method != domain.AuthMethodOIDC || session.WorkspaceID == nil || session.ConnectionID == nil {
+		return domain.LoginResult{}, domain.ErrSessionRevoked
 	}
-	token, e := s.sessions.IssueLoginToken(user, session)
-	if e != nil {
-		return domain.LoginResult{}, e
-	}
-	return domain.LoginResult{Token: token, User: *user}, nil
+	var result domain.LoginResult
+	e = s.access.WithWorkspaceLock(ctx, *session.WorkspaceID, session.UserID, func(lockCtx domain.Context) error {
+		principal := domain.UserPrincipal(session.UserID)
+		principal.SessionID, principal.AuthMethod = session.ID, session.Method
+		currentSession, validateErr := s.sessions.validateSession(lockCtx, principal)
+		if validateErr != nil {
+			return validateErr
+		}
+		connection, connectionErr := s.repo.GetConnection(lockCtx, *session.WorkspaceID)
+		if connectionErr != nil || currentSession.ConnectionID == nil || connection.ID != *currentSession.ConnectionID {
+			return domain.ErrSessionRevoked
+		}
+		user, findErr := s.repo.FindUser(lockCtx, currentSession.UserID)
+		if findErr != nil {
+			return findErr
+		}
+		token, tokenErr := s.sessions.IssueLoginToken(user, currentSession)
+		if tokenErr != nil {
+			return tokenErr
+		}
+		result = domain.LoginResult{Token: token, User: *user}
+		return nil
+	})
+	return result, e
 }
 
 func (s *SSOService) Link(ctx domain.Context, user uuid.UUID, identity domain.OIDCIdentity, requestID uuid.UUID) error {
+	sid, ok := ctx.Value(domain.ContextKeySessionID).(uuid.UUID)
+	if !ok || sid == uuid.Nil {
+		return domain.ErrSessionRevoked
+	}
+	source, err := s.sessions.repo.GetSession(ctx, sid)
+	if err != nil || source.UserID != user {
+		return domain.ErrSessionRevoked
+	}
+	principal := domain.UserPrincipal(user)
+	principal.SessionID, principal.AuthMethod = source.ID, source.Method
+	if source.WorkspaceID != nil && source.Method == domain.AuthMethodBreakGlass {
+		principal.RecoveryWorkspaceID = *source.WorkspaceID
+	}
+	connection, err := s.repo.GetConnectionByID(ctx, identity.ConnectionID)
+	if err != nil {
+		return err
+	}
+	if err = s.sessions.RequireWorkspaceAssurance(ctx, principal, connection.WorkspaceID); err != nil {
+		return err
+	}
+	if _, err = s.access.ResolveWorkspace(ctx, principal, connection.WorkspaceID); err != nil {
+		return err
+	}
+	return s.linkVerified(ctx, user, identity, requestID)
+}
+
+func (s *SSOService) linkVerified(ctx domain.Context, user uuid.UUID, identity domain.OIDCIdentity, requestID uuid.UUID) error {
 	if !identity.EmailVerified || identity.ConnectionID == uuid.Nil || identity.Issuer == "" || identity.Subject == "" || requestID == uuid.Nil || user == uuid.Nil {
 		return domain.ErrSSOInvalid
 	}
@@ -327,6 +398,7 @@ func (s *SSOService) Configure(ctx domain.Context, p domain.Principal, workspace
 			} else if input.ExpectedRevision != current.Revision {
 				return domain.StoredFeatureResponse{}, domain.ErrRevisionConflict
 			}
+			identityChanged := current.ID != uuid.Nil && (current.Issuer != issuer.String() || current.ClientID != input.ClientID || input.ClientSecret != "")
 			if input.ClientSecret != "" {
 				current.ClientSecretCipher, e = s.cipher.Seal(input.ClientSecret)
 				if e != nil {
@@ -360,6 +432,11 @@ func (s *SSOService) Configure(ctx domain.Context, p domain.Principal, workspace
 			current, e = s.repo.UpsertConnection(ctx, current)
 			if e != nil {
 				return domain.StoredFeatureResponse{}, e
+			}
+			if identityChanged {
+				if e = s.sessions.repo.RevokeConnectionSessions(ctx, current.ID, s.now().UTC()); e != nil {
+					return domain.StoredFeatureResponse{}, e
+				}
 			}
 			body, _ := json.Marshal(current)
 			return domain.StoredFeatureResponse{Status: 200, Body: body}, nil

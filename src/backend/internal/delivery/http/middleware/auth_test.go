@@ -22,6 +22,15 @@ type activeUserStoreStub struct {
 	calls int
 }
 
+type activeSessionStoreStub struct {
+	session domain.AuthSession
+	err     error
+}
+
+func (s activeSessionStoreStub) GetSession(context.Context, uuid.UUID) (domain.AuthSession, error) {
+	return s.session, s.err
+}
+
 func (s *activeUserStoreStub) FindByID(context.Context, uuid.UUID) (*domain.User, error) {
 	s.calls++
 	return s.user, s.err
@@ -217,5 +226,26 @@ func TestAuthMiddlewareRejectsPartialSessionClaims(t *testing.T) {
 		if response.Code != http.StatusUnauthorized {
 			t.Fatalf("claims=%v status=%d", partial, response.Code)
 		}
+	}
+}
+
+func TestAuthMiddlewareRejectsRevokedLoginSession(t *testing.T) {
+	secret := []byte("login-secret-0123456789abcdef0123456789")
+	userID, sid := uuid.New(), uuid.New()
+	now := time.Now().UTC()
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": userID.String(), "sid": sid.String(), "auth_method": domain.AuthMethodOIDC, "auth_time": now.Unix(), "exp": now.Add(time.Hour).Unix()}).SignedString(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revoked := now
+	handler := AuthMiddlewareWithSessions(secret, nil, activeSessionStoreStub{session: domain.AuthSession{ID: sid, UserID: userID, Method: domain.AuthMethodOIDC, AuthenticatedAt: now, ExpiresAt: now.Add(time.Hour), RevokedAt: &revoked}})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("revoked session reached handler")
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set(domain.HeaderAuthorization, domain.BearerPrefix+token)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }

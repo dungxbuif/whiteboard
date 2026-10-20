@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
@@ -222,7 +221,7 @@ func (h *SSOHandler) Exchange(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *SSOHandler) identity(r *http.Request) (domain.Principal, uuid.UUID, error) {
-	user, ok := middleware.UserIDFromContext(r.Context())
+	p, ok := middleware.UserPrincipalFromContext(r.Context())
 	if !ok {
 		return domain.Principal{}, uuid.Nil, domain.ErrAccessDenied
 	}
@@ -230,12 +229,6 @@ func (h *SSOHandler) identity(r *http.Request) (domain.Principal, uuid.UUID, err
 	if e != nil {
 		return domain.Principal{}, uuid.Nil, e
 	}
-	p := domain.UserPrincipal(user)
-	if sid, ok := r.Context().Value(domain.ContextKeySessionID).(uuid.UUID); ok {
-		p.SessionID = sid
-	}
-	p.AuthMethod, _ = r.Context().Value(domain.ContextKeyAuthMethod).(string)
-	p.AuthenticatedAt, _ = r.Context().Value(domain.ContextKeyAuthTime).(time.Time)
 	return p, workspace, nil
 }
 func (h *SSOHandler) Get(w http.ResponseWriter, r *http.Request) {

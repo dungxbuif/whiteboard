@@ -17,16 +17,16 @@ DATABASE_URL=... userctl --email owner@example.com \
 ```
 
 The credential is shown once; store it in the existing secret manager. Creating,
-testing, revoking and using recovery is audited. Revoke it with
-`--break-glass-action revoke`.
+testing, revoking and using recovery is audited. Supply it through protected
+terminal input or `--break-glass-credential-fd`; never place it in argv or shell
+history. Revoke it with `--break-glass-action revoke`.
 
 During an actual provider outage, run recovery only from the trusted operator
 host. `JWT_SECRET` must match the backend and contain at least 32 bytes:
 
 ```sh
 DATABASE_URL=... JWT_SECRET=... userctl --email owner@example.com \
-  --break-glass-workspace <workspace-uuid> --break-glass-action recover \
-  --break-glass-credential '<shown-once-value>'
+  --break-glass-workspace <workspace-uuid> --break-glass-action recover
 ```
 
 The command prints one short-lived bearer token after the transaction commits

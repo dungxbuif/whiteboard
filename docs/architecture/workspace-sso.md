@@ -38,6 +38,17 @@ mode requires recent owner authentication and a tested operator-created
 break-glass session. Break-glass credentials are created only by `userctl`, are
 audited and cannot be created through future SCIM routes.
 
+Every authenticated request first validates the source login session. Workspace
+authority then applies the target workspace's current assurance policy, including
+owner-only APIs. Link callback and one-time exchange repeat these checks while
+holding the workspace lock so membership removal, session revocation and provider
+rotation win before a new token is issued.
+
+Break-glass sessions are bound to one enforced workspace and expire after 15
+minutes. They are invalid for optional, unconfigured or different workspaces.
+Changing issuer, client ID or provider secret revokes all sessions asserted by
+the previous connection configuration in the same transaction.
+
 ## Data and integration
 
 Migration `000025_workspace_sso` adds encrypted connection configuration,

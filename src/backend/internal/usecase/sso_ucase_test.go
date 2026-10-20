@@ -33,8 +33,8 @@ type ssoRepoStub struct {
 func newSSORepoStub() *ssoRepoStub {
 	return &ssoRepoStub{tx: map[string]domain.SSOTransaction{}, exchanges: map[string]domain.ExchangeCode{}, identities: map[string]domain.ExternalIdentity{}, users: map[uuid.UUID]*domain.User{}, emails: map[string]*domain.User{}}
 }
-func (r *ssoRepoStub) GetConnection(context.Context, uuid.UUID) (domain.SSOConnection, error) {
-	if r.connection.ID == uuid.Nil {
+func (r *ssoRepoStub) GetConnection(_ context.Context, workspace uuid.UUID) (domain.SSOConnection, error) {
+	if r.connection.ID == uuid.Nil || r.connection.WorkspaceID != workspace {
 		return domain.SSOConnection{}, domain.ErrSSONotConfigured
 	}
 	return r.connection, nil
@@ -168,16 +168,31 @@ func (s *sessionRepoStub) RevokeWorkspaceSessions(_ context.Context, _, user uui
 	}
 	return nil
 }
+func (s *sessionRepoStub) RevokeConnectionSessions(_ context.Context, connection uuid.UUID, now time.Time) error {
+	for id, value := range s.rows {
+		if value.ConnectionID != nil && *value.ConnectionID == connection {
+			value.RevokedAt = &now
+			s.rows[id] = value
+		}
+	}
+	return nil
+}
 func (s *sessionRepoStub) HasTestedBreakGlass(context.Context, uuid.UUID, uuid.UUID, time.Time) (bool, error) {
 	return s.breakGlass, nil
 }
 
-type ssoAccessStub struct{ owner uuid.UUID }
+type ssoAccessStub struct {
+	owner     uuid.UUID
+	deniedNow *bool
+}
 
 func (a ssoAccessStub) Resolve(context.Context, domain.Principal, domain.SceneRef) (domain.AccessDecision, error) {
 	return domain.AccessDecision{Access: domain.AccessEdit, Owner: true}, nil
 }
 func (a ssoAccessStub) ResolveWorkspace(context.Context, domain.Principal, uuid.UUID) (domain.AccessDecision, error) {
+	if a.deniedNow != nil && *a.deniedNow {
+		return domain.AccessDecision{}, domain.ErrAccessDenied
+	}
 	return domain.AccessDecision{Access: domain.AccessEdit, Owner: true}, nil
 }
 func (a ssoAccessStub) RequireOwner(_ context.Context, user, _ uuid.UUID) error {
@@ -277,7 +292,8 @@ func TestSameEmailCannotLinkAccount(t *testing.T) {
 	existing := &domain.User{ID: uuid.New(), Email: "same@example.test", Name: "Existing"}
 	repo.users[existing.ID] = existing
 	repo.emails[existing.Email] = existing
-	sessions, _ := NewSessionService(&sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}, repo, []byte("01234567890123456789012345678901"), func() time.Time { return now })
+	sessionRepo := &sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}
+	sessions, _ := NewSessionService(sessionRepo, repo, []byte("01234567890123456789012345678901"), func() time.Time { return now })
 	provider := &providerStub{identity: domain.OIDCIdentity{Issuer: connection.Issuer, Subject: "new-sub", Email: existing.Email, EmailVerified: true}}
 	service, _ := NewSSOService(repo, ssoAccessStub{}, sessions, providerFactoryStub{provider}, testCipher{}, "https://app.example/callback", func() time.Time { return now })
 	binding := "browser-binding-01234567890123456789"
@@ -304,7 +320,10 @@ func TestAuthenticatedLinkFlowBindsVerifiedIdentity(t *testing.T) {
 	service, _ := NewSSOService(repo, ssoAccessStub{}, sessions, providerFactoryStub{provider}, testCipher{}, "https://app.example/callback", func() time.Time { return now })
 	binding := "browser-binding-01234567890123456789"
 	ctx := context.WithValue(context.Background(), domain.ContextKeyBrowserBinding, binding)
-	redirect, err := service.BeginLink(ctx, domain.UserPrincipal(userID), connection.ID, "/w/demo", uuid.New())
+	source, _ := sessions.IssuePasswordSession(context.Background(), userID)
+	principal := domain.UserPrincipal(userID)
+	principal.SessionID = source
+	redirect, err := service.BeginLink(ctx, principal, connection.ID, "/w/demo", uuid.New())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -366,8 +385,135 @@ func TestBreakGlassOwnerRecovery(t *testing.T) {
 	}
 	p := domain.UserPrincipal(user)
 	p.SessionID = row.ID
+	p.RecoveryWorkspaceID = workspace
+	if row.WorkspaceID == nil || *row.WorkspaceID != workspace || row.ExpiresAt.Sub(row.AuthenticatedAt) != domain.BreakGlassSessionLifetime {
+		t.Fatalf("unscoped recovery session=%+v", row)
+	}
 	if e = sessions.RequireWorkspaceAssurance(context.Background(), p, workspace); e != nil {
 		t.Fatal(e)
+	}
+	repo.connection.Mode = domain.SSOModeOptional
+	if e = sessions.RequireWorkspaceAssurance(context.Background(), p, workspace); !errors.Is(e, domain.ErrWorkspaceAssurance) {
+		t.Fatalf("optional workspace accepted recovery session: %v", e)
+	}
+	repo.connection = domain.SSOConnection{}
+	if e = sessions.RequireWorkspaceAssurance(context.Background(), p, workspace); !errors.Is(e, domain.ErrWorkspaceAssurance) {
+		t.Fatalf("unconfigured workspace accepted recovery session: %v", e)
+	}
+}
+
+func TestRevokedSessionCannotExchange(t *testing.T) {
+	now := time.Date(2026, 10, 20, 3, 0, 0, 0, time.UTC)
+	workspace, userID := uuid.New(), uuid.New()
+	repo := newSSORepoStub()
+	repo.connection = domain.SSOConnection{ID: uuid.New(), WorkspaceID: workspace, Issuer: "https://idp.example", Mode: domain.SSOModeOptional}
+	user := &domain.User{ID: userID, Email: "user@example.test"}
+	repo.users[userID] = user
+	sessionRepo := &sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}
+	sessions, _ := NewSessionService(sessionRepo, repo, []byte("01234567890123456789012345678901"), func() time.Time { return now })
+	service, _ := NewSSOService(repo, ssoAccessStub{}, sessions, providerFactoryStub{&providerStub{}}, testCipher{}, "https://app.example/callback", func() time.Time { return now })
+	row, _ := sessions.IssueOIDCSession(context.Background(), userID, repo.connection.ID)
+	code, binding := strings.Repeat("c", 43), "browser-binding-01234567890123456789"
+	repo.exchanges[hex.EncodeToString(opaqueHash(code))] = domain.ExchangeCode{CodeHash: opaqueHash(code), SessionID: row.ID, BrowserBindingHash: opaqueHash(binding), ExpiresAt: now.Add(time.Minute)}
+	revoked := now
+	stored := sessionRepo.rows[row.ID]
+	stored.RevokedAt = &revoked
+	sessionRepo.rows[row.ID] = stored
+	if _, err := service.Exchange(context.Background(), code, binding); !errors.Is(err, domain.ErrSessionRevoked) {
+		t.Fatalf("revoked exchange err=%v", err)
+	}
+}
+
+func TestLinkCallbackRechecksSourceSession(t *testing.T) {
+	now := time.Date(2026, 10, 20, 4, 0, 0, 0, time.UTC)
+	workspace, userID := uuid.New(), uuid.New()
+	repo := newSSORepoStub()
+	repo.connection = domain.SSOConnection{ID: uuid.New(), WorkspaceID: workspace, Issuer: "https://idp.example", ClientID: "client", ClientSecretCipher: []byte("secret"), Mode: domain.SSOModeOptional}
+	user := &domain.User{ID: userID, Email: "user@example.test"}
+	repo.users[userID], repo.emails[user.Email] = user, user
+	sessionRepo := &sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}
+	sessions, _ := NewSessionService(sessionRepo, repo, []byte("01234567890123456789012345678901"), func() time.Time { return now })
+	provider := &providerStub{identity: domain.OIDCIdentity{Issuer: repo.connection.Issuer, Subject: "subject", Email: user.Email, EmailVerified: true}}
+	service, _ := NewSSOService(repo, ssoAccessStub{}, sessions, providerFactoryStub{provider}, testCipher{}, "https://app.example/callback", func() time.Time { return now })
+	source, _ := sessions.create(context.Background(), userID, domain.AuthMethodPassword, nil, nil, domain.DefaultSessionDuration)
+	p := domain.UserPrincipal(userID)
+	p.SessionID = source.ID
+	binding := "browser-binding-01234567890123456789"
+	ctx := context.WithValue(context.Background(), domain.ContextKeyBrowserBinding, binding)
+	redirect, err := service.BeginLink(ctx, p, repo.connection.ID, "/", uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := sessionRepo.rows[source.ID]
+	revoked := now
+	stored.RevokedAt = &revoked
+	sessionRepo.rows[source.ID] = stored
+	parsed, _ := url.Parse(redirect.URL)
+	if _, err = service.Callback(context.Background(), parsed.Query().Get("state"), "code", binding); !errors.Is(err, domain.ErrSessionRevoked) {
+		t.Fatalf("revoked link source err=%v", err)
+	}
+}
+
+func TestLinkCallbackRechecksCurrentMembership(t *testing.T) {
+	now := time.Date(2026, 10, 20, 5, 0, 0, 0, time.UTC)
+	workspace, userID := uuid.New(), uuid.New()
+	repo := newSSORepoStub()
+	repo.connection = domain.SSOConnection{ID: uuid.New(), WorkspaceID: workspace, Issuer: "https://idp.example", ClientID: "client", ClientSecretCipher: []byte("secret"), Mode: domain.SSOModeOptional}
+	user := &domain.User{ID: userID, Email: "user@example.test"}
+	repo.users[userID], repo.emails[user.Email] = user, user
+	sessionRepo := &sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}
+	sessions, _ := NewSessionService(sessionRepo, repo, []byte("01234567890123456789012345678901"), func() time.Time { return now })
+	provider := &providerStub{identity: domain.OIDCIdentity{Issuer: repo.connection.Issuer, Subject: "subject", Email: user.Email, EmailVerified: true}}
+	denied := false
+	service, _ := NewSSOService(repo, ssoAccessStub{deniedNow: &denied}, sessions, providerFactoryStub{provider}, testCipher{}, "https://app.example/callback", func() time.Time { return now })
+	source, _ := sessions.IssuePasswordSession(context.Background(), userID)
+	principal := domain.UserPrincipal(userID)
+	principal.SessionID = source
+	binding := "browser-binding-01234567890123456789"
+	ctx := context.WithValue(context.Background(), domain.ContextKeyBrowserBinding, binding)
+	redirect, err := service.BeginLink(ctx, principal, repo.connection.ID, "/", uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	denied = true
+	parsed, _ := url.Parse(redirect.URL)
+	if _, err = service.Callback(context.Background(), parsed.Query().Get("state"), "code", binding); !errors.Is(err, domain.ErrAccessDenied) {
+		t.Fatalf("removed member link err=%v", err)
+	}
+}
+
+func TestProviderSecretRotationRevokesConnectionSessions(t *testing.T) {
+	now := time.Date(2026, 10, 20, 6, 0, 0, 0, time.UTC)
+	workspace, owner := uuid.New(), uuid.New()
+	repo := newSSORepoStub()
+	repo.connection = domain.SSOConnection{ID: uuid.New(), WorkspaceID: workspace, Issuer: "https://idp.example", ClientID: "client", ClientSecretCipher: []byte("old-secret"), Mode: domain.SSOModeOptional, Revision: 1}
+	repo.users[owner] = &domain.User{ID: owner, Email: "owner@example.test"}
+	sessionRepo := &sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}
+	sessions, _ := NewSessionService(sessionRepo, repo, []byte("01234567890123456789012345678901"), func() time.Time { return now })
+	row, _ := sessions.IssueOIDCSession(context.Background(), owner, repo.connection.ID)
+	service, _ := NewSSOService(repo, ssoAccessStub{owner: owner}, sessions, providerFactoryStub{&providerStub{}}, testCipher{}, "https://app.example/callback", func() time.Time { return now })
+	principal := domain.UserPrincipal(owner)
+	principal.SessionID, principal.AuthMethod, principal.AuthenticatedAt = row.ID, domain.AuthMethodOIDC, now
+	publicLinks := false
+	_, err := service.Configure(context.Background(), principal, workspace, domain.SSOConnectionInput{Issuer: repo.connection.Issuer, ClientID: repo.connection.ClientID, ClientSecret: "rotated-secret", Mode: domain.SSOModeOptional, PublicLinksEnabled: &publicLinks, RequestID: uuid.New(), ExpectedRevision: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sessionRepo.rows[row.ID].RevokedAt == nil {
+		t.Fatal("provider secret rotation left old connection session active")
+	}
+}
+
+func TestDirectLinkRequiresCurrentSourceSession(t *testing.T) {
+	userID := uuid.New()
+	repo := newSSORepoStub()
+	repo.connection = domain.SSOConnection{ID: uuid.New(), WorkspaceID: uuid.New(), Issuer: "https://idp.example", Mode: domain.SSOModeOptional}
+	repo.users[userID] = &domain.User{ID: userID, Email: "user@example.test"}
+	sessions, _ := NewSessionService(&sessionRepoStub{rows: map[uuid.UUID]domain.AuthSession{}}, repo, []byte("01234567890123456789012345678901"))
+	service, _ := NewSSOService(repo, ssoAccessStub{}, sessions, providerFactoryStub{&providerStub{}}, testCipher{}, "https://app.example/callback")
+	err := service.Link(context.Background(), userID, domain.OIDCIdentity{ConnectionID: repo.connection.ID, Issuer: repo.connection.Issuer, Subject: "subject", Email: "user@example.test", EmailVerified: true}, uuid.New())
+	if !errors.Is(err, domain.ErrSessionRevoked) {
+		t.Fatalf("link without source session err=%v", err)
 	}
 }
 
@@ -425,5 +571,30 @@ func TestAccessChecksCurrentSessionBeforeWorkspaceDecision(t *testing.T) {
 	}
 	if probe.principal.SessionID != sid || probe.principal.AuthMethod != domain.AuthMethodOIDC {
 		t.Fatalf("principal=%+v", probe.principal)
+	}
+}
+
+type deniedAssetUploader struct{ domain.PrincipalAssetUploader }
+
+func TestRevokedSessionCannotMintCurrentRoomOrAssetAuthority(t *testing.T) {
+	user, sid := uuid.New(), uuid.New()
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	probe := &assuranceProbe{err: domain.ErrSessionRevoked}
+	access, err := NewAccessServiceWithAssurance(accessStateRepo{state: domain.AccessState{Role: domain.WorkspaceRoleEditor, ACLVersion: 1}}, probe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	principal := domain.UserPrincipal(user)
+	principal.SessionID = sid
+	principal.AuthMethod = domain.AuthMethodOIDC
+	principal.CredentialExpiresAt = time.Now().Add(time.Hour)
+	rooms, _ := NewRoomService(nil, access, []byte("0123456789abcdef0123456789abcdef"))
+	if _, err = rooms.MintRoomToken(context.Background(), principal, ref); !errors.Is(err, domain.ErrSessionRevoked) {
+		t.Fatalf("room authority err=%v", err)
+	}
+	capabilities, _ := NewCapabilityService(access, nil, deniedAssetUploader{}, []byte("0123456789abcdef0123456789abcdef"))
+	request := []domain.AssetUploadRequest{{FileID: "file-1", MimeType: "image/png", ByteSize: 1}}
+	if _, err = capabilities.CreateAssetCapability(context.Background(), principal, ref, request); !errors.Is(err, domain.ErrSessionRevoked) {
+		t.Fatalf("asset authority err=%v", err)
 	}
 }

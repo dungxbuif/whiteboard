@@ -95,3 +95,20 @@ func TestSSOExchangeRejectsUnknownJSON(t *testing.T) {
 		t.Fatalf("status=%d", response.Code)
 	}
 }
+
+func TestSSOHandlerIdentityPreservesRecoveryWorkspaceScope(t *testing.T) {
+	h := NewSSOHandler(&ssoHandlerService{}, ssoHandlerAccess{}, "https://app.example")
+	user, session, recoveryWorkspace := uuid.New(), uuid.New(), uuid.New()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/demo/sso", nil)
+	ctx := context.WithValue(request.Context(), domain.ContextKeyUserID, user)
+	ctx = context.WithValue(ctx, domain.ContextKeySessionID, session)
+	ctx = context.WithValue(ctx, domain.ContextKeyAuthMethod, domain.AuthMethodBreakGlass)
+	ctx = context.WithValue(ctx, domain.ContextKeyRecoveryWorkspace, recoveryWorkspace)
+	principal, _, err := h.identity(request.WithContext(ctx))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if principal.SessionID != session || principal.AuthMethod != domain.AuthMethodBreakGlass || principal.RecoveryWorkspaceID != recoveryWorkspace {
+		t.Fatalf("principal=%+v", principal)
+	}
+}

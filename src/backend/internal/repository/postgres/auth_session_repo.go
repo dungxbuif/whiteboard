@@ -21,6 +21,7 @@ type authSessionRow struct {
 	UserID          uuid.UUID
 	Method          string
 	ConnectionID    *uuid.UUID
+	WorkspaceID     *uuid.UUID
 	AuthenticatedAt time.Time
 	ExpiresAt       time.Time
 	RevokedAt       *time.Time
@@ -29,10 +30,13 @@ type authSessionRow struct {
 
 func (authSessionRow) TableName() string { return "enterprise_login_sessions" }
 func authSessionDomain(row authSessionRow) domain.AuthSession {
-	return domain.AuthSession{ID: row.ID, UserID: row.UserID, Method: row.Method, ConnectionID: row.ConnectionID, AuthenticatedAt: row.AuthenticatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt}
+	return domain.AuthSession{ID: row.ID, UserID: row.UserID, Method: row.Method, ConnectionID: row.ConnectionID, WorkspaceID: row.WorkspaceID, AuthenticatedAt: row.AuthenticatedAt, ExpiresAt: row.ExpiresAt, RevokedAt: row.RevokedAt}
 }
 func (r *AuthSessionRepository) CreateSession(ctx domain.Context, s domain.AuthSession) error {
-	return accessDB(ctx, r.db).Create(&authSessionRow{ID: s.ID, UserID: s.UserID, Method: s.Method, ConnectionID: s.ConnectionID, AuthenticatedAt: s.AuthenticatedAt, ExpiresAt: s.ExpiresAt, RevokedAt: s.RevokedAt}).Error
+	return accessDB(ctx, r.db).Create(&authSessionRow{ID: s.ID, UserID: s.UserID, Method: s.Method, ConnectionID: s.ConnectionID, WorkspaceID: s.WorkspaceID, AuthenticatedAt: s.AuthenticatedAt, ExpiresAt: s.ExpiresAt, RevokedAt: s.RevokedAt}).Error
+}
+func (r *AuthSessionRepository) RevokeConnectionSessions(ctx domain.Context, connection uuid.UUID, now time.Time) error {
+	return accessDB(ctx, r.db).Model(&authSessionRow{}).Where("connection_id=? AND revoked_at IS NULL", connection).Update("revoked_at", now).Error
 }
 func (r *AuthSessionRepository) GetSession(ctx domain.Context, id uuid.UUID) (domain.AuthSession, error) {
 	var row authSessionRow
