@@ -11,6 +11,23 @@ after reconnect. No workspace event content is transported on the realtime
 channel. Schema, projection and privacy rules are defined in
 [Enterprise workspace events](enterprise-events.md).
 
+The frontend `FeatureInvalidationCoordinator` is the production consumer. A
+feature surface registers its authorized HTTP/query refetch function through
+`useAuthorizedFeatureRefetch`; the coordinator never accepts event data as a
+cache result. It tracks the highest decimal cursor only as an invalidation
+watermark. Live, repeated, stale, and out-of-order cursors all cause a refetch,
+and invalidations received during an in-flight request are coalesced into one
+follow-up request using the highest observed cursor. If no feature surface is
+mounted, the invalidation remains dirty until one registers.
+
+Every admitted socket connection, including a reconnect after a possibly lost
+control, invalidates registered queries. Window focus, restoration of a visible
+document, route navigation, and the explicit `refreshFeatures()` action do the
+same. Route and connection identities are deduplicated. Each registered loader
+must call its normal authorized API, so the HTTP response is filtered using
+current authority rather than authority implied by the socket notification.
+These paths share `/collab`; the browser opens no workspace event socket.
+
 Go owns access decisions; the custom Node service owns Yjs content. These
 contracts describe the deployed VM100 runtime; the release checklist records
 the remaining restart/TURN/denial/roles acceptance boundaries.

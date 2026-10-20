@@ -8,6 +8,7 @@ import { Presence } from './presence';
 import { Voice } from './voice';
 import useAuthStore from '@/store/auth-store';
 import { registerContentWriter, registerLegacyConflict } from './writers';
+import { bindFeatureInvalidation, FeatureInvalidationCoordinator, type FeatureRefetch } from './feature-invalidation';
 import api from '@/lib/api';
 import { publicApi } from '@/lib/public-api';
 import { renewPublicRoom, type SceneSession } from '@/lib/collaboration-api';
@@ -42,12 +43,13 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
         setLegacy(fresh); return true;
       },
     });
+    const features = new FeatureInvalidationCoordinator();
     const presence = new Presence(transport, () => principalRef.current.kind === 'public' ? principalRef.current.session.displayName : useAuthStore.getState().user?.name ?? 'Participant');
     const voice = new Voice(transport, presence, { config: async () => {
       const room = await grant(false);
       return (await publicApi.get<RTCConfiguration & { expiresAt: string }>('/realtime/config', { headers: { Authorization: `Bearer ${room.token}`, 'X-Workspace-ID': sceneRef.workspaceId } })).data;
     } });
-    return { adapter, transport, undo, presence, voice };
+    return { adapter, transport, undo, presence, voice, features };
   }, [sceneRef.workspaceId, sceneRef.sceneId, principal.id]);
   const state = useSyncExternalStore(controller.transport.subscribe, controller.transport.getSnapshot);
   const [content, setContent] = useState<SceneContent>(() => controller.adapter.content());
@@ -58,8 +60,15 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
       if (transport.scope && principalRef.current.kind === 'user') useSceneStore.setState(state => ({ activeScene: state.activeScene?.id === sceneRef.sceneId ? { ...state.activeScene, content, writerMode: 'v2' } : state.activeScene }));
     };
     adapter.doc.on('update', update); controller.presence.start(); controller.voice.start(); void transport.start();
+    const unbindFeatures = bindFeatureInvalidation(controller.features, transport, {
+      browser: window,
+      document,
+      isVisible: () => document.visibilityState === 'visible',
+      route: () => `${window.location.pathname}${window.location.search}`,
+      onError: error => console.error('Authorized feature refetch failed', error),
+    });
     const removeConflict = registerLegacyConflict(sceneRef.workspaceId, sceneRef.sceneId, draft => { recovery.current = draft; setLegacy(null); transport.retry(); });
-    return () => { adapter.doc.off('update', update); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
+    return () => { unbindFeatures(); adapter.doc.off('update', update); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
   }, [controller, sceneRef.workspaceId, sceneRef.sceneId]);
   useEffect(() => {
     if (state.status === 'legacy') return;
@@ -72,6 +81,8 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
     applyLocalScene(content: SceneContent) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); controller.undo.apply(content); },
     async applyAgentElements(elements: NativeElement[]) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); await controller.adapter.applyAgentElements(elements); await controller.transport.whenDurable(); },
     async exportRecovery() { return { ...await controller.transport.exportRecovery(), legacyDraft: recovery.current }; },
+    registerFeatureRefetch(key: string, refetch: FeatureRefetch) { return controller.features.register(key, refetch); },
+    refreshFeatures() { return controller.features.manualRefresh(); },
     async post<T>(path: string, body: unknown): Promise<T> { const current = principalRef.current; return (await (current.kind === 'public' ? publicApi : api).post<T>(path, body, { headers: { 'X-Workspace-ID': sceneRef.workspaceId, ...(current.kind === 'public' ? { Authorization: `Bearer ${current.session.token}` } : {}) } })).data; },
   };
 }
@@ -81,3 +92,11 @@ export function CollabProvider({ sceneRef, principal, children }: { sceneRef: Sc
   const value = useController(sceneRef, principal); return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useCollab() { const value = useContext(Context); if (!value) throw new Error('CollabProvider is required'); return value; }
+export function useAuthorizedFeatureRefetch(key: string, refetch: FeatureRefetch) {
+  const { features } = useCollab();
+  useEffect(() => {
+    const registration = features.register(key, refetch);
+    void registration.ready.catch(error => console.error('Authorized feature refetch failed', error));
+    return registration.unregister;
+  }, [features, key, refetch]);
+}
