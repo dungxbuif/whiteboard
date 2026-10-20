@@ -45,8 +45,9 @@ before access policy, uses `NewAccessServiceWithAssurance` and
 password login and OIDC. The enterprise router registers public begin/callback/
 exchange routes plus authenticated link and workspace configuration routes.
 Startup requires a distinct exact 32-byte `SSO_ENCRYPTION_KEY` and an exact
-HTTPS `/api/v1/sso/callback` URL. Router/config focused tests pass. Browser IdP
-fixture and external-provider UAT remain open release evidence.
+HTTPS `/api/v1/sso/callback` URL. The owner dashboard exposes the workspace SSO
+settings route. Router/config focused tests pass. Browser IdP fixture and
+external-provider UAT remain open release evidence.
 
 ## Security remediation plan
 

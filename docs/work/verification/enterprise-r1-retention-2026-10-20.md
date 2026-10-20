@@ -32,5 +32,6 @@ frontend suite across 43 files, TypeScript 7/Vite production build, the full
 Production reconciliation: the API server now constructs and mounts the
 retention handler through the authenticated enterprise router, and the feature
 worker registers `retention.purge` against the same feature policy and access
-authority. The worker focused suite passes. Owner settings routing and browser
-evidence remain open; production deletion remains disabled through rollout.
+authority. The owner-only dashboard route now mounts `RetentionSettings`, and
+the worker focused suite passes. Browser evidence remains open; production
+deletion remains disabled through rollout.
