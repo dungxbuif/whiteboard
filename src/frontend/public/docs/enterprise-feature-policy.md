@@ -9,6 +9,11 @@ Public link comments are opt-in per link. A view link with comments enabled can
 comment only; it does not gain drawing or version permissions. Public links
 cannot read workspace activity or version history.
 
+In the Share dialog, select **Allow comments** before creating either a view or
+edit link. Existing links show **Comments allowed** or **Comments off**; changing
+the policy requires creating a new link. Omitting `allowComments` in the API
+keeps the default `false`.
+
 Policy API revisions are decimal strings. Update requests require a UUID
 `requestId` and the current `expectedRevision`. On
 `REVISION_CONFLICT`, fetch the policy again before retrying. Reuse the same

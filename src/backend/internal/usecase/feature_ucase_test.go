@@ -115,3 +115,31 @@ func TestCommentDoesNotGrantEdit(t *testing.T) {
 		t.Fatalf("comment permission escalated: %v", err)
 	}
 }
+
+func TestFeatureActionPolicyMatrix(t *testing.T) {
+	policy, err := newFeatureActionPolicy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := []struct {
+		role    string
+		action  domain.FeatureAction
+		allowed bool
+	}{
+		{"owner", domain.FeatureEnterpriseManage, true},
+		{"owner", domain.FeatureCommentModerate, true},
+		{"editor", domain.FeatureVersionRestore, true},
+		{"editor", domain.FeatureLibraryWrite, false},
+		{"viewer", domain.FeatureCommentWrite, true},
+		{"viewer", domain.FeatureVersionRestore, false},
+		{"public", domain.FeatureCommentWrite, true},
+		{"public", domain.FeatureActivityRead, false},
+		{"agent", domain.FeatureCommentRead, false},
+	}
+	for _, tc := range cases {
+		allowed, enforceErr := policy.Enforce(tc.role, string(tc.action))
+		if enforceErr != nil || allowed != tc.allowed {
+			t.Fatalf("role=%s action=%s allowed=%v err=%v", tc.role, tc.action, allowed, enforceErr)
+		}
+	}
+}

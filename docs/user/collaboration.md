@@ -35,8 +35,8 @@ Editors create and change content; viewers have reading controls. A scene overri
 ## Share one scene
 
 1. As the workspace owner, open a scene's action menu and select **Share**.
-2. Create a **View link** or **Edit link**. Each can have its own password (at least six characters and at most 72 UTF-8 bytes) and expiry.
-3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata only.
+2. Create a **View link** or **Edit link**. Each can have its own password (at least six characters and at most 72 UTF-8 bytes), expiry, and **Allow comments** setting. Comment permission is off by default and never grants drawing access.
+3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata and whether comments are allowed.
 4. Select **Revoke** beside the link to stop future access. Other links remain independent.
 
 A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then retains the scoped, short-lived scene session in the current tab's sessionStorage so reload preserves its guest identity. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.

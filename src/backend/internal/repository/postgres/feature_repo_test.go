@@ -60,6 +60,98 @@ func TestMetadataRetryBinding(t *testing.T) {
 	if !errors.Is(err, domain.ErrRequestIDReused) {
 		t.Fatalf("changed retry accepted: %v", err)
 	}
+	bindings := []struct {
+		name      string
+		principal domain.Principal
+		ref       domain.SceneRef
+		action    domain.FeatureAction
+	}{
+		{"principal", domain.UserPrincipal(uuid.New()), ref, domain.FeatureCommentWrite},
+		{"action", principal, ref, domain.FeatureVersionCreate},
+		{"scene", principal, domain.SceneRef{WorkspaceID: ref.WorkspaceID, SceneID: uuid.New()}, domain.FeatureCommentWrite},
+	}
+	for _, binding := range bindings {
+		t.Run("rejects changed "+binding.name, func(t *testing.T) {
+			err := access.WithWorkspaceLock(context.Background(), ref.WorkspaceID, owner, func(ctx context.Context) error {
+				_, callErr := repo.WithMutation(ctx, binding.principal, binding.ref, binding.action, requestID, strings.Repeat("a", domain.FeatureRequestHashLength), func(context.Context) (domain.StoredFeatureResponse, error) {
+					t.Fatal("callback ran for mismatched retry binding")
+					return first, nil
+				})
+				return callErr
+			})
+			if !errors.Is(err, domain.ErrRequestIDReused) {
+				t.Fatalf("changed %s accepted: %v", binding.name, err)
+			}
+		})
+	}
+}
+
+func TestFeatureMutationCallbackRollback(t *testing.T) {
+	repo, access, owner, _, ref := featureFixture(t)
+	sentinel := errors.New("feature callback failed")
+	err := access.WithWorkspaceLock(context.Background(), ref.WorkspaceID, owner, func(ctx context.Context) error {
+		_, callErr := repo.WithMutation(ctx, domain.UserPrincipal(owner), ref, domain.FeatureCommentWrite, uuid.New(), strings.Repeat("a", domain.FeatureRequestHashLength), func(callCtx context.Context) (domain.StoredFeatureResponse, error) {
+			enabled := true
+			if _, updateErr := repo.UpdatePolicy(callCtx, ref.WorkspaceID, 1, domain.WorkspaceFeaturePolicyPatch{CommentsEnabled: &enabled}); updateErr != nil {
+				return domain.StoredFeatureResponse{}, updateErr
+			}
+			return domain.StoredFeatureResponse{}, sentinel
+		})
+		return callErr
+	})
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("callback error lost: %v", err)
+	}
+	policy, err := repo.Policy(context.Background(), ref.WorkspaceID)
+	if err != nil || policy.Revision != 1 || policy.CommentsEnabled {
+		t.Fatalf("callback state committed: policy=%+v err=%v", policy, err)
+	}
+	var receipts int64
+	if err := repo.db.Table("feature_mutation_receipts").Where("workspace_id=?", ref.WorkspaceID).Count(&receipts).Error; err != nil || receipts != 0 {
+		t.Fatalf("callback receipt committed: count=%d err=%v", receipts, err)
+	}
+}
+
+func TestFeaturePolicyMatrixPostgres(t *testing.T) {
+	repo, access, owner, viewer, ref := featureFixture(t)
+	editor := uuid.New()
+	mustExec(t, repo.db, "INSERT INTO users(id,email,name) VALUES (?,?,'Editor')", editor, editor.String()+"@example.test")
+	mustExec(t, repo.db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'editor')", ref.WorkspaceID, editor)
+	mustExec(t, repo.db, `UPDATE workspace_feature_policies SET comments_enabled=true,activity_enabled=true,versions_enabled=true,libraries_enabled=true,collections_enabled=true,presentation_enabled=true,screen_share_enabled=true WHERE workspace_id=?`, ref.WorkspaceID)
+	accessService, err := usecase.NewAccessService(access)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := usecase.NewFeatureService(repo, accessService)
+	roles := []struct {
+		name      string
+		principal domain.Principal
+		allowed   map[domain.FeatureAction]bool
+	}{
+		{"owner", domain.UserPrincipal(owner), map[domain.FeatureAction]bool{
+			domain.FeatureCommentRead: true, domain.FeatureCommentWrite: true, domain.FeatureCommentModerate: true, domain.FeatureActivityRead: true,
+			domain.FeatureVersionRead: true, domain.FeatureVersionCreate: true, domain.FeatureVersionRestore: true, domain.FeatureLibraryRead: true,
+			domain.FeatureLibraryWrite: true, domain.FeatureCollectionManage: true, domain.FeaturePresentationHost: true, domain.FeatureScreenPublish: true,
+			domain.FeatureEnterpriseManage: true,
+		}},
+		{"editor", domain.UserPrincipal(editor), map[domain.FeatureAction]bool{
+			domain.FeatureCommentRead: true, domain.FeatureCommentWrite: true, domain.FeatureActivityRead: true, domain.FeatureVersionRead: true,
+			domain.FeatureVersionCreate: true, domain.FeatureVersionRestore: true, domain.FeatureLibraryRead: true, domain.FeatureCollectionManage: true,
+			domain.FeaturePresentationHost: true, domain.FeatureScreenPublish: true,
+		}},
+		{"viewer", domain.UserPrincipal(viewer), map[domain.FeatureAction]bool{
+			domain.FeatureCommentRead: true, domain.FeatureCommentWrite: true, domain.FeatureActivityRead: true, domain.FeatureVersionRead: true, domain.FeatureLibraryRead: true,
+		}},
+	}
+	actions := []domain.FeatureAction{domain.FeatureCommentRead, domain.FeatureCommentWrite, domain.FeatureCommentModerate, domain.FeatureActivityRead, domain.FeatureVersionRead, domain.FeatureVersionCreate, domain.FeatureVersionRestore, domain.FeatureLibraryRead, domain.FeatureLibraryWrite, domain.FeatureCollectionManage, domain.FeaturePresentationHost, domain.FeatureScreenPublish, domain.FeatureEnterpriseManage}
+	for _, role := range roles {
+		for _, action := range actions {
+			err := service.Require(context.Background(), role.principal, ref, action)
+			if (err == nil) != role.allowed[action] {
+				t.Fatalf("role=%s action=%s allowed=%v err=%v", role.name, action, role.allowed[action], err)
+			}
+		}
+	}
 }
 
 func TestFeatureRevokeDuringMutation(t *testing.T) {
@@ -153,6 +245,9 @@ func TestPublicCommentPolicyUsesCurrentShareRevision(t *testing.T) {
 	}
 	if err := featureService.Require(context.Background(), allowedIdentity.Principal, ref, domain.FeatureCommentWrite); err != nil {
 		t.Fatalf("comment-enabled view link denied: %v", err)
+	}
+	if err := featureService.Require(context.Background(), allowedIdentity.Principal, ref, domain.FeatureVersionRestore); !errors.Is(err, domain.ErrAccessDenied) {
+		t.Fatalf("comment-enabled link gained version restore: %v", err)
 	}
 	viewLink, err := links.Create(context.Background(), owner, ref, domain.CreateShareLink{Access: domain.AccessView})
 	if err != nil {

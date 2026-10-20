@@ -8,12 +8,16 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/casbin/casbin/v3"
+	"github.com/casbin/casbin/v3/model"
 	"github.com/google/uuid"
 )
 
 type FeatureService struct {
-	repo   domain.FeatureRepository
-	access domain.AccessService
+	repo         domain.FeatureRepository
+	access       domain.AccessService
+	actionPolicy *casbin.Enforcer
+	policyErr    error
 }
 
 type storedFeaturePolicy struct {
@@ -22,7 +26,99 @@ type storedFeaturePolicy struct {
 }
 
 func NewFeatureService(repo domain.FeatureRepository, access domain.AccessService) *FeatureService {
-	return &FeatureService{repo: repo, access: access}
+	actionPolicy, err := newFeatureActionPolicy()
+	return &FeatureService{repo: repo, access: access, actionPolicy: actionPolicy, policyErr: err}
+}
+
+const featureActionModel = `[request_definition]
+r = role, action
+[policy_definition]
+p = role, action
+[policy_effect]
+e = some(where (p.eft == allow))
+[matchers]
+m = r.role == p.role && r.action == p.action
+`
+
+var featureActionRules = map[string][]domain.FeatureAction{
+	"owner": {
+		domain.FeatureCommentRead, domain.FeatureCommentWrite, domain.FeatureCommentModerate,
+		domain.FeatureActivityRead, domain.FeatureVersionRead, domain.FeatureVersionCreate,
+		domain.FeatureVersionRestore, domain.FeatureLibraryRead, domain.FeatureLibraryWrite,
+		domain.FeatureCollectionManage, domain.FeaturePresentationHost, domain.FeatureScreenPublish,
+		domain.FeatureEnterpriseManage,
+	},
+	"editor": {
+		domain.FeatureCommentRead, domain.FeatureCommentWrite, domain.FeatureActivityRead,
+		domain.FeatureVersionRead, domain.FeatureVersionCreate, domain.FeatureVersionRestore,
+		domain.FeatureLibraryRead, domain.FeatureCollectionManage, domain.FeaturePresentationHost,
+		domain.FeatureScreenPublish,
+	},
+	"viewer": {
+		domain.FeatureCommentRead, domain.FeatureCommentWrite, domain.FeatureActivityRead,
+		domain.FeatureVersionRead, domain.FeatureLibraryRead,
+	},
+	"public": {domain.FeatureCommentRead, domain.FeatureCommentWrite},
+}
+
+type featureRequirement struct {
+	enabled       func(domain.WorkspaceFeaturePolicy) bool
+	viewerAllowed func(domain.WorkspaceFeaturePolicy) bool
+}
+
+var featureRequirements = map[domain.FeatureAction]featureRequirement{
+	domain.FeatureCommentRead:      {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.CommentsEnabled }},
+	domain.FeatureCommentWrite:     {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.CommentsEnabled }, viewerAllowed: func(p domain.WorkspaceFeaturePolicy) bool { return p.MemberComments }},
+	domain.FeatureCommentModerate:  {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.CommentsEnabled }},
+	domain.FeatureActivityRead:     {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.ActivityEnabled }},
+	domain.FeatureVersionRead:      {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.VersionsEnabled }, viewerAllowed: func(p domain.WorkspaceFeaturePolicy) bool { return p.MemberHistory }},
+	domain.FeatureVersionCreate:    {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.VersionsEnabled }},
+	domain.FeatureVersionRestore:   {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.VersionsEnabled }},
+	domain.FeatureLibraryRead:      {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.LibrariesEnabled }},
+	domain.FeatureLibraryWrite:     {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.LibrariesEnabled }},
+	domain.FeatureCollectionManage: {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.CollectionsEnabled }},
+	domain.FeaturePresentationHost: {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.PresentationEnabled }},
+	domain.FeatureScreenPublish:    {enabled: func(p domain.WorkspaceFeaturePolicy) bool { return p.ScreenShareEnabled }},
+	domain.FeatureEnterpriseManage: {enabled: func(domain.WorkspaceFeaturePolicy) bool { return true }},
+}
+
+func newFeatureActionPolicy() (*casbin.Enforcer, error) {
+	m, err := model.NewModelFromString(featureActionModel)
+	if err != nil {
+		return nil, err
+	}
+	enforcer, err := casbin.NewEnforcer(m)
+	if err != nil {
+		return nil, err
+	}
+	for role, actions := range featureActionRules {
+		for _, action := range actions {
+			if _, err = enforcer.AddPolicy(role, string(action)); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return enforcer, nil
+}
+
+func featureRole(principal domain.Principal, decision domain.AccessDecision) string {
+	switch principal.Kind {
+	case domain.PrincipalPublic:
+		return "public"
+	case domain.PrincipalAgent:
+		return "agent"
+	case domain.PrincipalUser:
+		if decision.Owner {
+			return "owner"
+		}
+		if decision.Access == domain.AccessEdit {
+			return "editor"
+		}
+		if decision.Access == domain.AccessView {
+			return "viewer"
+		}
+	}
+	return ""
 }
 
 func (s *FeatureService) Policy(ctx context.Context, principal domain.Principal, workspaceID uuid.UUID) (domain.WorkspaceFeaturePolicy, error) {
@@ -36,6 +132,9 @@ func (s *FeatureService) Policy(ctx context.Context, principal domain.Principal,
 }
 
 func (s *FeatureService) Require(ctx context.Context, principal domain.Principal, ref domain.SceneRef, action domain.FeatureAction) error {
+	if s.policyErr != nil {
+		return s.policyErr
+	}
 	decision, err := s.access.Resolve(ctx, principal, ref)
 	if err != nil {
 		return err
@@ -44,16 +143,22 @@ func (s *FeatureService) Require(ctx context.Context, principal domain.Principal
 	if err != nil {
 		return err
 	}
-	if principal.Kind == domain.PrincipalAgent {
+	role := featureRole(principal, decision)
+	allowed, err := s.actionPolicy.Enforce(role, string(action))
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return domain.ErrAccessDenied
 	}
+	requirement, ok := featureRequirements[action]
+	if !ok {
+		return domain.ErrAccessDenied
+	}
+	if err := requireEnabled(requirement.enabled(policy)); err != nil {
+		return err
+	}
 	if principal.Kind == domain.PrincipalPublic {
-		if action != domain.FeatureCommentRead && action != domain.FeatureCommentWrite {
-			return domain.ErrAccessDenied
-		}
-		if !policy.CommentsEnabled {
-			return domain.ErrFeatureDisabled
-		}
 		allowed, err := s.repo.PublicCommentsAllowed(ctx, principal, ref)
 		if err != nil {
 			return err
@@ -63,82 +168,10 @@ func (s *FeatureService) Require(ctx context.Context, principal domain.Principal
 		}
 		return nil
 	}
-	if principal.Kind != domain.PrincipalUser {
+	if role == "viewer" && requirement.viewerAllowed != nil && !requirement.viewerAllowed(policy) {
 		return domain.ErrAccessDenied
 	}
-
-	canEdit := decision.Access == domain.AccessEdit
-	switch action {
-	case domain.FeatureCommentRead:
-		return requireEnabled(policy.CommentsEnabled)
-	case domain.FeatureCommentWrite:
-		if err := requireEnabled(policy.CommentsEnabled); err != nil {
-			return err
-		}
-		if canEdit || policy.MemberComments {
-			return nil
-		}
-	case domain.FeatureCommentModerate:
-		if err := requireEnabled(policy.CommentsEnabled); err != nil {
-			return err
-		}
-		if decision.Owner {
-			return nil
-		}
-	case domain.FeatureActivityRead:
-		return requireEnabled(policy.ActivityEnabled)
-	case domain.FeatureVersionRead:
-		if err := requireEnabled(policy.VersionsEnabled); err != nil {
-			return err
-		}
-		if canEdit || policy.MemberHistory {
-			return nil
-		}
-	case domain.FeatureVersionCreate, domain.FeatureVersionRestore:
-		if err := requireEnabled(policy.VersionsEnabled); err != nil {
-			return err
-		}
-		if canEdit {
-			return nil
-		}
-	case domain.FeatureLibraryRead:
-		return requireEnabled(policy.LibrariesEnabled)
-	case domain.FeatureLibraryWrite:
-		if err := requireEnabled(policy.LibrariesEnabled); err != nil {
-			return err
-		}
-		if decision.Owner {
-			return nil
-		}
-	case domain.FeatureCollectionManage:
-		if err := requireEnabled(policy.CollectionsEnabled); err != nil {
-			return err
-		}
-		if canEdit {
-			return nil
-		}
-	case domain.FeaturePresentationHost:
-		if err := requireEnabled(policy.PresentationEnabled); err != nil {
-			return err
-		}
-		if canEdit {
-			return nil
-		}
-	case domain.FeatureScreenPublish:
-		if err := requireEnabled(policy.ScreenShareEnabled); err != nil {
-			return err
-		}
-		if canEdit {
-			return nil
-		}
-	case domain.FeatureEnterpriseManage:
-		if decision.Owner {
-			return nil
-		}
-	default:
-		return domain.ErrAccessDenied
-	}
-	return domain.ErrAccessDenied
+	return nil
 }
 
 func requireEnabled(enabled bool) error {

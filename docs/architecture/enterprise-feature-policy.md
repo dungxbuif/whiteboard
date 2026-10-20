@@ -16,6 +16,9 @@ workspace_feature_policies   active share-link revision
               FeatureAction
                     |
                     v
+          Casbin role/action policy
+                    |
+                    v
 feature_mutation_receipts -> feature transaction callback
 ```
 
@@ -35,6 +38,10 @@ New workspaces receive policy revision `1`. `memberComments` and
 their implementation slice is enabled. Public links default
 `allowComments=false`; link comment permission can be selected independently
 of view/edit access and is invalidated with the link revision.
+
+The share-link dialog exposes this opt-in on both view and edit links and shows
+the stored comment permission for every existing link. Leaving it unchecked
+preserves the secure default.
 
 ## HTTP contract
 

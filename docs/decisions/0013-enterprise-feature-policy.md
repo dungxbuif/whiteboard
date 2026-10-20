@@ -16,7 +16,9 @@ Go remains the authority for enterprise metadata. A single
 `workspace_feature_policies` row belongs to every workspace and starts with
 member comment/history preferences enabled while runtime feature flags remain
 disabled. Feature actions resolve the current scene decision inside the existing
-workspace lock. Public link comments additionally require that link's
+workspace lock, then pass the effective owner/editor/viewer/public role and
+requested action through a dedicated Casbin policy before feature flags and
+member preferences are applied. Public link comments additionally require that link's
 `allow_comments` flag and current link revision. Agent keys receive no new
 implicit feature rights.
 
@@ -32,6 +34,8 @@ an expected decimal revision.
 - Revocation is checked under the transaction-bound workspace lock.
 - Retries are deterministic across process restarts.
 - Feature flags support staged rollout without changing existing access.
+- The role/action matrix is declarative and can be exhaustively tested against
+  current PostgreSQL authority rather than duplicated as action branches.
 - Receipt storage is durable metadata and requires retention policy review
   before any future deletion.
 

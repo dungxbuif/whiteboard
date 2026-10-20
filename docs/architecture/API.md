@@ -133,8 +133,8 @@ Owners manage independent links for an active scene with login JWT and X-Workspa
 
 | Method and path | Request | Success |
 | --- | --- | --- |
-| GET `/api/v1/scenes/{id}/share-links` | none | 200 array `{id,access,active,expiresAt}` |
-| POST `/api/v1/scenes/{id}/share-links` | `{access:"view"\|"edit",password?,expiresAt?}` | 201 `{id,access,active,expiresAt,token}`; token returned once |
+| GET `/api/v1/scenes/{id}/share-links` | none | 200 array `{id,access,allowComments,active,expiresAt}` |
+| POST `/api/v1/scenes/{id}/share-links` | `{access:"view"\|"edit",allowComments,password?,expiresAt?}` | 201 `{id,access,allowComments,active,expiresAt,token}`; token returned once |
 | DELETE `/api/v1/scenes/{id}/share-links/{linkId}` | none | 204; independent/idempotent revoke |
 | POST `/api/v1/public/scene-session` | `{token,password?,displayName?}` | 200 SceneSession below |
 | POST `/api/v1/scenes/{id}/room-token` | no body; bearer login JWT or scene-session | 200 `{token,expiresAt,sceneSession?}` |
@@ -214,7 +214,7 @@ not read newly created independent links and was replaced in runtime wiring.
 Existing legacy constructor compatibility remains for old tests/integrations.
 GET/query passwords remain unsupported.
 
-Share UI uses GET/POST `/scenes/:sceneId/share-links` and DELETE `/scenes/:sceneId/share-links/:linkId`. Tokens are consumed only from creation responses; lists contain metadata. Member/override/invitation actions use A2 routes. Scene override selectors apply explicit updates and do not claim to display current override metadata (no read endpoint exists).
+Share UI uses GET/POST `/scenes/:sceneId/share-links` and DELETE `/scenes/:sceneId/share-links/:linkId`. Owners can opt each link into comments independently of view/edit access; omitted `allowComments` defaults to false. Tokens are consumed only from creation responses; lists contain metadata including the stored comment policy. Member/override/invitation actions use A2 routes. Scene override selectors apply explicit updates and do not claim to display current override metadata (no read endpoint exists).
 
 `PublicSceneEditorProps` in frontend `components/public-view.tsx` exposes
 `{scene,session,onSessionChange,onAccessLost}`. It renders a guarded snapshot
