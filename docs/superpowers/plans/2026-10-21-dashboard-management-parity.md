@@ -43,9 +43,9 @@
 - Test: `src/backend/internal/delivery/http/router_test.go`
 
 **Interfaces:**
-- Produces `WorkspaceUsecase.UpdateName(ctx, principal, workspaceID, name) (*Workspace, error)` and `FolderUsecase.Update(ctx, workspaceID, folderID, name *string, newParentID **uuid.UUID) error`.
+- Produces `WorkspaceUsecase.UpdateName(ctx, userID, workspaceID, name) (*Workspace, error)` and `FolderUsecase.Update(ctx, workspaceID, folderID, name *string, newParentID **uuid.UUID) error`.
 - Adds `PATCH /api/v1/workspaces/{id}` with `{name}` and `PATCH /api/v1/folders/{id}` with optional `{name,newParentId}`.
-- Reuses existing `AccessService`/workspace middleware and folder path invariants.
+- The workspace access middleware resolves `{id}` and enforces owner access before the handler; folder routes reuse the existing workspace middleware and path invariants.
 
 - [ ] **Step 1: Write failing handler/usecase tests** for owner rename success, non-owner denial, invalid names, folder rename, folder move, self/descendant rejection, and route registration.
 - [ ] **Step 2: Run targeted Go tests** and confirm the new methods/routes fail to compile or return the expected missing behavior.
@@ -69,7 +69,6 @@
 - Test: `src/frontend/src/test/workspace-switcher.test.tsx`
 - Test: `src/frontend/src/test/folder-store.test.ts`
 - Test: `src/frontend/src/test/scene-store.test.ts`
-- Test: `src/frontend/src/components/collections/collections.test.tsx`
 
 **Interfaces:**
 - Produces `workspaceStore.renameWorkspace(id, name)`, `folderStore.renameFolder(workspaceId, folderId, name)`, and `sceneStore.duplicateScene(workspaceId, sceneId, title, folderId)`.
