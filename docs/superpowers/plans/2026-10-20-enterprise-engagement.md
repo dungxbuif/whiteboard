@@ -96,7 +96,7 @@ and sibling tests; create frontend `src/components/activity/activity-panel.tsx`,
 **Interfaces:** `ActivityService.List(ctx,p,workspaceID,sceneID *uuid.UUID,
 cursor string,limit int) (ActivityPage,error)`, `ActivityPanel({workspaceId,sceneId?})`.
 Produces GET workspace/scene activity routes and `/w/{workspace}/activity`.
-Response includes `items,nextCursor,retainedSince`; safe display names only after
+Response includes `items,nextCursor,retainedSince?`; safe display names only after
 current permission check; security/admin event kinds owner-only.
 
 - [x] Add `TestActivityFiltersBeforePagination`, `TestActivityMixedSourcesStableCursor`,

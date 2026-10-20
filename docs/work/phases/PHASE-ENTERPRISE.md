@@ -54,7 +54,7 @@ when each reviewed boundary ships, avoiding invented accepted decisions.
 | --- | --- | --- | --- |
 | Full-viewport canvas controls | UI1–UI2 | Existing editor | complete |
 | Feature authority/events/jobs | F1–F3 | Existing ACL/audit | complete |
-| Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | in_progress |
+| Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | complete |
 | Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | in_progress |
 | Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | in_progress |
 | Collections/native libraries | L1–L2 | F1–F3/UI1–UI2 | draft |
