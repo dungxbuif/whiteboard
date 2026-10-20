@@ -35,6 +35,27 @@ interface FolderState {
 
 const workspaceHeaders = (workspaceId: string) => ({ "X-Workspace-ID": workspaceId });
 
+function applyCommittedFolderChange(folders: Folder[], folderId: string, changes: { name?: string; newParentId?: string | null }): Folder[] {
+  const target = folders.find((folder) => folder.id === folderId);
+  if (!target) return folders;
+  const parent = changes.newParentId ? folders.find((folder) => folder.id === changes.newParentId) : null;
+  const path = changes.newParentId === undefined ? target.path : `${parent?.path ?? "/"}${target.id}/`;
+  const depth = changes.newParentId === undefined ? target.depth : (parent?.depth ?? -1) + 1;
+  const delta = depth - target.depth;
+  return folders.map((folder) => {
+    if (folder.id !== target.id && !folder.path.startsWith(target.path)) return folder;
+    return {
+      ...folder,
+      path: `${path}${folder.path.slice(target.path.length)}`,
+      depth: folder.depth + delta,
+      ...(folder.id === target.id ? {
+        ...(changes.name !== undefined ? { name: changes.name } : {}),
+        ...(changes.newParentId !== undefined ? { parentId: changes.newParentId } : {}),
+      } : {}),
+    };
+  });
+}
+
 export function buildFolderTree(folders: Folder[]): FolderNode[] {
   const nodes = new Map<string, FolderNode>();
   const roots: FolderNode[] = [];
@@ -105,7 +126,10 @@ const useFolderStore = create<FolderState>((set) => ({
       { newParentId },
       { headers: workspaceHeaders(workspaceId) },
     );
-    await useFolderStore.getState().fetchFolders(workspaceId);
+    set((state) => ({ folders: applyCommittedFolderChange(state.folders, folderId, { newParentId }) }));
+    const committedFolders = useFolderStore.getState().folders;
+    try { await useFolderStore.getState().fetchFolders(workspaceId); }
+    catch { set({ folders: committedFolders, isLoading: false }); }
   },
 
   renameFolder: async (workspaceId, folderId, name) => {
@@ -114,7 +138,10 @@ const useFolderStore = create<FolderState>((set) => ({
 
   updateFolder: async (workspaceId, folderId, changes) => {
     await api.patch(`/folders/${folderId}`, changes, { headers: workspaceHeaders(workspaceId) });
-    await useFolderStore.getState().fetchFolders(workspaceId);
+    set((state) => ({ folders: applyCommittedFolderChange(state.folders, folderId, changes) }));
+    const committedFolders = useFolderStore.getState().folders;
+    try { await useFolderStore.getState().fetchFolders(workspaceId); }
+    catch { set({ folders: committedFolders, isLoading: false }); }
   },
 
   setFolderStar: async (workspaceId, folderId) => {

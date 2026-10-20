@@ -4,6 +4,7 @@ import (
 	"context"
 	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -46,6 +47,24 @@ func (s *versionServiceHandlerStub) Create(_ domain.Context, p domain.Principal,
 		return domain.SceneVersion{}, s.err
 	}
 	return domain.SceneVersion{ID: uuid.New(), DocumentID: uuid.New(), Sequence: "1"}, nil
+}
+
+func (s *versionServiceHandlerStub) CurrentProjection(_ domain.Context, p domain.Principal, _ domain.SceneRef) (json.RawMessage, error) {
+	s.called, s.principal = "projection", p
+	return json.RawMessage(`{"content":{"elements":[{"id":"recent"}],"appState":{},"files":{}},"sequence":"2"}`), s.err
+}
+
+func TestVersionHandlerServesCurrentDurableProjection(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	service := &versionServiceHandlerStub{}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodGet, "/scenes/scene/projection", nil)
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || service.called != "projection" || !strings.Contains(response.Body.String(), `"id":"recent"`) {
+		t.Fatalf("status=%d called=%s body=%s", response.Code, service.called, response.Body.String())
+	}
 }
 
 func TestVersionHandlerReturnsUnavailableWhenWriterBridgeIsMissing(t *testing.T) {

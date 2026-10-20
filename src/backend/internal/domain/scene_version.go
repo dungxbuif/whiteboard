@@ -79,6 +79,7 @@ type SceneVersionRepository interface {
 }
 
 type SceneVersionUsecase interface {
+	CurrentProjection(Context, Principal, SceneRef) (json.RawMessage, error)
 	Create(Context, Principal, SceneRef, CreateVersionInput) (SceneVersion, error)
 	List(Context, Principal, SceneRef, string, int) (VersionPage, error)
 	Get(Context, Principal, SceneRef, uuid.UUID) (SceneVersion, error)

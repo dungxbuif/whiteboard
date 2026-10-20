@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +70,17 @@ type versionRemoteStub struct {
 	operation string
 	envelope  map[string]any
 	response  json.RawMessage
+}
+
+func TestCurrentProjectionReadsUncompactedDurableContent(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	caps := &versionCapsStub{}
+	remote := &versionRemoteStub{response: json.RawMessage(`{"sequence":"2","content":{"elements":[{"id":"recent"}],"appState":{},"files":{}}}`)}
+	service := NewVersionService(nil, nil, caps, remote)
+	raw, err := service.CurrentProjection(context.Background(), domain.UserPrincipal(uuid.New()), ref)
+	if err != nil || remote.operation != "projection" || caps.mutation.Action != domain.ActionSceneRead || !strings.Contains(string(raw), `"id":"recent"`) {
+		t.Fatalf("operation=%s action=%s raw=%s err=%v", remote.operation, caps.mutation.Action, raw, err)
+	}
 }
 
 func (s *versionRemoteStub) Call(_ domain.Context, operation string, _ domain.SceneRef, envelope map[string]any, _ int64) (json.RawMessage, error) {

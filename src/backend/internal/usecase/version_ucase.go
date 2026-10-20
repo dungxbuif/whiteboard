@@ -37,6 +37,33 @@ func NewVersionService(repo domain.SceneVersionRepository, features domain.Featu
 	return &VersionService{repo: repo, features: features, caps: caps, remote: remote}
 }
 
+// CurrentProjection reads the durable collaboration document, including updates
+// acknowledged after the last scene-row compaction.
+func (s *VersionService) CurrentProjection(ctx domain.Context, principal domain.Principal, ref domain.SceneRef) (json.RawMessage, error) {
+	if principal.Kind != domain.PrincipalUser || s.caps == nil {
+		return nil, domain.ErrAccessDenied
+	}
+	if s.remote == nil {
+		return nil, &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}
+	}
+	empty := sha256.Sum256(nil)
+	grant, err := s.caps.AuthorizeCommand(ctx, principal, domain.SceneMutation{WorkspaceID: ref.WorkspaceID.String(), SceneID: ref.SceneID.String(), Action: domain.ActionSceneRead, RequestID: uuid.NewString(), PayloadHash: hex.EncodeToString(empty[:])})
+	if err != nil {
+		return nil, err
+	}
+	raw, err := s.remote.Call(ctx, "projection", ref, map[string]any{"grant": grant.Token, "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String()}, 26<<20)
+	if err != nil {
+		return nil, err
+	}
+	var projection struct {
+		Content json.RawMessage `json:"content"`
+	}
+	if json.Unmarshal(raw, &projection) != nil || len(projection.Content) == 0 || !json.Valid(projection.Content) {
+		return nil, domain.ErrInvalidVersionInput
+	}
+	return raw, nil
+}
+
 func validVersionLabel(label *string) bool {
 	return label == nil || utf8.ValidString(*label) && strings.TrimSpace(*label) == *label && utf8.RuneCountInString(*label) >= 1 && utf8.RuneCountInString(*label) <= 255
 }

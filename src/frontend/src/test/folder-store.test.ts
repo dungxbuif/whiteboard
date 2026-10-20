@@ -87,4 +87,24 @@ describe("folder store", () => {
     await useFolderStore.getState().updateFolder("workspace", "root", { name: "Renamed", newParentId: "other" });
     expect(api.patch).toHaveBeenCalledWith("/folders/root", { name: "Renamed", newParentId: "other" }, { headers: { "X-Workspace-ID": "workspace" } });
   });
+
+  it("preserves folder state when refresh fails after a successful PATCH", async () => {
+    useFolderStore.setState({ folders: [root] });
+    vi.mocked(api.patch).mockResolvedValue({ data: undefined });
+    vi.mocked(api.get).mockRejectedValue(new Error("refresh failed"));
+    await expect(useFolderStore.getState().renameFolder("workspace", "root", "Renamed")).resolves.toBeUndefined();
+    expect(useFolderStore.getState().folders[0].name).toBe("Renamed");
+  });
+
+  it("keeps a moved folder when the legacy move route succeeds but refresh fails", async () => {
+    const other = { ...root, id: "other", path: "/other/" };
+    useFolderStore.setState({ folders: [root, child, other] });
+    vi.mocked(api.patch).mockResolvedValue({ data: undefined });
+    vi.mocked(api.get).mockRejectedValue(new Error("refresh failed"));
+    await expect(useFolderStore.getState().moveFolder("workspace", "root", "other")).resolves.toBeUndefined();
+    expect(useFolderStore.getState().folders[0].parentId).toBe("other");
+    expect(useFolderStore.getState().folders[0].path).toBe("/other/root/");
+    expect(useFolderStore.getState().folders[1].path).toBe("/other/root/child/");
+    expect(useFolderStore.getState().folders[1].depth).toBe(2);
+  });
 });

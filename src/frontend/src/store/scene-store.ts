@@ -222,13 +222,23 @@ const useSceneStore = create<SceneState>((set, get) => {
         scenes: updateScene(state.scenes, response.data),
         activeScene: state.activeScene?.id === sceneId ? response.data : state.activeScene,
       }));
-      await get().fetchScenes(workspaceId, currentFolderId);
+      const committedScenes = get().scenes;
+      try { await get().fetchScenes(workspaceId, currentFolderId); }
+      catch { set({ scenes: committedScenes, isLoading: false, error: null }); }
     },
 
     duplicateScene: async (workspaceId, sceneId, title, folderId) => {
       const source = await api.get<Scene>(`/scenes/${sceneId}/`, { headers: workspaceHeaders(workspaceId) });
-      const duplicate = await get().createScene(workspaceId, folderId, title, source.data.content);
-      await get().fetchScenes(workspaceId, useFolderStore.getState().currentFolderId).catch(() => undefined);
+      const content = source.data.writerMode === "v2"
+        ? (await api.get<{ content: SceneContent }>(`/scenes/${sceneId}/projection`, { headers: workspaceHeaders(workspaceId) })).data.content
+        : source.data.content;
+      const duplicate = await get().createScene(workspaceId, folderId, title, content);
+      const currentFolderId = useFolderStore.getState().currentFolderId;
+      const committedScenes = currentFolderId && currentFolderId !== folderId
+        ? get().scenes.filter((item) => item.id !== duplicate.id)
+        : get().scenes;
+      try { await get().fetchScenes(workspaceId, currentFolderId); }
+      catch { set({ scenes: committedScenes, isLoading: false, error: null }); }
       return duplicate;
     },
 

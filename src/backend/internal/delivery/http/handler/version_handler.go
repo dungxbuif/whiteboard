@@ -39,12 +39,27 @@ func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Han
 	r.Group(func(r chi.Router) {
 		r.Use(auth)
 		r.Get("/scenes/{id}/versions", h.List)
+		r.Get("/scenes/{id}/projection", h.CurrentProjection)
 		r.Post("/scenes/{id}/versions", h.Create)
 		r.Get("/scenes/{id}/versions/{versionId}", h.Get)
 		r.Get("/scenes/{id}/versions/{versionId}/diff", h.Diff)
 		r.Post("/scenes/{id}/versions/{versionId}/restore", h.Restore)
 		r.Patch("/scenes/{id}/versions/{versionId}", h.SetMetadata)
 	})
+}
+
+func (h *VersionHandler) CurrentProjection(w http.ResponseWriter, r *http.Request) {
+	principal, ref, err := h.identity(r)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	projection, err := h.versions.CurrentProjection(r.Context(), principal, ref)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	writeJSONResponse(w, http.StatusOK, projection)
 }
 func (h *VersionHandler) identity(r *http.Request) (domain.Principal, domain.SceneRef, error) {
 	user, ok := middleware.UserIDFromContext(r.Context())
