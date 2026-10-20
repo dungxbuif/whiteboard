@@ -125,7 +125,9 @@ are retained; renderer/session fields and inline file bytes are dropped. A
 legacy file without a matching active scene-scoped `excalidraw_file` asset and
 matching MIME cannot be copied. The v1 copy validator checks durable field
 types and bounds against the collaboration scene contract before scene creation
-and again after asset staging. Invalid element values, null required file
+and again after asset staging. This includes nested `customData` safety,
+strict `boundElements` and binding shapes, and freedraw pressure bounds.
+Invalid element values, null required file
 metadata, or an image
 reference missing from `files` also rejects the copy. Referenced scene assets
 are copied to new object keys and scene-scoped rows, with file IDs and image

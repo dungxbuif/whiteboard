@@ -25,7 +25,8 @@ rights before publication and removes the hidden copy. For legacy scenes, the
 copy retains durable canvas settings and scene-owned image files while dropping
 renderer/session fields and inline file bytes. An image without a scene-owned
 asset, a thumbnail in place of a file asset, a mismatched image MIME, malformed
-durable scene fields, or a broken image-to-file reference makes the copy fail
+durable scene fields (including unsafe nested metadata, bindings, or pressure
+values), or a broken image-to-file reference makes the copy fail
 instead of producing a
 broken image. If cleanup
 fails after an unsuccessful copy, the API returns `500 DUPLICATE_CLEANUP_FAILED`;

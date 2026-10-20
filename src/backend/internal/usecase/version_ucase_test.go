@@ -253,6 +253,54 @@ func TestDuplicateV1ContentDropsRendererStateAndInlineFiles(t *testing.T) {
 }
 
 const validDuplicateImageElement = `{"id":"image","type":"image","x":0,"y":0,"width":100,"height":100,"angle":0,"strokeColor":"#111111","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"groupIds":[],"frameId":null,"roundness":null,"seed":1,"version":1,"versionNonce":1,"index":null,"isDeleted":false,"boundElements":null,"updated":1,"link":null,"locked":false,"fileId":"file","status":"saved","scale":[1,1],"crop":null}`
+const validDuplicateRectangleElement = `{"id":"target","type":"rectangle","x":0,"y":0,"width":100,"height":100,"angle":0,"strokeColor":"#111111","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"groupIds":[],"frameId":null,"roundness":null,"seed":1,"version":1,"versionNonce":1,"index":null,"isDeleted":false,"boundElements":null,"updated":1,"link":null,"locked":false}`
+const validDuplicateTextElement = `{"id":"child","type":"text","x":0,"y":0,"width":100,"height":30,"angle":0,"strokeColor":"#111111","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"groupIds":[],"frameId":null,"roundness":null,"seed":1,"version":1,"versionNonce":1,"index":null,"isDeleted":false,"boundElements":null,"updated":1,"link":null,"locked":false,"fontSize":16,"fontFamily":1,"text":"Hi","textAlign":"left","verticalAlign":"top","containerId":"target","originalText":"Hi","autoResize":true,"lineHeight":1.25}`
+const validDuplicateLineElement = `{"id":"line","type":"line","x":0,"y":0,"width":100,"height":100,"angle":0,"strokeColor":"#111111","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"groupIds":[],"frameId":null,"roundness":null,"seed":1,"version":1,"versionNonce":1,"index":null,"isDeleted":false,"boundElements":null,"updated":1,"link":null,"locked":false,"points":[[0,0],[1,1]],"lastCommittedPoint":null,"startBinding":{"elementId":"target","focus":0,"gap":1},"endBinding":null,"startArrowhead":null,"endArrowhead":null}`
+const validDuplicateFreedrawElement = `{"id":"free","type":"freedraw","x":0,"y":0,"width":100,"height":100,"angle":0,"strokeColor":"#111111","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"groupIds":[],"frameId":null,"roundness":null,"seed":1,"version":1,"versionNonce":1,"index":null,"isDeleted":false,"boundElements":null,"updated":1,"link":null,"locked":false,"points":[[0,0]],"pressures":[0.5],"simulatePressure":false,"lastCommittedPoint":null}`
+
+func TestDuplicateV1RejectsUnsafeMetadataBindingsAndPressure(t *testing.T) {
+	asset := uuid.NewString()
+	imageContent := func(element string) string {
+		return `{"elements":[` + element + `],"appState":{},"files":{"file":{"id":"file","mimeType":"image/png","created":1,"assetId":"` + asset + `"}}}`
+	}
+	bound := strings.Replace(validDuplicateRectangleElement, `"boundElements":null`, `"boundElements":[{"id":"child","type":"text","junk":true}]`, 1)
+	invalidBoundType := strings.Replace(validDuplicateRectangleElement, `"boundElements":null`, `"boundElements":[{"id":"child","type":"rectangle"}]`, 1)
+	childRectangle := strings.Replace(validDuplicateRectangleElement, `"id":"target"`, `"id":"child"`, 1)
+	line := strings.Replace(validDuplicateLineElement, `"gap":1}`, `"gap":1,"junk":true}`, 1)
+	for _, tc := range []struct{ name, content string }{
+		{name: "null custom data", content: imageContent(strings.Replace(validDuplicateImageElement, `"locked":false`, `"locked":false,"customData":null`, 1))},
+		{name: "nested script metadata", content: imageContent(strings.Replace(validDuplicateImageElement, `"locked":false`, `"locked":false,"customData":{"safe":{"script":"alert(1)"}}`, 1))},
+		{name: "bound entry extra field", content: `{"elements":[` + bound + `,` + validDuplicateTextElement + `],"appState":{},"files":{}}`},
+		{name: "bound entry invalid type", content: `{"elements":[` + invalidBoundType + `,` + childRectangle + `],"appState":{},"files":{}}`},
+		{name: "binding extra field", content: `{"elements":[` + validDuplicateRectangleElement + `,` + line + `],"appState":{},"files":{}}`},
+		{name: "pressure above one", content: `{"elements":[` + strings.Replace(validDuplicateFreedrawElement, `"pressures":[0.5]`, `"pressures":[1.5]`, 1) + `],"appState":{},"files":{}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(tc.content)}}
+			service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+			service.SetDuplicateDependencies(scenes, nil, &duplicateAssetStagerStub{}, duplicateAccessStub{})
+			_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+			if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.created != nil {
+				t.Fatalf("unsafe v1 content copied: err=%v created=%v", err, scenes.created != nil)
+			}
+		})
+	}
+}
+
+func TestDuplicateV1RejectsUnsafeStagedMetadata(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	source := json.RawMessage(`{"elements":[` + validDuplicateRectangleElement + `],"appState":{},"files":{}}`)
+	staged := json.RawMessage(strings.Replace(string(source), `"locked":false`, `"locked":false,"customData":{"nested":{"accessToken":"secret"}}`, 1))
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: source}}
+	assets := &duplicateAssetStagerStub{result: staged}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.published || !scenes.deleted || !assets.cleaned {
+		t.Fatalf("unsafe staged metadata escaped: err=%v published=%v deleted=%v cleaned=%v", err, scenes.published, scenes.deleted, assets.cleaned)
+	}
+}
 
 func TestDuplicateV1RejectsBrokenImageReferenceAndShape(t *testing.T) {
 	for name, element := range map[string]string{

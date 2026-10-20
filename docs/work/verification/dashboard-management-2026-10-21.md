@@ -13,7 +13,7 @@ All commands ran in the dashboard-management-parity worktree on 2026-10-21.
 
 | Command | Location | Result |
 | --- | --- | --- |
-| `rtk go test ./...` | `src/backend` | pass: 382 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after strict v1 field validation |
+| `rtk go test ./...` | `src/backend` | pass: 390 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after nested metadata, binding and pressure validation |
 | `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 233 tests in 51 files |
 | `rtk npm run build --workspace ./frontend` | `src` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
 | `rtk npx playwright test e2e/dashboard-style.spec.ts e2e/dashboard.spec.ts --workers=1 --reporter=line` | `src/frontend` | pass: 18 browser tests |
@@ -45,6 +45,9 @@ before object copying. The latest v1 tests reject typed-field errors (`x`,
 `groupIds`, `created:null`), unsafe protocol-relative links, and a staged
 result without an asset ID; the strict validator runs before
 hidden-scene creation and again before publication.
+Latest checks also reject null or unsafe nested `customData`, extra fields in
+bound entries/bindings, and out-of-range freedraw pressure before or after
+staging.
 
 ## Release boundary
 

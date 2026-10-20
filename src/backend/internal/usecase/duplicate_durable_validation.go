@@ -18,6 +18,7 @@ import (
 var duplicateID = regexp.MustCompile(`^[A-Za-z0-9_-]{1,256}$`)
 var duplicateIndex = regexp.MustCompile(`^[A-Za-z0-9]+$`)
 var duplicateColor = regexp.MustCompile(`^(?:#[0-9a-fA-F]{3,8}|[a-zA-Z]+|(?:rgb|rgba|hsl|hsla)\([0-9.,%\s+-]+\))$`)
+var duplicateUnsafeMetadataKey = regexp.MustCompile(`(?i)^(?:html|srcdoc|script|dataurl|password|authorization|accesstoken|refreshtoken|on[a-z]+)$`)
 
 func duplicateNumber(v any, min, max float64) bool {
 	n, ok := v.(float64)
@@ -175,7 +176,19 @@ func validDuplicateNativeElement(raw json.RawMessage) bool {
 		seen[entry.(string)] = true
 	}
 	if refs := element["boundElements"]; refs != nil {
-		if _, ok := refs.([]any); !ok {
+		entries, ok := refs.([]any)
+		if !ok {
+			return false
+		}
+		for _, raw := range entries {
+			entry, ok := raw.(map[string]any)
+			if !ok || len(entry) != 2 || !duplicateIDValue(entry["id"]) || !duplicateEnum(entry["type"], "arrow", "text") {
+				return false
+			}
+		}
+	}
+	if metadata, exists := element["customData"]; exists {
+		if _, ok := metadata.(map[string]any); !ok || !validDuplicateMetadata(metadata, 0) {
 			return false
 		}
 	}
@@ -216,7 +229,7 @@ func validDuplicateNativeElement(raw json.RawMessage) bool {
 			return false
 		}
 		for _, pressure := range pressures {
-			if !duplicateNumber(pressure, 0, math.MaxFloat64) {
+			if !duplicateNumber(pressure, 0, 1) {
 				return false
 			}
 		}
@@ -250,6 +263,32 @@ func validDuplicateLink(value string) bool {
 }
 
 func duplicateBool(v any) bool { _, ok := v.(bool); return ok }
+func validDuplicateMetadata(value any, depth int) bool {
+	if depth > 32 {
+		return false
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, item := range typed {
+			if key == "__proto__" || key == "prototype" || key == "constructor" || duplicateUnsafeMetadataKey.MatchString(key) || !validDuplicateMetadata(item, depth+1) {
+				return false
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if !validDuplicateMetadata(item, depth+1) {
+				return false
+			}
+		}
+	case nil, string, bool:
+		return true
+	case float64:
+		return !math.IsNaN(typed) && !math.IsInf(typed, 0)
+	default:
+		return false
+	}
+	return true
+}
 func validDuplicateImageFields(element map[string]any) bool {
 	if !duplicateOptionalID(element["fileId"]) || !duplicateEnum(element["status"], "pending", "saved", "error") {
 		return false
@@ -284,8 +323,16 @@ func validDuplicateBinding(v any) bool {
 	if !ok || !duplicateIDValue(value["elementId"]) || !duplicateNumber(value["focus"], -1, 1) || !duplicateNumber(value["gap"], 0, math.MaxFloat64) {
 		return false
 	}
-	if fixed, ok := value["fixedPoint"]; ok && !duplicatePoint(fixed) {
-		return false
+	for key, field := range value {
+		switch key {
+		case "elementId", "focus", "gap":
+		case "fixedPoint":
+			if !duplicatePoint(field) {
+				return false
+			}
+		default:
+			return false
+		}
 	}
 	return len(value) == 3 || len(value) == 4
 }
