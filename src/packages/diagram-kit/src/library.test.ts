@@ -36,6 +36,8 @@ describe('native reusable libraries',()=>{
  it('libraryRejectsUnsupportedOrOversize',()=>{
   const native={type:'excalidrawlib',version:2,source:'https://whiteboard.example/libraries/export',libraryItems:[item()]};
   expect(validateLibrary(native).libraryItems).toHaveLength(1);
+  const nativeWithoutAssets={...item(),elements:[item().elements[0]]} as any;delete nativeWithoutAssets.files;
+  expect(validateLibrary({...native,libraryItems:[nativeWithoutAssets]}).libraryItems[0].files).toEqual({});
   expect(()=>validateLibrary({...native,version:1})).toThrow(/version/i);
   expect(()=>validateLibrary({...native,source:'https://user:secret@whiteboard.example/export'})).toThrow(/source/i);
   expect(()=>validateLibrary({...native,libraryItems:Array.from({length:501},item)})).toThrow(/500/);

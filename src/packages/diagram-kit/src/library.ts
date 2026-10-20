@@ -30,11 +30,12 @@ function item(value:unknown,index:number):LibraryItem{
  if(!plain(value))throw new Error(`Invalid library item ${index}`);
  keys(value,['id','status','created','name','elements','files','presentationOrder']);
  if(typeof value.id!=='string'||!SAFE_ID.test(value.id)||!['published','unpublished'].includes(String(value.status))||!Number.isSafeInteger(value.created)||Number(value.created)<0||value.name!==undefined&&(typeof value.name!=='string'||value.name.length>1024))throw new Error(`Invalid library item ${index}`);
- if(!plain(value.files))throw new Error(`Invalid library files ${index}`);
- for(const file of Object.values(value.files)){
+ const inputFiles=value.files===undefined?{}:value.files;
+ if(!plain(inputFiles))throw new Error(`Invalid library files ${index}`);
+ for(const file of Object.values(inputFiles)){
   if(!plain(file)||typeof file.mimeType!=='string'||!RASTER_TYPES.has(file.mimeType))throw new Error('Library assets must be supported raster images');
  }
- const scene=validateSceneContent({elements:value.elements,appState:{},files:value.files,...(value.presentationOrder===undefined?{}:{presentationOrder:value.presentationOrder})});
+ const scene=validateSceneContent({elements:value.elements,appState:{},files:inputFiles,...(value.presentationOrder===undefined?{}:{presentationOrder:value.presentationOrder})});
  return {id:value.id,status:value.status as LibraryItem['status'],created:value.created as number,...(value.name===undefined?{}:{name:value.name as string}),elements:scene.elements,files:scene.files,...(scene.presentationOrder?{presentationOrder:scene.presentationOrder}:{})};
 }
 
