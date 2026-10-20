@@ -45,15 +45,22 @@ Status: implementation complete; real-stack execution blocked by missing local t
 
 ## Reconciliation and evidence
 
-- `npm test --workspace ./collab -- presentation`: 2 files, 14 tests passed.
+- `npm test --workspace ./collab -- presentation`: 2 files, 17 tests passed
+  twice consecutively.
 - `npm run test:unit --workspace ./frontend -- live-presentation.test.ts
-  presentation-controls.test.tsx transport.test.ts`: 3 files, 37 tests passed.
-- `npm run test:unit --workspace ./frontend`: 46 files, 192 tests passed.
+  presentation-controls.test.tsx transport.test.ts`: 3 files, 40 tests passed
+  twice consecutively.
+- `npm run test:unit --workspace ./frontend`: 48 files, 198 tests passed.
 - `npm run build --workspace ./frontend`: TypeScript and production Vite build
   passed.
-- `enterprise-live.spec.ts` covers one host, two public guests and one editor:
+- `go test ./internal/usecase ./internal/repository/collab`: passed, including
+  current-host link revision and transfer-race regressions.
+- `enterprise-live.spec.ts` now contains two browser flows covering one host,
+  public guests and one editor:
   manual copied invite, mobile waiting isolation, admit, reaction, remove, deny
-  and current-editor host transfer. The local run stopped before application
+  and current-editor host transfer, plus waiting Leave, keyboard Escape,
+  permission denial and ended pending-auth recovery. Both local cases stopped
+  before application
   startup because the configured loopback Postgres URL has no `test` role
   (`role "test" does not exist`). No presentation assertion failed.
 
@@ -78,9 +85,33 @@ admitted/reaction state consistently. Focused regression tests cover each fix.
 The final lifecycle pass also terminates the caller host when authority disappears
 during a control, ends stale observers when their socket goes offline, and sends
 the current sanitized presentation state to collaborators that reconnect during
-an active session. Regression tests cover both paths; no P1 or P2 review finding
-remains open.
+an active session. Regression tests cover both paths.
 Host startup now also reaches a retryable error when the socket closes, the
 runtime rejects the start, or no authoritative state arrives within ten seconds;
 the acknowledgement timer is cleared on every terminal or successful path.
+
+## Fresh root-gate reconciliation
+
+The release gate additionally requires session attachment checks after every
+host-start authority await, monotonic client revisions, terminal-state immunity
+to late presentation state, and a server revision recheck immediately before
+each presentation broadcast. Waiting-room Leave must remove the guest from the
+host queue. A rejected or ended `presentation_auth` attempt must show a terminal
+screen with a fresh-rejoin action instead of remaining in Joining.
+
+Presentation link creation and revocation must bind twice to the same current
+runtime host revision: once before entering the idempotent mutation and once
+inside it immediately before persistence. A transfer or host change during the
+operation rejects the mutation. Rejection of a proposed transfer target maps to
+`PRESENTATION_TARGET` and leaves the current host attached and authoritative.
+
+Verification adds disconnect-during-gate, stale publish, queue removal,
+presentation-auth rejection, link transfer-race/non-host, and transfer-target
+rejection regressions. The real-stack spec records the equivalent browser flows;
+execution still requires the guarded disposable database environment.
+
+The fresh focused and build gates pass. A repository-wide Go run reached all
+packages but currently fails two concurrent I3 SCIM handler tests; the M3
+usecase and runtime-client packages pass independently. These SCIM failures do
+not touch the M3 paths and remain outside this commit.
 

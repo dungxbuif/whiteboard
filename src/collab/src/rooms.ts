@@ -131,7 +131,9 @@ export class Rooms {
   try{this.rates.take((type==='viewport'?'awareness:':'control:')+session.connectionId,type==='viewport'?AWARENESS_PER_SECOND:EPHEMERAL_PER_MINUTE,type==='viewport'?1000:60_000);}catch{throw new CollabError(voiceControl?'VOICE_RATE_LIMITED':screenControl?'SCREEN_RATE_LIMITED':'PRESENCE_RATE_LIMITED','Ephemeral control rate exceeded',429);}
   if(type==='presentation_leave'&&session.presentation?.kind==='pending'){
    const input=parsePresentationLeave(payload);if(input.sessionId!==session.presentation.sessionId)throw new CollabError('PRESENTATION_INVALID','Presentation session mismatch',400);
-   this.presentations.disconnect(session.connectionId);await this.control(session,'presentation_stop',id,{sessionId:input.sessionId,reason:'LEFT'});this.invalidate(session,'PRESENTATION_LEFT');return;
+   const changed=this.presentations.disconnect(session.connectionId);await this.control(session,'presentation_stop',id,{sessionId:input.sessionId,reason:'LEFT'});
+   if(changed?.state){const host=[...this.sessions].find(value=>value.connectionId===changed.state!.hostConnectionId);if(host?.ref)await this.publishPresentation(host.ref,changed.state,id);}
+   this.invalidate(session,'PRESENTATION_LEFT');return;
   }
   await this.fresh(session);const ref=session.ref!;
   if(type==='presence'){this.awareness.update(session.connectionId,payload);await this.roster(ref,id);return;}
@@ -184,9 +186,12 @@ export class Rooms {
   }
   if(session.principal?.principalType!=='user'||session.access!=='edit')throw new CollabError('PRESENTATION_FORBIDDEN','Only signed-in editors can host',403);
   try{await requireFeature(this.store.authority,session.principal.roomToken,ref,'presentation:host');}catch(error){const state=this.presentations.state(room);if(state?.hostConnectionId===session.connectionId){this.presentations.disconnect(session.connectionId);await this.endPresentationClients(ref,state.sessionId,'AUTHORITY_CHANGED',session);await this.control(session,'presentation_stop','server',{sessionId:state.sessionId,reason:'AUTHORITY_CHANGED'});}if(error instanceof CollabError&&error.code==='UNAVAILABLE')throw new CollabError('PRESENTATION_AUTHORITY_UNAVAILABLE','Presentation authority unavailable',503,true);throw new CollabError('PRESENTATION_FORBIDDEN','Presentation is disabled or no longer permitted',403);}
+  this.requireAttached(session);
   if(type==='presentation_start'){
    const input=parsePresentationStart(payload),claims=await this.store.authority.verifyPresentation(input.token,'presentation-host');
+   this.requireAttached(session);
    if(claims.workspaceId!==ref.workspaceId||claims.sceneId!==ref.sceneId||claims.principalId!==session.principal.principalId)throw new CollabError('PRESENTATION_FORBIDDEN','Host credential binding mismatch',403);
+   this.requireAttached(session);
    const state=this.presentations.start(room,claims.sessionId,session.connectionId,session.principal.principalId);await this.publishPresentation(ref,state,id);return;
   }
   if(type==='presentation_admit'){
@@ -209,7 +214,7 @@ export class Rooms {
   if(type==='presentation_transfer'){
    const input=parsePresentationTarget(payload),target=this.matching(ref).find(value=>value.connectionId===input.connectionId&&value.principal?.principalType==='user');
    if(!target||!await this.recipient(target)||target.invalid||target.access!=='edit'||target.principal?.principalType!=='user')throw new CollabError('PRESENTATION_TARGET','Transfer target must be a current editor',404);
-   await requireFeature(this.store.authority,target.principal.roomToken,ref,'presentation:host');
+   try{await requireFeature(this.store.authority,target.principal.roomToken,ref,'presentation:host');}catch{throw new CollabError('PRESENTATION_TARGET','Transfer target is not authorized to host',404);}
    if(!await this.recipient(target)||target.invalid||target.access!=='edit'||target.principal?.principalType!=='user')throw new CollabError('PRESENTATION_TARGET','Transfer target is no longer an editor',404);
    const state=this.presentations.transfer(room,input.sessionId,session.connectionId,target.connectionId,target.principal.principalId,input.expectedRevision);await this.publishPresentation(ref,state,id);return;
   }
@@ -222,10 +227,14 @@ export class Rooms {
  private async publishPresentation(ref:SceneRef,state:NonNullable<ReturnType<PresentationSessions['state']>>,id:string){
   for(const target of this.matching(ref)){
    if(!await this.recipient(target))continue;
-   const payload=target.connectionId===state.hostConnectionId?state:{...state,pending:[]};
+   const current=this.presentations.state(roomKey(ref));
+   if(!current||current.sessionId!==state.sessionId||current.revision!==state.revision)return;
+   if(target.invalid||!this.sessions.has(target)||!target.ref||roomKey(target.ref)!==roomKey(ref))continue;
+   const payload=target.connectionId===current.hostConnectionId?current:{...current,pending:[]};
    await this.control(target,'presentation_state',id,payload);
   }
  }
+ private requireAttached(session:Session){if(session.invalid||!this.sessions.has(session))throw new CollabError('PRESENTATION_ENDED','Presentation host connection ended',409);}
  private async screen(session:Session,id:string,type:string,payload:unknown){
   const ref=session.ref!,room=roomKey(ref);
   const current=this.media.screen(room);

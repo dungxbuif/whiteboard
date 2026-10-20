@@ -63,20 +63,23 @@ export class LivePresentation {
  private control=(control:Control)=>{
   try{
    if(control.type==='presentation_state'){
-    this.clearStartTimer();
     const value=parsePresentationState(control.payload),connectionId=this.transport.getSnapshot().connectionId,status=value.hostConnectionId===connectionId?'host':value.admitted.some(person=>person.connectionId===connectionId)?'audience':'observer';
+    if(this.state.sessionId===value.sessionId&&value.revision<this.state.revision)return;
+    if(['ended','error'].includes(this.state.status)&&(!this.state.sessionId||this.state.sessionId===value.sessionId))return;
+    this.clearStartTimer();
     this.set({status,sessionId:value.sessionId,revision:value.revision,hostConnectionId:value.hostConnectionId,frameId:value.frameId,spotlight:value.spotlight,locked:value.locked,reactions:value.reactions.filter(item=>item.expiresAt>Date.now()),pending:value.pending,admitted:value.admitted,error:undefined});
     for(const reaction of value.reactions)this.expire(reaction);return;
    }
-   if(control.type==='presentation_waiting'){const value=parsePresentationWaiting(control.payload);this.set({...initial(),status:'waiting',sessionId:value.sessionId});return;}
-   if(control.type==='presentation_admitted'){const value=parsePresentationAdmitted(control.payload);this.set({...this.state,status:'audience',sessionId:value.sessionId,error:undefined});return;}
+   if(control.type==='presentation_waiting'){const value=parsePresentationWaiting(control.payload);if(['ended','error'].includes(this.state.status))return;this.set({...initial(),status:'waiting',sessionId:value.sessionId});return;}
+   if(control.type==='presentation_admitted'){const value=parsePresentationAdmitted(control.payload);if(['ended','error'].includes(this.state.status)&&(!this.state.sessionId||this.state.sessionId===value.sessionId))return;this.set({...this.state,status:'audience',sessionId:value.sessionId,error:undefined});return;}
    if(control.type==='presentation_reaction'){
+    if(!['host','audience'].includes(this.state.status))return;
     const value=control.payload;if(typeof value.sessionId!=='string'||value.sessionId!==this.state.sessionId||typeof value.id!=='string'||typeof value.connectionId!=='string'||typeof value.emoji!=='string'||!allowedReactions.has(value.emoji)||!Number.isSafeInteger(value.expiresAt)||Number(value.expiresAt)<=Date.now())return;
     const reaction={id:value.id,connectionId:value.connectionId,emoji:value.emoji,expiresAt:Number(value.expiresAt)} as PresentationReaction;
     this.set({...this.state,reactions:[...this.state.reactions.filter(item=>item.id!==reaction.id&&item.expiresAt>Date.now()),reaction]});this.expire(reaction);return;
    }
    if(control.type==='presentation_stop'&&control.payload.sessionId===this.state.sessionId){this.set({...this.state,status:'ended',reason:String(control.payload.reason??'ENDED'),locked:false});return;}
-   if(control.type==='error'&&String(control.payload.code).startsWith('PRESENTATION_')){if(this.state.status==='starting')this.clearStartTimer();this.set({...this.state,status:this.state.status==='starting'?'error':this.state.status,error:String(control.payload.message??control.payload.code)});}
+   if(control.type==='error'&&(String(control.payload.code).startsWith('PRESENTATION_')||['UNAUTHENTICATED','FORBIDDEN'].includes(String(control.payload.code)))){const code=String(control.payload.code),terminal=['idle','starting','waiting'].includes(this.state.status);if(terminal)this.clearStartTimer();this.set({...this.state,status:terminal?'error':this.state.status,reason:terminal?code:this.state.reason,error:String(control.payload.message??code)});}
   }catch{this.set({...this.state,status:'error',error:'Invalid presentation state received'});}
  };
  private expire(reaction:PresentationReaction){clearTimeout(this.reactionTimers.get(reaction.id));const timer=setTimeout(()=>{this.reactionTimers.delete(reaction.id);this.set({...this.state,reactions:this.state.reactions.filter(item=>item.id!==reaction.id)});},Math.max(0,reaction.expiresAt-Date.now()));this.reactionTimers.set(reaction.id,timer);}

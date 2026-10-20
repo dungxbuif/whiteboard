@@ -67,4 +67,13 @@ describe('live presentation controller',()=>{
   vi.useFakeTimers();const transport=new Transport(),live=new LivePresentation(transport,api());live.start();await live.beginHost();vi.advanceTimersByTime(10_001);
   expect(live.getSnapshot()).toMatchObject({status:'error',reason:'START_TIMEOUT'});vi.useRealTimers();
  });
+ it('ignores lower revisions and cannot resurrect a terminal session',()=>{
+  const transport=new Transport(),live=new LivePresentation(transport);live.start();transport.emit('presentation_state',state({revision:5,frameId:'current'}));transport.emit('presentation_state',state({revision:4,frameId:'stale'}));
+  expect(live.getSnapshot()).toMatchObject({revision:5,frameId:'current'});transport.emit('presentation_stop',{sessionId:session,reason:'HOST_ENDED'});transport.emit('presentation_state',state({revision:6,frameId:'late'}));
+  expect(live.getSnapshot()).toMatchObject({status:'ended',reason:'HOST_ENDED',revision:5,frameId:'current'});
+ });
+ it('turns a rejected pending authentication into a terminal rejoin state',()=>{
+  const transport=new Transport();transport.state.connectionId=undefined;const live=new LivePresentation(transport);live.start();transport.emit('error',{code:'PRESENTATION_ENDED',message:'Presentation has ended'});
+  expect(live.getSnapshot()).toMatchObject({status:'error',reason:'PRESENTATION_ENDED',error:'Presentation has ended'});
+ });
 });

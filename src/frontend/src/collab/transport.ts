@@ -170,7 +170,8 @@ export class CollabTransport {
     const ephemeral = this.ephemeralRequests.delete(control.requestId);
     if (control.type === 'error') {
       if (await this.legacy(String(p.code))) return;
-      if (['FORBIDDEN', 'UNAUTHENTICATED'].includes(String(p.code))) { this.options.onAccessLost?.(); this.access = 'view'; this.synced = false; this.set({ status: 'revoked', canEdit: false, recovery: true, error: 'Access ended. Export pending work for recovery.' }); }
+      if (this.options.authType==='presentation_auth'&&!this.admitted) { this.controls.forEach(listener=>listener(control));this.options.onAccessLost?.();this.access='view';this.synced=false;this.set({status:'revoked',canEdit:false,recovery:false,error:String(p.message??p.code)});this.socket?.close(); }
+      else if (['FORBIDDEN', 'UNAUTHENTICATED'].includes(String(p.code))) { this.options.onAccessLost?.(); this.access = 'view'; this.synced = false; this.set({ status: 'revoked', canEdit: false, recovery: true, error: 'Access ended. Export pending work for recovery.' }); }
       else if (ephemeral || /^(VOICE_|INVALID_FOLLOW$|INVALID_PRESENCE$|PRESENCE_RATE_LIMITED$)/.test(String(p.code))) { this.controls.forEach(listener => listener(control)); }
       else if (p.retryable === true || p.code === 'RATE_LIMITED') { this.synced = false; this.set({ status: 'offline', error: String(p.code) }); this.socket?.close(); }
       else { this.fail(new Error(String(p.code))); }

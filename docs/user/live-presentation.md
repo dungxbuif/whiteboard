@@ -46,3 +46,6 @@ offers **Rejoin waiting room**. Rejoining repeats host admission and never
 restores audience authority from cached UI state. Voice, screen sharing and
 drawing keep their existing permission and browser-autoplay behavior; starting
 a live presentation does not start media automatically.
+If the presentation ends while you are joining, the Joining screen changes to
+an ended message and offers the same fresh rejoin action. Choosing **Leave** in
+the waiting room removes your name from the host's queue immediately.

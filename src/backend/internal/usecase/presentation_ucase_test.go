@@ -73,10 +73,17 @@ func (presentationFeatures) Mutate(ctx domain.Context, _ domain.Principal, _ dom
 type presentationRuntime struct {
 	decision     domain.PresentationRuntimeDecision
 	expectedHost string
+	resolveHost  func(domain.SceneRef, uuid.UUID, string) (domain.PresentationRuntimeDecision, error)
 }
 
-func (presentationRuntime) ResolveHost(domain.Context, domain.SceneRef, uuid.UUID, string) error {
-	return nil
+func (s presentationRuntime) ResolveHost(_ domain.Context, ref domain.SceneRef, session uuid.UUID, principal string) (domain.PresentationRuntimeDecision, error) {
+	if s.resolveHost != nil {
+		return s.resolveHost(ref, session, principal)
+	}
+	if s.expectedHost != "" && principal != s.expectedHost {
+		return domain.PresentationRuntimeDecision{}, domain.ErrPresentationEnded
+	}
+	return domain.PresentationRuntimeDecision{SessionID: session, WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, HostPrincipalID: principal, Revision: 1}, nil
 }
 
 func (s presentationRuntime) ResolvePending(_ domain.Context, _ domain.SceneRef, _ uuid.UUID, host string, _ string, _ int64) (domain.PresentationRuntimeDecision, error) {
@@ -132,6 +139,54 @@ func TestPresentationLinkPersistsHashWithoutOneTimeSecret(t *testing.T) {
 	}
 	if out.Token == "" || repo.link == nil || repo.link.TokenHash == "" || strings.Contains(string(features.body), out.Token) || strings.Contains(string(features.body), repo.link.TokenHash) {
 		t.Fatalf("secret persistence boundary failed: token=%t hash=%q body=%s", out.Token != "", repo.link.TokenHash, features.body)
+	}
+}
+
+func TestPresentationLinkRequiresCurrentHostAtTheSameRuntimeRevision(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	session, principal := uuid.New(), domain.UserPrincipal(uuid.New())
+	repo := &presentationRepoStub{}
+	calls := 0
+	runtime := presentationRuntime{resolveHost: func(domain.SceneRef, uuid.UUID, string) (domain.PresentationRuntimeDecision, error) {
+		calls++
+		revision := int64(7)
+		if calls > 1 {
+			revision = 8
+		}
+		return domain.PresentationRuntimeDecision{SessionID: session, WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, HostPrincipalID: principal.ID, Revision: revision}, nil
+	}}
+	service, _ := NewPresentationService(repo, presentationFeatures{}, featureAccessStub{}, []byte(strings.Repeat("p", 32)))
+	service.SetRuntimeVerifier(runtime)
+	if _, err := service.CreateLink(context.Background(), principal, ref, session, uuid.New()); !errors.Is(err, domain.ErrPresentationEnded) {
+		t.Fatalf("link survived host transfer: %v", err)
+	}
+	if calls != 2 || repo.link != nil {
+		t.Fatalf("calls=%d link=%+v", calls, repo.link)
+	}
+}
+
+func TestPresentationLinkRejectsNonHostAndRevokeRechecksTransferRace(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	session, link, principal := uuid.New(), uuid.New(), domain.UserPrincipal(uuid.New())
+	repo := &presentationRepoStub{}
+	service, _ := NewPresentationService(repo, presentationFeatures{}, featureAccessStub{}, []byte(strings.Repeat("p", 32)))
+	service.SetRuntimeVerifier(presentationRuntime{expectedHost: uuid.NewString()})
+	if _, err := service.CreateLink(context.Background(), principal, ref, session, uuid.New()); !errors.Is(err, domain.ErrPresentationEnded) {
+		t.Fatalf("non-host created link: %v", err)
+	}
+	calls := 0
+	service.SetRuntimeVerifier(presentationRuntime{resolveHost: func(domain.SceneRef, uuid.UUID, string) (domain.PresentationRuntimeDecision, error) {
+		calls++
+		if calls == 1 {
+			return domain.PresentationRuntimeDecision{SessionID: session, WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, HostPrincipalID: principal.ID, Revision: 4}, nil
+		}
+		return domain.PresentationRuntimeDecision{}, domain.ErrPresentationEnded
+	}})
+	if err := service.RevokeLink(context.Background(), principal, ref, session, link, uuid.New()); !errors.Is(err, domain.ErrPresentationEnded) {
+		t.Fatalf("revoke survived host transfer: %v", err)
+	}
+	if calls != 2 || repo.revoked {
+		t.Fatalf("calls=%d revoked=%t", calls, repo.revoked)
 	}
 }
 

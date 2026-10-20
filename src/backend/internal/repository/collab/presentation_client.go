@@ -37,15 +37,22 @@ func (c *AgentClient) presentationDecision(ctx domain.Context, payload map[strin
 	}
 	return nil
 }
-func (c *AgentClient) ResolveHost(ctx domain.Context, ref domain.SceneRef, sessionID uuid.UUID, principalID string) error {
+func (c *AgentClient) ResolveHost(ctx domain.Context, ref domain.SceneRef, sessionID uuid.UUID, principalID string) (domain.PresentationRuntimeDecision, error) {
 	var out struct {
-		Active bool `json:"active"`
+		Active   bool  `json:"active"`
+		Revision int64 `json:"revision"`
 	}
 	err := c.presentationDecision(ctx, map[string]any{"kind": "host", "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String(), "sessionId": sessionID.String(), "principalId": principalID}, &out)
-	if err == nil && !out.Active {
-		return domain.ErrPresentationEnded
+	if err != nil {
+		return domain.PresentationRuntimeDecision{}, err
 	}
-	return err
+	if !out.Active {
+		return domain.PresentationRuntimeDecision{}, domain.ErrPresentationEnded
+	}
+	if out.Revision < 1 {
+		return domain.PresentationRuntimeDecision{}, domain.ErrInvalidPresentation
+	}
+	return domain.PresentationRuntimeDecision{SessionID: sessionID, WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, HostPrincipalID: principalID, Revision: out.Revision}, nil
 }
 func (c *AgentClient) ResolvePending(ctx domain.Context, ref domain.SceneRef, sessionID uuid.UUID, hostPrincipalID, connectionID string, revision int64) (domain.PresentationRuntimeDecision, error) {
 	var out struct {

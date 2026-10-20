@@ -4,7 +4,7 @@ import * as Y from 'yjs';
 import { decodeFrame, encodeFrame } from '@collab/contracts/protocol';
 import { ExcalidrawAdapter } from './excalidraw-adapter';
 import { OfflineStore } from './offline-store';
-import { CollabTransport, type WireSocket } from './transport';
+import { CollabTransport, type Control, type WireSocket } from './transport';
 import { rectangle, scene } from './fixtures';
 class Socket extends EventTarget {
   readyState = 1; binaryType: BinaryType = 'arraybuffer'; sent: (string | Uint8Array)[] = [];
@@ -58,6 +58,13 @@ it('uses presentation_auth for waiting clients and surfaces only the admitted cr
  const transport=new CollabTransport({sceneRef:scope,principalId:'presentation:guest',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'pending-token',expiresAt:new Date(Date.now()+300000).toISOString()}),url:'ws://local',authType:'presentation_auth',onPresentationAdmitted:value=>admitted.push(value),socket:()=>socket as unknown as WireSocket});
  await transport.start();socket.dispatchEvent(new Event('open'));await tick();expect(JSON.parse(socket.sent.find((value):value is string=>typeof value==='string')!)).toMatchObject({type:'presentation_auth',payload:{token:'pending-token'}});
  socket.receive({type:'presentation_admitted',requestId:'admit',payload:{sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',token:'audience-token',expiresAt:Math.floor(Date.now()/1000)+600}});await tick();expect(admitted).toHaveLength(1);expect(socket.sent.filter(value=>typeof value==='string')).toHaveLength(1);transport.stop();
+});
+
+it('surfaces a rejected presentation_auth as terminal instead of reconnecting joining state',async()=>{
+ const store=new OfflineStore(crypto.randomUUID()),socket=new Socket(),controls:Control[]=[];
+ const transport=new CollabTransport({sceneRef:scope,principalId:'presentation:guest',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'expired-pending',expiresAt:new Date(Date.now()+300000).toISOString()}),url:'ws://local',authType:'presentation_auth',socket:()=>socket as unknown as WireSocket});transport.subscribeControl(value=>controls.push(value));
+ await transport.start();socket.dispatchEvent(new Event('open'));socket.receive({type:'error',requestId:'auth',payload:{code:'PRESENTATION_ENDED',message:'Presentation has ended',retryable:false}});await tick();
+ expect(controls.at(-1)).toMatchObject({type:'error',payload:{code:'PRESENTATION_ENDED'}});expect(transport.state.status).toBe('revoked');transport.stop();
 });
 
 it('forwards cursor-only feature invalidations without disturbing document admission', async () => {

@@ -10,6 +10,11 @@ Send `X-Workspace-ID` on scene-scoped host calls.
   that request ID returns `REQUEST_ID_REUSED`; the service stores no raw token.
 - `DELETE /api/v1/scenes/{sceneId}/presentations/{sessionId}/links/{linkId}`
   uses strict JSON `{requestId}` and revokes only that invite.
+
+Create and revoke require the caller to be the current runtime host. Both calls
+bind the host's current presentation revision before the idempotent mutation and
+again immediately before storage; host transfer or revision drift rejects the
+operation.
 - `POST /api/v1/presentations/{token}/join` with `{displayName}` returns a
   five-minute pending credential.
 - `POST /api/v1/scenes/{sceneId}/presentations/{sessionId}/admit` with
@@ -69,6 +74,8 @@ Host disconnect ends the in-memory session. Participant leave/removal clears a
 matching spotlight. Concurrent host/frame operations have one authoritative
 runtime revision. A removed `frameId` is rendered as a missing-frame state; a
 client must not substitute another frame by array position.
+Clients ignore lower revisions and all late state for a session already marked
+terminal. Waiting-room Leave removes the guest from the host queue immediately.
 
 The browser route is `/present/{token}`. It shows a display-name form, waiting,
 admitted canvas, denied/removed/ended, and rejoin states. Pending UI mounts no
@@ -76,4 +83,6 @@ canvas and receives no scene, roster, voice, screen or asset data. Audience
 credential loss returns to a fresh waiting-room join. The UI never starts voice
 or screen capture automatically and relies on their existing browser permission
 and autoplay prompts.
+Rejected or ended `presentation_auth` also leaves Joining immediately and shows
+the ended/error state with a fresh-rejoin action.
 

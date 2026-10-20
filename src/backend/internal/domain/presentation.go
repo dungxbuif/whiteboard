@@ -81,10 +81,11 @@ type PresentationRuntimeDecision struct {
 	PrincipalID     string
 	HostPrincipalID string
 	DisplayName     string
+	Revision        int64
 }
 
 type PresentationRuntimeVerifier interface {
-	ResolveHost(Context, SceneRef, uuid.UUID, string) error
+	ResolveHost(Context, SceneRef, uuid.UUID, string) (PresentationRuntimeDecision, error)
 	ResolvePending(Context, SceneRef, uuid.UUID, string, string, int64) (PresentationRuntimeDecision, error)
 	ResolveAudience(Context, SceneRef, uuid.UUID, string) (PresentationRuntimeDecision, error)
 }

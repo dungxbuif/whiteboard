@@ -417,6 +417,10 @@ decimal string. A transfer target is re-authorized as a connected signed-in
 editor immediately before the revision changes. Reactions are the only
 unrevisioned presentation control: their fixed allowlist, per-connection
 one-second limit and server-issued three-second expiry keep them ephemeral.
+Link creation and revocation resolve the current runtime host revision before
+the idempotent mutation and re-resolve the same host and revision immediately
+before persistence. Host transfer or any intervening presentation revision
+rejects the link mutation.
 
 Audience state always strips the host's pending queue. Host disconnect or
 current-authority loss ends the in-memory session; participant departure clears
@@ -429,6 +433,9 @@ collaboration transport with `presentation_auth`. Admission returns a private
 audience token only to that socket. Credential loss unmounts the canvas and
 requires a fresh waiting-room join. See the [user guide](../user/live-presentation.md)
 and [machine-readable protocol reference](../../src/frontend/public/docs/live-presentation.md).
+Clients apply presentation revisions monotonically and ignore late state for a
+terminal session. A rejected pending socket authentication transitions to an
+ended/error screen with an explicit fresh-rejoin action.
 
 ## R1 workspace retention (implemented locally; wiring pending, production activation disabled)
 

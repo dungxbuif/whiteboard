@@ -59,6 +59,13 @@ audience UI authority. Revoking an invite blocks new joins but does not remove
 already admitted viewers. Feature or host-authority revocation ends current
 audience sockets.
 
+Host startup rechecks that the exact initiating socket remains attached after
+each authority/token await. State fanout rechecks the current session and
+revision after recipient authority refresh and immediately before every send.
+These checks prevent a disconnected host or delayed broadcast from recreating
+an ended session. Link create/revoke similarly checks the same runtime host
+revision before and inside persistence.
+
 The runtime caps pending guests, admitted guests and retained live reactions at
 100 each. Pending sockets receive no ready, sync, roster, asset or media data.
 During incident review, never log invite, pending, host or audience tokens. To
@@ -66,4 +73,5 @@ verify a release, run the focused presentation suites, full frontend suite and
 production build, then the guarded real-stack `enterprise-live.spec.ts` against
 the disposable test database. That browser test covers manual invite copy,
 mobile waiting isolation, admit, reaction, remove, deny and current-editor host
-transfer.
+transfer, plus explicit waiting Leave, keyboard Escape, permission denial and
+ended pending-auth recovery.

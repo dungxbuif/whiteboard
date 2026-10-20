@@ -75,6 +75,20 @@ func presentationPrincipal(p domain.Principal) (uuid.UUID, error) {
 	return *p.UserID, nil
 }
 
+func (s *PresentationService) currentHost(ctx domain.Context, p domain.Principal, ref domain.SceneRef, sessionID uuid.UUID) (domain.PresentationRuntimeDecision, error) {
+	if s.runtime == nil {
+		return domain.PresentationRuntimeDecision{}, domain.ErrPresentationEnded
+	}
+	decision, e := s.runtime.ResolveHost(ctx, ref, sessionID, p.ID)
+	if e != nil {
+		return domain.PresentationRuntimeDecision{}, e
+	}
+	if decision.SessionID != sessionID || decision.WorkspaceID != ref.WorkspaceID || decision.SceneID != ref.SceneID || decision.HostPrincipalID != p.ID || decision.Revision < 1 {
+		return domain.PresentationRuntimeDecision{}, domain.ErrPresentationEnded
+	}
+	return decision, nil
+}
+
 func (s *PresentationService) Create(ctx domain.Context, p domain.Principal, ref domain.SceneRef, requestID uuid.UUID) (domain.SessionGrant, error) {
 	user, e := presentationPrincipal(p)
 	if e != nil || requestID == uuid.Nil {
@@ -121,10 +135,8 @@ func (s *PresentationService) CreateLink(ctx domain.Context, p domain.Principal,
 	if e != nil || sessionID == uuid.Nil || requestID == uuid.Nil {
 		return domain.OneTimeShownLink{}, domain.ErrInvalidPresentation
 	}
-	if s.runtime == nil {
-		return domain.OneTimeShownLink{}, domain.ErrPresentationEnded
-	}
-	if e = s.runtime.ResolveHost(ctx, ref, sessionID, p.ID); e != nil {
+	host, e := s.currentHost(ctx, p, ref, sessionID)
+	if e != nil {
 		return domain.OneTimeShownLink{}, e
 	}
 	payload, _ := json.Marshal(map[string]string{"operation": "create-link", "sessionId": sessionID.String()})
@@ -135,6 +147,13 @@ func (s *PresentationService) CreateLink(ctx domain.Context, p domain.Principal,
 			return domain.StoredFeatureResponse{}, err
 		}
 		link := domain.PresentationLink{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, SessionID: sessionID, TokenHash: presentationHash(secret), CreatedBy: user, Revision: 1, Active: true, CreatedAt: s.now().UTC(), ExpiresAt: s.now().UTC().Add(domain.PresentationLinkLifetime)}
+		current, err := s.currentHost(tx, p, ref, sessionID)
+		if err != nil {
+			return domain.StoredFeatureResponse{}, err
+		}
+		if current.Revision != host.Revision {
+			return domain.StoredFeatureResponse{}, domain.ErrPresentationEnded
+		}
 		if err = s.repo.CreateLink(tx, &link); err != nil {
 			return domain.StoredFeatureResponse{}, err
 		}
@@ -252,8 +271,19 @@ func (s *PresentationService) RevokeLink(ctx domain.Context, p domain.Principal,
 	if _, e := presentationPrincipal(p); e != nil || sessionID == uuid.Nil || linkID == uuid.Nil || requestID == uuid.Nil {
 		return domain.ErrInvalidPresentation
 	}
+	host, e := s.currentHost(ctx, p, ref, sessionID)
+	if e != nil {
+		return e
+	}
 	payload, _ := json.Marshal(map[string]string{"operation": "revoke-link", "sessionId": sessionID.String(), "linkId": linkID.String()})
-	_, e := s.features.Mutate(ctx, p, ref, domain.FeaturePresentationHost, requestID, payload, func(tx domain.Context) (domain.StoredFeatureResponse, error) {
+	_, e = s.features.Mutate(ctx, p, ref, domain.FeaturePresentationHost, requestID, payload, func(tx domain.Context) (domain.StoredFeatureResponse, error) {
+		current, err := s.currentHost(tx, p, ref, sessionID)
+		if err != nil {
+			return domain.StoredFeatureResponse{}, err
+		}
+		if current.Revision != host.Revision {
+			return domain.StoredFeatureResponse{}, domain.ErrPresentationEnded
+		}
 		if e := s.repo.RevokeLink(tx, ref, sessionID, linkID); e != nil {
 			return domain.StoredFeatureResponse{}, e
 		}

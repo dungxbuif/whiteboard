@@ -1,5 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import {randomUUID} from 'node:crypto';
+import {once} from 'node:events';
 import {encodeFrame} from '@collab/contracts';
 import {createEncoder,writeVarUint,writeVarUint8Array,toUint8Array} from 'lib0/encoding';
 import {roomFixture} from './test-fixtures/presence.js';
@@ -16,6 +17,30 @@ describe('presentation room isolation',()=>{
    expect(waiting.messages.some(m=>['ready','sync_chunk','roster','voice_admission','screen_admission'].includes(m.type))).toBe(false);
    waiting.socket.close();
    const changed=await host.wait('presentation_state','server');expect(changed.payload.pending).toEqual([]);expect(changed.payload.revision).toBe(2);
+  }finally{await fixture.close();}
+ });
+ it('publishes queue removal when a waiting guest leaves explicitly',async()=>{
+  const fixture=await roomFixture();try{
+   const host=await fixture.connect('host'),sessionId=randomUUID();const started=host.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'host',sessionId})});await host.wait('presentation_state',started);
+   const waiting=await fixture.connectPresentation({workspaceId:'workspace',sceneId:'scene',sessionId,principalId:'presentation:guest',displayName:'Guest',exp:Math.floor(Date.now()/1000)+300});await host.wait('presentation_state','server');
+   const leave=waiting.send('presentation_leave',{sessionId});expect((await waiting.wait('presentation_stop',leave)).payload.reason).toBe('LEFT');
+   expect((await host.wait('presentation_state',leave)).payload).toMatchObject({sessionId,revision:2,pending:[]});
+  }finally{await fixture.close();}
+ });
+ it('does not start after the exact host session disconnects during authority gating',async()=>{
+  const fixture=await roomFixture();try{
+   const host=await fixture.connect('host'),sessionId=randomUUID();let entered!:()=>void,release!:()=>void;const gated=new Promise<void>(resolve=>entered=resolve),gate=new Promise<void>(resolve=>release=resolve);
+   fixture.hooks.beforeFeature=async principalId=>{if(principalId==='host'){entered();await gate;}};host.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'host',sessionId})});await gated;
+   const closed=once(host.socket,'close');host.socket.close();await closed;release();await new Promise(resolve=>setTimeout(resolve,20));
+   expect(()=>fixture.rooms.resolvePresentationHost({workspaceId:'workspace',sceneId:'scene'},sessionId,'host')).toThrow(/not active/i);
+  }finally{await fixture.close();}
+ });
+ it('does not publish stale state after a session ends during recipient authority refresh',async()=>{
+  const fixture=await roomFixture();try{
+   const host=await fixture.connect('host'),observer=await fixture.connect('observer'),sessionId=randomUUID();const started=host.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'host',sessionId})});await host.wait('presentation_state',started);await observer.wait('presentation_state',started);
+   let entered!:()=>void,release!:()=>void;const gated=new Promise<void>(resolve=>entered=resolve),gate=new Promise<void>(resolve=>release=resolve);fixture.hooks.beforeRead=async principalId=>{if(principalId==='host'){entered();await gate;}};
+   const frame=host.send('presentation_set_frame',{sessionId,frameId:'frame-a',expectedRevision:'1'});await gated;const closed=once(host.socket,'close');host.socket.close();await closed;expect((await observer.wait('presentation_stop','server')).payload.reason).toBe('HOST_DISCONNECTED');release();await new Promise(resolve=>setTimeout(resolve,20));
+   expect(observer.messages.some(message=>message.type==='presentation_state'&&message.requestId===frame)).toBe(false);
   }finally{await fixture.close();}
  });
  it('refreshes an admitted audience through presentation authority',async()=>{
@@ -78,10 +103,13 @@ describe('presentation room isolation',()=>{
    const stale=host.send('presentation_set_frame',{sessionId,frameId:'frame-a',expectedRevision:'1'});expect((await host.wait('error',stale)).payload.code).toBe('PRESENTATION_CONFLICT');
    const frame=host.send('presentation_set_frame',{sessionId,frameId:'frame-a',expectedRevision:'2'});expect((await first.wait('presentation_state',frame)).payload).toMatchObject({frameId:'frame-a',revision:3,pending:[]});
    const denied=host.send('presentation_transfer',{sessionId,connectionId:viewer.connectionId,expectedRevision:'3'});expect((await host.wait('error',denied)).payload.code).toBe('PRESENTATION_TARGET');
+   fixture.hooks.beforeFeature=async principalId=>{if(principalId==='editor-user')throw new Error('forbidden target');};
+   const rejected=host.send('presentation_transfer',{sessionId,connectionId:editor.connectionId,expectedRevision:'3'});expect((await host.wait('error',rejected)).payload.code).toBe('PRESENTATION_TARGET');
+   fixture.hooks.beforeFeature=undefined;const stillHost=host.send('presentation_lock',{sessionId,locked:true,expectedRevision:'3'});expect((await host.wait('presentation_state',stillHost)).payload).toMatchObject({hostConnectionId:host.connectionId,revision:4,locked:true});
    fixture.hooks.beforeFeature=async principalId=>{if(principalId==='editor-user')fixture.hooks.accessByPrincipal.set('editor-user','view');};
-   const raced=host.send('presentation_transfer',{sessionId,connectionId:editor.connectionId,expectedRevision:'3'});expect((await host.wait('error',raced)).payload.code).toBe('PRESENTATION_TARGET');
+   const raced=host.send('presentation_transfer',{sessionId,connectionId:editor.connectionId,expectedRevision:'4'});expect((await host.wait('error',raced)).payload.code).toBe('PRESENTATION_TARGET');
    fixture.hooks.beforeFeature=undefined;fixture.hooks.accessByPrincipal.set('editor-user','edit');
-   const transfer=host.send('presentation_transfer',{sessionId,connectionId:editor.connectionId,expectedRevision:'3'});expect((await editor.wait('presentation_state',transfer)).payload).toMatchObject({hostConnectionId:editor.connectionId,hostPrincipalId:'editor-user',revision:4});
+   const transfer=host.send('presentation_transfer',{sessionId,connectionId:editor.connectionId,expectedRevision:'4'});expect((await editor.wait('presentation_state',transfer)).payload).toMatchObject({hostConnectionId:editor.connectionId,hostPrincipalId:'editor-user',revision:5});
   }finally{await fixture.close();}
  });
  it('keeps the host ended after ending the live session',async()=>{
