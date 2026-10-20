@@ -42,7 +42,7 @@ function validate(checkpoint:RecoveryCheckpoint):SceneContent {
   requireCondition(receipt.scene_id===c.sceneId&&audit.workspace_id===c.workspaceId,'history scope');
   requireCondition(typeof receipt.request_id==='string'&&receipt.request_id.length>0&&receipt.request_id.length<=128&&!requestIds.has(receipt.request_id),'receipt request identity');requestIds.add(receipt.request_id);
   requireCondition(['user','public','agent'].includes(String(receipt.principal_type))&&typeof receipt.principal_id==='string'&&receipt.principal_id.length>0,'principal');
-  requireCondition(['scene:update','scene:command'].includes(String(receipt.action))&&typeof receipt.payload_hash==='string'&&DIGEST.test(receipt.payload_hash),'receipt action/hash');
+  requireCondition(['scene:update','scene:command','version:restore'].includes(String(receipt.action))&&typeof receipt.payload_hash==='string'&&DIGEST.test(receipt.payload_hash),'receipt action/hash');
   requireCondition(typeof receipt.state_vector==='string'&&Buffer.from(receipt.state_vector,'base64').toString('base64')===receipt.state_vector,'receipt state vector');
   for(const row of [receipt,audit])requireCondition(typeof row.created_at==='string'&&!Number.isNaN(Date.parse(row.created_at)),'history timestamp');
   revision(audit.acl_version);

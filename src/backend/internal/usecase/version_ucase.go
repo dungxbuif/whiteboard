@@ -6,6 +6,7 @@ import (
 	"devtool/internal/domain"
 	"encoding/hex"
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -184,4 +185,167 @@ func (s *VersionService) SetMetadata(ctx domain.Context, principal domain.Princi
 		return domain.SceneVersion{}, err
 	}
 	return decodeStored[domain.SceneVersion](stored)
+}
+
+func elementIndex(raw json.RawMessage) (map[string]json.RawMessage, map[string]json.RawMessage, error) {
+	var content struct {
+		Elements []json.RawMessage          `json:"elements"`
+		AppState map[string]json.RawMessage `json:"appState"`
+	}
+	if json.Unmarshal(raw, &content) != nil {
+		return nil, nil, domain.ErrInvalidVersionInput
+	}
+	items := make(map[string]json.RawMessage, len(content.Elements))
+	for _, element := range content.Elements {
+		var identity struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(element, &identity) != nil || identity.ID == "" {
+			return nil, nil, domain.ErrInvalidVersionInput
+		}
+		items[identity.ID] = element
+	}
+	return items, content.AppState, nil
+}
+
+func equivalentJSON(left, right json.RawMessage) (bool, error) {
+	var a, b any
+	if json.Unmarshal(left, &a) != nil || json.Unmarshal(right, &b) != nil {
+		return false, domain.ErrInvalidVersionInput
+	}
+	leftCanonical, leftErr := json.Marshal(a)
+	rightCanonical, rightErr := json.Marshal(b)
+	if leftErr != nil || rightErr != nil {
+		return false, domain.ErrInvalidVersionInput
+	}
+	return bytes.Equal(leftCanonical, rightCanonical), nil
+}
+
+func semanticDiff(before, after json.RawMessage) (domain.SceneDiff, error) {
+	result := domain.SceneDiff{AddedIDs: []string{}, RemovedIDs: []string{}, ChangedIDs: []string{}, ChangedAppStateFields: []string{}}
+	a, appA, err := elementIndex(before)
+	if err != nil {
+		return result, err
+	}
+	b, appB, err := elementIndex(after)
+	if err != nil {
+		return result, err
+	}
+	for id, right := range b {
+		if left, ok := a[id]; !ok {
+			result.AddedIDs = append(result.AddedIDs, id)
+		} else {
+			equal, compareErr := equivalentJSON(left, right)
+			if compareErr != nil {
+				return result, compareErr
+			}
+			if !equal {
+				result.ChangedIDs = append(result.ChangedIDs, id)
+			}
+		}
+	}
+	for id := range a {
+		if _, ok := b[id]; !ok {
+			result.RemovedIDs = append(result.RemovedIDs, id)
+		}
+	}
+	keys := map[string]struct{}{}
+	for key := range appA {
+		keys[key] = struct{}{}
+	}
+	for key := range appB {
+		keys[key] = struct{}{}
+	}
+	for key := range keys {
+		left, leftOK := appA[key]
+		right, rightOK := appB[key]
+		equal := leftOK == rightOK
+		if equal && leftOK {
+			equal, err = equivalentJSON(left, right)
+			if err != nil {
+				return result, err
+			}
+		}
+		if !equal {
+			result.ChangedAppStateFields = append(result.ChangedAppStateFields, key)
+		}
+	}
+	slices.Sort(result.AddedIDs)
+	slices.Sort(result.RemovedIDs)
+	slices.Sort(result.ChangedIDs)
+	slices.Sort(result.ChangedAppStateFields)
+	return result, nil
+}
+
+func (s *VersionService) Diff(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, id uuid.UUID, againstSequence string) (domain.SceneDiff, error) {
+	if id == uuid.Nil || !validSequence(againstSequence) || s.repo == nil || s.features == nil || s.caps == nil {
+		return domain.SceneDiff{}, domain.ErrInvalidVersionInput
+	}
+	if err := s.features.Require(ctx, principal, ref, domain.FeatureVersionRead); err != nil {
+		return domain.SceneDiff{}, err
+	}
+	if s.remote == nil {
+		return domain.SceneDiff{}, &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}
+	}
+	version, err := s.repo.Version(ctx, ref, id)
+	if err != nil {
+		return domain.SceneDiff{}, err
+	}
+	empty := sha256.Sum256(nil)
+	grant, err := s.caps.AuthorizeCommand(ctx, principal, domain.SceneMutation{WorkspaceID: ref.WorkspaceID.String(), SceneID: ref.SceneID.String(), Action: domain.ActionSceneRead, RequestID: uuid.NewString(), PayloadHash: hex.EncodeToString(empty[:])})
+	if err != nil {
+		return domain.SceneDiff{}, err
+	}
+	raw, err := s.remote.Call(ctx, "projection", ref, map[string]any{"grant": grant.Token, "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String()}, 26<<20)
+	if err != nil {
+		return domain.SceneDiff{}, err
+	}
+	var current struct {
+		Sequence string          `json:"sequence"`
+		Content  json.RawMessage `json:"content"`
+	}
+	if json.Unmarshal(raw, &current) != nil || current.Sequence != againstSequence {
+		return domain.SceneDiff{}, domain.ErrRevisionConflict
+	}
+	return semanticDiff(version.Content, current.Content)
+}
+
+func canonicalRestorePayload(ref domain.SceneRef, input domain.RestoreVersionInput) ([]byte, error) {
+	return json.Marshal(struct {
+		WorkspaceID      string    `json:"workspaceId"`
+		SceneID          string    `json:"sceneId"`
+		VersionID        uuid.UUID `json:"versionId"`
+		RequestID        uuid.UUID `json:"requestId"`
+		ExpectedSequence string    `json:"expectedSequence"`
+	}{ref.WorkspaceID.String(), ref.SceneID.String(), input.VersionID, input.RequestID, input.ExpectedSequence})
+}
+
+func (s *VersionService) Restore(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, input domain.RestoreVersionInput) (domain.RestoreVersionResult, error) {
+	if principal.Kind != domain.PrincipalUser || principal.UserID == nil || input.VersionID == uuid.Nil || input.RequestID == uuid.Nil || !validSequence(input.ExpectedSequence) || s.features == nil || s.caps == nil {
+		return domain.RestoreVersionResult{}, domain.ErrInvalidVersionInput
+	}
+	if err := s.features.Require(ctx, principal, ref, domain.FeatureVersionRestore); err != nil {
+		return domain.RestoreVersionResult{}, err
+	}
+	if s.remote == nil {
+		return domain.RestoreVersionResult{}, &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}
+	}
+	payload, err := canonicalRestorePayload(ref, input)
+	if err != nil {
+		return domain.RestoreVersionResult{}, err
+	}
+	digest := sha256.Sum256(payload)
+	grant, err := s.caps.AuthorizeCommand(ctx, principal, domain.SceneMutation{WorkspaceID: ref.WorkspaceID.String(), SceneID: ref.SceneID.String(), Action: domain.ActionVersionRestore, RequestID: input.RequestID.String(), PayloadHash: hex.EncodeToString(digest[:]), ExpectedSequence: input.ExpectedSequence})
+	if err != nil {
+		return domain.RestoreVersionResult{}, err
+	}
+	raw, err := s.remote.Call(ctx, "version-restore", ref, map[string]any{"grant": grant.Token, "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String(), "input": input}, versionResponseBytes)
+	if err != nil {
+		return domain.RestoreVersionResult{}, err
+	}
+	var out domain.RestoreVersionResult
+	if json.Unmarshal(raw, &out) != nil || out.RequestID != input.RequestID || out.PreRestoreVersionID == uuid.Nil || !validSequence(out.Sequence) || out.StateVector == "" {
+		return domain.RestoreVersionResult{}, domain.ErrInvalidVersionInput
+	}
+	return out, nil
 }

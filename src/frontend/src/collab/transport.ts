@@ -6,7 +6,7 @@ import { type OfflineStore, type PendingScope, scopeKey } from './offline-store'
 export type RoomGrant = { token: string; expiresAt: string };
 export type WireSocket = Pick<WebSocket, 'readyState' | 'send' | 'close' | 'addEventListener' | 'binaryType'>;
 export type CollabStatus = 'connecting' | 'synced' | 'pending' | 'offline' | 'readonly' | 'revoked' | 'degraded' | 'legacy';
-export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string; connectionId?: string };
+export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string; connectionId?: string; sequence?: string };
 export type Control = { type: string; requestId: string; payload: Record<string, unknown> };
 export type TransportOptions = { sceneRef: SceneRef; principalId: string; adapter: ExcalidrawAdapter; store: OfflineStore; grant: () => Promise<RoomGrant>; url: string; socket?: (url: string) => WireSocket; onAccessLost?: () => void; onLegacy?: (code: string) => Promise<boolean> };
 const MAX_HISTORY_BYTES = 64 * 1024 * 1024;
@@ -120,11 +120,11 @@ export class CollabTransport {
     const control = JSON.parse(data) as Control, p = control.payload;
     if (!p || typeof control.type !== 'string') throw new Error('Invalid control');
     if (control.type === 'ready') {
-      if (p.workspaceId !== this.options.sceneRef.workspaceId || p.sceneId !== this.options.sceneRef.sceneId || p.principalId !== this.options.principalId || typeof p.documentId !== 'string' || !['view', 'edit'].includes(String(p.access))) throw new Error('Room scope mismatch');
+      if (p.workspaceId !== this.options.sceneRef.workspaceId || p.sceneId !== this.options.sceneRef.sceneId || p.principalId !== this.options.principalId || typeof p.documentId !== 'string' || typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence) || !['view', 'edit'].includes(String(p.access))) throw new Error('Room scope mismatch');
       const scope = { ...this.options.sceneRef, principalId: this.options.principalId, documentId: p.documentId };
       if (this.scope && scopeKey(this.scope) !== scopeKey(scope)) { this.fail(new Error('Document generation changed. Export retained work before continuing.')); this.socket?.close(); return; }
       this.scope = scope; this.admitted = true; this.synced = false; this.chunks = undefined; this.access = String(p.access);
-      this.set({ connectionId: typeof p.connectionId === 'string' ? p.connectionId : undefined, canEdit: false, status: p.access === 'edit' ? 'connecting' : 'readonly' }); return;
+      this.set({ connectionId: typeof p.connectionId === 'string' ? p.connectionId : undefined, canEdit: false, sequence: p.sequence, status: p.access === 'edit' ? 'connecting' : 'readonly' }); return;
     }
     if (control.type === 'sync_chunk') {
       if (!this.scope || p.documentId !== this.scope.documentId) throw new Error('Snapshot generation mismatch');
@@ -150,7 +150,7 @@ export class CollabTransport {
     }
     if (control.type === 'ack') {
       if (!this.scope || !this.synced || p.requestId !== control.requestId || !this.sent.has(control.requestId) || typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence)) return;
-      await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer);
+      await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer); this.set({ sequence: p.sequence });
       await this.updatePending(); this.scheduleFlush(); return;
     }
     const ephemeral = this.ephemeralRequests.delete(control.requestId);
@@ -179,6 +179,7 @@ export class CollabTransport {
   private async updatePending() { if (!this.scope) return; const count = (await this.options.store.pending(this.scope)).length; this.set({ pending: count, recovery: count > 0, ...(this.synced && this.access === 'edit' ? { status: count ? 'pending' : 'synced' } : {}) }); }
   private scheduleFlush() { if (this.flushTimer) return; this.flushTimer = setTimeout(() => { this.flushTimer = undefined; void this.flush().catch(error => this.fail(error)); }, SEND_INTERVAL_MS); }
   async whenDurable() { await this.durable; if (this.durableError) throw this.durableError; }
+  noteCommittedSequence(sequence: string) { if (!/^\d+$/.test(sequence)) throw new Error('Invalid committed sequence'); this.set({ sequence }); }
   async flush() {
     const generation = this.generation;
     if (this.stopped) return;

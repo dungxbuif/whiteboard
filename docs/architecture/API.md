@@ -306,7 +306,7 @@ MCP adds native diagram catalog/schema resources, `generate_diagram`, `patch_ele
 
 `POST /mcp/exports` supports the remote stdio export flow. `GET /mcp/artifacts/{id}` requires the same bearer principal and current independent export scope; the URL alone grants nothing. JSON/SVG/PNG artifacts have a captured decimal revision, five-minute expiry and bounded in-memory cache. Restart/expiry requires re-export. Both endpoints retain Origin checks and audit handling. Public scene/artifact links derive from explicit `WHITEBOARD_PUBLIC_URL`, never an internal API origin. See [renderer operations](../operations/mcp.md) for limits, fonts, process boundaries and release checks.
 
-## V1 immutable scene versions (implemented and wired; release pending)
+## V2 immutable scene versions and durable restore (implemented and wired; release pending)
 
 Authenticated members use the Go API; public scene-session guests are denied
 history. Responses use decimal-string sequences and metadata revisions.
@@ -317,6 +317,8 @@ history. Responses use decimal-string sequences and metadata revisions.
 | POST | `/api/v1/scenes/{id}/versions` | `version:create`; `{requestId,expectedSequence,label?,pinned}`; immutable summary or 409 stale sequence |
 | GET | `/api/v1/scenes/{id}/versions/{versionId}` | `version:read`; immutable canonical content and metadata |
 | PATCH | `/api/v1/scenes/{id}/versions/{versionId}` | `version:create`; `{requestId,expectedRevision,label?,pinned?}`; label/pin only |
+| GET | `/api/v1/scenes/{id}/versions/{versionId}/diff?againstSequence={sequence}` | `version:read`; stable element/app-state semantic diff at one exact sequence |
+| POST | `/api/v1/scenes/{id}/versions/{versionId}/restore` | `version:restore`; `{requestId,expectedSequence}`; receipt plus `preRestoreVersionId` |
 
 Go checks F1 policy and current scene authority, signs the canonical create
 payload, then calls private Node `POST /internal/scenes/{sceneId}/versions`.
@@ -324,6 +326,15 @@ Node verifies the binding under the writer transaction and atomically stores
 the exact document ID, sequence, content/hash, same-scene asset pins, safe event
 and outbox row. Content is limited to 25 MiB. Identical retries return the
 original version; changed retries are rejected.
+
+Diff reads the bounded current Node projection and rejects a raced sequence.
+Restore uses private Node `POST /internal/scenes/{sceneId}/version-restore` with a
+signed hash over workspace, scene, target version, request and sequence. Under
+the writer transaction Node rechecks policy/edit authority, validates content and
+asset pins, stores one pinned pre-restore checkpoint, then commits one Yjs update,
+receipt, mutation audit and safe events. The document UUID and stable element maps
+remain unchanged; later elements become tombstones. A stale sequence writes
+nothing. Identical retry returns the original receipt/checkpoint.
 
 The owner-fenced checkpointer waits five dirty minutes and captures at most once
 per scene per minute. R1 owns the 100 automatic-version retention policy;

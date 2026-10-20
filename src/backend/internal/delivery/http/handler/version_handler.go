@@ -41,6 +41,8 @@ func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Han
 		r.Get("/scenes/{id}/versions", h.List)
 		r.Post("/scenes/{id}/versions", h.Create)
 		r.Get("/scenes/{id}/versions/{versionId}", h.Get)
+		r.Get("/scenes/{id}/versions/{versionId}/diff", h.Diff)
+		r.Post("/scenes/{id}/versions/{versionId}/restore", h.Restore)
 		r.Patch("/scenes/{id}/versions/{versionId}", h.SetMetadata)
 	})
 }
@@ -58,6 +60,7 @@ func (h *VersionHandler) identity(r *http.Request) (domain.Principal, domain.Sce
 		return domain.Principal{}, domain.SceneRef{}, err
 	}
 	principal := domain.UserPrincipal(user)
+	principal.GrantID = "membership:" + workspace.String() + ":" + user.String()
 	principal.CredentialExpiresAt, _ = r.Context().Value(domain.ContextKeyCredentialExpiry).(time.Time)
 	return principal, domain.SceneRef{WorkspaceID: workspace, SceneID: scene}, nil
 }
@@ -109,6 +112,10 @@ type metadataVersionRequest struct {
 	ExpectedRevision string  `json:"expectedRevision"`
 	Label            *string `json:"label,omitempty"`
 	Pinned           *bool   `json:"pinned,omitempty"`
+}
+type restoreVersionRequest struct {
+	RequestID        string `json:"requestId"`
+	ExpectedSequence string `json:"expectedSequence"`
 }
 
 func (h *VersionHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +175,57 @@ func (h *VersionHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := h.versions.Get(r.Context(), p, ref, id)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSONResponse(w, http.StatusOK, out)
+}
+func (h *VersionHandler) Diff(w http.ResponseWriter, r *http.Request) {
+	p, ref, err := h.identity(r)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	id, parseErr := uuid.Parse(chi.URLParam(r, "versionId"))
+	against := r.URL.Query().Get("againstSequence")
+	if parseErr != nil || !validHTTPSequence(against) {
+		writeVersionError(w, r, domain.ErrInvalidVersionInput)
+		return
+	}
+	out, err := h.versions.Diff(r.Context(), p, ref, id, against)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSONResponse(w, http.StatusOK, out)
+}
+func validHTTPSequence(value string) bool {
+	n, err := strconv.ParseUint(value, 10, 63)
+	return err == nil && strconv.FormatUint(n, 10) == value
+}
+func (h *VersionHandler) Restore(w http.ResponseWriter, r *http.Request) {
+	p, ref, err := h.identity(r)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	versionID, versionErr := uuid.Parse(chi.URLParam(r, "versionId"))
+	var body restoreVersionRequest
+	if versionErr != nil || !decodeVersion(w, r, &body) {
+		if versionErr != nil {
+			writeVersionError(w, r, domain.ErrInvalidVersionInput)
+		}
+		return
+	}
+	requestID, requestErr := uuid.Parse(body.RequestID)
+	if requestErr != nil || !validHTTPSequence(body.ExpectedSequence) {
+		writeVersionError(w, r, domain.ErrInvalidVersionInput)
+		return
+	}
+	out, err := h.versions.Restore(r.Context(), p, ref, domain.RestoreVersionInput{VersionID: versionID, RequestID: requestID, ExpectedSequence: body.ExpectedSequence})
 	if err != nil {
 		writeVersionError(w, r, err)
 		return

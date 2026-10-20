@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {EventEmitter} from 'node:events';
 import type {Pool,PoolClient} from 'pg';
 import * as Y from 'yjs';
-import {MAX_FRAME_BYTES,type SceneRef,type MutationReceipt,type SceneContent} from '@collab/contracts';
+import {MAX_FRAME_BYTES,validateSceneContent,type SceneRef,type MutationReceipt,type SceneContent} from '@collab/contracts';
 import {Authority,CollabError,hash,requestID,revision,type Principal,type Decision,type PresentationDecision} from './auth.js';
 import {createSceneDoc,materializeScene,validateCandidate,MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import {parseMutation,commandUpdate} from './commands.js';
@@ -10,6 +10,7 @@ import {promoteLegacy} from './promotion.js';
 import {RateLimit} from './rate-limit.js';
 import {RuntimeOwnership,type OwnerLease} from './ownership.js';
 import {MAX_VERSION_BYTES,canonicalSceneBytes,canonicalVersionPayload,referencedAssetIDs,type CaptureVersionInput,type VersionSummary} from './versions.js';
+import {canonicalRestorePayload,restoreUpdate,type RestoreVersionInput,type RestoreVersionResult} from './version-restore.js';
 export type SceneState={doc:Y.Doc;content:SceneContent;documentId:string;sequence:string;stateVector:string;access:'view'|'edit'};
 type Row={document_id:string;sequence:string;snapshot_sequence:string;snapshot:Buffer;snapshot_at:Date;legacy_content:unknown;legacy_content_version:string};
 function versionSummary(row:Record<string,unknown>):VersionSummary{
@@ -160,6 +161,57 @@ export class Persistence extends EventEmitter {
     return versionSummary(created);
    }finally{doc.destroy();}
   },true);
+ }
+ async restoreVersion(ref:SceneRef,grant:string,input:RestoreVersionInput):Promise<RestoreVersionResult>{
+  requestID(input.requestId);
+  if(!revision(input.expectedSequence)||!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.versionId))throw new CollabError('INVALID_UPDATE','Invalid restore input',400);
+  const payload=canonicalRestorePayload(ref,input),payloadHash=hash(payload);
+  const decision=await this.authority.verifyDecision(grant,{...ref,action:'version:restore',requestId:input.requestId,payloadHash,expectedSequence:input.expectedSequence});
+  if(decision.access!=='edit'||decision.principalType!=='user')throw new CollabError('FORBIDDEN');
+  let accepted:Uint8Array|undefined;
+  const result=await this.transaction(ref,decision,async client=>{
+   if(!await this.versionsEnabled(client,ref))throw new CollabError('FEATURE_DISABLED','Version history is disabled',403);
+   const previous=(await client.query('SELECT * FROM collab_receipts WHERE scene_id=$1 AND request_id=$2',[ref.sceneId,input.requestId])).rows[0];
+   if(previous){
+    if(previous.principal_type!==decision.principalType||previous.principal_id!==decision.principalId||previous.payload_hash!==payloadHash||previous.action!=='version:restore')throw new CollabError('REQUEST_ID_REUSED','Request ID already binds another mutation',409);
+    const recovery=(await client.query('SELECT id FROM scene_versions WHERE scene_id=$1 AND request_id=$2',[ref.sceneId,input.requestId])).rows[0];
+    if(!recovery)throw new CollabError('UNAVAILABLE','Restore recovery checkpoint is missing',503);
+    return {requestId:input.requestId,sequence:String(previous.sequence),stateVector:String(previous.state_vector),preRestoreVersionId:String(recovery.id)};
+   }
+   const {row,doc}=await this.load(client,ref);
+   try{
+    if(row.sequence!==input.expectedSequence)throw new CollabError('CONFLICT','Expected sequence differs from current sequence',409);
+    const targetRow=(await client.query('SELECT document_id,content FROM scene_versions WHERE workspace_id=$1 AND scene_id=$2 AND id=$3',[ref.workspaceId,ref.sceneId,input.versionId])).rows[0];
+    if(!targetRow||targetRow.document_id!==row.document_id)throw new CollabError('VERSION_INCOMPATIBLE','Version does not belong to the current document',409);
+    let target:SceneContent;try{target=validateSceneContent(targetRow.content);}catch{throw new CollabError('VERSION_INCOMPATIBLE','Version content is incompatible',409);}
+    const targetAssets=referencedAssetIDs(target);
+    if(targetAssets.length){
+     const pins=await client.query(`SELECT va.asset_id FROM version_assets va JOIN scene_assets a ON a.id=va.asset_id AND a.workspace_id=va.workspace_id AND a.scene_id=va.scene_id AND a.deleted_at IS NULL
+      WHERE va.version_id=$1 AND va.workspace_id=$2 AND va.scene_id=$3 AND va.asset_id=ANY($4::uuid[]) FOR SHARE OF a`,[input.versionId,ref.workspaceId,ref.sceneId,targetAssets]);
+     if(pins.rowCount!==targetAssets.length)throw new CollabError('VERSION_ASSET_UNAVAILABLE','A version image is unavailable',409);
+    }
+    const current=materializeScene(doc),currentBytes=canonicalSceneBytes(current),currentAssets=referencedAssetIDs(current);
+    if(currentBytes.byteLength>MAX_VERSION_BYTES)throw new CollabError('VERSION_TOO_LARGE','Recovery version exceeds 25 MiB',413);
+    if(currentAssets.length){const assets=await client.query('SELECT id FROM scene_assets WHERE workspace_id=$1 AND scene_id=$2 AND id=ANY($3::uuid[]) AND deleted_at IS NULL FOR SHARE',[ref.workspaceId,ref.sceneId,currentAssets]);if(assets.rowCount!==currentAssets.length)throw new CollabError('VERSION_ASSET_UNAVAILABLE','A recovery image is unavailable',409);}
+    let validated;try{validated=await validateCandidate(doc,restoreUpdate(doc,target));}catch(error){if(error instanceof SnapshotHistoryLimitError)throw error;throw new CollabError('INVALID_UPDATE',error instanceof Error?error.message:'Invalid restore',400);}
+    Y.applyUpdate(doc,validated.update);if(Y.encodeStateAsUpdate(doc).length>MAX_SNAPSHOT_BYTES)throw new SnapshotHistoryLimitError();
+    const preRestoreVersionId=randomUUID();
+    await client.query(`INSERT INTO scene_versions(id,workspace_id,scene_id,document_id,source_sequence,content,content_bytes,content_hash,byte_size,label,pinned,kind,creator_kind,creator_id,request_id,payload_hash)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'Before restore',true,'manual',$10,$11,$12,$13)`,[preRestoreVersionId,ref.workspaceId,ref.sceneId,row.document_id,row.sequence,JSON.stringify(current),Buffer.from(currentBytes),hash(currentBytes),currentBytes.byteLength,decision.principalType,decision.principalId,input.requestId,payloadHash]);
+    for(const assetID of currentAssets)await client.query('INSERT INTO version_assets(version_id,workspace_id,scene_id,asset_id) VALUES($1,$2,$3,$4)',[preRestoreVersionId,ref.workspaceId,ref.sceneId,assetID]);
+    this.fresh(decision);const sequence=(BigInt(row.sequence)+1n).toString(),stateVector=Buffer.from(validated.stateVector).toString('base64');
+    await client.query('INSERT INTO collab_updates(scene_id,sequence,update_bytes) VALUES($1,$2,$3)',[ref.sceneId,sequence,Buffer.from(validated.update)]);
+    await client.query('INSERT INTO collab_receipts(scene_id,request_id,principal_type,principal_id,payload_hash,action,sequence,state_vector) VALUES($1,$2,$3,$4,$5,$6,$7,$8)',[ref.sceneId,input.requestId,decision.principalType,decision.principalId,payloadHash,'version:restore',sequence,stateVector]);
+    await client.query('INSERT INTO collab_mutation_audit(scene_id,request_id,workspace_id,principal_type,principal_id,sequence,payload_hash,action,acl_version) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)',[ref.sceneId,input.requestId,ref.workspaceId,decision.principalType,decision.principalId,sequence,payloadHash,'version:restore',decision.aclVersion]);
+    await client.query('UPDATE collab_documents SET sequence=$2 WHERE scene_id=$1',[ref.sceneId,sequence]);
+    const recoveryEvent=(await client.query("INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key) VALUES($1,$2,$3,$4,'version.created',$5,$6,'scene_version',$5) RETURNING id",[ref.workspaceId,ref.sceneId,decision.principalType,decision.principalId,preRestoreVersionId,JSON.stringify({versionId:preRestoreVersionId,sequence:row.sequence,kind:'manual',pinned:true,recovery:true})])).rows[0];
+    const restoreEvent=(await client.query("INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key) VALUES($1,$2,$3,$4,'version.restored',$5,$6,'scene_version_restore',$7) RETURNING id",[ref.workspaceId,ref.sceneId,decision.principalType,decision.principalId,input.versionId,JSON.stringify({versionId:input.versionId,preRestoreVersionId,sequence,requestId:input.requestId}),input.requestId])).rows[0];
+    for(const event of [recoveryEvent,restoreEvent])await client.query('INSERT INTO workspace_event_outbox(event_id,workspace_id,scene_id) VALUES($1,$2,$3)',[event.id,ref.workspaceId,ref.sceneId]);
+    accepted=validated.update;return {requestId:input.requestId,sequence,stateVector,preRestoreVersionId};
+   }finally{doc.destroy();}
+  });
+  if(accepted)this.emit('committed',{ref,receipt:result,update:accepted});
+  return result;
  }
  async listDueVersionScenes(limit=64,after?:SceneRef):Promise<Array<{ref:SceneRef;sequence:string}>>{
   this.ownership?.assert();

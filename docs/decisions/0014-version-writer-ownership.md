@@ -1,6 +1,6 @@
 # ADR 0014: Scene version writer ownership
 
-Status: accepted for V1 implementation.
+Status: accepted for V1 and V2 implementation.
 
 Node remains the sole writer of durable scene content and product checkpoints.
 Go owns authentication, feature policy, scene authorization, version reads and
@@ -30,6 +30,17 @@ versions and must respect asset pins. Manual and pinned versions remain
 indefinite by default. Compaction does not modify product versions.
 Disabled workspaces are excluded from durable backlog scans; the default-false
 policy creates no automatic versions or events.
+
+V2 diff remains a read through Go policy/scene authority and the bounded current
+Node projection. V2 restore is a distinct `version:restore` capability. Node
+verifies its exact workspace, scene, target version, request ID, payload hash and
+expected sequence, then rechecks edit authority and feature policy inside the
+writer transaction. It retains the document generation, applies semantic field
+changes to stable Yjs element maps, tombstones later additions, and validates the
+result before persistence. The pinned pre-restore checkpoint, asset pins, update,
+receipt, mutation audit and restore events are atomic. Stale input creates no
+checkpoint; an identical retry creates no second checkpoint. Browser ACK clears
+local undo only. Durable offline queues remain available as later writes.
 
 Verification uses disposable PostgreSQL for exact sequence/hash, immutable
 retry, atomic asset pin failure and compaction survival. Go tests cover feature

@@ -29,13 +29,14 @@ it('collab reload replays retained updates only after synchronization and matchi
   await transport.start(); socket.dispatchEvent(new Event('open')); await tick();
   expect(socket.sent.filter(item => typeof item !== 'string')).toHaveLength(0);
   synced(socket, server); await tick();
+  expect(transport.state.sequence).toBe('1');
   expect(adapter.content().elements.map(e => e.id)).toContain('offline');
   const frames = socket.sent.filter((item): item is Uint8Array => typeof item !== 'string'); expect(frames).toHaveLength(1);
   expect(decodeFrame(frames[0]).updateId).toBe('durable-request');
   socket.receive({ type: 'ack', requestId: 'other', payload: { requestId: 'other', sequence: '2', stateVector: '' } }); await tick();
   expect(await store.pending(scope)).toHaveLength(1);
   socket.receive({ type: 'ack', requestId: 'durable-request', payload: { requestId: 'durable-request', sequence: '2', stateVector: '' } }); await tick();
-  expect(await store.pending(scope)).toHaveLength(0); transport.stop();
+  expect(await store.pending(scope)).toHaveLength(0); expect(transport.state.sequence).toBe('2'); transport.stop();
 });
 it.each(['view', 'wrong-generation'])('collab %s admission retains recovery without replay writes', async mode => {
   const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());

@@ -75,7 +75,7 @@ export async function startServer(store:Persistence,config:ServerConfig){
  const internalServer=createServer(async(request,response)=>{
   let requestId='unknown';
   try{
-   if(request.method!=='POST'||(!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection|versions)$/.test(request.url??'')&&request.url!=='/internal/presentations/resolve')){response.writeHead(404).end();return;}
+   if(request.method!=='POST'||(!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection|versions|version-restore)$/.test(request.url??'')&&request.url!=='/internal/presentations/resolve')){response.writeHead(404).end();return;}
    ownership.assert();
    internalRates.take('ip:'+request.socket.remoteAddress,600);
    if(!secretEquals(request.headers.authorization??'','Bearer '+config.internalSecret))throw new CollabError('UNAUTHENTICATED','Invalid service credential',401);
@@ -88,6 +88,12 @@ export async function startServer(store:Persistence,config:ServerConfig){
     const allowed=['grant','workspaceId','sceneId','input'];
     if(!envelope||Object.keys(envelope).some(k=>!allowed.includes(k))||typeof envelope.grant!=='string'||typeof envelope.workspaceId!=='string'||typeof envelope.sceneId!=='string'||request.url!==`/internal/scenes/${envelope.sceneId}/versions`||typeof envelope.input!=='object'||envelope.input===null)throw new CollabError('INVALID_UPDATE','Invalid version envelope',400);
     const result=await store.captureVersion({workspaceId:envelope.workspaceId,sceneId:envelope.sceneId},envelope.grant,envelope.input as import('./versions.js').CaptureVersionInput);
+    response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify(result));return;
+   }
+   if(operation==='version-restore'){
+    const allowed=['grant','workspaceId','sceneId','input'];
+    if(!envelope||Object.keys(envelope).some(k=>!allowed.includes(k))||typeof envelope.grant!=='string'||typeof envelope.workspaceId!=='string'||typeof envelope.sceneId!=='string'||request.url!==`/internal/scenes/${envelope.sceneId}/version-restore`||typeof envelope.input!=='object'||envelope.input===null)throw new CollabError('INVALID_UPDATE','Invalid restore envelope',400);
+    const result=await store.restoreVersion({workspaceId:envelope.workspaceId,sceneId:envelope.sceneId},envelope.grant,envelope.input as import('./version-restore.js').RestoreVersionInput);
     response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify(result));return;
    }
    if(operation!=='commands'){

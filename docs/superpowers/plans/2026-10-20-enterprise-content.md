@@ -69,21 +69,21 @@ returns `{addedIds,removedIds,changedIds,changedAppStateFields}`;
 {preRestoreVersionId:string}>`. Mutation hash binds all fields and scene/version.
 Restore is a separate version:restore action, not a generic agent patch tool.
 
-- [ ] Add `restoreRetainsDocumentAndElementMaps`, `restoreTombstonesLaterAdditions`,
+- [x] Add `restoreRetainsDocumentAndElementMaps`, `restoreTombstonesLaterAdditions`,
   `restoreRestoresBindingsOrderAndImages`, `restoreRetryCreatesOneCheckpoint`,
   `offlineReplayAfterRestoreIsALaterEdit`, `staleRestoreCommitsNothing`.
   Assert documentId unchanged, sequence increments, receipts remain, 409 before
   any pre-restore checkpoint on stale input, and validation worker accepts output.
-- [ ] Run focused tests (RED). Implement current-doc clone/semantic field writes:
+- [x] Run focused tests (RED). Implement current-doc clone/semantic field writes:
   clear optional fields absent in target; revive/tombstone stable maps; preserve
   immutable types; restore frame/order/files with reference validation. Reject
   incompatible/missing IDs/types/assets atomically. Capture pre-restore pinned
   version and restore update+receipt+event in one transaction before ACK.
-- [ ] Build overlay history browser UI with label/pin/filter, diff preview,
+- [x] Build overlay history browser UI with label/pin/filter, diff preview,
   explicit restore confirmation and conflict retry; warn pending local/offline
   edits can replay later. Clear only local undo entries after acknowledged restore,
   preserving queued durable edits and exportable recovery.
-- [ ] Run real-stack image/bindings/multiple actors/offline/revoke/restore, then
+- [x] Run real-stack image/bindings/multiple actors/offline/revoke/restore, then
   frontend build; reconcile recovery/API/user/public guides and commit
   `feat(history): restore versions through the durable writer`.
 

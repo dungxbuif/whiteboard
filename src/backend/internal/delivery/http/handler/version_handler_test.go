@@ -35,7 +35,7 @@ func TestVersionHandlerPropagatesLoginCredentialExpiry(t *testing.T) {
 	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
 	response := httptest.NewRecorder()
 	routes.ServeHTTP(response, request)
-	if response.Code != http.StatusCreated || !service.principal.CredentialExpiresAt.Equal(expires) {
+	if response.Code != http.StatusCreated || !service.principal.CredentialExpiresAt.Equal(expires) || service.principal.GrantID != "membership:"+workspace.String()+":"+user.String() {
 		t.Fatalf("status=%d expiry=%v want=%v body=%s", response.Code, service.principal.CredentialExpiresAt, expires, response.Body.String())
 	}
 }
@@ -72,6 +72,14 @@ func (s *versionServiceHandlerStub) SetMetadata(_ domain.Context, p domain.Princ
 	s.called, s.principal = "patch", p
 	return domain.SceneVersion{ID: id, DocumentID: uuid.New(), Sequence: "1", MetadataRevision: 2}, nil
 }
+func (s *versionServiceHandlerStub) Diff(_ domain.Context, p domain.Principal, _ domain.SceneRef, _ uuid.UUID, _ string) (domain.SceneDiff, error) {
+	s.called, s.principal = "diff", p
+	return domain.SceneDiff{AddedIDs: []string{"new"}, RemovedIDs: []string{}, ChangedIDs: []string{}, ChangedAppStateFields: []string{}}, s.err
+}
+func (s *versionServiceHandlerStub) Restore(_ domain.Context, p domain.Principal, _ domain.SceneRef, input domain.RestoreVersionInput) (domain.RestoreVersionResult, error) {
+	s.called, s.principal = "restore", p
+	return domain.RestoreVersionResult{RequestID: input.RequestID, Sequence: "2", StateVector: "AA==", PreRestoreVersionID: uuid.New()}, s.err
+}
 
 type versionAccessHandlerStub struct{ workspace, scene uuid.UUID }
 
@@ -95,6 +103,8 @@ func TestVersionHandlerRoutesRequireLoginPrincipal(t *testing.T) {
 		{"create", http.MethodPost, "/scenes/scene/versions", `{"requestId":"` + uuid.NewString() + `","expectedSequence":"1","pinned":false}`, "create", 201},
 		{"get", http.MethodGet, "/scenes/scene/versions/" + version.String(), "", "get", 200},
 		{"patch", http.MethodPatch, "/scenes/scene/versions/" + version.String(), `{"requestId":"` + uuid.NewString() + `","expectedRevision":"1","pinned":true}`, "patch", 200},
+		{"diff", http.MethodGet, "/scenes/scene/versions/" + version.String() + "/diff?againstSequence=1", "", "diff", 200},
+		{"restore", http.MethodPost, "/scenes/scene/versions/" + version.String() + "/restore", `{"requestId":"` + uuid.NewString() + `","expectedSequence":"1"}`, "restore", 200},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

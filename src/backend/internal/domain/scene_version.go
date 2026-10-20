@@ -52,6 +52,26 @@ type VersionPage struct {
 	NextCursor string         `json:"nextCursor,omitempty"`
 }
 
+type SceneDiff struct {
+	AddedIDs              []string `json:"addedIds"`
+	RemovedIDs            []string `json:"removedIds"`
+	ChangedIDs            []string `json:"changedIds"`
+	ChangedAppStateFields []string `json:"changedAppStateFields"`
+}
+
+type RestoreVersionInput struct {
+	VersionID        uuid.UUID `json:"versionId"`
+	RequestID        uuid.UUID `json:"requestId"`
+	ExpectedSequence string    `json:"expectedSequence"`
+}
+
+type RestoreVersionResult struct {
+	RequestID           uuid.UUID `json:"requestId"`
+	Sequence            string    `json:"sequence"`
+	StateVector         string    `json:"stateVector"`
+	PreRestoreVersionID uuid.UUID `json:"preRestoreVersionId"`
+}
+
 type SceneVersionRepository interface {
 	ListVersions(Context, SceneRef, *uuid.UUID, int) ([]SceneVersion, error)
 	Version(Context, SceneRef, uuid.UUID) (SceneVersion, error)
@@ -63,4 +83,6 @@ type SceneVersionUsecase interface {
 	List(Context, Principal, SceneRef, string, int) (VersionPage, error)
 	Get(Context, Principal, SceneRef, uuid.UUID) (SceneVersion, error)
 	SetMetadata(Context, Principal, SceneRef, uuid.UUID, VersionMetadataInput) (SceneVersion, error)
+	Diff(Context, Principal, SceneRef, uuid.UUID, string) (SceneDiff, error)
+	Restore(Context, Principal, SceneRef, RestoreVersionInput) (RestoreVersionResult, error)
 }

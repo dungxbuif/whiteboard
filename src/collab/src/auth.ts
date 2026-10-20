@@ -26,7 +26,7 @@ export class Authority {
    }else if(p.principalType==='agent'){
     if(!decision||!uuid(p.grantId)||p.principalId!=='agent:'+p.grantId||p.grantVersion!==undefined||!['scene:command','scene:read','scene:export'].includes(String(p.action)))throw new Error();
    }else throw new Error();
-   if(decision){if(!['scene:update','scene:command','scene:read','scene:export','version:create'].includes(String(p.action))||typeof p.payloadHash!=='string'||!/^[a-f0-9]{64}$/.test(p.payloadHash))throw new Error();requestID(p.requestId);if(p.expectedSequence!==undefined&&!revision(p.expectedSequence))throw new Error();}
+   if(decision){if(!['scene:update','scene:command','scene:read','scene:export','version:create','version:restore'].includes(String(p.action))||typeof p.payloadHash!=='string'||!/^[a-f0-9]{64}$/.test(p.payloadHash))throw new Error();requestID(p.requestId);if(p.expectedSequence!==undefined&&!revision(p.expectedSequence))throw new Error();}
    return p as Decision;
   }catch {throw new CollabError('UNAUTHENTICATED','Invalid or expired credential',401);}
  }

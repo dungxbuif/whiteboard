@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { Activity, Bot, MessageCircle } from 'lucide-react';
+import { Activity, Bot, History, MessageCircle } from 'lucide-react';
 import '@excalidraw/excalidraw/index.css';
 import type { AssetReference, NativeElement, SceneContent } from '@collab/contracts';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
@@ -27,6 +27,7 @@ import { CommentAnchor } from '@/components/comments/comment-anchor';
 import { ActivityPanel } from '@/components/activity/activity-panel';
 import type { CommentThread } from '@/lib/comment-api';
 import useWorkspaceStore from '@/store/workspace-store';
+import { HistoryPanel } from '@/components/history/history-panel';
 
 type CanvasFile = { id: string; dataURL?: string; mimeType: string; created: number; assetId?: string };
 const appKeys = ['viewBackgroundColor', 'gridSize', 'gridStep', 'gridModeEnabled', 'theme'] as const;
@@ -300,6 +301,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
           <Button className="min-h-11" onClick={togglePresentation} type="button">{isPresenting ? 'Exit presentation' : 'Present'}</Button>
           {!isPresenting ? <Button aria-label="Open comments" className="min-h-11" onClick={(event) => panels.open('comments', event.currentTarget)} size="icon" type="button" variant="outline"><MessageCircle aria-hidden="true" size={16} /></Button> : null}
           {!isPresenting && collab.principal.current.kind === 'user' ? <Button aria-label="Open activity" className="min-h-11" onClick={(event) => panels.open('activity', event.currentTarget)} size="icon" type="button" variant="outline"><Activity aria-hidden="true" size={16} /></Button> : null}
+          {!isPresenting && collab.principal.current.kind === 'user' && state.status !== 'legacy' ? <Button aria-label="Open history" className="min-h-11" onClick={(event) => panels.open('history', event.currentTarget)} size="icon" type="button" variant="outline"><History aria-hidden="true" size={16} /></Button> : null}
           {!isPresenting && canEdit ? <Button aria-label="Open AI assistant" className="min-h-11" onClick={(event) => panels.open('ai', event.currentTarget)} size="icon" type="button" variant="outline"><Bot aria-hidden="true" size={16} /></Button> : null}
         </SceneControlCluster>}
         viewModeEnabled={!canEdit || isPresenting}
@@ -316,6 +318,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
       <ScenePanel id="ai" title="AI assistant"><AICommandPanel embedded scene={renderedContent} onApplyDiagram={applyDiagram} /></ScenePanel>
       <ScenePanel id="comments" title="Comments"><CommentPanel anchor={commentAnchor} initialThreadId={initialThreadId} onThreadsChange={setCommentThreads} principal={collab.principal.current.kind === 'public' ? { kind: 'public', id: collab.principal.current.id, token: collab.principal.current.session.token } : { kind: 'user', id: collab.principal.current.id, owner: workspaceRole === 'owner', canResolve: canEdit }} registerRefetch={collab.registerFeatureRefetch} sceneRef={sceneRef} /></ScenePanel>
       {collab.principal.current.kind === 'user' ? <ScenePanel id="activity" title="Activity"><ActivityPanel registerRefetch={collab.registerFeatureRefetch} sceneId={sceneRef.sceneId} workspaceId={sceneRef.workspaceId} /></ScenePanel> : null}
+      {collab.principal.current.kind === 'user' && state.status !== 'legacy' ? <ScenePanel id="history" title="Version history"><HistoryPanel canRestore={canEdit} currentSequence={state.sequence ?? '0'} onRestored={result => { transport.noteCommittedSequence(result.sequence); api?.history.clear(); void collab.refreshFeatures(); }} registerRefetch={collab.registerFeatureRefetch} sceneRef={sceneRef} /></ScenePanel> : null}
     </section>
   </main>;
 }

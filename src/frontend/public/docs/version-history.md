@@ -25,4 +25,24 @@ Content is at most 25 MiB. File assets are pinned atomically from the same scene
 Compaction cannot alter a version. Automatic checkpoints wait five dirty minutes
 and are at least one minute apart. The default-false `versionsEnabled` policy
 creates no automatic version or event, and disabled workspaces are omitted from
-the durable backlog. Diff and restore are reserved for V2.
+the durable backlog.
+
+Diff a selected version against an exact current sequence with
+`GET /api/v1/scenes/{sceneId}/versions/{versionId}/diff?againstSequence=42`.
+The response is `{addedIds,removedIds,changedIds,changedAppStateFields}`. A
+sequence race returns `409 REVISION_CONFLICT`.
+
+Restore at `POST /api/v1/scenes/{sceneId}/versions/{versionId}/restore` with:
+
+```json
+{"requestId":"UUID","expectedSequence":"42"}
+```
+
+The result is `{requestId,sequence,stateVector,preRestoreVersionId}`. The signed
+`version:restore` mutation binds workspace, scene, target version, request and
+sequence. Node rechecks edit authority and policy under the writer lock. Success
+keeps `documentId`, creates one pinned pre-restore version, then atomically commits
+one validated Yjs update, receipt, audit row and safe events. Stale input commits
+nothing. Identical retry returns the same receipt and recovery checkpoint.
+`VERSION_INCOMPATIBLE` rejects another document generation. Missing image pins
+reject the whole restore. Queued offline updates remain and may replay later.

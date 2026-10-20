@@ -175,3 +175,39 @@ func TestVersionMetadataEmitsSafeAtomicEvent(t *testing.T) {
 		t.Fatalf("event=%+v", events.input)
 	}
 }
+
+func TestVersionRestoreBindsTargetSequenceAndPayload(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	principal := domain.UserPrincipal(uuid.New())
+	requestID, versionID, recoveryID := uuid.New(), uuid.New(), uuid.New()
+	features, caps := &versionFeatureStub{}, &versionCapsStub{}
+	remote := &versionRemoteStub{response: json.RawMessage(`{"requestId":"` + requestID.String() + `","sequence":"43","stateVector":"AA==","preRestoreVersionId":"` + recoveryID.String() + `"}`)}
+	service := NewVersionService(&versionRepoStub{}, features, caps, remote)
+	result, err := service.Restore(context.Background(), principal, ref, domain.RestoreVersionInput{VersionID: versionID, RequestID: requestID, ExpectedSequence: "42"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.PreRestoreVersionID != recoveryID || features.action != domain.FeatureVersionRestore || caps.mutation.Action != domain.ActionVersionRestore || caps.mutation.ExpectedSequence != "42" || remote.operation != "version-restore" {
+		t.Fatalf("restore=%+v feature=%s mutation=%+v operation=%s", result, features.action, caps.mutation, remote.operation)
+	}
+	want := `{"workspaceId":"` + ref.WorkspaceID.String() + `","sceneId":"` + ref.SceneID.String() + `","versionId":"` + versionID.String() + `","requestId":"` + requestID.String() + `","expectedSequence":"42"}`
+	digest := sha256.Sum256([]byte(want))
+	if caps.mutation.PayloadHash != hex.EncodeToString(digest[:]) {
+		t.Fatalf("hash=%s want payload=%s", caps.mutation.PayloadHash, want)
+	}
+}
+
+func TestVersionDiffUsesCurrentProjectionAtExactSequence(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	versionID := uuid.New()
+	repo := &versionRepoStub{version: domain.SceneVersion{ID: versionID, Content: json.RawMessage(`{"elements":[{"id":"old","type":"rectangle","x":0}],"appState":{"theme":"light"},"files":{}}`)}}
+	remote := &versionRemoteStub{response: json.RawMessage(`{"sequence":"8","content":{"elements":[{"id":"old","type":"rectangle","x":1},{"id":"new","type":"ellipse"}],"appState":{"theme":"dark"},"files":{}}}`)}
+	service := NewVersionService(repo, &versionFeatureStub{}, &versionCapsStub{}, remote)
+	diff, err := service.Diff(context.Background(), domain.UserPrincipal(uuid.New()), ref, versionID, "8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if remote.operation != "projection" || len(diff.AddedIDs) != 1 || diff.AddedIDs[0] != "new" || len(diff.ChangedIDs) != 1 || diff.ChangedIDs[0] != "old" || len(diff.ChangedAppStateFields) != 1 || diff.ChangedAppStateFields[0] != "theme" {
+		t.Fatalf("operation=%s diff=%+v", remote.operation, diff)
+	}
+}
