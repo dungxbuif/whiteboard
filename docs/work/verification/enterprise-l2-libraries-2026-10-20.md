@@ -1,7 +1,8 @@
 # L2 native library verification
 
-Status: implementation and root integration complete in `dc9f3a1`. Production
-provider/storage and public browser UAT remain release gates.
+Status: implementation and root integration complete in `dc9f3a1`; the real-stack
+bridge whitelist and typed error mapping landed in the current integration
+commit. Production provider/storage and public browser UAT remain release gates.
 
 Required proof:
 
@@ -29,5 +30,6 @@ Focused evidence on 2026-10-20:
 - diagram-kit and collaboration TypeScript builds: passed;
 - frontend production build: passed.
 
-The browser real-stack case is compiled and remains gated on integration wiring.
-Fixture evidence is not public storage UAT.
+The browser real-stack library case passed after the Go-to-collab
+`library-insertions` whitelist and owner grant binding were wired. Fixture
+evidence is not public storage UAT.

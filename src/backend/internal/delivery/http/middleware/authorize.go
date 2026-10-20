@@ -17,6 +17,10 @@ import (
 
 func WriteAccessError(w http.ResponseWriter, r *http.Request, err error) {
 	status, code, message := http.StatusServiceUnavailable, "AUTHORITY_UNAVAILABLE", "Authorization unavailable"
+	var collabErr *domain.AgentCollabError
+	if errors.As(err, &collabErr) && collabErr.Status >= 400 && collabErr.Status <= 599 {
+		status, code, message = collabErr.Status, collabErr.Code, "Collaboration operation failed"
+	}
 	if errors.Is(err, domain.ErrInaccessible) {
 		status, code, message = http.StatusNotFound, "NOT_FOUND", "Resource not found"
 	}

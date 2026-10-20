@@ -35,6 +35,10 @@ reaction per second; reactions disappear after three seconds. Removing a
 spotlighted person also clears the spotlight. The current host remains the only
 authority when simultaneous host or frame changes occur.
 
+The host sees incoming reactions in the same floating canvas overlay. Audience
+voice controls remain available after admission, including when the presentation
+canvas is view-only.
+
 A live session ends when the host leaves or goes offline, an administrator
 disables live presentation for that scene, or the collaboration service
 restarts. The host can then start a new session and copy a new invite. Up to

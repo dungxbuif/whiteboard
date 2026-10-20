@@ -19,6 +19,9 @@ an old discussion to a different element automatically.
 View-link and edit-link guests may comment only when the link owner enabled
 comments. Guest permission never grants drawing access. Guests can reply and
 see moderation results, but they do not receive a private workspace inbox.
+View links that allow comments assign the fallback display name **Guest** when
+the visitor does not enter one, so an anonymous read-only visitor can still
+start or reply to a discussion.
 
 Authors can redact their own messages. Workspace owners can redact any message;
 members with edit access to the current scene can resolve or reopen threads.

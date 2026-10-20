@@ -2,6 +2,9 @@
 
 Status: implementation and local guarded verification complete. Root router and
 composition wiring landed in `dc9f3a1`; real-provider UAT remains a release gate.
+The real-stack harness now supplies an ephemeral 32-byte SSO encryption key and
+exact loopback callback URL so the required production configuration is exercised
+without persisting test credentials.
 
 Independent review remediation covers group-source cleanup, explicit manual
 membership provenance for owner and invitation mutations, adopted-role

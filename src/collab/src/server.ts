@@ -75,7 +75,7 @@ export async function startServer(store:Persistence,config:ServerConfig){
  const internalServer=createServer(async(request,response)=>{
   let requestId='unknown';
   try{
-   if(request.method!=='POST'||(!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection|versions|version-restore)$/.test(request.url??'')&&request.url!=='/internal/presentations/resolve')){response.writeHead(404).end();return;}
+   if(request.method!=='POST'||(!/^\/internal\/scenes\/[0-9a-f-]{36}\/(commands|projection|activity|export-projection|versions|version-restore|library-insertions)$/.test(request.url??'')&&request.url!=='/internal/presentations/resolve')){response.writeHead(404).end();return;}
    ownership.assert();
    internalRates.take('ip:'+request.socket.remoteAddress,600);
    if(!secretEquals(request.headers.authorization??'','Bearer '+config.internalSecret))throw new CollabError('UNAUTHENTICATED','Invalid service credential',401);

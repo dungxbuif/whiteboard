@@ -72,6 +72,23 @@ func TestGuestViewCommentWithoutEdit(t *testing.T) {
 	if err != nil || thread.Messages[0].Body != "Guest note" {
 		t.Fatalf("thread=%+v err=%v", thread, err)
 	}
+	if _, err = f.service.Reply(context.Background(), guest.Principal, f.ref, thread.ID, domain.ReplyInput{RequestID: uuid.New(), Body: "Guest reply"}); err != nil {
+		t.Fatalf("guest reply rejected: %v", err)
+	}
+	anonymousSession, err := f.rooms.ExchangePublicSession(context.Background(), link.Token, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	anonymous, err := f.rooms.ParseSceneSession(anonymousSession.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if anonymous.Principal.DisplayName != "Guest" {
+		t.Fatalf("anonymous comment session name=%q", anonymous.Principal.DisplayName)
+	}
+	if _, err = f.service.Reply(context.Background(), anonymous.Principal, f.ref, thread.ID, domain.ReplyInput{RequestID: uuid.New(), Body: "Anonymous guest reply"}); err != nil {
+		t.Fatalf("anonymous guest reply rejected: %v", err)
+	}
 
 	blocked, err := f.links.Create(context.Background(), f.owner, f.ref, domain.CreateShareLink{Access: domain.AccessEdit})
 	if err != nil {

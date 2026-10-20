@@ -55,7 +55,10 @@ func decodeLibraryRequest(w http.ResponseWriter, r *http.Request, value any) err
 }
 func writeLibraryError(w http.ResponseWriter, r *http.Request, err error) {
 	code, message, status := "INVALID_LIBRARY", "Invalid library request", http.StatusBadRequest
+	var remote *domain.AgentCollabError
 	switch {
+	case errors.As(err, &remote):
+		code, status, message = remote.Code, remote.Status, "Library collaboration operation failed"
 	case errors.Is(err, domain.ErrInvalidLibrary):
 	case errors.Is(err, domain.ErrRevisionConflict):
 		code, message, status = "REVISION_CONFLICT", "Library changed; reload and retry", http.StatusConflict
@@ -74,6 +77,7 @@ func (h *LibraryHandler) identity(r *http.Request) (domain.Principal, uuid.UUID,
 	}
 	workspace, err := h.access.ResolveWorkspaceID(r.Context(), chi.URLParam(r, "id"))
 	principal := domain.UserPrincipal(user)
+	principal.GrantID = "membership:" + workspace.String() + ":" + user.String()
 	principal.CredentialExpiresAt, _ = r.Context().Value(domain.ContextKeyCredentialExpiry).(time.Time)
 	return principal, workspace, err
 }

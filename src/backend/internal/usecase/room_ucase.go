@@ -80,6 +80,9 @@ func (s *RoomService) ExchangePublicSession(ctx domain.Context, token, password,
 	if e != nil {
 		return result, e
 	}
+	if name == "" && link.Access == domain.AccessView && link.AllowComments {
+		name = "Guest"
+	}
 	// Password work precedes authority locking; recheck its hash inside the transaction.
 	passwordHash := link.PasswordHash
 	if passwordHash != "" && bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil {
