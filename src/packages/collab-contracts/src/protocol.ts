@@ -30,3 +30,11 @@ export function decodeFrame(bytes: Uint8Array): Frame {
   if(canonical.length!==idLength||canonical.some((byte,index)=>byte!==idBytes[index]))throw new Error('Invalid noncanonical update ID');
   return {channel:bytes[1] as Frame['channel'],updateId,payload:bytes.slice(FRAME_HEADER_BYTES+idLength)};
 }
+
+export type FeatureChanged={eventCursor:string};
+export function parseFeatureChanged(value:unknown):FeatureChanged {
+  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>key!=='eventCursor'))throw new Error('Invalid feature invalidation');
+  const cursor=(value as {eventCursor?:unknown}).eventCursor;
+  if(typeof cursor!=='string'||!/^[1-9]\d*$/.test(cursor))throw new Error('Invalid feature cursor');
+  return {eventCursor:cursor};
+}

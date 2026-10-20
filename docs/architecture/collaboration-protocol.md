@@ -1,5 +1,16 @@
 # Collaboration protocol (v2, deployed)
 
+## Enterprise metadata invalidation
+
+The existing authenticated socket carries a cursor-only
+`feature_changed { eventCursor: string }` control after the runtime has checked
+the recipient's current authority. The cursor is a positive decimal string and
+the strict payload contains no other fields. It is an invalidation hint, so the
+browser refetches an authorized activity or feature page and also refetches
+after reconnect. No workspace event content is transported on the realtime
+channel. Schema, projection and privacy rules are defined in
+[Enterprise workspace events](enterprise-events.md).
+
 Go owns access decisions; the custom Node service owns Yjs content. These
 contracts describe the deployed VM100 runtime; the release checklist records
 the remaining restart/TURN/denial/roles acceptance boundaries.

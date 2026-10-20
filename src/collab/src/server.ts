@@ -10,6 +10,7 @@ import {Rooms} from './rooms.js';
 import {Compactor} from './compaction.js';
 import {RateLimit} from './rate-limit.js';
 import {RuntimeOwnership,OWNER_KEY,HANDOFF_KEY} from './ownership.js';
+import {ActivityProjector,PostgresActivityProjectionStore} from './activity-projector.js';
 export type ServerConfig={host:string;port:number;internalHost:string;internalPort:number;internalSecret:string;allowedOrigins:string[];updatesPerMinute:number;maxBufferedBytes:number};
 const secretEquals=(a:string,b:string)=>Buffer.byteLength(a)===Buffer.byteLength(b)&&timingSafeEqual(Buffer.from(a),Buffer.from(b));
 async function body(request:IncomingMessage):Promise<unknown>{const chunks:Buffer[]=[];let size=0;for await(const chunk of request){size+=chunk.length;if(size>1500000)throw new CollabError('INVALID_UPDATE','Body too large',413);chunks.push(chunk);}try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new CollabError('INVALID_UPDATE','Invalid JSON',400);}}
@@ -42,10 +43,19 @@ export async function startServer(store:Persistence,config:ServerConfig){
    const lease=(await client.query('SELECT pg_backend_pid() AS pid,backend_start::text AS "backendStart" FROM pg_stat_activity WHERE pid=pg_backend_pid()')).rows[0];
    await client.query('SELECT document_id,legacy_content,legacy_content_version,snapshot_sequence FROM collab_documents LIMIT 0');
    await client.query(`SELECT pg_advisory_unlock(${HANDOFF_KEY})`);
-   await client.query('LISTEN acl_changed');
+   // Keep acl_changed as the final statement: ownership probes identify this
+   // dedicated connection by its current query while both channels stay live.
+   await client.query('LISTEN feature_changed');await client.query('LISTEN acl_changed');
    if(closed||listener!==client)throw new CollabError('UNAVAILABLE','Ownership acquisition interrupted',503,true);
    ownership.activate(lease);store.bindRuntimeOwnership(ownership);
-   client.on('notification',message=>{try{const value=JSON.parse(message.payload??'');if(typeof value.workspaceId!=='string')throw new Error();rooms.invalidateWorkspace(value.workspaceId);}catch{rooms.invalidateWorkspace(undefined,'ACL_RESYNC_REQUIRED');}});
+   client.on('notification',message=>{try{
+    const value=JSON.parse(message.payload??'');if(typeof value.workspaceId!=='string')throw new Error();
+    if(message.channel==='feature_changed'){
+     if(Object.keys(value).some(key=>!['workspaceId','sceneId','eventCursor'].includes(key))||typeof value.eventCursor!=='string'||!/^[1-9]\d*$/.test(value.eventCursor)||(value.sceneId!==undefined&&typeof value.sceneId!=='string'))throw new Error();
+     rooms.featureChanged(value.workspaceId,value.sceneId,value.eventCursor);return;
+    }
+    rooms.invalidateWorkspace(value.workspaceId);
+   }catch{if(message.channel==='acl_changed')rooms.invalidateWorkspace(undefined,'ACL_RESYNC_REQUIRED');}});
    listening=true;
   })().catch(error=>{lost();throw error;}).finally(()=>{connecting=undefined;if(!listening)scheduleReconnect();});
   return connecting;
@@ -85,18 +95,19 @@ export async function startServer(store:Persistence,config:ServerConfig){
   }catch(error){const fault=error instanceof CollabError?error:new CollabError('UNAVAILABLE','Operation failed; retain pending mutation',503,true);response.writeHead(fault.status,{'content-type':'application/json'}).end(JSON.stringify({code:fault.code,message:fault.message,requestId}));}
  });
  for(const server of [publicServer,internalServer]){server.requestTimeout=5000;server.headersTimeout=5000;}
- let compact:Compactor|undefined;
+ let compact:Compactor|undefined,projector:ActivityProjector|undefined;
  async function close(){
   closed=true;listening=false;ownership.invalidate();clearTimeout(reconnect);
   // Drain the checked-out connection before returning it to pg-pool: release(true)
   // first would attach its idle error handler while a termination error is still arriving.
   if(listener){const client=listener;listener=undefined;await client.end();client.release(true);}
-  await Promise.allSettled([compact?.close(),rooms.close(),connecting]);
+  await Promise.allSettled([compact?.close(),projector?.close(),rooms.close(),connecting]);
   await Promise.all([publicServer,internalServer].map(server=>new Promise<void>(resolve=>{server.close(()=>resolve());server.closeAllConnections();})));wss.close();
  }
  try{
   await subscribe();
   compact=new Compactor(store,(_error,ref)=>{if(ref)rooms.invalidateScene(ref.sceneId,'COMPACTION_FAILED');});
+  projector=new ActivityProjector(new PostgresActivityProjectionStore(store.pool),()=>{});
   await listen(publicServer,config.host,config.port);await listen(internalServer,config.internalHost,config.internalPort);
  }catch(error){await close();throw error;}
  return {url:'ws://'+config.host+':'+port(publicServer),httpURL:'http://'+config.host+':'+port(publicServer),internalURL:'http://'+config.internalHost+':'+port(internalServer),close};

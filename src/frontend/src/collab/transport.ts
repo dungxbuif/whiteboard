@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { encodeRecoveryBytes, encodeRecoveryBlob } from './recovery';
-import { decodeFrame, encodeFrame, MAX_FRAME_BYTES, type SceneRef } from '@collab/contracts';
+import { decodeFrame, encodeFrame, MAX_FRAME_BYTES, parseFeatureChanged, type SceneRef } from '@collab/contracts';
 import { ExcalidrawAdapter, REMOTE_ORIGIN, REPLAY_ORIGIN } from './excalidraw-adapter';
 import { type OfflineStore, type PendingScope, scopeKey } from './offline-store';
 export type RoomGrant = { token: string; expiresAt: string };
@@ -163,6 +163,7 @@ export class CollabTransport {
       return;
     }
     if (control.type === 'resync_required') { this.access = 'view'; this.synced = false; this.set({ canEdit: false, connectionId: undefined, status: 'connecting' }); return; }
+    if (control.type === 'feature_changed') { control.payload = parseFeatureChanged(p); this.controls.forEach(listener => listener(control)); return; }
     this.controls.forEach(listener => listener(control));
   }
   private localUpdate = (update: Uint8Array, origin: unknown) => {

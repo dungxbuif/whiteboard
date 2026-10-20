@@ -55,6 +55,16 @@ it('collab awareness strips native pointer tool metadata before protocol transmi
   expect(JSON.parse(new TextDecoder().decode(frame.payload))).toEqual({ cursor: { x: 1, y: 2 } }); transport.stop();
 });
 
+it('forwards cursor-only feature invalidations without disturbing document admission', async () => {
+  const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
+  const socket = new Socket(); const transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter: new ExcalidrawAdapter(), store, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://local', socket: () => socket as unknown as WireSocket });
+  const invalidations: unknown[] = []; transport.subscribeControl(control => { if (control.type === 'feature_changed') invalidations.push(control.payload); });
+  await transport.start(); socket.dispatchEvent(new Event('open')); synced(socket, server); await tick();
+  socket.receive({ type: 'feature_changed', requestId: 'server', payload: { eventCursor: '42' } }); await tick();
+  expect(invalidations).toEqual([{ eventCursor: '42' }]); expect(transport.state.status).toBe('synced');
+  transport.stop();
+});
+
 it('collab revoked editor retains pending recovery and stale connection ACK cannot clear it', async () => {
   const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
   const socket = new Socket(), adapter = new ExcalidrawAdapter();

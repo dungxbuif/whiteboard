@@ -199,5 +199,11 @@ export class Rooms {
  private cancelFanouts(matches:(ref:SceneRef)=>boolean){for(const [key,pending] of this.fanouts)if(matches(pending.ref)){pending.overflow=true;pending.updates=[];pending.bytes=0;this.fanouts.delete(key);}}
  invalidateScene(sceneId:string,reason:string){this.cancelFanouts(ref=>ref.sceneId===sceneId);for(const session of this.sessions)if(session.ref?.sceneId===sceneId)this.invalidate(session,reason);}
  invalidateWorkspace(workspaceId?:string,reason='ACL_CHANGED'){this.cancelFanouts(ref=>!workspaceId||ref.workspaceId===workspaceId);for(const session of this.sessions)if(!workspaceId||session.ref?.workspaceId===workspaceId)this.invalidate(session,reason);}
+ featureChanged(workspaceId:string,sceneId:string|undefined,eventCursor:string){
+  this.track((async()=>{
+   const recipients=[...this.sessions].filter(session=>!session.invalid&&session.principal?.principalType==='user'&&session.ref?.workspaceId===workspaceId&&(!sceneId||session.ref.sceneId===sceneId));
+   for(const session of recipients)if(await this.recipient(session))await this.control(session,'feature_changed','server',{eventCursor});
+  })());
+ }
  async close(){this.closing=true;clearInterval(this.heartbeat);this.store.off('committed',this.committed);const sessions=[...this.sessions];for(const session of sessions){this.detach(session);session.socket.terminate();}await Promise.allSettled([...this.tasks,...sessions.map(s=>s.chain)]);}
 }
