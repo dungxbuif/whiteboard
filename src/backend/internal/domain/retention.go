@@ -24,6 +24,7 @@ type RetentionPolicyInput struct {
 	ActivityDays          int  `json:"activityDays"`
 	NotificationDays      int  `json:"notificationDays"`
 	AutomaticVersionLimit int  `json:"automaticVersionLimit"`
+	ManualVersionDays     *int `json:"manualVersionDays,omitempty"`
 	CommentsDays          *int `json:"commentsDays,omitempty"`
 	TrashHardPurge        bool `json:"trashHardPurge"`
 }
@@ -33,10 +34,11 @@ func DefaultRetentionPolicyInput() RetentionPolicyInput {
 }
 
 type RetentionCounts struct {
-	Activity      int64 `json:"activity"`
-	Notifications int64 `json:"notifications"`
-	Versions      int64 `json:"versions"`
-	Comments      int64 `json:"comments"`
+	Activity       int64 `json:"activity"`
+	Notifications  int64 `json:"notifications"`
+	Versions       int64 `json:"versions"`
+	ManualVersions int64 `json:"manualVersions"`
+	Comments       int64 `json:"comments"`
 }
 
 type RetentionPreview struct {

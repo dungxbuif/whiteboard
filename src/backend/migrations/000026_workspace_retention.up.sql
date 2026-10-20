@@ -25,7 +25,7 @@ CREATE INDEX retention_previews_expiry ON retention_previews(expires_at);
 CREATE TABLE retention_holds (
   id uuid PRIMARY KEY,
   workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-  kind text NOT NULL CHECK (kind IN ('all','activity','notification','version','comment')),
+  kind text NOT NULL CHECK (kind IN ('all','scene','activity','notification','version','comment')),
   ref_id text NOT NULL CHECK (length(ref_id) BETWEEN 1 AND 256),
   version_id uuid,
   version_key uuid GENERATED ALWAYS AS (coalesce(version_id,'00000000-0000-0000-0000-000000000000'::uuid)) STORED,

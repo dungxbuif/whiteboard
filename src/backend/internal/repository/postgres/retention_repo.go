@@ -16,7 +16,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type RetentionRepository struct{ db *gorm.DB }
+type RetentionRepository struct {
+	db                 *gorm.DB
+	afterCandidateScan func()
+}
 
 func NewRetentionRepository(db *gorm.DB) *RetentionRepository { return &RetentionRepository{db: db} }
 
@@ -105,17 +108,25 @@ func (r *RetentionRepository) CurrentPolicy(ctx domain.Context, workspaceID uuid
 func (r *RetentionRepository) PreviewCounts(ctx domain.Context, workspaceID uuid.UUID, input domain.RetentionPolicyInput, now time.Time) (domain.RetentionCounts, error) {
 	db := accessDB(ctx, r.db)
 	out := domain.RetentionCounts{}
-	if err := db.Raw(`SELECT count(*) FROM workspace_events e WHERE e.workspace_id=? AND e.occurred_at<? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=e.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='activity' AND (h.ref_id='*' OR h.ref_id=e.id::text))))`, workspaceID, now.AddDate(0, 0, -input.ActivityDays)).Scan(&out.Activity).Error; err != nil {
+	if err := db.Raw(`SELECT count(*) FROM workspace_events e
+		WHERE e.workspace_id=? AND e.occurred_at<?
+		AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=e.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='activity' AND (h.ref_id='*' OR h.ref_id=e.id::text)) OR (h.kind='scene' AND h.ref_id=e.scene_id::text)))
+		AND NOT EXISTS (SELECT 1 FROM user_notifications n WHERE n.workspace_id=e.workspace_id AND n.event_id=e.id AND (n.created_at>=? OR EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=n.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='notification' AND (h.ref_id='*' OR h.ref_id=n.id::text)) OR (h.kind='scene' AND h.ref_id=n.scene_id::text)))))`, workspaceID, now.AddDate(0, 0, -input.ActivityDays), now.AddDate(0, 0, -input.NotificationDays)).Scan(&out.Activity).Error; err != nil {
 		return out, err
 	}
-	if err := db.Raw(`SELECT count(*) FROM user_notifications n WHERE n.workspace_id=? AND n.created_at<? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=n.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='notification' AND (h.ref_id='*' OR h.ref_id=n.id::text))))`, workspaceID, now.AddDate(0, 0, -input.NotificationDays)).Scan(&out.Notifications).Error; err != nil {
+	if err := db.Raw(`SELECT count(*) FROM user_notifications n WHERE n.workspace_id=? AND n.created_at<? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=n.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='notification' AND (h.ref_id='*' OR h.ref_id=n.id::text)) OR (h.kind='scene' AND h.ref_id=n.scene_id::text)))`, workspaceID, now.AddDate(0, 0, -input.NotificationDays)).Scan(&out.Notifications).Error; err != nil {
 		return out, err
 	}
-	if err := db.Raw(`SELECT count(*) FROM (SELECT id,workspace_id,row_number() OVER(PARTITION BY scene_id ORDER BY created_at DESC,id DESC) AS n FROM scene_versions WHERE workspace_id=? AND kind='automatic' AND pinned=false) v WHERE v.n>? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=v.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='version' AND (h.ref_id='*' OR h.ref_id=v.id::text OR h.version_id=v.id))))`, workspaceID, input.AutomaticVersionLimit).Scan(&out.Versions).Error; err != nil {
+	if err := db.Raw(`SELECT count(*) FROM (SELECT id,workspace_id,scene_id,row_number() OVER(PARTITION BY scene_id ORDER BY created_at DESC,id DESC) AS n FROM scene_versions WHERE workspace_id=? AND kind='automatic' AND pinned=false) v WHERE v.n>? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=v.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='version' AND (h.ref_id='*' OR h.ref_id=v.id::text OR h.version_id=v.id)) OR (h.kind='scene' AND h.ref_id=v.scene_id::text)))`, workspaceID, input.AutomaticVersionLimit).Scan(&out.Versions).Error; err != nil {
 		return out, err
+	}
+	if input.ManualVersionDays != nil {
+		if err := db.Raw(`SELECT count(*) FROM scene_versions v WHERE v.workspace_id=? AND v.kind='manual' AND v.pinned=false AND v.created_at<? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=v.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='version' AND (h.ref_id='*' OR h.ref_id=v.id::text OR h.version_id=v.id)) OR (h.kind='scene' AND h.ref_id=v.scene_id::text)))`, workspaceID, now.AddDate(0, 0, -*input.ManualVersionDays)).Scan(&out.ManualVersions).Error; err != nil {
+			return out, err
+		}
 	}
 	if input.CommentsDays != nil {
-		if err := db.Raw(`SELECT count(*) FROM comments c WHERE c.workspace_id=? AND c.deleted_at IS NULL AND c.created_at<? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=c.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='comment' AND (h.ref_id='*' OR h.ref_id=c.id::text))))`, workspaceID, now.AddDate(0, 0, -*input.CommentsDays)).Scan(&out.Comments).Error; err != nil {
+		if err := db.Raw(`SELECT count(*) FROM comments c WHERE c.workspace_id=? AND c.deleted_at IS NULL AND c.created_at<? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=c.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='comment' AND (h.ref_id='*' OR h.ref_id=c.id::text)) OR (h.kind='scene' AND h.ref_id=c.scene_id::text)))`, workspaceID, now.AddDate(0, 0, -*input.CommentsDays)).Scan(&out.Comments).Error; err != nil {
 			return out, err
 		}
 	}
@@ -274,15 +285,19 @@ type retentionPurgeAuditRow struct {
 
 func (retentionPurgeAuditRow) TableName() string { return "retention_purge_audit" }
 
-func hasRetentionHold(tx *gorm.DB, w uuid.UUID, kind, id string) (bool, error) {
+func hasRetentionHold(tx *gorm.DB, w uuid.UUID, kind, id string, sceneID *uuid.UUID) (bool, error) {
 	var n int64
-	err := tx.Table("retention_holds").Where("workspace_id=? AND ((kind='all' AND ref_id='*') OR (kind=? AND (ref_id='*' OR ref_id=? OR version_id::text=?)))", w, kind, id, id).Count(&n).Error
+	query := tx.Table("retention_holds").Where("workspace_id=? AND ((kind='all' AND ref_id='*') OR (kind=? AND (ref_id='*' OR ref_id=? OR version_id::text=?)))", w, kind, id, id)
+	if sceneID != nil {
+		query = query.Or("workspace_id=? AND kind='scene' AND ref_id=?", w, sceneID.String())
+	}
+	err := query.Count(&n).Error
 	return n > 0, err
 }
 
-func eventHasHeldNotification(tx *gorm.DB, w uuid.UUID, eventID int64) (bool, error) {
+func eventHasRemainingNotification(tx *gorm.DB, w uuid.UUID, eventID int64) (bool, error) {
 	var n int64
-	err := tx.Raw(`SELECT count(*) FROM user_notifications n JOIN retention_holds h ON h.workspace_id=n.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='notification' AND (h.ref_id='*' OR h.ref_id=n.id::text))) WHERE n.workspace_id=? AND n.event_id=?`, w, eventID).Scan(&n).Error
+	err := tx.Table("user_notifications").Where("workspace_id=? AND event_id=?", w, eventID).Count(&n).Error
 	return n > 0, err
 }
 func addPurgeAudit(tx *gorm.DB, w uuid.UUID, revision int64, kind, id string, now time.Time) error {
@@ -297,6 +312,9 @@ func (r *RetentionRepository) PurgeBatch(ctx domain.Context, now time.Time, limi
 	var due []retentionPolicyRow
 	if err := r.db.WithContext(ctx).Table("workspace_retention_policies p").Select("p.*").Joins("JOIN workspace_feature_policies f ON f.workspace_id=p.workspace_id AND f.retention_enabled=true").Where("p.effective_at<=?", now).Order("p.effective_at,p.workspace_id").Limit(limit).Scan(&due).Error; err != nil {
 		return result, err
+	}
+	if r.afterCandidateScan != nil {
+		r.afterCandidateScan()
 	}
 	for _, candidate := range due {
 		if len(result.Items) >= limit {
@@ -318,6 +336,13 @@ func (r *RetentionRepository) PurgeBatch(ctx domain.Context, now time.Time, limi
 			if row.Revision != candidate.Revision || row.EffectiveAt.After(now) {
 				return nil
 			}
+			var retentionEnabled bool
+			if err := tx.Raw("SELECT retention_enabled FROM workspace_feature_policies WHERE workspace_id=? FOR UPDATE", candidate.WorkspaceID).Scan(&retentionEnabled).Error; err != nil {
+				return err
+			}
+			if !retentionEnabled {
+				return nil
+			}
 			policy, err := policyFromRow(row)
 			if err != nil {
 				return err
@@ -325,49 +350,62 @@ func (r *RetentionRepository) PurgeBatch(ctx domain.Context, now time.Time, limi
 			workspaceResult.Scanned++
 			remaining := limit - len(result.Items) - len(workspaceResult.Items)
 			// Notifications are removed before activity because events cascade to inbox rows.
-			var notificationIDs []uuid.UUID
+			var notifications []struct {
+				ID      uuid.UUID
+				SceneID uuid.UUID
+			}
 			if remaining > 0 {
-				if err := tx.Table("user_notifications").Where("workspace_id=? AND created_at<?", row.WorkspaceID, now.AddDate(0, 0, -policy.Policy.NotificationDays)).Order("created_at,id").Limit(remaining).Pluck("id", &notificationIDs).Error; err != nil {
+				if err := tx.Raw(`SELECT n.id,n.scene_id FROM user_notifications n
+					WHERE n.workspace_id=? AND n.created_at<?
+					AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=n.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='notification' AND (h.ref_id='*' OR h.ref_id=n.id::text)) OR (h.kind='scene' AND h.ref_id=n.scene_id::text)))
+					ORDER BY n.created_at,n.id LIMIT ?`, row.WorkspaceID, now.AddDate(0, 0, -policy.Policy.NotificationDays), remaining).Scan(&notifications).Error; err != nil {
 					return err
 				}
-				for _, id := range notificationIDs {
-					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "notification", id.String())
+				for _, notification := range notifications {
+					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "notification", notification.ID.String(), &notification.SceneID)
 					if holdErr != nil {
 						return holdErr
 					}
 					if held {
 						continue
 					}
-					if err := tx.Exec("DELETE FROM user_notifications WHERE workspace_id=? AND id=?", row.WorkspaceID, id).Error; err != nil {
+					if err := tx.Exec("DELETE FROM user_notifications WHERE workspace_id=? AND id=?", row.WorkspaceID, notification.ID).Error; err != nil {
 						return err
 					}
-					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "notification", id.String(), now); err != nil {
+					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "notification", notification.ID.String(), now); err != nil {
 						return err
 					}
 					workspaceResult.Purged.Notifications++
-					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "notification", ID: id.String()})
+					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "notification", ID: notification.ID.String()})
 				}
 			}
 			remaining = limit - len(result.Items) - len(workspaceResult.Items)
 			if remaining > 0 {
-				var eventIDs []int64
-				if err := tx.Table("workspace_events").Where("workspace_id=? AND occurred_at<?", row.WorkspaceID, now.AddDate(0, 0, -policy.Policy.ActivityDays)).Order("occurred_at,id").Limit(remaining).Pluck("id", &eventIDs).Error; err != nil {
+				var events []struct {
+					ID      int64
+					SceneID *uuid.UUID
+				}
+				if err := tx.Raw(`SELECT e.id,e.scene_id FROM workspace_events e
+					WHERE e.workspace_id=? AND e.occurred_at<?
+					AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=e.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='activity' AND (h.ref_id='*' OR h.ref_id=e.id::text)) OR (h.kind='scene' AND h.ref_id=e.scene_id::text)))
+					AND NOT EXISTS (SELECT 1 FROM user_notifications n WHERE n.workspace_id=e.workspace_id AND n.event_id=e.id)
+					ORDER BY e.occurred_at,e.id LIMIT ?`, row.WorkspaceID, now.AddDate(0, 0, -policy.Policy.ActivityDays), remaining).Scan(&events).Error; err != nil {
 					return err
 				}
-				for _, id := range eventIDs {
-					key := strconv.FormatInt(id, 10)
-					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "activity", key)
+				for _, event := range events {
+					key := strconv.FormatInt(event.ID, 10)
+					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "activity", key, event.SceneID)
 					if holdErr != nil {
 						return holdErr
 					}
-					heldNotification, notificationErr := eventHasHeldNotification(tx, row.WorkspaceID, id)
+					hasNotification, notificationErr := eventHasRemainingNotification(tx, row.WorkspaceID, event.ID)
 					if notificationErr != nil {
 						return notificationErr
 					}
-					if held || heldNotification {
+					if held || hasNotification {
 						continue
 					}
-					if err := tx.Exec("DELETE FROM workspace_events WHERE workspace_id=? AND id=?", row.WorkspaceID, id).Error; err != nil {
+					if err := tx.Exec("DELETE FROM workspace_events WHERE workspace_id=? AND id=?", row.WorkspaceID, event.ID).Error; err != nil {
 						return err
 					}
 					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "activity", key, now); err != nil {
@@ -379,53 +417,97 @@ func (r *RetentionRepository) PurgeBatch(ctx domain.Context, now time.Time, limi
 			}
 			remaining = limit - len(result.Items) - len(workspaceResult.Items)
 			if remaining > 0 {
-				var versionIDs []uuid.UUID
-				if err := tx.Raw(`SELECT id FROM (SELECT id,row_number() OVER(PARTITION BY scene_id ORDER BY created_at DESC,id DESC) n FROM scene_versions WHERE workspace_id=? AND kind='automatic' AND pinned=false) v WHERE n>? ORDER BY id LIMIT ?`, row.WorkspaceID, policy.Policy.AutomaticVersionLimit, remaining).Scan(&versionIDs).Error; err != nil {
+				var versions []struct {
+					ID      uuid.UUID
+					SceneID uuid.UUID
+				}
+				if err := tx.Raw(`SELECT v.id,v.scene_id FROM (SELECT id,workspace_id,scene_id,row_number() OVER(PARTITION BY scene_id ORDER BY created_at DESC,id DESC) n FROM scene_versions WHERE workspace_id=? AND kind='automatic' AND pinned=false) v
+					WHERE v.n>? AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=v.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='version' AND (h.ref_id='*' OR h.ref_id=v.id::text OR h.version_id=v.id)) OR (h.kind='scene' AND h.ref_id=v.scene_id::text)))
+					ORDER BY v.id LIMIT ?`, row.WorkspaceID, policy.Policy.AutomaticVersionLimit, remaining).Scan(&versions).Error; err != nil {
 					return err
 				}
-				for _, id := range versionIDs {
-					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "version", id.String())
+				for _, version := range versions {
+					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "version", version.ID.String(), &version.SceneID)
 					if holdErr != nil {
 						return holdErr
 					}
 					if held {
 						continue
 					}
-					if err := tx.Exec("DELETE FROM version_assets WHERE workspace_id=? AND version_id=?", row.WorkspaceID, id).Error; err != nil {
+					if err := tx.Exec("DELETE FROM version_assets WHERE workspace_id=? AND version_id=?", row.WorkspaceID, version.ID).Error; err != nil {
 						return err
 					}
-					if err := tx.Exec("DELETE FROM scene_versions WHERE workspace_id=? AND id=? AND kind='automatic' AND pinned=false", row.WorkspaceID, id).Error; err != nil {
+					if err := tx.Exec("DELETE FROM scene_versions WHERE workspace_id=? AND id=? AND kind='automatic' AND pinned=false", row.WorkspaceID, version.ID).Error; err != nil {
 						return err
 					}
-					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "version", id.String(), now); err != nil {
+					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "version", version.ID.String(), now); err != nil {
 						return err
 					}
 					workspaceResult.Purged.Versions++
-					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "version", ID: id.String()})
+					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "version", ID: version.ID.String()})
+				}
+			}
+			remaining = limit - len(result.Items) - len(workspaceResult.Items)
+			if remaining > 0 && policy.Policy.ManualVersionDays != nil {
+				var versions []struct {
+					ID      uuid.UUID
+					SceneID uuid.UUID
+				}
+				if err := tx.Raw(`SELECT v.id,v.scene_id FROM scene_versions v
+					WHERE v.workspace_id=? AND v.kind='manual' AND v.pinned=false AND v.created_at<?
+					AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=v.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='version' AND (h.ref_id='*' OR h.ref_id=v.id::text OR h.version_id=v.id)) OR (h.kind='scene' AND h.ref_id=v.scene_id::text)))
+					ORDER BY v.created_at,v.id LIMIT ?`, row.WorkspaceID, now.AddDate(0, 0, -*policy.Policy.ManualVersionDays), remaining).Scan(&versions).Error; err != nil {
+					return err
+				}
+				for _, version := range versions {
+					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "version", version.ID.String(), &version.SceneID)
+					if holdErr != nil {
+						return holdErr
+					}
+					if held {
+						continue
+					}
+					if err := tx.Exec("DELETE FROM version_assets WHERE workspace_id=? AND version_id=?", row.WorkspaceID, version.ID).Error; err != nil {
+						return err
+					}
+					if err := tx.Exec("DELETE FROM scene_versions WHERE workspace_id=? AND id=? AND kind='manual' AND pinned=false", row.WorkspaceID, version.ID).Error; err != nil {
+						return err
+					}
+					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "version", version.ID.String(), now); err != nil {
+						return err
+					}
+					workspaceResult.Purged.ManualVersions++
+					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "manual_version", ID: version.ID.String()})
 				}
 			}
 			remaining = limit - len(result.Items) - len(workspaceResult.Items)
 			if remaining > 0 && policy.Policy.CommentsDays != nil {
-				var commentIDs []uuid.UUID
-				if err := tx.Table("comments").Where("workspace_id=? AND deleted_at IS NULL AND created_at<?", row.WorkspaceID, now.AddDate(0, 0, -*policy.Policy.CommentsDays)).Order("created_at,id").Limit(remaining).Pluck("id", &commentIDs).Error; err != nil {
+				var comments []struct {
+					ID      uuid.UUID
+					SceneID uuid.UUID
+				}
+				if err := tx.Raw(`SELECT c.id,c.scene_id FROM comments c
+					WHERE c.workspace_id=? AND c.deleted_at IS NULL AND c.created_at<?
+					AND NOT EXISTS (SELECT 1 FROM retention_holds h WHERE h.workspace_id=c.workspace_id AND ((h.kind='all' AND h.ref_id='*') OR (h.kind='comment' AND (h.ref_id='*' OR h.ref_id=c.id::text)) OR (h.kind='scene' AND h.ref_id=c.scene_id::text)))
+					ORDER BY c.created_at,c.id LIMIT ?`, row.WorkspaceID, now.AddDate(0, 0, -*policy.Policy.CommentsDays), remaining).Scan(&comments).Error; err != nil {
 					return err
 				}
-				for _, id := range commentIDs {
-					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "comment", id.String())
+				for _, comment := range comments {
+					held, holdErr := hasRetentionHold(tx, row.WorkspaceID, "comment", comment.ID.String(), &comment.SceneID)
 					if holdErr != nil {
 						return holdErr
 					}
 					if held {
 						continue
 					}
-					if err := tx.Table("comments").Where("workspace_id=? AND id=? AND deleted_at IS NULL", row.WorkspaceID, id).Updates(map[string]any{"body": "", "author_name": "Redacted", "deleted_at": now, "updated_at": now}).Error; err != nil {
+					if err := tx.Table("comments").Where("workspace_id=? AND id=? AND deleted_at IS NULL", row.WorkspaceID, comment.ID).Updates(map[string]any{"body": "", "author_name": "Redacted", "deleted_at": now, "updated_at": now}).Error; err != nil {
 						return err
 					}
-					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "comment", id.String(), now); err != nil {
+					if err := addPurgeAudit(tx, row.WorkspaceID, row.Revision, "comment", comment.ID.String(), now); err != nil {
 						return err
 					}
 					workspaceResult.Purged.Comments++
-					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "comment", ID: id.String()})
+					workspaceResult.Items = append(workspaceResult.Items, domain.RetentionPurgeItem{Kind: "comment", ID: comment.ID.String()})
 				}
 			}
 			return nil
@@ -437,6 +519,7 @@ func (r *RetentionRepository) PurgeBatch(ctx domain.Context, now time.Time, limi
 		result.Purged.Activity += workspaceResult.Purged.Activity
 		result.Purged.Notifications += workspaceResult.Purged.Notifications
 		result.Purged.Versions += workspaceResult.Purged.Versions
+		result.Purged.ManualVersions += workspaceResult.Purged.ManualVersions
 		result.Purged.Comments += workspaceResult.Purged.Comments
 		result.Items = append(result.Items, workspaceResult.Items...)
 	}

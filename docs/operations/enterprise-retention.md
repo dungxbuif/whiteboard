@@ -11,17 +11,25 @@ replacement policy therefore invalidates work queued for an older revision.
 
 Defaults are activity metadata after 90 days, inbox notifications after 30
 days, and unpinned automatic versions beyond the newest 100 per scene. Manual
-or pinned versions and comments are retained indefinitely unless an owner
-explicitly supplies a comment retention period. Trash hard purge is disabled.
+versions and comments are retained indefinitely unless an owner explicitly
+supplies their separate retention periods. Pinned versions are always retained.
+Trash hard purge is disabled.
 Canonical collaboration updates, receipts, tombstones and durable logs are not
 retention targets.
 
 Holds are workspace-scoped and may protect an activity event, notification,
-version, comment, or an entire metadata class. A hold is rechecked in the same
-transaction that claims deletion. Comment retention redacts author content in
-place and preserves the comment row and thread order. Version retention removes
-only metadata and its reference rows; object deletion belongs to the separate
-reference-aware R2 lifecycle.
+version, comment, every metadata row, or every supported row belonging to one
+scene. Candidate queries exclude held rows before applying their batch limit,
+then recheck holds in the mutation transaction. Comment retention redacts author
+content in place and preserves the comment row and thread order. Version
+retention removes only metadata and its reference rows; object deletion belongs
+to the separate reference-aware R2 lifecycle.
+
+The purge transaction rechecks `retentionEnabled` after acquiring the workspace
+lock. Disabling the feature after the worker scans a candidate therefore wins
+before mutation. Activity deletion also requires that no notification remains
+for the event. This prevents the event foreign-key cascade from deleting a
+notification that is newer than its independent notification cutoff or held.
 
 ## Rollout and recovery
 

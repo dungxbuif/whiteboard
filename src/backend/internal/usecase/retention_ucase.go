@@ -34,7 +34,8 @@ func validRetentionPolicy(input domain.RetentionPolicyInput) bool {
 	if input.ActivityDays < 1 || input.ActivityDays > 3650 || input.NotificationDays < 1 || input.NotificationDays > 3650 || input.AutomaticVersionLimit < 1 || input.AutomaticVersionLimit > 10000 || input.TrashHardPurge {
 		return false
 	}
-	return input.CommentsDays == nil || *input.CommentsDays >= 1 && *input.CommentsDays <= 3650
+	validDays := func(value *int) bool { return value == nil || *value >= 1 && *value <= 3650 }
+	return validDays(input.ManualVersionDays) && validDays(input.CommentsDays)
 }
 func retentionPrincipal(p domain.Principal) (uuid.UUID, error) {
 	if p.Kind != domain.PrincipalUser || p.UserID == nil || *p.UserID == uuid.Nil || p.ID != p.UserID.String() {
@@ -188,7 +189,7 @@ func (s *RetentionService) Schedule(ctx domain.Context, p domain.Principal, w, p
 
 func validHold(ref domain.RetentionReference, versionID *uuid.UUID) bool {
 	switch ref.Kind {
-	case "all", "activity", "notification", "version", "comment":
+	case "all", "scene", "activity", "notification", "version", "comment":
 	default:
 		return false
 	}
@@ -197,6 +198,11 @@ func validHold(ref domain.RetentionReference, versionID *uuid.UUID) bool {
 	}
 	if ref.Kind == "all" && ref.ID != "*" {
 		return false
+	}
+	if ref.Kind == "scene" {
+		if id, err := uuid.Parse(ref.ID); err != nil || id == uuid.Nil {
+			return false
+		}
 	}
 	if versionID != nil && (*versionID == uuid.Nil || ref.Kind != "version") {
 		return false

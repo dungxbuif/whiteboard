@@ -14,7 +14,9 @@ retention feature is enabled.
 Mutation bodies include a UUID `requestId`. Exact retries are idempotent;
 rebinding an ID returns `409 REQUEST_ID_REUSED`. Defaults are 90 activity days,
 30 notification days, and 100 automatic versions per scene. Omitted
-`commentsDays` means comments are kept indefinitely. `trashHardPurge` must be
-false. Manual and pinned versions, collaboration logs, update receipts, and
-tombstones are not deleted by this API.
+`manualVersionDays` and `commentsDays` keep manual versions and comments
+indefinitely. Pinned versions are always kept. `trashHardPurge` must be false.
+Hold kind `scene` accepts a scene UUID and protects supported metadata belonging
+to that scene. Collaboration logs, update receipts, and tombstones are not
+deleted by this API.
 

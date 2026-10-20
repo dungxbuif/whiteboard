@@ -92,7 +92,7 @@ func TestRetentionDefaultCutoffs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repo.seenInput.ActivityDays != 90 || repo.seenInput.NotificationDays != 30 || repo.seenInput.AutomaticVersionLimit != 100 || repo.seenInput.CommentsDays != nil || repo.seenInput.TrashHardPurge {
+	if repo.seenInput.ActivityDays != 90 || repo.seenInput.NotificationDays != 30 || repo.seenInput.AutomaticVersionLimit != 100 || repo.seenInput.ManualVersionDays != nil || repo.seenInput.CommentsDays != nil || repo.seenInput.TrashHardPurge {
 		t.Fatalf("defaults=%+v", repo.seenInput)
 	}
 	if preview.Counts != repo.counts || !preview.EarliestDestructiveAt.Equal(now.Add(7*24*time.Hour)) {
@@ -100,6 +100,26 @@ func TestRetentionDefaultCutoffs(t *testing.T) {
 	}
 	if _, err = service.PreviewPolicy(context.Background(), p, w, domain.RetentionPolicyInput{ActivityDays: 90, NotificationDays: 30, AutomaticVersionLimit: 100, TrashHardPurge: true}); !errors.Is(err, domain.ErrInvalidRetention) {
 		t.Fatalf("trash hard purge err=%v", err)
+	}
+}
+
+func TestRetentionManualVersionDaysAndSceneHoldValidation(t *testing.T) {
+	w := uuid.New()
+	repo := &retentionRepoStub{}
+	service, _, p := newRetentionUnitService(w, repo)
+	days := 30
+	input := domain.DefaultRetentionPolicyInput()
+	input.ManualVersionDays = &days
+	if _, err := service.PreviewPolicy(context.Background(), p, w, input); err != nil {
+		t.Fatalf("explicit manual retention rejected: %v", err)
+	}
+	sceneID := uuid.New()
+	hold, err := service.SetHold(context.Background(), p, domain.RetentionReference{WorkspaceID: w, Kind: "scene", ID: sceneID.String()}, nil, true, uuid.New())
+	if err != nil || !hold.Held {
+		t.Fatalf("scene hold=%+v err=%v", hold, err)
+	}
+	if _, err = service.SetHold(context.Background(), p, domain.RetentionReference{WorkspaceID: w, Kind: "scene", ID: "not-a-uuid"}, nil, true, uuid.New()); !errors.Is(err, domain.ErrInvalidRetention) {
+		t.Fatalf("invalid scene hold err=%v", err)
 	}
 }
 

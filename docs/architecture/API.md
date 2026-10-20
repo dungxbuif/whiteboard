@@ -378,7 +378,8 @@ nothing. Identical retry returns the original receipt/checkpoint.
 
 The owner-fenced checkpointer waits five dirty minutes and captures at most once
 per scene per minute. R1 owns the 100 automatic-version retention policy;
-manual and pinned versions are preserved. See [ADR 0014](../decisions/0014-version-writer-ownership.md),
+manual versions are preserved until an owner configures a day limit, while
+pinned versions are always preserved. See [ADR 0014](../decisions/0014-version-writer-ownership.md),
 [human guide](../user/version-history.md), and [agent reference](../../src/frontend/public/docs/version-history.md).
 
 ## I2 workspace OIDC SSO and session assurance (implemented locally; wiring pending)
@@ -409,9 +410,12 @@ requests require a UUID request ID; exact retries return the stored response,
 while a changed principal, action, or body returns `409 REQUEST_ID_REUSED`.
 
 Scheduled policies activate no sooner than seven days. The worker re-locks the
-workspace and re-reads the current revision and holds. It removes bounded
-activity/inbox metadata, unpinned automatic-version metadata beyond the limit,
-and optionally redacts old comment bodies in place. It never targets manual or
-pinned versions, scene content, collaboration updates, receipts, tombstones, or
-object storage. See the [operator runbook](../operations/enterprise-retention.md)
+workspace and re-reads the current revision, feature flag, and holds. It removes
+bounded activity/inbox metadata, unpinned automatic-version metadata beyond the
+limit, optionally expires old unpinned manual versions, and optionally redacts
+old comment bodies in place. A scene hold protects supported metadata for that
+scene. Activity deletion cannot cascade-delete a notification that remains
+inside its separate cutoff or under hold. It never targets pinned versions,
+scene content, collaboration updates, receipts, tombstones, or object storage.
+See the [operator runbook](../operations/enterprise-retention.md)
 and [machine-readable reference](../../src/frontend/public/docs/retention.md).

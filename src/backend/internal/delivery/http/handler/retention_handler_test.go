@@ -17,6 +17,8 @@ type retentionUsecaseStub struct {
 	calls      int
 	requestIDs []uuid.UUID
 	workspace  uuid.UUID
+	policy     domain.RetentionPolicyInput
+	holdRef    domain.RetentionReference
 }
 
 func (s *retentionUsecaseStub) Policy(domain.Context, domain.Principal, uuid.UUID) (domain.RetentionPolicy, error) {
@@ -25,6 +27,7 @@ func (s *retentionUsecaseStub) Policy(domain.Context, domain.Principal, uuid.UUI
 }
 func (s *retentionUsecaseStub) PreviewPolicy(_ domain.Context, _ domain.Principal, w uuid.UUID, input domain.RetentionPolicyInput) (domain.RetentionPreview, error) {
 	s.calls++
+	s.policy = input
 	return domain.RetentionPreview{ID: uuid.New(), WorkspaceID: w, Policy: input, PolicyRevision: 0, EarliestDestructiveAt: time.Now().Add(7 * 24 * time.Hour)}, nil
 }
 func (s *retentionUsecaseStub) Schedule(_ domain.Context, _ domain.Principal, w, p uuid.UUID, r int64, id uuid.UUID) (domain.RetentionPolicy, error) {
@@ -32,9 +35,29 @@ func (s *retentionUsecaseStub) Schedule(_ domain.Context, _ domain.Principal, w,
 	s.requestIDs = append(s.requestIDs, id)
 	return domain.RetentionPolicy{WorkspaceID: w, Revision: r + 1, Policy: domain.DefaultRetentionPolicyInput()}, nil
 }
+
+func TestRetentionHandlerForwardsManualPolicyAndSceneHold(t *testing.T) {
+	w, u := uuid.New(), uuid.New()
+	uc := &retentionUsecaseStub{workspace: w}
+	router := retentionTestRouter(uc, w, u)
+	request := httptest.NewRequest(http.MethodPost, "/workspaces/w/retention/previews", strings.NewReader(`{"activityDays":90,"notificationDays":30,"automaticVersionLimit":100,"manualVersionDays":45,"trashHardPurge":false}`))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated || uc.policy.ManualVersionDays == nil || *uc.policy.ManualVersionDays != 45 {
+		t.Fatalf("preview status=%d policy=%+v body=%s", response.Code, uc.policy, response.Body.String())
+	}
+	sceneID := uuid.New()
+	request = httptest.NewRequest(http.MethodPut, "/workspaces/w/retention/holds", strings.NewReader(`{"kind":"scene","id":"`+sceneID.String()+`","held":true,"requestId":"`+uuid.NewString()+`"}`))
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK || uc.holdRef.Kind != "scene" || uc.holdRef.ID != sceneID.String() {
+		t.Fatalf("hold status=%d ref=%+v body=%s", response.Code, uc.holdRef, response.Body.String())
+	}
+}
 func (s *retentionUsecaseStub) SetHold(_ domain.Context, _ domain.Principal, ref domain.RetentionReference, v *uuid.UUID, held bool, id uuid.UUID) (domain.RetentionHold, error) {
 	s.calls++
 	s.requestIDs = append(s.requestIDs, id)
+	s.holdRef = ref
 	return domain.RetentionHold{ID: uuid.New(), Reference: ref, VersionID: v, Held: held}, nil
 }
 func (s *retentionUsecaseStub) PurgeBatch(domain.Context, time.Time, int) (domain.PurgeResult, error) {

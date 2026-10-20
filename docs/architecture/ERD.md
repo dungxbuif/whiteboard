@@ -124,7 +124,8 @@ Presence, cursor, viewport/follow and voice signaling remain ephemeral. Agent op
 | 000025 / `sso_mutation_receipts` | Exact principal/action/body retry binding with byte-preserved response. |
 
 Retention foreign keys cascade policy/preview/hold/receipt/audit metadata only
-when the workspace itself is deleted. Holds are checked under the same policy
-row lock as purge. Version reference rows are removed before eligible automatic
-version metadata; object deletion remains R2 and therefore cannot be caused by
-R1 alone.
+when the workspace itself is deleted. Item, class-wide, and scene holds are
+checked under the same workspace/policy lock as the feature flag and purge.
+Version reference rows are removed before eligible automatic or explicitly
+age-limited manual version metadata; pinned versions remain protected. Object
+deletion remains R2 and therefore cannot be caused by R1 alone.

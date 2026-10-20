@@ -1,7 +1,7 @@
 import api from '@/lib/api';
 
-export type RetentionPolicyInput={activityDays:number;notificationDays:number;automaticVersionLimit:number;commentsDays?:number;trashHardPurge:false};
-export type RetentionCounts={activity:number;notifications:number;versions:number;comments:number};
+export type RetentionPolicyInput={activityDays:number;notificationDays:number;automaticVersionLimit:number;manualVersionDays?:number;commentsDays?:number;trashHardPurge:false};
+export type RetentionCounts={activity:number;notifications:number;versions:number;manualVersions:number;comments:number};
 export type RetentionPreview={id:string;workspaceId:string;policyRevision:string;policy:RetentionPolicyInput;policyHash:string;counts:RetentionCounts;earliestDestructiveAt:string;expiresAt:string;createdAt:string};
 export type RetentionPolicy={workspaceId:string;revision:string;policy:RetentionPolicyInput;policyHash:string;effectiveAt?:string;scheduledAt?:string};
 export type RetentionHold={id:string;reference:{workspaceId:string;kind:string;id:string};versionId?:string;held:boolean;updatedAt:string};
