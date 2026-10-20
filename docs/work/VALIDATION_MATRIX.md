@@ -18,6 +18,12 @@ updated: 2026-10-19
 
 # Validation Matrix
 
+Dashboard management parity (2026-10-21): workspace/folder/scene controls,
+Collections policy state and the durable authenticated projection have local
+Go/frontend/browser proof. Production checks remain pending; see
+[verification](verification/dashboard-management-2026-10-21.md) and the
+[release checklist](../operations/RELEASE_CHECKLIST.md).
+
 Enterprise planning (2026-10-20): [coverage and planning evidence](verification/enterprise-planning-2026-10-20.md)
 map ENT-P1-01–04 / ENT-P2-01–03 and canvas-control placement to 22 draft tasks.
 This is documentation proof only; no enterprise runtime status is advanced.

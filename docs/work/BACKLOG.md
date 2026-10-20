@@ -87,6 +87,12 @@ Mark risk flags in the `Risk Flags` column when relevant:
 
 ## Items
 
+### Dashboard management parity — 2026-10-21
+
+| ID | Type | Lane | Status | Scope | Next artifact |
+| --- | --- | --- | --- | --- | --- |
+| DASHBOARD-MANAGEMENT | release | high-risk | in_review | Local implementation, docs and automated checks complete; production image, Compose/migration and VM100 canaries remain. | [Verification](verification/dashboard-management-2026-10-21.md), [release checklist](../operations/RELEASE_CHECKLIST.md) |
+
 ### Collaboration v2 intake — 2026-10-16
 
 | ID | Type | Lane | Status | Scope | Next artifact |

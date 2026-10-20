@@ -4,7 +4,8 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 ## Documentation
 
-- [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
+- [Dashboard](docs/dashboard.md): workspace rename, folder rename/move, scene move/duplicate, Collections disabled/retry state, roles, scene import and navigation.
+- [Dashboard management API](docs/dashboard-management-api.md): authenticated mutation shapes, durable scene projection, authorization and no-store semantics.
 
 - [Browser collaboration](docs/browser-collaboration.md): locally verified release-candidate admission, offline recovery, scoped queues, images and local undo.
 - [Screen sharing](docs/live-media.md): admitted video-only screen media, union capacity, signaling and cleanup contract.

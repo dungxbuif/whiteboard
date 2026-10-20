@@ -25,10 +25,12 @@ from the remaining operational canaries.
 | --- | --- | --- | --- | --- |
 | `POST /api/v1/auth/login` | HTTP | Public | active | Accepts `{email,password}` and returns `{token}` for a password-authenticated user. |
 | `GET, POST /api/v1/workspaces` | HTTP | JWT | active | List and create workspaces. |
+| `PATCH /api/v1/workspaces/{id}` | HTTP | Login JWT + current workspace owner | active locally | Rename only: `{name}` (trimmed, 3–100 characters); `200 Workspace`. UUID or workspace alias resolves to the same workspace; its ID does not change. |
 | `GET, POST /api/v1/folders` | HTTP | JWT + workspace | active | List/create folders; `all=true` returns flat tree data. |
-| `PATCH, DELETE /api/v1/folders/{id}` | HTTP | JWT + workspace | active | Folder move and trash lifecycle routes. |
+| `PATCH, DELETE /api/v1/folders/{id}` | HTTP | Login JWT + `X-Workspace-ID`; owner/editor for PATCH | active locally | PATCH accepts optional `{name,newParentId}`; omitted parent keeps its location, `null` moves to root, UUID selects a folder in this workspace. Name is trimmed, 1–100 characters. PATCH returns 204. Self/descendant and depth-invalid moves are rejected; missing parent returns 404. DELETE retains the trash lifecycle. |
 | `GET, POST /api/v1/scenes` | HTTP | JWT + workspace | active | List/create scenes; `trash=true` lists deleted scenes. |
 | `GET, PATCH, DELETE /api/v1/scenes/{id}` | HTTP | JWT + workspace | active | Read metadata/content, update legacy scene metadata/content, and trash scenes. Promoted v2 scenes reject legacy HTTP content PATCH and write through the durable collaboration writer. |
+| `GET /api/v1/scenes/{id}/projection` | HTTP | Login JWT + `X-Workspace-ID` + current `scene:read` capability | active locally | `200` durable collaboration projection containing `content` and `sequence`, including acknowledged updates since the last compaction. UUID and public aliases resolve in the specified workspace. Every response, including 401/403/404/5xx, has `Cache-Control: no-store`. Service failure fails closed; no public-link or agent-key access. |
 | `/w/{workspaceId}/scenes/{sceneId}` | Browser route | JWT + workspace ownership | active | Deep link to the authenticated Excalidraw editor; the frontend loads the scene through the workspace-scoped API. |
 | `POST /api/v1/scenes/{id}/star` | HTTP | JWT + workspace | active | Explicitly set starred state; returns the updated scene. |
 | `POST /api/v1/scenes/{id}/restore` | HTTP | JWT + workspace | active | Restore a trashed scene. |
@@ -107,6 +109,18 @@ invitation registration allows 20 per IP and 5 per invitation token; public
 scene-session exchange and public snapshot POST share limits of 60 per IP and
 15 per public token. The limiter never stores raw account or token identifiers.
 Distributed/reverse-proxy limiting remains an independent deployment concern.
+
+Dashboard management uses the existing scene PATCH `{folderId}` and POST
+`/api/v1/scenes` `{title,folderId,content}` contracts. A duplicate of a promoted
+v2 scene reads the authenticated durable projection first, then creates a new
+scene from only its canonical content and chosen title/folder. A legacy scene
+uses its scene GET content. Session and collaborator state is not copied. These
+metadata and content mutations are available only with current edit access;
+workspace rename additionally requires owner membership. Folder PATCH rejects
+invalid names/targets as `400 INVALID_INPUT`, and workspace PATCH rejects an
+invalid name the same way. Access failures use current scoped 403/404 handling.
+The dashboard treats `403 FEATURE_DISABLED` from Collections as a stable policy
+state; other collection failures show Retry.
 Implementation and regression evidence is recorded in the
 [authentication hardening verification](../work/verification/auth-hardening-2026-10-19.md).
 

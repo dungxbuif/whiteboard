@@ -51,6 +51,12 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 ## Recent Changes
 
+- 2026-10-21: Dashboard management parity (workspace rename, folder rename/move,
+  scene move/duplicate, Collections policy state, durable scene projection) is
+  implemented and locally verified. Public/user/API docs are reconciled;
+  production build and VM100 canaries remain pending. See
+  [verification](work/verification/dashboard-management-2026-10-21.md).
+
 - 2026-10-20: User approved the enterprise detail design and complete 22-task
   programme for implementation. Work moved to an isolated
   `codex/enterprise-parity` worktree; foundation execution starts with Wave 0/1.

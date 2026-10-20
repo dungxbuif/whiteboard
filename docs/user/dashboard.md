@@ -3,14 +3,41 @@
 Status: implemented and deployed on VM100. Public desktop, mobile, keyboard,
 deep-link and access-role checks pass.
 
+The management controls below are implemented and verified locally; their
+production rollout remains pending.
+
 The dashboard follows the original devtool interface, including its original colors, sidebar, scene cards, typography and spacing. Excalidraw keeps its native canvas appearance.
 
 Use the workspace switcher to choose where scenes and folders are saved. Use search, All files, Starred and Trash to find content. The sidebar can collapse on desktop; on mobile it opens as a keyboard-accessible drawer.
+
+## Manage workspaces, folders, and scenes
+
+Workspace owners can open the workspace switcher and choose **Rename workspace**.
+The name must be 3–100 characters. Renaming keeps the same workspace and its
+existing links. Editors and viewers do not see this action.
+
+Owners and editors can open a folder's **Actions** menu and choose **Rename or
+move**. Enter a name (1–100 characters) and choose another folder or the root.
+You cannot move a folder into itself, a descendant, or a location beyond the
+supported nesting depth. Its subfolders move with it. Folder names and locations
+stay visible after a successful save, even if the following list reload fails.
+
+Owners and editors with scene edit access can open a scene's menu to **Move** it
+to another folder or **Duplicate** it. Moving changes its folder without
+changing its link. Duplicating asks for a copy name and destination, creates a
+new scene, then opens the copy. The copy includes the latest saved drawing,
+including acknowledged collaboration edits; it does not copy collaborators or
+other session state. Viewers do not see these edit actions. If a list reload
+fails after a successful move or copy, the completed change remains visible and
+a later reload reconciles the list.
 
 When the workspace collections feature is enabled, the sidebar also lists
 workspace collections and your private collections in the same dashboard
 style. Collections are independent of folders: adding or removing a scene link
 does not move the scene or change who can open it. See [Collections](collections.md).
+If Collections are disabled for the workspace, the sidebar says **Collections
+are unavailable for this workspace** and hides creation. A temporary loading
+failure shows **Retry**; select it to load the list again.
 
 Workspace owners can publish reusable native diagram bundles, while members can
 browse and editors can insert them into scenes. See [Libraries](libraries.md).

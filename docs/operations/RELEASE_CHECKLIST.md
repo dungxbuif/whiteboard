@@ -10,6 +10,10 @@ shared_fields: [status]
 
 # Release Checklist
 
+## Dashboard management parity release gate (2026-10-21)
+
+This change is verified locally in [dashboard management evidence](../work/verification/dashboard-management-2026-10-21.md); production rollout and VM100 checks remain pending. Before rollout, run backend tests, frontend unit/build checks, dashboard Playwright specs, production image builds, Compose configuration and migration checks. Use disposable owner and editor/viewer accounts to check workspace rename denial and success, folder rename/move, scene move/duplicate with current v2 content, disabled Collections copy and transient Retry. Check unauthenticated and authorized `GET /api/v1/scenes/{id}/projection`, including `Cache-Control: no-store` on both success and rejection. Finally check `/healthz` and service health. Record only statuses and route names; keep credentials and content out of evidence.
+
 ## Field Ownership
 
 - Human owns release approval and rollback acceptance.

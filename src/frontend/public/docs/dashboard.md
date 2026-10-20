@@ -2,14 +2,36 @@
 
 Status: implemented and deployed on VM100. Public desktop, mobile, keyboard, deep-link and access-role checks pass.
 
+The management controls below are implemented and verified locally; their
+production rollout remains pending.
+
 The dashboard follows the original devtool interface, including its original colors, sidebar, scene cards, typography and spacing. Excalidraw keeps its native canvas appearance.
 
 Use the workspace switcher to choose where scenes and folders are saved. Use search, All files, Starred and Trash to find content. The sidebar can collapse on desktop; on mobile it opens as a keyboard-accessible drawer.
+
+## Manage workspaces, folders, and scenes
+
+Workspace owners can choose **Rename workspace** in the workspace switcher.
+Enter a name of 3–100 characters; existing workspace links keep working. Owners
+and editors can choose **Rename or move** in a folder's Actions menu, change its
+name (1–100 characters), and select a parent folder or the root. A folder cannot
+move into itself, a descendant, or a location beyond the nesting depth limit.
+Its subfolders move with it.
+
+Owners and editors with scene edit access can use a scene's menu to **Move** it
+to a folder or **Duplicate** it with a new name and destination. The copy opens
+as a new scene with the latest durable drawing, including acknowledged
+collaboration edits. It excludes collaborator and session state. Viewers do not
+see these edit controls. A successful move or copy remains visible if its
+follow-up list reload fails; a later reload can refresh the list.
 
 When enabled by workspace policy, Collections appears beside folder navigation.
 Workspace and creator-private containers use canonical reloadable routes and
 organize links without moving scenes or changing scene access. See
 [Collections](collections.md).
+When workspace policy disables Collections, the sidebar shows **Collections are
+unavailable for this workspace** and hides creation. A temporary failure keeps
+a **Retry** action to reload the list.
 
 Owners publish reusable native diagram bundles in [Libraries](libraries.md);
 members browse them and scene editors insert fresh copies.
