@@ -16,4 +16,6 @@ conflicting identity returns `409`; a stale ETag returns `412`. Existing manual
 memberships are retained until a workspace owner explicitly adopts them.
 
 Machine-readable references: `/scim/user-schema.json` and
-`/scim/group-schema.json`.
+`/scim/group-schema.json`. Workspace role and retained-manual state use the
+required Whiteboard WorkspaceAccess extension at
+`/scim/workspace-access-schema.json`; they are not custom core Group fields.

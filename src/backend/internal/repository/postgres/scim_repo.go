@@ -13,11 +13,22 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/logger"
 )
 
 type SCIMRepository struct{ db *gorm.DB }
 
-func NewSCIMRepository(db *gorm.DB) *SCIMRepository { return &SCIMRepository{db: db} }
+func scimProvenanceAvailable(db *gorm.DB) (bool, error) {
+	var available bool
+	e := db.Raw("SELECT to_regclass('workspace_scim_users') IS NOT NULL").Scan(&available).Error
+	return available, e
+}
+
+func NewSCIMRepository(db *gorm.DB) *SCIMRepository {
+	// SCIM identifiers and filters may contain PII. Repository errors are
+	// returned to callers, while GORM's SQL/value logger is disabled here.
+	return &SCIMRepository{db: db.Session(&gorm.Session{Logger: logger.Default.LogMode(logger.Silent)})}
+}
 
 type scimCredentialRow struct {
 	WorkspaceID uuid.UUID `gorm:"primaryKey"`
@@ -98,7 +109,7 @@ func ptrString(value string) *string {
 	return &value
 }
 func scimUserDomain(row scimUserRow) domain.SCIMUser {
-	return domain.SCIMUser{Schemas: []string{domain.SCIMUserSchema}, ID: row.ID.String(), ExternalID: valueString(row.ExternalID), UserName: row.UserName, DisplayName: row.DisplayName, Emails: []domain.SCIMEmail{{Value: row.UserName, Type: "work", Primary: true}}, Active: row.Active, Role: row.DirectRole, RetainedManualAccess: row.RetainedManualAccess, Meta: domain.SCIMMeta{ResourceType: "User", Created: row.CreatedAt, LastModified: row.UpdatedAt, Version: etag(row.Version)}}
+	return domain.SCIMUser{Schemas: []string{domain.SCIMUserSchema, domain.SCIMWorkspaceAccessSchema}, ID: row.ID.String(), ExternalID: valueString(row.ExternalID), UserName: row.UserName, DisplayName: row.DisplayName, Emails: []domain.SCIMEmail{{Value: row.UserName, Type: "work", Primary: true}}, Active: row.Active, Role: row.DirectRole, RetainedManualAccess: row.RetainedManualAccess, WorkspaceAccess: &domain.SCIMWorkspaceAccess{Role: row.DirectRole, RetainedManualAccess: row.RetainedManualAccess}, Meta: domain.SCIMMeta{ResourceType: "User", Created: row.CreatedAt, LastModified: row.UpdatedAt, Version: etag(row.Version)}}
 }
 func valueString(p *string) string {
 	if p == nil {
@@ -191,9 +202,9 @@ func existingMembership(tx *gorm.DB, w, u uuid.UUID) (domain.WorkspaceRole, bool
 	}
 	return member.Role, e == nil, e
 }
-func hasSources(tx *gorm.DB, w, u uuid.UUID) (bool, error) {
+func hasManualSources(tx *gorm.DB, w, u uuid.UUID) (bool, error) {
 	var n int64
-	e := tx.Table("workspace_membership_sources").Where("workspace_id=? AND user_id=?", w, u).Count(&n).Error
+	e := tx.Table("workspace_membership_sources").Where("workspace_id=? AND user_id=? AND source_kind='manual'", w, u).Count(&n).Error
 	return n > 0, e
 }
 func (r *SCIMRepository) CreateUser(ctx context.Context, w uuid.UUID, in domain.SCIMUser, now time.Time) (out domain.SCIMUser, e error) {
@@ -223,11 +234,17 @@ func (r *SCIMRepository) CreateUser(ctx context.Context, w uuid.UUID, in domain.
 		if err != nil {
 			return err
 		}
-		sources, err := hasSources(tx, w, userID)
+		manualSource, err := hasManualSources(tx, w, userID)
 		if err != nil {
 			return err
 		}
-		manual := member && !sources
+		manual := member && (manualSource || role == domain.WorkspaceRoleOwner)
+		if member && !manualSource && role != domain.WorkspaceRoleOwner {
+			manual = true
+			if err = tx.Create(&membershipSourceRow{WorkspaceID: w, UserID: userID, SourceKind: domain.SCIMMembershipSourceManual, SourceID: userID, Role: string(role), CreatedAt: now}).Error; err != nil {
+				return err
+			}
+		}
 		row := scimUserRow{ID: uuid.New(), WorkspaceID: w, UserID: userID, ExternalID: ptrString(in.ExternalID), UserName: in.UserName, DisplayName: in.DisplayName, Active: in.Active, DirectRole: in.Role, RetainedManualAccess: manual, Version: 1, CreatedAt: now, UpdatedAt: now}
 		if err = tx.Create(&row).Error; err != nil {
 			return scimRepoError(err)
@@ -289,6 +306,9 @@ func (r *SCIMRepository) ListUsers(ctx context.Context, w uuid.UUID, f domain.SC
 		return domain.SCIMPage[domain.SCIMUser]{}, e
 	}
 	var rows []scimUserRow
+	if count == 0 {
+		return domain.SCIMPage[domain.SCIMUser]{Schemas: []string{domain.SCIMListSchema}, TotalResults: int(total), StartIndex: start, ItemsPerPage: 0, Resources: []domain.SCIMUser{}}, nil
+	}
 	if e := db.Order("created_at,id").Offset(start - 1).Limit(count).Find(&rows).Error; e != nil {
 		return domain.SCIMPage[domain.SCIMUser]{}, e
 	}
@@ -302,10 +322,7 @@ func (r *SCIMRepository) ListUsers(ctx context.Context, w uuid.UUID, f domain.SC
 func revokeUserSessions(tx *gorm.DB, w, u uuid.UUID, now time.Time) error {
 	return tx.Exec(`UPDATE enterprise_login_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL AND connection_id IN (SELECT id FROM workspace_sso_connections WHERE workspace_id=?)`, now, u, w).Error
 }
-func recomputeMembership(tx *gorm.DB, w, u uuid.UUID, manual bool, now time.Time) error {
-	if manual {
-		return nil
-	}
+func recomputeMembership(tx *gorm.DB, w, u uuid.UUID, _ bool, now time.Time) error {
 	var sources []membershipSourceRow
 	if e := tx.Where("workspace_id=? AND user_id=?", w, u).Find(&sources).Error; e != nil {
 		return e
@@ -340,11 +357,19 @@ func (r *SCIMRepository) replaceUser(tx *gorm.DB, w, id uuid.UUID, match string,
 	if e = tx.Save(&row).Error; e != nil {
 		return domain.SCIMUser{}, scimRepoError(e)
 	}
-	if e = tx.Where("workspace_id=? AND user_id=? AND source_kind='direct'", w, row.UserID).Delete(&membershipSourceRow{}).Error; e != nil {
+	var adopted int64
+	if e = tx.Model(&membershipSourceRow{}).Where("workspace_id=? AND user_id=? AND source_kind='adopted'", w, row.UserID).Count(&adopted).Error; e != nil {
+		return domain.SCIMUser{}, e
+	}
+	if e = tx.Where("workspace_id=? AND user_id=? AND source_kind IN ('direct','adopted')", w, row.UserID).Delete(&membershipSourceRow{}).Error; e != nil {
 		return domain.SCIMUser{}, e
 	}
 	if in.Active && !row.RetainedManualAccess {
-		if e = tx.Create(&membershipSourceRow{WorkspaceID: w, UserID: row.UserID, SourceKind: domain.SCIMMembershipSourceDirect, SourceID: row.ID, Role: in.Role, CreatedAt: now}).Error; e != nil {
+		sourceKind := domain.SCIMMembershipSourceDirect
+		if adopted > 0 {
+			sourceKind = domain.SCIMMembershipSourceAdopted
+		}
+		if e = tx.Create(&membershipSourceRow{WorkspaceID: w, UserID: row.UserID, SourceKind: sourceKind, SourceID: row.ID, Role: in.Role, CreatedAt: now}).Error; e != nil {
 			return domain.SCIMUser{}, e
 		}
 		if e = tx.Exec(`INSERT INTO workspace_membership_sources(workspace_id,user_id,source_kind,source_id,role,created_at)
@@ -355,7 +380,7 @@ func (r *SCIMRepository) replaceUser(tx *gorm.DB, w, id uuid.UUID, match string,
 		}
 	}
 	if !in.Active {
-		if e = tx.Where("workspace_id=? AND user_id=?", w, row.UserID).Delete(&membershipSourceRow{}).Error; e != nil {
+		if e = tx.Where("workspace_id=? AND user_id=? AND source_kind IN ('direct','group','adopted')", w, row.UserID).Delete(&membershipSourceRow{}).Error; e != nil {
 			return domain.SCIMUser{}, e
 		}
 	}
@@ -409,6 +434,9 @@ func (r *SCIMRepository) AdoptUser(ctx context.Context, w, id uuid.UUID, now tim
 		if err = tx.Save(&row).Error; err != nil {
 			return err
 		}
+		if err = tx.Where("workspace_id=? AND user_id=? AND source_kind='manual'", w, row.UserID).Delete(&membershipSourceRow{}).Error; err != nil {
+			return err
+		}
 		if row.Active {
 			if err = tx.Create(&membershipSourceRow{WorkspaceID: w, UserID: row.UserID, SourceKind: domain.SCIMMembershipSourceAdopted, SourceID: row.ID, Role: row.DirectRole, CreatedAt: now}).Error; err != nil {
 				return err
@@ -435,7 +463,7 @@ func (r *SCIMRepository) groupDomain(db *gorm.DB, row scimGroupRow) (domain.SCIM
 	if e != nil {
 		return domain.SCIMGroup{}, e
 	}
-	out := domain.SCIMGroup{Schemas: []string{domain.SCIMGroupSchema}, ID: row.ID.String(), ExternalID: valueString(row.ExternalID), DisplayName: row.DisplayName, Role: row.Role, Meta: domain.SCIMMeta{ResourceType: "Group", Created: row.CreatedAt, LastModified: row.UpdatedAt, Version: etag(row.Version)}}
+	out := domain.SCIMGroup{Schemas: []string{domain.SCIMGroupSchema, domain.SCIMWorkspaceAccessSchema}, ID: row.ID.String(), ExternalID: valueString(row.ExternalID), DisplayName: row.DisplayName, Role: row.Role, WorkspaceAccess: &domain.SCIMWorkspaceAccess{Role: row.Role}, Meta: domain.SCIMMeta{ResourceType: "Group", Created: row.CreatedAt, LastModified: row.UpdatedAt, Version: etag(row.Version)}}
 	for _, m := range members {
 		out.Members = append(out.Members, domain.SCIMGroupMember{Value: m.ID.String(), Display: m.DisplayName})
 	}
@@ -571,6 +599,9 @@ func (r *SCIMRepository) ListGroups(ctx context.Context, w uuid.UUID, f domain.S
 		return domain.SCIMPage[domain.SCIMGroup]{}, e
 	}
 	var rows []scimGroupRow
+	if count == 0 {
+		return domain.SCIMPage[domain.SCIMGroup]{Schemas: []string{domain.SCIMListSchema}, TotalResults: int(total), StartIndex: start, ItemsPerPage: 0, Resources: []domain.SCIMGroup{}}, nil
+	}
 	if e := db.Order("created_at,id").Offset(start - 1).Limit(count).Find(&rows).Error; e != nil {
 		return domain.SCIMPage[domain.SCIMGroup]{}, e
 	}
@@ -627,6 +658,9 @@ func (r *SCIMRepository) DeleteGroup(ctx context.Context, w, id uuid.UUID, match
 		}
 		var members []uuid.UUID
 		if e = tx.Model(&scimGroupMemberRow{}).Where("workspace_id=? AND group_id=?", w, id).Pluck("scim_user_id", &members).Error; e != nil {
+			return e
+		}
+		if e = tx.Where("workspace_id=? AND source_kind='group' AND source_id=?", w, id).Delete(&membershipSourceRow{}).Error; e != nil {
 			return e
 		}
 		if e = tx.Delete(&row).Error; e != nil {

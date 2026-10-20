@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -117,11 +118,42 @@ func TestSCIMDiscoveryPagingAndBulk(t *testing.T) {
 		t.Fatalf("bulk=%d", rec.Code)
 	}
 }
+func TestSCIMSchemasDeclareWorkspaceExtension(t *testing.T) {
+	router := scimTestRouter(&scimHandlerService{}, uuid.New())
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/scim/v2/Schemas", nil))
+	var body struct {
+		Resources []struct {
+			ID         string `json:"id"`
+			Attributes []struct {
+				Name string `json:"name"`
+			} `json:"attributes"`
+		} `json:"Resources"`
+	}
+	if e := json.Unmarshal(rec.Body.Bytes(), &body); e != nil {
+		t.Fatal(e)
+	}
+	if len(body.Resources) != 3 {
+		t.Fatalf("schemas=%d", len(body.Resources))
+	}
+	for _, schema := range body.Resources {
+		if schema.ID == domain.SCIMGroupSchema {
+			for _, attribute := range schema.Attributes {
+				if attribute.Name == "role" {
+					t.Fatal("custom role leaked into core Group schema")
+				}
+			}
+		}
+	}
+	if body.Resources[2].ID != domain.SCIMWorkspaceAccessSchema {
+		t.Fatalf("extension=%s", body.Resources[2].ID)
+	}
+}
 func TestSCIMErrorsUseProtocolStatus(t *testing.T) {
 	service := &scimHandlerService{err: domain.ErrSCIMPrecondition}
 	router := scimTestRouter(service, uuid.New())
 	id := uuid.NewString()
-	req := httptest.NewRequest(http.MethodPut, "/scim/v2/Users/"+id, strings.NewReader(`{"schemas":["`+domain.SCIMUserSchema+`"],"userName":"a@example.test","active":true,"role":"viewer"}`))
+	req := httptest.NewRequest(http.MethodPut, "/scim/v2/Users/"+id, strings.NewReader(`{"schemas":["`+domain.SCIMUserSchema+`","`+domain.SCIMWorkspaceAccessSchema+`"],"userName":"a@example.test","active":true,"`+domain.SCIMWorkspaceAccessSchema+`":{"role":"viewer"}}`))
 	req.Header.Set("If-Match", `W/"1"`)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -145,7 +177,7 @@ func TestSCIMFixtureHTTPIdPStyleSequence(t *testing.T) {
 		router.ServeHTTP(rec, req)
 		return rec
 	}
-	created := request(http.MethodPost, "/scim/v2/Users", `{"schemas":["`+domain.SCIMUserSchema+`"],"userName":"fixture@example.test","active":true,"role":"viewer"}`, "")
+	created := request(http.MethodPost, "/scim/v2/Users", `{"schemas":["`+domain.SCIMUserSchema+`","`+domain.SCIMWorkspaceAccessSchema+`"],"userName":"fixture@example.test","active":true,"`+domain.SCIMWorkspaceAccessSchema+`":{"role":"viewer"}}`, "")
 	if created.Code != http.StatusCreated || created.Header().Get("ETag") != `W/"1"` || service.creates != 1 {
 		t.Fatalf("create status=%d etag=%s body=%s", created.Code, created.Header().Get("ETag"), created.Body.String())
 	}

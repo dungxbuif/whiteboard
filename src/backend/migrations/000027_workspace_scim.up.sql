@@ -54,8 +54,8 @@ CREATE TABLE workspace_scim_group_members (
 CREATE TABLE workspace_membership_sources (
  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
- source_kind TEXT NOT NULL CHECK(source_kind IN ('direct','group','adopted')),
- source_id UUID NOT NULL,
+ source_kind TEXT NOT NULL CHECK(source_kind IN ('direct','group','adopted','manual')),
+ source_id UUID NOT NULL CHECK(source_id <> '00000000-0000-0000-0000-000000000000'::uuid),
  role TEXT NOT NULL CHECK(role IN ('editor','viewer')),
  created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
  PRIMARY KEY(workspace_id,user_id,source_kind,source_id)

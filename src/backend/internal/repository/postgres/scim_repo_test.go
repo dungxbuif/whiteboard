@@ -1,8 +1,11 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
+	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +13,8 @@ import (
 	"devtool/internal/usecase"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestSCIMMigrationUpDown(t *testing.T) {
@@ -121,6 +126,16 @@ func TestSCIMExplicitAdoptionMakesManualMembershipManaged(t *testing.T) {
 	if e != nil || user.RetainedManualAccess {
 		t.Fatalf("adopted=%+v err=%v", user, e)
 	}
+	user.Role = "viewer"
+	user, e = repo.ReplaceUser(context.Background(), workspace, uuid.MustParse(user.ID), user.Meta.Version, user, now.Add(2*time.Second))
+	if e != nil {
+		t.Fatal(e)
+	}
+	var adoptedRole string
+	db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, userID).Scan(&adoptedRole)
+	if adoptedRole != "viewer" {
+		t.Fatalf("adopted downgrade role=%s", adoptedRole)
+	}
 	if _, e = repo.DeleteUser(context.Background(), workspace, uuid.MustParse(user.ID), user.Meta.Version, now.Add(time.Minute)); e != nil {
 		t.Fatal(e)
 	}
@@ -140,6 +155,10 @@ func TestSCIMGroupStrongestRoleAndETag(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	empty, e := repo.ListUsers(context.Background(), workspace, domain.SCIMFilter{}, 1, 0)
+	if e != nil || empty.TotalResults != 1 || empty.ItemsPerPage != 0 || len(empty.Resources) != 0 {
+		t.Fatalf("count zero page=%+v err=%v", empty, e)
+	}
 	group, e := repo.CreateGroup(context.Background(), workspace, domain.SCIMGroup{DisplayName: "Editors", Role: "editor", Members: []domain.SCIMGroupMember{{Value: user.ID}}}, now)
 	if e != nil {
 		t.Fatal(e)
@@ -156,5 +175,94 @@ func TestSCIMGroupStrongestRoleAndETag(t *testing.T) {
 	group.Role = "owner"
 	if _, e = repo.ReplaceGroup(context.Background(), workspace, uuid.MustParse(group.ID), group.Meta.Version, group, now); e == nil {
 		t.Fatal("owner group accepted")
+	}
+	if e = repo.DeleteGroup(context.Background(), workspace, uuid.MustParse(group.ID), group.Meta.Version, now.Add(time.Second)); e != nil {
+		t.Fatal(e)
+	}
+	db.Raw("SELECT role FROM workspace_members m JOIN workspace_scim_users s ON s.user_id=m.user_id WHERE s.id=?", user.ID).Scan(&role)
+	if role != "viewer" {
+		t.Fatalf("role after group delete=%s", role)
+	}
+	var groupSources int64
+	db.Table("workspace_membership_sources").Where("workspace_id=? AND source_kind='group' AND source_id=?", workspace, group.ID).Count(&groupSources)
+	if groupSources != 0 {
+		t.Fatalf("orphan group sources=%d", groupSources)
+	}
+}
+
+func TestSCIMLateManualAndInvitationProvenanceSurvivesDeprovision(t *testing.T) {
+	db := accessTestDB(t, 27)
+	owner, workspace := domainRepositoryWorkspace(t, db, "SCIM late manual")
+	other := uuid.New()
+	mustExec(t, db, "INSERT INTO workspaces(id,name,owner_id) VALUES (?,'Other',?)", other, owner)
+	repo := NewSCIMRepository(db)
+	now := time.Now().UTC()
+	manual, e := repo.CreateUser(context.Background(), workspace, domain.SCIMUser{UserName: "late-manual@example.test", Active: true, Role: "viewer", ExternalID: "late-manual"}, now)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var manualRow scimUserRow
+	if e = db.Where("id=?", manual.ID).First(&manualRow).Error; e != nil {
+		t.Fatal(e)
+	}
+	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'viewer')", other, manualRow.UserID)
+	editor := domain.WorkspaceRoleEditor
+	if e = NewAccessRepository(db).ChangeMember(context.Background(), workspace, manualRow.UserID, &editor); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = repo.DeleteUser(context.Background(), workspace, uuid.MustParse(manual.ID), manual.Meta.Version, now.Add(time.Minute)); e != nil {
+		t.Fatal(e)
+	}
+	var role string
+	db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, manualRow.UserID).Scan(&role)
+	if role != "editor" {
+		t.Fatalf("late manual role=%s", role)
+	}
+	var otherCount int64
+	db.Table("workspace_members").Where("workspace_id=? AND user_id=?", other, manualRow.UserID).Count(&otherCount)
+	if otherCount != 1 {
+		t.Fatalf("other workspace membership=%d", otherCount)
+	}
+
+	invited, e := repo.CreateUser(context.Background(), workspace, domain.SCIMUser{UserName: "late-invite@example.test", Active: true, Role: "viewer", ExternalID: "late-invite"}, now)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var invitedRow scimUserRow
+	if e = db.Where("id=?", invited.ID).First(&invitedRow).Error; e != nil {
+		t.Fatal(e)
+	}
+	invitation := domain.Invitation{ID: uuid.New(), WorkspaceID: workspace, Email: invited.UserName, Role: domain.WorkspaceRoleEditor, InviterID: owner, TokenHash: strings.Repeat("a", 64), CreatedAt: now, ExpiresAt: now.Add(168 * time.Hour)}
+	if e = db.Create(&invitation).Error; e != nil {
+		t.Fatal(e)
+	}
+	if _, e = NewInvitationRepository(db).Join(context.Background(), &invitation, invitedRow.UserID, now.Add(time.Second)); e != nil {
+		t.Fatal(e)
+	}
+	if _, e = repo.DeleteUser(context.Background(), workspace, uuid.MustParse(invited.ID), invited.Meta.Version, now.Add(time.Minute)); e != nil {
+		t.Fatal(e)
+	}
+	role = ""
+	db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, invitedRow.UserID).Scan(&role)
+	if role != "editor" {
+		t.Fatalf("late invitation role=%s", role)
+	}
+}
+
+func TestSCIMRepositoryDoesNotLogProvisionedPII(t *testing.T) {
+	db := accessTestDB(t, 27)
+	_, workspace := domainRepositoryWorkspace(t, db, "SCIM logging")
+	var captured bytes.Buffer
+	loggingDB := db.Session(&gorm.Session{Logger: logger.New(log.New(&captured, "", 0), logger.Config{LogLevel: logger.Info})})
+	repo := NewSCIMRepository(loggingDB)
+	pii := "private.person+scim@example.test"
+	if _, e := repo.CreateUser(context.Background(), workspace, domain.SCIMUser{UserName: pii, DisplayName: "Private Person", Active: true, Role: "viewer", ExternalID: "employee-secret-42"}, time.Now().UTC()); e != nil {
+		t.Fatal(e)
+	}
+	logged := captured.String()
+	for _, secret := range []string{pii, "Private Person", "employee-secret-42"} {
+		if strings.Contains(logged, secret) {
+			t.Fatalf("SCIM PII leaked to SQL log: %q", secret)
+		}
 	}
 }

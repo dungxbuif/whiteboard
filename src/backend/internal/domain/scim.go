@@ -14,11 +14,13 @@ const (
 	SCIMErrorSchema             = "urn:ietf:params:scim:api:messages:2.0:Error"
 	SCIMPatchSchema             = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
 	SCIMServiceProviderSchema   = "urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"
+	SCIMWorkspaceAccessSchema   = "urn:ietf:params:scim:schemas:extension:whiteboard:2.0:WorkspaceAccess"
 	SCIMMaxPageSize             = 100
 	SCIMTokenBytes              = 32
 	SCIMMembershipSourceDirect  = "direct"
 	SCIMMembershipSourceGroup   = "group"
 	SCIMMembershipSourceAdopted = "adopted"
+	SCIMMembershipSourceManual  = "manual"
 )
 
 var (
@@ -50,17 +52,23 @@ type SCIMEmail struct {
 }
 
 type SCIMUser struct {
-	Schemas              []string    `json:"schemas"`
-	ID                   string      `json:"id"`
-	ExternalID           string      `json:"externalId,omitempty"`
-	UserName             string      `json:"userName"`
-	DisplayName          string      `json:"displayName,omitempty"`
-	Name                 SCIMName    `json:"name,omitempty"`
-	Emails               []SCIMEmail `json:"emails,omitempty"`
-	Active               bool        `json:"active"`
-	Role                 string      `json:"role,omitempty"`
-	RetainedManualAccess bool        `json:"retainedManualAccess,omitempty"`
-	Meta                 SCIMMeta    `json:"meta"`
+	Schemas              []string             `json:"schemas"`
+	ID                   string               `json:"id"`
+	ExternalID           string               `json:"externalId,omitempty"`
+	UserName             string               `json:"userName"`
+	DisplayName          string               `json:"displayName,omitempty"`
+	Name                 SCIMName             `json:"name,omitempty"`
+	Emails               []SCIMEmail          `json:"emails,omitempty"`
+	Active               bool                 `json:"active"`
+	Role                 string               `json:"-"`
+	RetainedManualAccess bool                 `json:"-"`
+	WorkspaceAccess      *SCIMWorkspaceAccess `json:"urn:ietf:params:scim:schemas:extension:whiteboard:2.0:WorkspaceAccess,omitempty"`
+	Meta                 SCIMMeta             `json:"meta"`
+}
+
+type SCIMWorkspaceAccess struct {
+	Role                 string `json:"role,omitempty"`
+	RetainedManualAccess bool   `json:"retainedManualAccess,omitempty"`
 }
 
 type SCIMGroupMember struct {
@@ -69,13 +77,14 @@ type SCIMGroupMember struct {
 }
 
 type SCIMGroup struct {
-	Schemas     []string          `json:"schemas"`
-	ID          string            `json:"id"`
-	ExternalID  string            `json:"externalId,omitempty"`
-	DisplayName string            `json:"displayName"`
-	Role        string            `json:"role"`
-	Members     []SCIMGroupMember `json:"members,omitempty"`
-	Meta        SCIMMeta          `json:"meta"`
+	Schemas         []string             `json:"schemas"`
+	ID              string               `json:"id"`
+	ExternalID      string               `json:"externalId,omitempty"`
+	DisplayName     string               `json:"displayName"`
+	Role            string               `json:"-"`
+	WorkspaceAccess *SCIMWorkspaceAccess `json:"urn:ietf:params:scim:schemas:extension:whiteboard:2.0:WorkspaceAccess,omitempty"`
+	Members         []SCIMGroupMember    `json:"members,omitempty"`
+	Meta            SCIMMeta             `json:"meta"`
 }
 
 type SCIMPage[T any] struct {

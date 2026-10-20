@@ -19,8 +19,14 @@ The base URL is `/api/v1/scim/v2`. Discovery is available at
 `Users` and `Groups`. Results start at index 1 and return at most 100 resources.
 Bulk, password changes, and sorting are not supported. Machine-readable schema
 references are available at `/scim/user-schema.json` and
-`/scim/group-schema.json`.
+`/scim/group-schema.json`. Role is supplied through the required
+`urn:ietf:params:scim:schemas:extension:whiteboard:2.0:WorkspaceAccess`
+extension, documented at `/scim/workspace-access-schema.json`.
 
 When a SCIM record matches an existing manual workspace member, the app marks
 it as retained and SCIM deprovision leaves it in place. An owner must explicitly
 adopt that member before SCIM can remove the membership.
+
+Manual role changes and accepted invitations made after provisioning are also
+preserved. Adoption transfers that specific manual membership to SCIM; later
+SCIM role changes then update it, including editor-to-viewer changes.

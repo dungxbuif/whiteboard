@@ -176,10 +176,21 @@ func (h *SCIMHandler) ServiceProviderConfig(w http.ResponseWriter, _ *http.Reque
 	writeSCIM(w, http.StatusOK, map[string]any{"schemas": []string{domain.SCIMServiceProviderSchema}, "patch": map[string]bool{"supported": true}, "bulk": map[string]any{"supported": false, "maxOperations": 0, "maxPayloadSize": 0}, "filter": map[string]any{"supported": true, "maxResults": domain.SCIMMaxPageSize}, "changePassword": map[string]bool{"supported": false}, "sort": map[string]bool{"supported": false}, "etag": map[string]bool{"supported": true}, "authenticationSchemes": []map[string]any{{"type": "oauthbearertoken", "name": "Bearer Token", "description": "Dedicated workspace SCIM token", "primary": true}}})
 }
 func (h *SCIMHandler) ResourceTypes(w http.ResponseWriter, _ *http.Request) {
-	writeSCIM(w, http.StatusOK, domain.SCIMPage[map[string]any]{Schemas: []string{domain.SCIMListSchema}, TotalResults: 2, StartIndex: 1, ItemsPerPage: 2, Resources: []map[string]any{{"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:ResourceType"}, "id": "User", "name": "User", "endpoint": "/Users", "schema": domain.SCIMUserSchema}, {"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:ResourceType"}, "id": "Group", "name": "Group", "endpoint": "/Groups", "schema": domain.SCIMGroupSchema}}})
+	extensions := []map[string]any{{"schema": domain.SCIMWorkspaceAccessSchema, "required": true}}
+	writeSCIM(w, http.StatusOK, domain.SCIMPage[map[string]any]{Schemas: []string{domain.SCIMListSchema}, TotalResults: 2, StartIndex: 1, ItemsPerPage: 2, Resources: []map[string]any{{"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:ResourceType"}, "id": "User", "name": "User", "endpoint": "/Users", "schema": domain.SCIMUserSchema, "schemaExtensions": extensions}, {"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:ResourceType"}, "id": "Group", "name": "Group", "endpoint": "/Groups", "schema": domain.SCIMGroupSchema, "schemaExtensions": extensions}}})
 }
 func (h *SCIMHandler) Schemas(w http.ResponseWriter, _ *http.Request) {
-	writeSCIM(w, http.StatusOK, domain.SCIMPage[map[string]any]{Schemas: []string{domain.SCIMListSchema}, TotalResults: 2, StartIndex: 1, ItemsPerPage: 2, Resources: []map[string]any{{"id": domain.SCIMUserSchema, "name": "User", "description": "Workspace user", "attributes": []any{}}, {"id": domain.SCIMGroupSchema, "name": "Group", "description": "Workspace group", "attributes": []any{}}}})
+	stringAttribute := func(name string, required bool, uniqueness string) map[string]any {
+		value := map[string]any{"name": name, "type": "string", "multiValued": false, "required": required, "mutability": "readWrite", "returned": "default"}
+		if uniqueness != "" {
+			value["uniqueness"] = uniqueness
+		}
+		return value
+	}
+	user := map[string]any{"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:Schema"}, "id": domain.SCIMUserSchema, "name": "User", "description": "Workspace user", "attributes": []any{stringAttribute("userName", true, "server"), stringAttribute("externalId", false, "server"), stringAttribute("displayName", false, "none"), map[string]any{"name": "active", "type": "boolean", "multiValued": false, "required": true, "mutability": "readWrite", "returned": "default"}}}
+	group := map[string]any{"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:Schema"}, "id": domain.SCIMGroupSchema, "name": "Group", "description": "Workspace group", "attributes": []any{stringAttribute("displayName", true, "server"), stringAttribute("externalId", false, "server"), map[string]any{"name": "members", "type": "complex", "multiValued": true, "required": false, "mutability": "readWrite", "returned": "default", "subAttributes": []any{stringAttribute("value", true, "none"), stringAttribute("display", false, "none")}}}}
+	extension := map[string]any{"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:Schema"}, "id": domain.SCIMWorkspaceAccessSchema, "name": "WorkspaceAccess", "description": "Whiteboard workspace access extension", "attributes": []any{map[string]any{"name": "role", "type": "string", "multiValued": false, "required": true, "canonicalValues": []string{"editor", "viewer"}, "mutability": "readWrite", "returned": "default"}, map[string]any{"name": "retainedManualAccess", "type": "boolean", "multiValued": false, "required": false, "mutability": "readOnly", "returned": "default"}}}
+	writeSCIM(w, http.StatusOK, domain.SCIMPage[map[string]any]{Schemas: []string{domain.SCIMListSchema}, TotalResults: 3, StartIndex: 1, ItemsPerPage: 3, Resources: []map[string]any{user, group, extension}})
 }
 func queryPage(r *http.Request) (int, int, error) {
 	start, count := 1, domain.SCIMMaxPageSize

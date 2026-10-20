@@ -3,6 +3,12 @@
 Status: implementation and local guarded verification complete. Root router and
 composition wiring plus real-provider UAT remain release gates.
 
+Independent review remediation covers group-source cleanup, explicit manual
+membership provenance for owner and invitation mutations, adopted-role
+reconciliation, RFC paging/filter/PATCH edge cases, extension-aware discovery,
+and suppression of SQL values containing SCIM PII. Verification below must be
+re-run after these changes before wiring.
+
 Required proof:
 
 - ServiceProviderConfig, ResourceTypes, Schemas, Users, and Groups use SCIM
@@ -15,6 +21,15 @@ Required proof:
   sessions atomically while preserving manual and other-workspace access.
 - Group effective role is the strongest active editor/viewer mapping and can
   never create owner access.
+- Group deletion removes its provenance rows before recomputing effective
+  roles; late owner and invitation grants remain manual across deprovision.
+- `count=0`, case-insensitive filter attribute spelling, pathless PATCH, and
+  selective `members[value eq "…"]` removal follow RFC behavior; unsupported
+  paths return SCIM 400 rather than broadening a query or mutation.
+- Runtime and static schemas declare the WorkspaceAccess extension and keep
+  custom role/manual state out of the core Group schema.
+- Log-capture verification proves routine provisioning does not emit userName,
+  displayName, or externalId values.
 - Repeated provider requests are idempotent, external IDs are unique per
   workspace, and default My Workspace provisioning remains one-time.
 - Existing-room boundary proof mints a room token while membership is active,
@@ -27,11 +42,11 @@ input and must not be claimed from these tests.
 
 Verified on 2026-10-20:
 
-- `ACCESS_TEST_DATABASE_URL=… go test ./...`: 450 backend tests passed.
-- `go test ./internal/repository/postgres -run TestSCIM -count=1`: 4 guarded
+- `ACCESS_TEST_DATABASE_URL=… go test ./...`: 461 backend tests passed.
+- `go test ./internal/repository/postgres -run TestSCIM -count=1`: 6 guarded
   migration/provenance/deprovision/active-room tests passed.
 - `npm run test:unit -- --run src/components/enterprise/scim-settings.test.tsx`:
   2 owner-settings tests passed.
-- `npm run test:unit`: 192 frontend tests passed across 46 files.
+- `npm run test:unit`: 198 frontend tests passed across 48 files.
 - `go build ./...`: backend build passed.
 - `npm run build`: TypeScript and production Vite build passed.

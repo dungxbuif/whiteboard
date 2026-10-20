@@ -93,6 +93,9 @@ func normalizeUser(in domain.SCIMUser) (domain.SCIMUser, error) {
 	in.UserName = strings.ToLower(strings.TrimSpace(in.UserName))
 	in.ExternalID = strings.TrimSpace(in.ExternalID)
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
+	if in.WorkspaceAccess != nil && strings.TrimSpace(in.WorkspaceAccess.Role) != "" {
+		in.Role = in.WorkspaceAccess.Role
+	}
 	in.Role = strings.ToLower(strings.TrimSpace(in.Role))
 	if in.Role == "" {
 		in.Role = string(domain.WorkspaceRoleViewer)
@@ -100,7 +103,8 @@ func normalizeUser(in domain.SCIMUser) (domain.SCIMUser, error) {
 	if in.UserName == "" || !strings.Contains(in.UserName, "@") || !validManagedRole(in.Role) {
 		return domain.SCIMUser{}, domain.ErrSCIMInvalid
 	}
-	in.Schemas = []string{domain.SCIMUserSchema}
+	in.Schemas = []string{domain.SCIMUserSchema, domain.SCIMWorkspaceAccessSchema}
+	in.WorkspaceAccess = &domain.SCIMWorkspaceAccess{Role: in.Role, RetainedManualAccess: in.RetainedManualAccess}
 	if len(in.Emails) == 0 {
 		in.Emails = []domain.SCIMEmail{{Value: in.UserName, Type: "work", Primary: true}}
 	}
@@ -109,6 +113,9 @@ func normalizeUser(in domain.SCIMUser) (domain.SCIMUser, error) {
 func normalizeGroup(in domain.SCIMGroup) (domain.SCIMGroup, error) {
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
 	in.ExternalID = strings.TrimSpace(in.ExternalID)
+	if in.WorkspaceAccess != nil && strings.TrimSpace(in.WorkspaceAccess.Role) != "" {
+		in.Role = in.WorkspaceAccess.Role
+	}
 	in.Role = strings.ToLower(strings.TrimSpace(in.Role))
 	if in.Role == "" {
 		in.Role = string(domain.WorkspaceRoleViewer)
@@ -116,7 +123,8 @@ func normalizeGroup(in domain.SCIMGroup) (domain.SCIMGroup, error) {
 	if in.DisplayName == "" || !validManagedRole(in.Role) {
 		return domain.SCIMGroup{}, domain.ErrSCIMInvalid
 	}
-	in.Schemas = []string{domain.SCIMGroupSchema}
+	in.Schemas = []string{domain.SCIMGroupSchema, domain.SCIMWorkspaceAccessSchema}
+	in.WorkspaceAccess = &domain.SCIMWorkspaceAccess{Role: in.Role}
 	return in, nil
 }
 func (s *SCIMService) CreateUser(ctx context.Context, w uuid.UUID, in domain.SCIMUser) (domain.SCIMUser, error) {
@@ -140,8 +148,13 @@ func parseSCIMFilter(raw string, group bool) (domain.SCIMFilter, error) {
 	if m == nil {
 		return domain.SCIMFilter{}, domain.ErrSCIMInvalid
 	}
-	attribute := m[1]
-	if group && attribute == "userName" || !group && attribute == "displayName" {
+	attribute := strings.ToLower(m[1])
+	if group && attribute == "username" || !group && attribute == "displayname" {
+		return domain.SCIMFilter{}, domain.ErrSCIMInvalid
+	}
+	canonical := map[string]string{"username": "userName", "displayname": "displayName", "externalid": "externalId", "id": "id"}
+	attribute, ok := canonical[attribute]
+	if !ok {
 		return domain.SCIMFilter{}, domain.ErrSCIMInvalid
 	}
 	return domain.SCIMFilter{Attribute: attribute, Value: m[2]}, nil
@@ -153,7 +166,7 @@ func pageBounds(start, count int) (int, int) {
 	if count < 0 {
 		count = 0
 	}
-	if count == 0 || count > domain.SCIMMaxPageSize {
+	if count > domain.SCIMMaxPageSize {
 		count = domain.SCIMMaxPageSize
 	}
 	return start, count
@@ -195,51 +208,85 @@ func (s *SCIMService) PatchUser(ctx context.Context, w, id uuid.UUID, etag strin
 		return domain.SCIMUser{}, e
 	}
 	for _, op := range patch.Operations {
-		kind := strings.ToLower(op.Operation)
-		path := strings.ToLower(strings.TrimSpace(op.Path))
-		if kind != "add" && kind != "replace" && kind != "remove" {
-			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		if strings.TrimSpace(op.Path) == "" {
+			values, ok := op.Value.(map[string]any)
+			if !ok || strings.ToLower(op.Operation) == "remove" || len(values) == 0 {
+				return domain.SCIMUser{}, domain.ErrSCIMInvalid
+			}
+			for path, value := range values {
+				var err error
+				u, err = applyUserPatch(u, strings.ToLower(op.Operation), path, value)
+				if err != nil {
+					return domain.SCIMUser{}, err
+				}
+			}
+			continue
 		}
-		switch path {
-		case "active":
-			v, ok := patchBool(op.Value)
-			if !ok || kind == "remove" {
-				return domain.SCIMUser{}, domain.ErrSCIMInvalid
-			}
-			u.Active = v
-		case "username":
-			v, ok := patchString(op.Value)
-			if !ok || kind == "remove" {
-				return domain.SCIMUser{}, domain.ErrSCIMInvalid
-			}
-			u.UserName = v
-		case "displayname":
-			if kind == "remove" {
-				u.DisplayName = ""
-			} else if v, ok := patchString(op.Value); ok {
-				u.DisplayName = v
-			} else {
-				return domain.SCIMUser{}, domain.ErrSCIMInvalid
-			}
-		case "externalid":
-			if kind == "remove" {
-				u.ExternalID = ""
-			} else if v, ok := patchString(op.Value); ok {
-				u.ExternalID = v
-			} else {
-				return domain.SCIMUser{}, domain.ErrSCIMInvalid
-			}
-		case "role":
-			v, ok := patchString(op.Value)
-			if !ok || kind == "remove" {
-				return domain.SCIMUser{}, domain.ErrSCIMInvalid
-			}
-			u.Role = v
-		default:
-			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		var err error
+		u, err = applyUserPatch(u, strings.ToLower(op.Operation), op.Path, op.Value)
+		if err != nil {
+			return domain.SCIMUser{}, err
 		}
 	}
 	return s.ReplaceUser(ctx, w, id, etag, u)
+}
+
+func applyUserPatch(u domain.SCIMUser, kind, rawPath string, value any) (domain.SCIMUser, error) {
+	kind = strings.ToLower(kind)
+	path := strings.ToLower(strings.TrimSpace(rawPath))
+	if kind != "add" && kind != "replace" && kind != "remove" {
+		return domain.SCIMUser{}, domain.ErrSCIMInvalid
+	}
+	if path == strings.ToLower(domain.SCIMWorkspaceAccessSchema) {
+		attributes, ok := value.(map[string]any)
+		if !ok || len(attributes) != 1 {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+		role, ok := attributes["role"]
+		if !ok {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+		return applyUserPatch(u, kind, domain.SCIMWorkspaceAccessSchema+":role", role)
+	}
+	switch path {
+	case "active":
+		v, ok := patchBool(value)
+		if !ok || kind == "remove" {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+		u.Active = v
+	case "username":
+		v, ok := patchString(value)
+		if !ok || kind == "remove" {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+		u.UserName = v
+	case "displayname":
+		if kind == "remove" {
+			u.DisplayName = ""
+		} else if v, ok := patchString(value); ok {
+			u.DisplayName = v
+		} else {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+	case "externalid":
+		if kind == "remove" {
+			u.ExternalID = ""
+		} else if v, ok := patchString(value); ok {
+			u.ExternalID = v
+		} else {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+	case strings.ToLower(domain.SCIMWorkspaceAccessSchema + ":role"):
+		v, ok := patchString(value)
+		if !ok || kind == "remove" {
+			return domain.SCIMUser{}, domain.ErrSCIMInvalid
+		}
+		u.Role = v
+	default:
+		return domain.SCIMUser{}, domain.ErrSCIMInvalid
+	}
+	return u, nil
 }
 
 func (s *SCIMService) CreateGroup(ctx context.Context, w uuid.UUID, in domain.SCIMGroup) (domain.SCIMGroup, error) {
@@ -301,55 +348,106 @@ func (s *SCIMService) PatchGroup(ctx context.Context, w, id uuid.UUID, etag stri
 		return domain.SCIMGroup{}, e
 	}
 	for _, op := range patch.Operations {
-		kind := strings.ToLower(op.Operation)
-		path := strings.ToLower(strings.TrimSpace(op.Path))
-		if kind != "add" && kind != "replace" && kind != "remove" {
-			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
-		}
-		switch path {
-		case "displayname":
-			if kind == "remove" {
+		if strings.TrimSpace(op.Path) == "" {
+			values, ok := op.Value.(map[string]any)
+			if !ok || strings.ToLower(op.Operation) == "remove" || len(values) == 0 {
 				return domain.SCIMGroup{}, domain.ErrSCIMInvalid
 			}
-			v, ok := patchString(op.Value)
-			if !ok {
-				return domain.SCIMGroup{}, domain.ErrSCIMInvalid
-			}
-			g.DisplayName = v
-		case "externalid":
-			if kind == "remove" {
-				g.ExternalID = ""
-			} else if v, ok := patchString(op.Value); ok {
-				g.ExternalID = v
-			} else {
-				return domain.SCIMGroup{}, domain.ErrSCIMInvalid
-			}
-		case "role":
-			if kind == "remove" {
-				return domain.SCIMGroup{}, domain.ErrSCIMInvalid
-			}
-			v, ok := patchString(op.Value)
-			if !ok {
-				return domain.SCIMGroup{}, domain.ErrSCIMInvalid
-			}
-			g.Role = v
-		case "members":
-			if kind == "remove" {
-				g.Members = nil
-			} else if v, ok := patchMembers(op.Value); ok {
-				if kind == "add" {
-					g.Members = append(g.Members, v...)
-				} else {
-					g.Members = v
+			for path, value := range values {
+				g, e = applyGroupPatch(g, op.Operation, path, value)
+				if e != nil {
+					return domain.SCIMGroup{}, e
 				}
-			} else {
-				return domain.SCIMGroup{}, domain.ErrSCIMInvalid
 			}
-		default:
-			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+			continue
+		}
+		g, e = applyGroupPatch(g, op.Operation, op.Path, op.Value)
+		if e != nil {
+			return domain.SCIMGroup{}, e
 		}
 	}
 	return s.ReplaceGroup(ctx, w, id, etag, g)
+}
+
+var scimMemberFilterPath = regexp.MustCompile(`(?i)^members\s*\[\s*value\s+eq\s+"([0-9a-f-]+)"\s*\]$`)
+
+func applyGroupPatch(g domain.SCIMGroup, kind, rawPath string, value any) (domain.SCIMGroup, error) {
+	kind = strings.ToLower(kind)
+	path := strings.ToLower(strings.TrimSpace(rawPath))
+	if kind != "add" && kind != "replace" && kind != "remove" {
+		return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+	}
+	if path == strings.ToLower(domain.SCIMWorkspaceAccessSchema) {
+		attributes, ok := value.(map[string]any)
+		if !ok || len(attributes) != 1 {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		role, ok := attributes["role"]
+		if !ok {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		return applyGroupPatch(g, kind, domain.SCIMWorkspaceAccessSchema+":role", role)
+	}
+	if match := scimMemberFilterPath.FindStringSubmatch(strings.TrimSpace(rawPath)); match != nil {
+		if kind != "remove" {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		id, err := uuid.Parse(match[1])
+		if err != nil {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		filtered := g.Members[:0]
+		for _, member := range g.Members {
+			if member.Value != id.String() {
+				filtered = append(filtered, member)
+			}
+		}
+		g.Members = filtered
+		return g, nil
+	}
+	switch path {
+	case "displayname":
+		if kind == "remove" {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		v, ok := patchString(value)
+		if !ok {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		g.DisplayName = v
+	case "externalid":
+		if kind == "remove" {
+			g.ExternalID = ""
+		} else if v, ok := patchString(value); ok {
+			g.ExternalID = v
+		} else {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+	case strings.ToLower(domain.SCIMWorkspaceAccessSchema + ":role"):
+		if kind == "remove" {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		v, ok := patchString(value)
+		if !ok {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+		g.Role = v
+	case "members":
+		if kind == "remove" {
+			g.Members = nil
+		} else if v, ok := patchMembers(value); ok {
+			if kind == "add" {
+				g.Members = append(g.Members, v...)
+			} else {
+				g.Members = v
+			}
+		} else {
+			return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+		}
+	default:
+		return domain.SCIMGroup{}, domain.ErrSCIMInvalid
+	}
+	return g, nil
 }
 
 var _ domain.SCIMUsecase = (*SCIMService)(nil)

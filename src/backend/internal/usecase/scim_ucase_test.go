@@ -18,11 +18,13 @@ func (s scimAccessStub) WithWorkspaceLock(ctx context.Context, _ uuid.UUID, _ uu
 }
 
 type scimRepoStub struct {
-	created      domain.SCIMUser
-	replaced     domain.SCIMUser
-	filter       domain.SCIMFilter
-	start, count int
-	credential   domain.SCIMCredential
+	created       domain.SCIMUser
+	replaced      domain.SCIMUser
+	filter        domain.SCIMFilter
+	start, count  int
+	credential    domain.SCIMCredential
+	group         domain.SCIMGroup
+	replacedGroup domain.SCIMGroup
 }
 
 func (s *scimRepoStub) ResolveCredential(context.Context, []byte) (uuid.UUID, error) {
@@ -62,13 +64,14 @@ func (s *scimRepoStub) CreateGroup(context.Context, uuid.UUID, domain.SCIMGroup,
 	return domain.SCIMGroup{}, nil
 }
 func (s *scimRepoStub) GetGroup(context.Context, uuid.UUID, uuid.UUID) (domain.SCIMGroup, error) {
-	return domain.SCIMGroup{}, nil
+	return s.group, nil
 }
 func (s *scimRepoStub) ListGroups(context.Context, uuid.UUID, domain.SCIMFilter, int, int) (domain.SCIMPage[domain.SCIMGroup], error) {
 	return domain.SCIMPage[domain.SCIMGroup]{}, nil
 }
-func (s *scimRepoStub) ReplaceGroup(context.Context, uuid.UUID, uuid.UUID, string, domain.SCIMGroup, time.Time) (domain.SCIMGroup, error) {
-	return domain.SCIMGroup{}, nil
+func (s *scimRepoStub) ReplaceGroup(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string, group domain.SCIMGroup, _ time.Time) (domain.SCIMGroup, error) {
+	s.replacedGroup = group
+	return group, nil
 }
 func (s *scimRepoStub) DeleteGroup(context.Context, uuid.UUID, uuid.UUID, string, time.Time) error {
 	return nil
@@ -84,6 +87,9 @@ func TestSCIMPagingFiltersAndRoleValidation(t *testing.T) {
 	if repo.start != 1 || repo.count != 100 || repo.filter.Attribute != "userName" || repo.filter.Value != "A@Example.Test" {
 		t.Fatalf("paging/filter=%+v %d %d", repo.filter, repo.start, repo.count)
 	}
+	if _, err := service.ListUsers(context.Background(), workspace, `USERNAME eq "A@Example.Test"`, 1, 0); err != nil || repo.count != 0 || repo.filter.Attribute != "userName" {
+		t.Fatalf("case/count filter=%+v count=%d err=%v", repo.filter, repo.count, err)
+	}
 	if _, err := service.ListUsers(context.Background(), workspace, `displayName co "x"`, 1, 10); err != domain.ErrSCIMInvalid {
 		t.Fatalf("invalid filter=%v", err)
 	}
@@ -97,7 +103,7 @@ func TestSCIMPatchAddReplaceRemove(t *testing.T) {
 	service := NewSCIMService(repo, scimAccessStub{})
 	id := uuid.New()
 	workspace := uuid.New()
-	patch := domain.SCIMPatchRequest{Schemas: []string{domain.SCIMPatchSchema}, Operations: []domain.SCIMPatchOperation{{Operation: "replace", Path: "active", Value: false}, {Operation: "replace", Path: "role", Value: "editor"}}}
+	patch := domain.SCIMPatchRequest{Schemas: []string{domain.SCIMPatchSchema}, Operations: []domain.SCIMPatchOperation{{Operation: "replace", Value: map[string]any{"active": false}}, {Operation: "replace", Path: domain.SCIMWorkspaceAccessSchema + ":role", Value: "editor"}}}
 	if _, err := service.PatchUser(context.Background(), workspace, id, `W/"2"`, patch); err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +113,23 @@ func TestSCIMPatchAddReplaceRemove(t *testing.T) {
 	bad := domain.SCIMPatchRequest{Schemas: []string{domain.SCIMPatchSchema}, Operations: []domain.SCIMPatchOperation{{Operation: "replace", Path: "unknown", Value: true}}}
 	if _, err := service.PatchUser(context.Background(), workspace, id, `W/"2"`, bad); err != domain.ErrSCIMInvalid {
 		t.Fatalf("bad patch=%v", err)
+	}
+}
+
+func TestSCIMGroupSelectiveMemberPatch(t *testing.T) {
+	remove, keep := uuid.New(), uuid.New()
+	repo := &scimRepoStub{group: domain.SCIMGroup{ID: uuid.NewString(), DisplayName: "Team", Role: "viewer", Members: []domain.SCIMGroupMember{{Value: remove.String()}, {Value: keep.String()}}}}
+	service := NewSCIMService(repo, scimAccessStub{})
+	patch := domain.SCIMPatchRequest{Schemas: []string{domain.SCIMPatchSchema}, Operations: []domain.SCIMPatchOperation{{Operation: "remove", Path: `members[value eq "` + remove.String() + `"]`}}}
+	if _, err := service.PatchGroup(context.Background(), uuid.New(), uuid.New(), `W/"1"`, patch); err != nil {
+		t.Fatal(err)
+	}
+	if len(repo.replacedGroup.Members) != 1 || repo.replacedGroup.Members[0].Value != keep.String() {
+		t.Fatalf("members=%+v", repo.replacedGroup.Members)
+	}
+	bad := domain.SCIMPatchRequest{Schemas: []string{domain.SCIMPatchSchema}, Operations: []domain.SCIMPatchOperation{{Operation: "remove", Path: `members[display eq "x"]`}}}
+	if _, err := service.PatchGroup(context.Background(), uuid.New(), uuid.New(), `W/"1"`, bad); err != domain.ErrSCIMInvalid {
+		t.Fatalf("invalid selective path=%v", err)
 	}
 }
 
