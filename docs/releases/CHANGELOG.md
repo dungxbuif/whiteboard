@@ -12,6 +12,16 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Dashboard management release candidate (2026-10-21): owners can rename
+  workspaces; owners/editors can rename and move folders and move or duplicate
+  scenes with current durable content. Collections now explains disabled
+  workspace policy and offers Retry for transient failures. An authenticated
+  scene projection route supports current v2 copies with `Cache-Control:
+  no-store` on all responses. Local Go, frontend, build and dashboard browser
+  checks pass. Production image/Compose/migration gates, disposable-user UAT
+  and VM100 health remain pending; this entry does not claim deployment.
+  [User guide](../user/dashboard.md), [local evidence](../work/verification/dashboard-management-2026-10-21.md).
+
 - Planning only (2026-10-20): [enterprise programme](../superpowers/plans/2026-10-20-enterprise-parity.md)
   covers comments/guests, screen/live presentation, activity, versions,
   libraries/collections, domain/SSO/SCIM/retention and full-canvas floating
