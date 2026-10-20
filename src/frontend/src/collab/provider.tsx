@@ -6,6 +6,7 @@ import { offlineStore } from './offline-store';
 import { createLocalUndo } from './undo';
 import { Presence } from './presence';
 import { Voice } from './voice';
+import { ScreenShare } from './screen-share';
 import useAuthStore from '@/store/auth-store';
 import { registerContentWriter, registerLegacyConflict } from './writers';
 import { bindFeatureInvalidation, FeatureInvalidationCoordinator, type FeatureRefetch } from './feature-invalidation';
@@ -45,11 +46,13 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
     });
     const features = new FeatureInvalidationCoordinator();
     const presence = new Presence(transport, () => principalRef.current.kind === 'public' ? principalRef.current.session.displayName : useAuthStore.getState().user?.name ?? 'Participant');
-    const voice = new Voice(transport, presence, { config: async () => {
+    const mediaConfig = async () => {
       const room = await grant(false);
       return (await publicApi.get<RTCConfiguration & { expiresAt: string }>('/realtime/config', { headers: { Authorization: `Bearer ${room.token}`, 'X-Workspace-ID': sceneRef.workspaceId } })).data;
-    } });
-    return { adapter, transport, undo, presence, voice, features };
+    };
+    const voice = new Voice(transport, presence, { config: mediaConfig });
+    const screenShare = new ScreenShare(transport, presence, { config: mediaConfig });
+    return { adapter, transport, undo, presence, voice, screenShare, features };
   }, [sceneRef.workspaceId, sceneRef.sceneId, principal.id]);
   const state = useSyncExternalStore(controller.transport.subscribe, controller.transport.getSnapshot);
   const [content, setContent] = useState<SceneContent>(() => controller.adapter.content());
@@ -59,7 +62,7 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
       const content = adapter.content(); setContent(content);
       if (transport.scope && principalRef.current.kind === 'user') useSceneStore.setState(state => ({ activeScene: state.activeScene?.id === sceneRef.sceneId ? { ...state.activeScene, content, writerMode: 'v2' } : state.activeScene }));
     };
-    adapter.doc.on('update', update); controller.presence.start(); controller.voice.start(); void transport.start();
+    adapter.doc.on('update', update); controller.presence.start(); controller.voice.start(); controller.screenShare.start(); void transport.start();
     const unbindFeatures = bindFeatureInvalidation(controller.features, transport, {
       browser: window,
       document,
@@ -68,7 +71,7 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
       onError: error => console.error('Authorized feature refetch failed', error),
     });
     const removeConflict = registerLegacyConflict(sceneRef.workspaceId, sceneRef.sceneId, draft => { recovery.current = draft; setLegacy(null); transport.retry(); });
-    return () => { unbindFeatures(); adapter.doc.off('update', update); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
+    return () => { unbindFeatures(); adapter.doc.off('update', update); controller.screenShare.stop(); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
   }, [controller, sceneRef.workspaceId, sceneRef.sceneId]);
   useEffect(() => {
     if (state.status === 'legacy') return;

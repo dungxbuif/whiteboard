@@ -38,3 +38,15 @@ export function parseFeatureChanged(value:unknown):FeatureChanged {
   if(typeof cursor!=='string'||!/^[1-9]\d*$/.test(cursor))throw new Error('Invalid feature cursor');
   return {eventCursor:cursor};
 }
+
+export type ScreenAdmission={admitted:boolean;connectionId:string;kind:'screen';peers:string[];publisher?:string;receiving?:boolean;sessionId?:string;reason?:'MEDIA_FULL'|'SCREEN_BUSY'};
+const screenId=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128;
+const screenSessionId=(value:unknown):value is string=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+export function parseScreenAdmission(value:unknown):ScreenAdmission {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['admitted','connectionId','kind','peers','publisher','receiving','sessionId','reason'].includes(key)))throw new Error('Invalid screen admission');
+ const input=value as Record<string,unknown>;
+ if(typeof input.admitted!=='boolean'||!screenId(input.connectionId)||input.kind!=='screen'||!Array.isArray(input.peers)||input.peers.length>9||input.peers.some(peer=>!screenId(peer))||new Set(input.peers).size!==input.peers.length)throw new Error('Invalid screen admission');
+ if(input.admitted){if(!screenId(input.publisher)||typeof input.receiving!=='boolean'||!screenSessionId(input.sessionId)||input.reason!==undefined)throw new Error('Invalid screen admission');}
+ else if(!['MEDIA_FULL','SCREEN_BUSY'].includes(String(input.reason))||input.publisher!==undefined||input.receiving!==undefined||input.sessionId!==undefined)throw new Error('Invalid screen admission');
+ return input as ScreenAdmission;
+}

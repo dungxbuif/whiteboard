@@ -42,6 +42,14 @@ Open **People** to inspect connected tabs and their Editor/Viewer role. Choose *
 
 Choose **Join voice** to request one of ten room slots. The app asks for microphone permission only after admission. A denial or full room does not disable drawing. Use **Mute**, **Unmute** and **Leave voice** in the toolbar. If the browser blocks autoplay, choose **Play voice audio**. Connection loss, access revocation and leaving the call stop local tracks and remove peer/audio objects. Media uses short-lived scoped TURN credentials; secrets are never embedded in the frontend.
 
+Signed-in editors can choose **Share screen** without joining voice. Admission
+shows a separate **Start sharing** button so the browser picker opens from a
+trusted click. The capture is video-only, up to 720p at 15 fps. One publisher is
+allowed per room; voice and screen sharing together admit ten distinct
+connections, counting a person using both once. Cancellation or media failure
+keeps drawing available. See [screen sharing](live-media.md) for the control and
+cleanup contract.
+
 Definitive authority rejection clears the retained guest token immediately; transient network failures preserve it. The guest principal and pending recovery remain. **Export recovery and rejoin** downloads that recovery before starting a fresh exchange, which may create a different guest identity.
 
 Legacy image uploads use the same capability and PUT flow. Their blobs remain until the HTTP content save is confirmed. The local `legacy-v1` recovery namespace is never replayed into a server Yjs document after promotion.

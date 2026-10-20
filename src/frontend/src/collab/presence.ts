@@ -1,6 +1,6 @@
 import type {Control,TransportState} from './transport';
 import {canFollow,validViewport,type Viewport} from './follow';
-export type Participant={connectionId:string;principalId:string;principalType:string;displayName:string;access:'view'|'edit';following:string|null;voiceJoined:boolean;voiceMuted:boolean};
+export type Participant={connectionId:string;principalId:string;principalType:string;displayName:string;access:'view'|'edit';following:string|null;voiceJoined:boolean;voiceMuted:boolean;screenJoined?:boolean;screenPublisher?:boolean;screenSessionId?:string};
 export type Cursor={cursor?:{x:number;y:number}|null;selectedIds?:string[]};
 export type PresenceTransport={getSnapshot:()=>TransportState;subscribe:(f:()=>void)=>()=>void;subscribeControl:(f:(c:Control)=>void)=>()=>void;sendControl:(type:string,payload:Record<string,unknown>)=>string|undefined;sendAwareness:(value:{cursor?:{x:number;y:number};selectedIds?:string[]})=>void};
 export type PresenceState={connectionId?:string;participants:Participant[];cursors:Record<string,Cursor>;following:string|null;error?:string};

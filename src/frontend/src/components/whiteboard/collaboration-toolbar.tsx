@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { useCollab } from '@/collab/provider';
 import type { Presence } from '@/collab/presence';
 import type { Voice } from '@/collab/voice';
+import type { ScreenShare } from '@/collab/screen-share';
+import { ScreenSharePanel } from './screen-share-panel';
 export function CollaborationToolbar() {
- const {presence,voice}=useCollab();
- return presence&&voice?<LiveToolbar presence={presence} voice={voice}/>:null;
+ const {presence,voice,screenShare,state,principal}=useCollab();
+ return presence&&voice&&screenShare?<LiveToolbar presence={presence} voice={voice} screenShare={screenShare} canPublish={principal.current.kind==='user'&&state.canEdit}/>:null;
 }
-function LiveToolbar({presence,voice}:{presence:Presence;voice:Voice}) {
+function LiveToolbar({presence,voice,screenShare,canPublish}:{presence:Presence;voice:Voice;screenShare:ScreenShare;canPublish:boolean}) {
  const room=useSyncExternalStore(presence.subscribe,presence.getSnapshot),call=useSyncExternalStore(voice.subscribe,voice.getSnapshot);
  const connected=!!room.connectionId,joined=call.status==='connected',waiting=['admitting','permission'].includes(call.status);
  const voiceCount=room.participants.filter(p=>p.voiceJoined).length;
@@ -30,6 +32,7 @@ function LiveToolbar({presence,voice}:{presence:Presence;voice:Voice}) {
   {joined&&<Button className="min-h-11" variant="outline" onClick={()=>voice.toggleMute()} aria-label={call.muted?'Unmute microphone':'Mute microphone'}>{call.muted?<MicOff size={15} aria-hidden="true"/>:<Mic size={15} aria-hidden="true"/>}{call.muted?'Unmute':'Mute'}</Button>}
   {(joined||waiting)&&<Button className="min-h-11" variant="ghost" onClick={()=>voice.leave()} aria-label="Leave voice"><PhoneOff size={15} aria-hidden="true"/>Leave voice</Button>}
   {call.audioBlocked&&<Button className="min-h-11" variant="outline" onClick={()=>void voice.resumeAudio()}>Play voice audio</Button>}
+  <ScreenSharePanel screenShare={screenShare} canPublish={canPublish}/>
   {(call.error||room.error)&&<p role="alert" className="w-full text-sm text-destructive">{call.error||room.error}</p>}
  </div>;
 }

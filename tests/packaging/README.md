@@ -56,6 +56,19 @@ The recorded2026-10-16 local network is Mac10.10.0.10/WAN117.1.89.250; gateway
 WAN103.82.21.202. Revalidate those labels for subsequent runs. A direct-IP success
 is not proof that the configured hostname resolves or connects correctly.
 
+## Enterprise screen-media proof
+
+`enterprise-media.mjs` first sends a generated 15 fps canvas stream between two
+local pages, then repeats it between the local browser and the isolated gateway
+browser with relay-only ICE. It asserts decoded video frames, received bytes and
+relay candidates. The generated stream contains no microphone or system audio.
+Use the same loopback-only gateway CDP tunnel documented for `turn-proof.mjs`:
+
+```sh
+rtk env MEDIA_LOCAL_ONLY=1 node tests/packaging/enterprise-media.mjs
+rtk node tests/packaging/enterprise-media.mjs
+```
+
 ## B4 idle collaboration regression
 
 Build collab first, then run `rtk node tests/packaging/idle-collab.mjs`. This uses the existing nginx image unchanged, the current compiled host collab runtime and a random schema in the guarded loopback `devtool_a1_test` PostgreSQL database. A unique disposable bridge and Node TCP-forwarder make the random loopback runtime port reachable as nginx's `collab:8082` upstream on Docker Desktop; no product proxy timeout is changed. The forwarder does not parse or generate WebSocket traffic.

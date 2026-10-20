@@ -7,6 +7,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
 
 - [Browser collaboration](docs/browser-collaboration.md): locally verified release-candidate admission, offline recovery, scoped queues, images and local undo.
+- [Screen sharing](docs/live-media.md): admitted video-only screen media, union capacity, signaling and cleanup contract.
 - [Workspace invitations](docs/collaboration.md): locally verified release-candidate invitation API, roles, registration, credential-attempt 429/Retry-After handling and replacement-scene recovery limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
 
