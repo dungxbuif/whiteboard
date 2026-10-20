@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { Bot } from 'lucide-react';
 import '@excalidraw/excalidraw/index.css';
 import type { AssetReference, NativeElement, SceneContent } from '@collab/contracts';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
@@ -19,6 +20,7 @@ import { PresentationControls } from './presentation-controls';
 import { SlideNavigator } from './slide-navigator';
 import { AICommandPanel } from './ai-command-panel';
 import { SceneControlCluster, SceneControls, type SceneControlStatus } from './scene-controls';
+import { ScenePanel, ScenePanelsProvider, useScenePanels } from './scene-panels';
 import { loadExcalidrawModule, type ExcalidrawModule } from './excalidraw-module';
 
 type CanvasFile = { id: string; dataURL?: string; mimeType: string; created: number; assetId?: string };
@@ -40,7 +42,7 @@ export function ExcalidrawWrapper() {
 type CollaborativeCanvasProps = { initialContent?: SceneContent; title: string; onBack?: () => void; displayName?: string; onRejoin?: () => void };
 
 export function CollaborativeCanvas(props: CollaborativeCanvasProps) {
-  return <CollaborativeCanvasContent {...props} />;
+  return <ScenePanelsProvider><CollaborativeCanvasContent {...props} /></ScenePanelsProvider>;
 }
 
 function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, initialContent }: CollaborativeCanvasProps) {
@@ -60,6 +62,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
   const lifetime = useRef(0);
   const rendering = useRef(false), uploading = useRef(false), mounted = useRef(true);
   const { isPresenting, activeSlideIndex, enter, exit, setActiveSlide } = usePresentationStore();
+  const panels = useScenePanels();
   const canEdit = state.canEdit || (state.status === 'legacy' && legacy?.access === 'edit');
   const renderedContent = legacy && state.status === 'legacy' ? (activeScene?.id === sceneRef.sceneId ? activeScene.content : legacy.content) as SceneContent : !transport.scope && initialContent ? initialContent : content;
   const slideIds = syncPresentationOrder(renderedContent.elements, renderedContent.presentationOrder ?? []);
@@ -284,6 +287,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
         renderTopRightUI={() => <SceneControlCluster>
           {state.status !== 'legacy' ? <CollaborationToolbar /> : null}
           <Button className="min-h-11" onClick={togglePresentation} type="button">{isPresenting ? 'Exit presentation' : 'Present'}</Button>
+          {!isPresenting && canEdit ? <Button aria-label="Open AI assistant" className="min-h-11" onClick={(event) => panels.open('ai', event.currentTarget)} size="icon" type="button" variant="outline"><Bot aria-hidden="true" size={16} /></Button> : null}
         </SceneControlCluster>}
         viewModeEnabled={!canEdit || isPresenting}
       >
@@ -295,7 +299,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
       </Excalidraw> : <p className="p-4">Loading whiteboard...</p>}
       <SceneControls canRedo={state.canEdit && undo.canRedo()} canUndo={state.canEdit && undo.canUndo()} onExportRecovery={exportRecovery} onPresent={togglePresentation} onRedo={() => undo.redo()} onRetry={retry} onUndo={() => undo.undo()} status={{ text: statusText, severity: statusSeverity }} title={title} />
       {isPresenting && <><SlideNavigator activeIndex={activeSlideIndex} onMove={(index, direction) => { if (!canEdit) return; const next = [...slideIds], swap = index + direction; [next[index], next[swap]] = [next[swap], next[index]]; if (state.status === 'legacy') useSceneStore.getState().updatePresentationOrder(sceneRef.workspaceId, sceneRef.sceneId, next); else adapter.reorderPresentation(next); setActiveSlide(swap, next.length); }} onSelect={index => setActiveSlide(index, slideIds.length)} slideIds={slideIds} /><PresentationControls activeIndex={activeSlideIndex} onExit={exit} onNext={() => setActiveSlide(activeSlideIndex + 1, slideIds.length)} onPrevious={() => setActiveSlide(activeSlideIndex - 1, slideIds.length)} slideCount={slideIds.length} /></>}
-      {!isPresenting && canEdit ? <AICommandPanel scene={renderedContent} onApplyDiagram={applyDiagram} /> : null}
+      <ScenePanel id="ai" title="AI assistant"><AICommandPanel embedded scene={renderedContent} onApplyDiagram={applyDiagram} /></ScenePanel>
     </section>
   </main>;
 }

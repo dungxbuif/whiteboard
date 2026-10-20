@@ -8,6 +8,18 @@ separately.
 
 Open a scene and wait for **Saved** or **Read-only**. The canvas stays read-only until the server checks current access and the document finishes synchronizing. A pending count means changes are on this device and still await the server's durable acknowledgement. Closing the tab does not mean those changes were saved on the server.
 
+The scene fills the browser viewport without a separate control header. Open
+Excalidraw's main menu for the scene name and **Back to dashboard**. **People**,
+**Join voice**, **Present**, and the AI assistant are canvas controls. The idle
+voice counter stays hidden until a call is joining or active. Save and recovery
+state floats at the lower edge; open **More scene actions** for local undo/redo,
+retry, or recovery export when available.
+
+Canvas tools share one non-modal floating panel, so opening AI, comments,
+activity, history, or library replaces the previously open panel. Press Escape
+or Close to return focus to the control that opened it. The overlay does not
+block drawing outside its visible controls, including at narrow mobile widths.
+
 If the connection drops after admission, an editor can continue on the loaded scene. Changes stay in IndexedDB and replay after fresh admission and synchronization. Reloading without network access is not an installed/offline app feature: the page must be available, and a fresh page remains read-only until admission. When access is revoked or reduced to viewing, pending work stays available for recovery but is not transmitted as an authorized edit.
 
 Use **Export recovery** before clearing browser data, changing accounts after a failed save, or recovering a history-limit error. The JSON contains the local Yjs checkpoint, pending update bytes with original request identities, retained image bytes and unfinished canvas drafts. Keep it private. Recovery exports are diagnostic/operational files; automatic import into another identity/document is not offered. A changed document generation stops replay and asks for recovery instead of deleting old edits.

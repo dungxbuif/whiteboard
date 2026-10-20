@@ -56,6 +56,20 @@ The approved browser adapter uses durable scoped offline updates, fresh room adm
 
 For editing states, local undo, image retries and retained offline work, see [browser collaboration and recovery](../../src/frontend/public/docs/browser-collaboration.md).
 
+### Scene controls
+
+The scene uses the full browser viewport. Open Excalidraw's main menu to see
+the scene name and **Back to dashboard**. **People**, **Join voice**,
+**Present**, and the AI assistant use the canvas toolbar instead of a separate
+page header. The idle voice counter stays hidden until a call is joining or
+active.
+
+The lower canvas status shows **Saved**, pending work, read-only access, or a
+recovery error. Open **More scene actions** for local undo/redo, retry, and
+recovery export when those actions apply. The AI assistant and future comments,
+activity, history, and library tools use one floating panel at a time. Press
+Escape or Close to return focus to the control that opened it.
+
 ## People, follow and voice
 
 Open **People** in a v2 scene to see each connected tab, its effective Editor/Viewer role and voice status. Two tabs from the same account are separate participants. Choose **Follow** to track another participant's camera; **Stop following** or their departure ends it. Cursor, selection, camera and follow state are temporary and never enter scene history.
