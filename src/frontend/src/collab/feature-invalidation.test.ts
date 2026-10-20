@@ -76,6 +76,27 @@ describe('FeatureInvalidationCoordinator', () => {
     completed.unregister();
   });
 
+  it('keeps a failed authorized refetch dirty without retrying in a hot loop', async () => {
+    const coordinator = new FeatureInvalidationCoordinator();
+    const attempts: Array<{ reason: string; eventCursor?: string }> = [];
+    const failed = coordinator.register('activity', request => {
+      attempts.push(request);
+      throw new Error('temporary query failure');
+    });
+
+    await expect(coordinator.featureChanged('61')).rejects.toThrow('temporary query failure');
+    await Promise.resolve();
+    expect(attempts).toEqual([{ reason: 'feature_changed', eventCursor: '61' }]);
+
+    failed.unregister();
+    const recovered: Array<{ reason: string; eventCursor?: string }> = [];
+    const retry = coordinator.register('activity', request => { recovered.push(request); });
+    await retry.ready;
+
+    expect(recovered).toEqual([{ reason: 'feature_changed', eventCursor: '61' }]);
+    retry.unregister();
+  });
+
   it('binds socket controls, admitted reconnects, focus, visibility, and route changes', async () => {
     const controls = new Set<(control: { type: string; payload: Record<string, unknown> }) => void>();
     const states = new Set<() => void>();

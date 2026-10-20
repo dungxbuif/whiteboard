@@ -92,7 +92,14 @@ export class FeatureInvalidationCoordinator {
     while (this.pending && this.consumers.size > 0) {
       const request = this.pending;
       this.pending = undefined;
-      await Promise.all([...this.consumers.values()].map(refetch => refetch(request)));
+      try {
+        await Promise.all([...this.consumers.values()].map(refetch => refetch(request)));
+      } catch (error) {
+        // Keep the failed watermark dirty for the next external trigger. Do not
+        // loop here: a failing authorized endpoint must not create a hot retry.
+        this.pending ??= request;
+        throw error;
+      }
     }
   }
 }
