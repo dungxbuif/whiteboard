@@ -25,16 +25,18 @@ type CollectionScene struct {
 }
 
 type Collection struct {
-	ID          uuid.UUID            `json:"id"`
-	WorkspaceID uuid.UUID            `json:"-"`
-	CreatorID   uuid.UUID            `json:"-"`
-	Name        string               `json:"name"`
-	Visibility  CollectionVisibility `json:"visibility"`
-	Revision    int64                `json:"revision,string"`
-	SceneCount  int                  `json:"sceneCount"`
-	Scenes      []CollectionScene    `json:"scenes,omitempty"`
-	CreatedAt   time.Time            `json:"createdAt"`
-	UpdatedAt   time.Time            `json:"updatedAt"`
+	ID            uuid.UUID            `json:"id"`
+	WorkspaceID   uuid.UUID            `json:"-"`
+	CreatorID     uuid.UUID            `json:"-"`
+	Name          string               `json:"name"`
+	Visibility    CollectionVisibility `json:"visibility"`
+	Revision      int64                `json:"revision,string"`
+	SceneCount    int                  `json:"sceneCount"`
+	Mine          bool                 `json:"mine"`
+	CanSetPrivate bool                 `json:"canSetPrivate"`
+	Scenes        []CollectionScene    `json:"scenes,omitempty"`
+	CreatedAt     time.Time            `json:"createdAt"`
+	UpdatedAt     time.Time            `json:"updatedAt"`
 }
 
 type CollectionPage struct {

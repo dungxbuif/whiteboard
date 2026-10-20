@@ -16,6 +16,8 @@ export type Collection = {
   visibility: CollectionVisibility;
   revision: string;
   sceneCount: number;
+  mine: boolean;
+  canSetPrivate: boolean;
   scenes: CollectionScene[];
   createdAt: string;
   updatedAt: string;

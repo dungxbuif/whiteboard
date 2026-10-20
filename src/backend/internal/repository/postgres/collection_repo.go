@@ -40,8 +40,9 @@ type collectionSceneRow struct {
 
 func (collectionSceneRow) TableName() string { return "collection_scenes" }
 
-func collectionFromRow(row collectionRow) domain.Collection {
-	return domain.Collection{ID: row.ID, WorkspaceID: row.WorkspaceID, CreatorID: row.CreatorID, Name: row.Name, Visibility: row.Visibility, Revision: row.Revision, SceneCount: row.SceneCount, Scenes: []domain.CollectionScene{}, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+func collectionFromRow(row collectionRow, userID uuid.UUID) domain.Collection {
+	mine := row.CreatorID == userID
+	return domain.Collection{ID: row.ID, WorkspaceID: row.WorkspaceID, CreatorID: row.CreatorID, Name: row.Name, Visibility: row.Visibility, Revision: row.Revision, SceneCount: row.SceneCount, Mine: mine, CanSetPrivate: mine, Scenes: []domain.CollectionScene{}, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func requireCollectionTransaction(ctx domain.Context, workspaceID uuid.UUID) (*gorm.DB, error) {
@@ -139,7 +140,7 @@ func (r *CollectionRepository) Get(ctx domain.Context, workspaceID, collectionID
 	if err != nil {
 		return domain.Collection{}, err
 	}
-	value := collectionFromRow(row)
+	value := collectionFromRow(row, userID)
 	value.Scenes, err = r.scenes(ctx, workspaceID, collectionID, userID)
 	value.SceneCount = len(value.Scenes)
 	return value, err
@@ -176,7 +177,7 @@ func (r *CollectionRepository) List(ctx domain.Context, workspaceID, userID uuid
 	}
 	items := make([]domain.Collection, len(rows))
 	for i, row := range rows {
-		items[i] = collectionFromRow(row)
+		items[i] = collectionFromRow(row, userID)
 	}
 	return items, nil
 }
@@ -302,6 +303,16 @@ func (r *CollectionRepository) RemoveScene(ctx domain.Context, workspaceID, coll
 func (r *CollectionRepository) Reorder(ctx domain.Context, workspaceID, collectionID, userID uuid.UUID, expected int64, sceneIDs []uuid.UUID) (domain.Collection, error) {
 	db, err := r.ensureMutable(ctx, workspaceID, collectionID, userID, expected)
 	if err != nil {
+		return domain.Collection{}, err
+	}
+	if err = db.Exec(`DELETE FROM collection_scenes cs
+		WHERE cs.workspace_id=? AND cs.collection_id=?
+		AND NOT EXISTS (
+			SELECT 1 FROM scenes s
+			JOIN workspace_members wm ON wm.workspace_id=s.workspace_id AND wm.user_id=?
+			JOIN users u ON u.id=wm.user_id AND u.deleted_at IS NULL
+			WHERE s.workspace_id=cs.workspace_id AND s.id=cs.scene_id AND s.deleted_at IS NULL
+		)`, workspaceID, collectionID, userID).Error; err != nil {
 		return domain.Collection{}, err
 	}
 	var current []uuid.UUID

@@ -149,8 +149,12 @@ func (s *CollectionService) Update(ctx domain.Context, principal domain.Principa
 		ID    uuid.UUID
 		Input domain.CollectionUpdateInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, decision domain.AccessDecision) (domain.StoredFeatureResponse, error) {
-		if _, getErr := s.repo.Get(txCtx, workspaceID, collectionID, userID, false); getErr != nil {
+		existing, getErr := s.repo.Get(txCtx, workspaceID, collectionID, userID, false)
+		if getErr != nil {
 			return domain.StoredFeatureResponse{}, getErr
+		}
+		if input.Visibility == domain.CollectionPrivate && !existing.CanSetPrivate {
+			return domain.StoredFeatureResponse{}, domain.ErrAccessDenied
 		}
 		updated, updateErr := s.repo.Update(txCtx, workspaceID, collectionID, userID, input.ExpectedRevision, input.Name, input.Visibility)
 		if updateErr == nil {
@@ -277,10 +281,16 @@ func (s *CollectionService) RemoveScene(ctx domain.Context, principal domain.Pri
 	if collectionID == uuid.Nil || input.SceneID == uuid.Nil || input.ExpectedRevision < 1 {
 		return domain.Collection{}, domain.ErrInvalidCollection
 	}
+	if _, err := s.access.Resolve(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: input.SceneID}); err != nil {
+		return domain.Collection{}, err
+	}
 	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, struct {
 		ID    uuid.UUID
 		Input domain.CollectionSceneInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision) (domain.StoredFeatureResponse, error) {
+		if _, accessErr := s.access.Resolve(txCtx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: input.SceneID}); accessErr != nil {
+			return domain.StoredFeatureResponse{}, accessErr
+		}
 		if _, getErr := s.repo.Get(txCtx, workspaceID, collectionID, userID, false); getErr != nil {
 			return domain.StoredFeatureResponse{}, getErr
 		}

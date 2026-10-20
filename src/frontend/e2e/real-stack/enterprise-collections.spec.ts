@@ -9,6 +9,7 @@ test('collections keep ACL, deep-link, mobile and scene-location behavior', asyn
   const before = await stack.pool.query('SELECT folder_id FROM scenes WHERE workspace_id=$1 AND id=$2', [stack.owner.workspaceId, launch.id]);
 
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const editorContext = await browser.newContext({ viewport: { width: 1024, height: 768 } });
   const viewerContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
     const page = await context.newPage();
@@ -28,6 +29,8 @@ test('collections keep ACL, deep-link, mobile and scene-location behavior', asyn
     const collectionId = page.url().split('/').pop()!;
 
     const created = await stack.json(`/workspaces/${stack.owner.workspaceId}/collections/${collectionId}`, stack.owner.token, stack.owner.workspaceId);
+    expect(created.mine).toBe(true);
+    expect(created.canSetPrivate).toBe(true);
     let value = await stack.json(`/workspaces/${stack.owner.workspaceId}/collections/${collectionId}/scenes`, stack.owner.token, stack.owner.workspaceId, 'POST', { requestId: randomUUID(), expectedRevision: created.revision, sceneId: launch.id });
     value = await stack.json(`/workspaces/${stack.owner.workspaceId}/collections/${collectionId}/scenes`, stack.owner.token, stack.owner.workspaceId, 'POST', { requestId: randomUUID(), expectedRevision: value.revision, sceneId: review.id });
     await page.reload();
@@ -40,6 +43,15 @@ test('collections keep ACL, deep-link, mobile and scene-location behavior', asyn
     const privateCollection = await stack.json(`/workspaces/${stack.owner.workspaceId}/collections`, stack.editor.token, stack.owner.workspaceId, 'POST', { requestId: randomUUID(), name: 'Editor private', visibility: 'private' });
     const denied = await stack.request(`/workspaces/${stack.owner.workspaceId}/collections/${privateCollection.id}`, stack.owner.token, stack.owner.workspaceId);
     expect(denied.status).toBe(404);
+    const malformed = await stack.request(`/workspaces/${stack.owner.workspaceId}/collections?limit=abc`, stack.owner.token, stack.owner.workspaceId);
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toMatchObject({ code: 'INVALID_INPUT' });
+
+    const editor = await editorContext.newPage();
+    await login(editor, stack, stack.editor);
+    await editor.goto(`${stack.baseURL}/w/${stack.owner.workspaceId}/collections/${collectionId}`);
+    await editor.getByRole('button', { name: 'Edit collection' }).click();
+    await expect(editor.getByRole('option', { name: 'Private' })).toHaveCount(0);
 
     const viewer = await viewerContext.newPage();
     await login(viewer, stack, stack.viewer);
@@ -49,6 +61,7 @@ test('collections keep ACL, deep-link, mobile and scene-location behavior', asyn
     await expect(viewer.getByRole('button', { name: /Remove/ })).toHaveCount(0);
   } finally {
     await context.close();
+    await editorContext.close();
     await viewerContext.close();
   }
 });

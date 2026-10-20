@@ -44,6 +44,36 @@ from the remaining operational canaries.
 | `GET /api/v1/realtime/config` | HTTP | Scoped scene session or room token | active | Rechecks current scene access and returns external TURN URL(s) plus short-lived credentials; a login JWT alone is denied. |
 | `/collab/` | Custom WebSocket | Room token in first `auth` control | active | One admitted socket carries durable Yjs updates, roster, cursor/selection, follow viewport and WebRTC signaling. Credentials never appear in the URL. `/socket.io/` is retired. |
 
+## Collection contract
+
+Collections organize links to scenes a caller can already access. They never
+grant scene access and deleting a collection never deletes or moves a scene.
+Every request uses a login JWT and resolves the workspace path segment as a UUID
+or public alias. Mutations require current workspace edit access and a UUID
+`requestId`; updates also require the current decimal-string
+`expectedRevision`.
+
+| Method and path | Request / query | Success |
+| --- | --- | --- |
+| `GET /api/v1/workspaces/{workspace}/collections` | `cursor=<collection UUID>&limit=1..50` | `200 {items,nextCursor?}` after private-container and current scene-access filtering |
+| `POST /api/v1/workspaces/{workspace}/collections` | `{requestId,name,visibility:"workspace"|"private"}` | `201 Collection` |
+| `GET /api/v1/workspaces/{workspace}/collections/{id}` | — | `200 Collection` with currently accessible ordered scenes plus `mine` and `canSetPrivate` capabilities |
+| `PATCH /api/v1/workspaces/{workspace}/collections/{id}` | `{requestId,expectedRevision,name,visibility}` | `200 Collection` |
+| `DELETE /api/v1/workspaces/{workspace}/collections/{id}` | `{requestId,expectedRevision}` | `204`; membership rows only |
+| `POST /api/v1/workspaces/{workspace}/collections/{id}/scenes` | `{requestId,expectedRevision,sceneId}` | `200 Collection` |
+| `DELETE /api/v1/workspaces/{workspace}/collections/{id}/scenes/{sceneId}` | `{requestId,expectedRevision}` | `200 Collection`; current scene access is checked before membership |
+| `PUT /api/v1/workspaces/{workspace}/collections/{id}/order` | `{requestId,expectedRevision,sceneIds:[...]}` | `200 Collection`; input is the exact currently accessible subset and stale hidden rows are pruned atomically |
+| `/w/{workspace}/collections/{id}` | Browser route | Reloadable collection view; scene links remain canonical scene routes |
+
+Private collections are readable and mutable only by their creator. A workspace
+owner may audit-delete an inaccessible private container by ID and revision,
+without receiving its name or scene contents. A stale revision returns
+`409 REVISION_CONFLICT`; changed reuse of a request ID returns
+`409 REQUEST_ID_REUSED`; disabled policy returns `403 FEATURE_DISABLED`.
+Only `canSetPrivate:true` callers may convert a workspace collection to private;
+the response does not expose the creator's user ID. Invalid limits, including
+non-decimal values, return `400 INVALID_INPUT`.
+
 ## Errors
 
 | Error | Meaning | Consumer Impact |

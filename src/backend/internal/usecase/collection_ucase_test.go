@@ -34,12 +34,13 @@ func (s collectionFeatureStub) Policy(domain.Context, domain.Principal, uuid.UUI
 }
 
 type collectionRepoStub struct {
-	value       domain.Collection
-	mutated     bool
-	addCalled   bool
-	reorderErr  error
-	deleted     bool
-	deleteOwner bool
+	value        domain.Collection
+	mutated      bool
+	addCalled    bool
+	removeCalled bool
+	reorderErr   error
+	deleted      bool
+	deleteOwner  bool
 }
 
 func (s *collectionRepoStub) WithMutation(ctx domain.Context, _ domain.Principal, _ uuid.UUID, _ uuid.UUID, _ []byte, fn func(domain.Context) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
@@ -67,6 +68,7 @@ func (s *collectionRepoStub) AddScene(domain.Context, uuid.UUID, uuid.UUID, uuid
 	return s.value, nil
 }
 func (s *collectionRepoStub) RemoveScene(domain.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, int64) (domain.Collection, error) {
+	s.removeCalled = true
 	return s.value, nil
 }
 func (s *collectionRepoStub) Reorder(domain.Context, uuid.UUID, uuid.UUID, uuid.UUID, int64, []uuid.UUID) (domain.Collection, error) {
@@ -104,6 +106,16 @@ func TestCollectionNeverGrantsSceneAccess(t *testing.T) {
 	_, err := service.AddScene(context.Background(), domain.UserPrincipal(userID), workspaceID, repo.value.ID, domain.CollectionSceneInput{RequestID: uuid.New(), ExpectedRevision: 1, SceneID: sceneID})
 	if !errors.Is(err, domain.ErrInaccessible) || repo.addCalled || repo.mutated {
 		t.Fatalf("inaccessible scene add err=%v mutated=%v add=%v", err, repo.mutated, repo.addCalled)
+	}
+}
+
+func TestCollectionRemoveDoesNotRevealInaccessibleMembership(t *testing.T) {
+	workspaceID, userID, sceneID := uuid.New(), uuid.New(), uuid.New()
+	repo := &collectionRepoStub{value: domain.Collection{ID: uuid.New(), WorkspaceID: workspaceID, CreatorID: userID, Visibility: domain.CollectionWorkspace, Revision: 1}}
+	service := NewCollectionService(repo, enabledCollectionPolicy(workspaceID), collectionAccessStub{workspace: domain.AccessDecision{Access: domain.AccessEdit}, scenes: map[uuid.UUID]error{sceneID: domain.ErrInaccessible}})
+	_, err := service.RemoveScene(context.Background(), domain.UserPrincipal(userID), workspaceID, repo.value.ID, domain.CollectionSceneInput{RequestID: uuid.New(), ExpectedRevision: 1, SceneID: sceneID})
+	if !errors.Is(err, domain.ErrInaccessible) || repo.removeCalled || repo.mutated {
+		t.Fatalf("inaccessible scene remove err=%v mutated=%v remove=%v", err, repo.mutated, repo.removeCalled)
 	}
 }
 

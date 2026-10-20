@@ -32,6 +32,8 @@ shared_fields: [status, trace]
 | scene_versions | Immutable product checkpoint plus mutable label/pin metadata | Node writer / Go reader | Exact document UUID/source sequence, canonical JSON bytes, SHA-256, creator, kind and request binding; 25 MiB maximum. |
 | version_assets | Asset retention pins for a version | Node writer | Composite version/scene/workspace and asset/scene/workspace foreign keys prevent cross-scene pins. |
 | presentation_links | Revocable hash-only presentation invite | Presentation service | Workspace/scene/session binding, positive revision, 24-hour expiry; active runtime participants remain ephemeral. |
+| collections | Workspace or creator-private scene-link container | Collection service | Composite workspace/id key, current creator membership, positive optimistic revision. |
+| collection_scenes | Stable ordered scene membership | Collection service | Composite collection and scene foreign keys include workspace; rows organize and never authorize scenes. |
 
 ## Relationships
 
@@ -48,6 +50,8 @@ shared_fields: [status, trace]
 | scene_versions | scenes | Composite many-to-one | `(workspace_id,scene_id)` fixes each checkpoint to one tenant scene. |
 | version_assets | scene_versions, scene_assets | Composite many-to-one | Both references carry workspace and scene, so a version cannot pin a foreign asset. |
 | presentation_links | scenes, users | Composite scene and creator references | Invite revocation cannot alter workspace membership or ordinary public links. |
+| collections | workspaces, workspace_members | Composite creator reference | Creator must be a current workspace member; membership removal cascades that creator's private and workspace collections. |
+| collection_scenes | collections, scenes | Composite many-to-one | Both references carry workspace ID, preventing a collection from containing a foreign-workspace scene. |
 
 ## Constraints
 
@@ -100,6 +104,7 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000018 / `scene_versions`, `version_assets` | Immutable canonical checkpoints, exact writer sequence/document ID, request retry binding and same-transaction asset pins; label/pin use a separate metadata revision |
 | 000019 / `user_notifications` | In-app comment notifications unique by user/event, idempotent read requests and event-triggered `notification.deliver` jobs |
 | 000020 / `presentation_links` | Hash-only 24-hour presentation invites scoped to one workspace/scene/session; participants and host state are not persisted |
+| 000022 / `collections`, `collection_scenes` | Workspace/private containers and stable scene order; composite workspace references enforce tenant identity and collection deletion cascades membership only |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 

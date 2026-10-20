@@ -101,17 +101,17 @@ with F1 requestId and expectedRevision; `CollectionPage={items,nextCursor}`;
 `/w/{workspace}/collections/{id}`. Composite collection/scene workspace FKs,
 explicit private creator and visibility, stable position order.
 
-- [ ] Add `TestPrivateCollectionDeniedToOtherMembers`,
+- [x] Add `TestPrivateCollectionDeniedToOtherMembers`,
   `TestCollectionNeverGrantsSceneAccess`, `TestCollectionForeignWorkspaceRejected`,
   `TestCollectionOrderConflict`, `legacyCollectionSidebarAndReload`;
   owners can audited-delete inaccessible private containers without reading them.
-- [ ] Run focused Go/frontend tests (RED). Port legacy CollectionList/CollectionItem
+- [x] Run focused Go/frontend tests (RED). Port legacy CollectionList/CollectionItem
   visual markup and focus states, replace Jotai/Next URLs with current router/store;
   implement all displayed menu actions. Keep folders and collections independent.
-- [ ] Filter list contents/counts before pagination using scene ACL; deletion
+- [x] Filter list contents/counts before pagination using scene ACL; deletion
   removes membership rows, never scenes. Test search, keyboard, mobile, deep-link
   reload, private denial and no scene relocation in real stack.
-- [ ] Update collection API/ERD/dashboard/public docs; commit
+- [x] Update collection API/ERD/dashboard/public docs; commit
   `feat(collections): organize scenes with legacy dashboard controls`.
 
 ## Task 4: L2 — Reusable native library with safe insert/export

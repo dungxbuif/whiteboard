@@ -18,9 +18,18 @@ Operations:
   array must contain exactly the collection's current scenes once each.
 
 `visibility` is `workspace` or `private`. Private containers are creator-only.
+Responses contain `mine` and `canSetPrivate` booleans and do not expose creator
+identity. Only a caller with `canSetPrivate:true` may change a workspace
+collection to private.
 Returned scene rows and `sceneCount` reflect current scene authority before the
 response page is formed. Collection membership does not grant scene authority.
 Deleting or changing a collection never moves or deletes scenes.
+
+Remove checks current scene authority before testing collection membership.
+Reorder accepts the exact currently accessible subset; under the same locked
+transaction the service prunes stale rows for deleted or no-longer-visible
+scenes, validates the remaining set, then assigns stable positions. This avoids
+both hidden membership oracles and permanently blocked ordering.
 
 Conflict codes: `REVISION_CONFLICT`, `REQUEST_ID_REUSED`. Policy denial:
 `FEATURE_DISABLED`. Inaccessible workspaces, private collections, foreign

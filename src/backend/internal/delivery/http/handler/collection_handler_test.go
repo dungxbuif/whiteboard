@@ -103,3 +103,20 @@ func TestCollectionHandlerRejectsUnknownFields(t *testing.T) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }
+
+func TestCollectionHandlerRejectsMalformedLimit(t *testing.T) {
+	workspaceID, userID := uuid.New(), uuid.New()
+	h := NewCollectionHandler(&collectionUsecaseStub{}, collectionHandlerAccessStub{workspaceID: workspaceID})
+	router := chi.NewRouter()
+	h.Register(router, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.ContextKeyUserID, userID)))
+		})
+	})
+	request := httptest.NewRequest(http.MethodGet, "/workspaces/x/collections?limit=abc", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"INVALID_INPUT"`) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}

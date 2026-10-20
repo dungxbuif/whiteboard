@@ -114,6 +114,9 @@ func (h *CollectionHandler) List(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		limit, err = strconv.Atoi(raw)
+		if err != nil {
+			err = domain.ErrInvalidCollection
+		}
 	}
 	if err != nil {
 		writeCollectionError(w, r, err)

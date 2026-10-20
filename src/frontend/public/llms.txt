@@ -13,6 +13,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Version history](docs/version-history.md): immutable checkpoint API, authorization, retry semantics and limits.
 - [Comments and notifications](docs/comments-and-notifications.md): anchored threads, guest policy, moderation, pagination, inbox routes and current-authority rules.
 - [Activity](docs/activity.md): authorized workspace/scene event pages, opaque cursors, retained boundary and privacy rules.
+- [Collections](docs/collections.md): workspace/private scene-link containers, canonical routes, revisioned mutations and access invariants.
 
 - [Scene assets](docs/scene-assets.md): locally verified release-candidate scoped upload/view, size/MIME limits, expiry and required headers.
 

@@ -5,7 +5,7 @@ import { CollectionList } from './collection-list';
 import { CollectionView } from './collection-view';
 import { collectionPath, type Collection, type CollectionClient } from '@/lib/collection-api';
 
-const workspaceCollection: Collection = { id: 'collection-1', name: 'Launch boards', visibility: 'workspace', revision: '2', sceneCount: 1, scenes: [{ id: 'scene-1', title: 'Launch', position: 0, updatedAt: '2026-10-20T00:00:00Z' }], createdAt: '2026-10-20T00:00:00Z', updatedAt: '2026-10-20T00:00:00Z' };
+const workspaceCollection: Collection = { id: 'collection-1', name: 'Launch boards', visibility: 'workspace', revision: '2', sceneCount: 1, mine: true, canSetPrivate: true, scenes: [{ id: 'scene-1', title: 'Launch', position: 0, updatedAt: '2026-10-20T00:00:00Z' }], createdAt: '2026-10-20T00:00:00Z', updatedAt: '2026-10-20T00:00:00Z' };
 
 function client(overrides: Partial<CollectionClient> = {}): CollectionClient {
   return {
@@ -62,5 +62,13 @@ describe('legacy collections', () => {
     fireEvent.change(screen.getByLabelText('Filter collections'), { target: { value: 'arch' } });
     expect(screen.queryByRole('link', { name: /Launch boards/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Archive/ })).toHaveAttribute('href', '/w/workspace-alias/collections/collection-2');
+  });
+
+  it('does not offer private conversion to a noncreator editor', async () => {
+    const shared = { ...workspaceCollection, mine: false, canSetPrivate: false };
+    render(<CollectionView api={client({ get: vi.fn().mockResolvedValue(shared) })} canManage collectionId="collection-1" workspaceId="workspace-1" workspaceSlug="workspace-alias" availableScenes={[]} />);
+    expect(await screen.findByText('Launch boards')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit collection' }));
+    expect(screen.queryByRole('option', { name: 'Private' })).not.toBeInTheDocument();
   });
 });

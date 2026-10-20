@@ -50,17 +50,40 @@ Each focused test was then made GREEN before the next layer was added.
   exact retry/changed reuse and migration up/down pass on PostgreSQL.
 - Guarded `go test ./...`: all backend packages pass; `go vet ./...` reports no
   issues.
-- `npm run test:unit --workspace ./frontend -- --run`: 38 files and 144 tests
+- `npm run test:unit --workspace ./frontend -- --run`: 40 files and 151 tests
   pass; the focused collection file contains four passing cases.
 - `npm run build --workspace ./frontend`: TypeScript and the production Vite
   build pass.
 - Real-stack Playwright `enterprise-collections.spec.ts`: one browser scenario
   passes on a 390x844 viewport, covering keyboard create, filter, deep-link
   reload, stable membership removal without folder movement, private denial and
-  viewer control hiding.
+  viewer control hiding. The review rerun also verifies creator capabilities,
+  noncreator privacy controls and structured malformed-limit rejection.
 
 Production router/server composition is intentionally owned by the programme
 integrator. Commit `71163a5` wires `CollectionService`, event auditing,
 `CollectionHandler`, and authenticated collection routes; its focused route
 test passed before the real-stack run above.
+
+## Review corrections
+
+The fresh L1 review found four contract gaps. The corrected behavior is:
+
+- Reorder treats the currently accessible scene subset as the complete ordered
+  input. Under the workspace lock it prunes stale membership rows whose scenes
+  are deleted or no longer visible to the current principal, then validates and
+  reorders the remaining exact set. Hidden rows cannot permanently block edits.
+- Remove requires current scene access before checking collection membership and
+  repeats that check under the workspace lock. Guessed inaccessible scene IDs
+  therefore cannot reveal whether a membership row exists.
+- Collection responses expose `mine` and `canSetPrivate` capabilities without a
+  creator identifier. A noncreator editor may manage a workspace collection but
+  cannot convert it to private; the edit dialog does not offer that option.
+- A malformed collection page limit is an invalid request and returns structured
+  `400 INVALID_INPUT` rather than entering generic infrastructure error mapping.
+
+Regression proof adds a real PostgreSQL collection with live and soft-deleted
+members, verifies filtered Get/List counts and pagination, prunes the hidden row
+during subset reorder, verifies removal authorization before membership lookup,
+and verifies revoked workspace access reveals no collection data.
 
