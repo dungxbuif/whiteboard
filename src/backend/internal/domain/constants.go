@@ -24,6 +24,7 @@ const (
 	ContextKeyAuthTime          = "auth_time"
 	ContextKeyRecoveryWorkspace = "recovery_workspace_id"
 	ContextKeyBrowserBinding    = "browser_binding"
+	ContextKeySCIMWorkspace     = "scim_workspace_id"
 
 	// Folder Constants
 	MaxFolderDepth      = 30
