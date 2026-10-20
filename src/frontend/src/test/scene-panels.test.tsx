@@ -13,7 +13,7 @@ function Fixture() {
     <div data-testid="canvas" style={{ height: 640, width: 960 }}>
       <button onClick={(event) => panels.open('comments', event.currentTarget)} type="button">Open comments</button>
       <button onClick={(event) => panels.open('ai', event.currentTarget)} type="button">Open AI</button>
-      <ScenePanel id="comments" title="Comments"><textarea aria-label="Comment draft" /></ScenePanel>
+      <ScenePanel id="comments" title="Comments"><textarea aria-label="Comment draft" onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }} /></ScenePanel>
       <ScenePanel id="ai" title="AI assistant"><input aria-label="AI prompt" /></ScenePanel>
     </div>
   );
@@ -39,6 +39,15 @@ describe('ScenePanelsProvider', () => {
     trigger.focus();
     fireEvent.click(trigger);
     fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Comments' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it('captures Escape before the embedded canvas can consume it', () => {
+    renderFixture();
+    const trigger = screen.getByRole('button', { name: 'Open comments' });
+    fireEvent.click(trigger);
+    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Comment draft' }), { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Comments' })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });

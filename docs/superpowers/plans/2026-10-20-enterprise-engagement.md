@@ -99,14 +99,14 @@ Produces GET workspace/scene activity routes and `/w/{workspace}/activity`.
 Response includes `items,nextCursor,retainedSince`; safe display names only after
 current permission check; security/admin event kinds owner-only.
 
-- [ ] Add `TestActivityFiltersBeforePagination`, `TestActivityMixedSourcesStableCursor`,
+- [x] Add `TestActivityFiltersBeforePagination`, `TestActivityMixedSourcesStableCursor`,
   `TestActivityRetainedSince`, `activityMobileAndKeyboard`; assert restricted
   scenes absent from items/counts/cursor, equal timestamps stable, source replay
   deduplicated, secrets/body never displayed. Keep existing MCP API unchanged.
-- [ ] Run focused activity tests (RED), implement index-backed keyset paging
+- [x] Run focused activity tests (RED), implement index-backed keyset paging
   over F2 projections, filtered before LIMIT; fetch current subject visibility
   rather than trusting actor/event historical membership.
-- [ ] Run real-stack events from edit/comment/share/agent, duplicate projection,
+- [x] Run real-stack events from edit/comment/share/agent, duplicate projection,
   revoke while paging and retention cutoff; expose authorized empty/error states.
-- [ ] Reconcile activity API/guide/retention linkage and commit
+- [x] Reconcile activity API/guide/retention linkage and commit
   `feat(activity): expose authorized workspace timeline`.

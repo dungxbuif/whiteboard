@@ -9,6 +9,7 @@ import { PublicView } from '@/components/public-view';
 import { InviteAccept } from '@/components/collaboration/invite-accept';
 import { MemberList } from '@/components/collaboration/member-list';
 import { AgentSettings } from '@/components/collaboration/agent-settings';
+import { ActivityPanel } from '@/components/activity/activity-panel';
 import { ExcalidrawWrapper } from '@/components/whiteboard/excalidraw-wrapper';
 import { useLocation, navigate } from '@/lib/router';
 import { Button } from '@/components/ui/button';
@@ -26,8 +27,9 @@ function App() {
   const inviteToken = pathname.match(/^\/invite\/([^/]+)\/?$/)?.[1] ?? null;
   const sceneRoute = pathname.match(/^\/w\/([^/]+)\/scenes\/([^/]+)\/?$/);
   const dashboardRoute = pathname.match(/^\/w\/([^/]+)\/?$/);
+  const activityRoute = pathname.match(/^\/w\/([^/]+)\/activity\/?$/);
   const settingsRoute = pathname.match(/^\/w\/([^/]+)\/settings\/(members|agents)\/?$/);
-  const routeWorkspace = sceneRoute?.[1] ?? settingsRoute?.[1] ?? dashboardRoute?.[1];
+  const routeWorkspace = sceneRoute?.[1] ?? settingsRoute?.[1] ?? activityRoute?.[1] ?? dashboardRoute?.[1];
   const routeScene = sceneRoute?.[2];
   const { checkAuth, isAuthenticated, isLoading } = useAuthStore();
   const { workspaces, activeWorkspaceId, fetchWorkspaces, setActiveWorkspaceId } = useWorkspaceStore();
@@ -67,6 +69,6 @@ function App() {
     if (!activeScene || !workspace || activeScene.workspaceId !== workspace.id || (activeScene.id !== routeScene && activeScene.publicId !== routeScene)) return <main className="grid min-h-screen place-items-center">Loading scene...</main>;
     return <ExcalidrawWrapper initialThreadId={routeThread} key={activeScene.id} />;
   }
-  return <DashboardShell>{settingsRoute ? !ready ? <p>Loading workspace...</p> : workspace?.role !== 'owner' ? <p role="alert">Only workspace owners can manage settings.</p> : settingsRoute[2] === 'members' ? <MemberList key={workspace.id} workspaceId={workspace.id} scenes={scenes} /> : <AgentSettings key={workspace.id} workspaceId={workspace.id} isOwner scenes={scenes} /> : <><DashboardHeader />{searchView !== 'all' || searchQuery.trim() ? <SearchResults /> : <><FolderList /><SceneList /></>}</>}</DashboardShell>;
+  return <DashboardShell>{activityRoute ? !ready || !workspace ? <p>Loading workspace...</p> : <section aria-labelledby="activity-heading" className="grid gap-4"><div><h1 className="text-2xl font-semibold" id="activity-heading">Activity</h1><p className="text-sm text-muted-foreground">Recent changes visible to you in this workspace.</p></div><ActivityPanel key={workspace.id} workspaceId={workspace.id} /></section> : settingsRoute ? !ready ? <p>Loading workspace...</p> : workspace?.role !== 'owner' ? <p role="alert">Only workspace owners can manage settings.</p> : settingsRoute[2] === 'members' ? <MemberList key={workspace.id} workspaceId={workspace.id} scenes={scenes} /> : <AgentSettings key={workspace.id} workspaceId={workspace.id} isOwner scenes={scenes} /> : <><DashboardHeader />{searchView !== 'all' || searchQuery.trim() ? <SearchResults /> : <><FolderList /><SceneList /></>}</>}</DashboardShell>;
 }
 export default App;

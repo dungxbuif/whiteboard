@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS workspace_events_scene_activity_cursor;
+DROP INDEX IF EXISTS workspace_events_workspace_activity_cursor;

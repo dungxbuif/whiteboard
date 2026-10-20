@@ -270,6 +270,21 @@ until authenticated room admission. Live edit, renewal, revocation, offline
 replay and real API+DB+WebSocket browser behavior now pass the 17/17 local
 real-stack suite. Public-origin VM100 proof remains the E3 release gate.
 
+## C3 member activity feed (implemented locally; release pending)
+
+Authenticated members use `GET /api/v1/workspaces/{workspace}/activity` or
+`GET /api/v1/scenes/{scene}/activity` with `X-Workspace-ID` for scene aliases.
+Both accept `cursor` and `limit` (1–50) and return
+`{items,nextCursor?,retainedSince}`. The cursor is opaque and binds the stable
+descending `(occurredAt,id)` boundary.
+
+Current membership, live-scene visibility, feature policy and owner-only event
+rules are applied before pagination. Nonowners never receive `security.*` or
+`acl.*` events. Actor names are server-resolved only after authorization; raw
+comment bodies, canvas content, credentials and source provenance are absent.
+Guests and agent keys cannot use these member routes. The existing MCP scene
+activity contract is unchanged.
+
 
 ## Durable agent operations and export (deployed; production write/export canary pending)
 

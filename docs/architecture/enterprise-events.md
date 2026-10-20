@@ -1,7 +1,7 @@
 # Enterprise workspace events
 
-Status: foundation implemented under the enterprise feature programme. User-facing
-activity routes and panels remain owned by task C3 and are not advertised yet.
+Status: foundation and C3 user-facing activity browsing are implemented locally;
+the enterprise release remains pending.
 
 ## Purpose and ownership
 
@@ -74,13 +74,13 @@ refetch authorized pages after reconnect, route focus, or manual refresh.
 
 ## Paging and authorization
 
-`EventService.ListWorkspace` accepts authenticated workspace users, a decimal
-cursor, and a maximum page size of 50. It checks current workspace membership,
-filters every scene event through current scene authority before returning it,
-and withholds `security.*` and workspace ACL/admin activity from non-owners.
-Public guests and agents do not receive a workspace feed. C2 consumes comment
-events through idempotent, current-authority notification jobs; task C3 owns
-the activity HTTP handlers and human-facing activity guide.
+`ActivityService.List` accepts authenticated workspace users, an opaque stable
+cursor, an optional scene scope, and a maximum page size of 50. The PostgreSQL
+adapter joins current workspace membership and live scenes and applies
+owner-only `security.*`/`acl.*` predicates before `LIMIT`. Actor display names
+are resolved only for authorized rows. Public guests and agents do not receive
+a workspace feed. `retainedSince` is the oldest event actually visible in the
+authorized scope; R1 later applies the 90-day retention policy.
 
 ## Verification
 

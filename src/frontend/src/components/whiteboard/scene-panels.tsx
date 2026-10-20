@@ -44,10 +44,11 @@ export function ScenePanelsProvider({ children }: { children: ReactNode }) {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       event.preventDefault();
+      event.stopPropagation();
       close();
     };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
   }, [active, close]);
 
   const value = useMemo(() => ({ active, open, close }), [active, open, close]);
