@@ -80,6 +80,23 @@ func domainPayloadHash(action, value string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+func (s *DomainService) requireCurrentProof(ctx domain.Context, current domain.WorkspaceDomain) error {
+	if !s.now().UTC().Before(current.ChallengeExpiresAt) {
+		return domain.ErrDomainChallengeExpired
+	}
+	records, err := s.resolver.LookupTXT(ctx, domainDNSName(current.Domain))
+	if err != nil {
+		return domain.ErrDomainChallengeFailed
+	}
+	for _, record := range records {
+		sum := sha256.Sum256([]byte(record))
+		if len(current.ChallengeHash) == len(sum) && subtle.ConstantTimeCompare(current.ChallengeHash, sum[:]) == 1 {
+			return nil
+		}
+	}
+	return domain.ErrDomainChallengeFailed
+}
+
 func (s *DomainService) authorize(ctx context.Context, principal domain.Principal, workspaceID uuid.UUID) (uuid.UUID, error) {
 	if principal.Kind != domain.PrincipalUser || principal.UserID == nil || workspaceID == uuid.Nil {
 		return uuid.Nil, domain.ErrAccessDenied
@@ -112,6 +129,9 @@ func (s *DomainService) Begin(ctx context.Context, principal domain.Principal, w
 	valueRow := domain.WorkspaceDomain{ID: uuid.New(), WorkspaceID: workspaceID, Domain: normalized, Status: domain.DomainPending, ChallengeHash: digest[:], ChallengeExpiresAt: now.Add(domainChallengeLifetime), Revision: 1, CreatedAt: now, UpdatedAt: now}
 	var created domain.WorkspaceDomain
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
+		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
+			return ownerErr
+		}
 		if claimErr := s.repo.ClaimRequest(tx, workspaceID, requestID, "begin", domainPayloadHash("begin", normalized)); claimErr != nil {
 			return claimErr
 		}
@@ -135,6 +155,9 @@ func (s *DomainService) Verify(ctx context.Context, principal domain.Principal, 
 	}
 	var verified domain.WorkspaceDomain
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
+		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
+			return ownerErr
+		}
 		if e := s.repo.ClaimRequest(tx, workspaceID, requestID, "verify", domainPayloadHash("verify", id.String())); e != nil {
 			return e
 		}
@@ -145,23 +168,8 @@ func (s *DomainService) Verify(ctx context.Context, principal domain.Principal, 
 		if current.Status != domain.DomainPending {
 			return domain.ErrDomainChallengeExpired
 		}
-		if !s.now().UTC().Before(current.ChallengeExpiresAt) {
-			return domain.ErrDomainChallengeExpired
-		}
-		records, e := s.resolver.LookupTXT(tx, domainDNSName(current.Domain))
-		if e != nil {
-			return domain.ErrDomainChallengeFailed
-		}
-		matched := false
-		for _, record := range records {
-			sum := sha256.Sum256([]byte(record))
-			if len(current.ChallengeHash) == len(sum) && subtle.ConstantTimeCompare(current.ChallengeHash, sum[:]) == 1 {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return domain.ErrDomainChallengeFailed
+		if e = s.requireCurrentProof(tx, current); e != nil {
+			return e
 		}
 		verified, e = s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainVerified, s.now().UTC())
 		return e
@@ -179,6 +187,9 @@ func (s *DomainService) Capture(ctx context.Context, principal domain.Principal,
 	}
 	var captured domain.WorkspaceDomain
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
+		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
+			return ownerErr
+		}
 		if e := s.repo.ClaimRequest(tx, workspaceID, requestID, "capture", domainPayloadHash("capture", id.String())); e != nil {
 			return e
 		}
@@ -188,6 +199,9 @@ func (s *DomainService) Capture(ctx context.Context, principal domain.Principal,
 		}
 		if current.Status != domain.DomainVerified {
 			return domain.ErrDomainNotVerified
+		}
+		if e = s.requireCurrentProof(tx, current); e != nil {
+			return e
 		}
 		captured, e = s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainCaptured, s.now().UTC())
 		return e
@@ -205,6 +219,9 @@ func (s *DomainService) Revoke(ctx context.Context, principal domain.Principal, 
 	}
 	var revoked domain.WorkspaceDomain
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
+		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
+			return ownerErr
+		}
 		if e := s.repo.ClaimRequest(tx, workspaceID, requestID, "revoke", domainPayloadHash("revoke", id.String())); e != nil {
 			return e
 		}

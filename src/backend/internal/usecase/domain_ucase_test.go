@@ -31,7 +31,13 @@ func (r *domainRepoStub) Create(_ domain.Context, v domain.WorkspaceDomain) (dom
 	if id, ok := r.byName[v.Domain]; ok {
 		existing := r.values[id]
 		if existing.WorkspaceID != v.WorkspaceID {
-			return domain.WorkspaceDomain{}, domain.ErrDomainConflict
+			if existing.Status != domain.DomainPending || v.CreatedAt.Before(existing.ChallengeExpiresAt) {
+				return domain.WorkspaceDomain{}, domain.ErrDomainConflict
+			}
+			delete(r.values, id)
+			r.values[v.ID] = v
+			r.byName[v.Domain] = v.ID
+			return v, nil
 		}
 		v.ID = existing.ID
 		v.Revision = existing.Revision + 1
@@ -98,12 +104,17 @@ func (r *resolverStub) LookupTXT(_ domain.Context, name string) ([]string, error
 }
 
 type accessStub struct {
-	owner  uuid.UUID
-	denied bool
+	owner       uuid.UUID
+	denied      bool
+	checks      *int
+	failOnCheck int
 }
 
 func (a accessStub) RequireOwner(_ domain.Context, u, w uuid.UUID) error {
-	if a.denied || u != a.owner {
+	if a.checks != nil {
+		*a.checks++
+	}
+	if a.denied || u != a.owner || (a.checks != nil && a.failOnCheck > 0 && *a.checks == a.failOnCheck) {
 		return domain.ErrAccessDenied
 	}
 	return nil
@@ -228,6 +239,114 @@ func TestCaptureDoesNotMoveExistingData(t *testing.T) {
 	}
 	if _, err = s.Verify(context.Background(), domain.UserPrincipal(owner), w, c.ID, uuid.New()); !errors.Is(err, domain.ErrDomainChallengeExpired) {
 		t.Fatalf("consumed challenge=%v", err)
+	}
+}
+
+func TestCaptureRequiresCurrentUnexpiredExactTXTProof(t *testing.T) {
+	now := time.Now().UTC()
+	owner, workspace := uuid.New(), uuid.New()
+	repo := newDomainRepoStub()
+	dns := &resolverStub{records: map[string][]string{}}
+	service := NewDomainService(repo, accessStub{owner: owner}, dns, WithDomainClock(func() time.Time { return now }))
+	challenge, _ := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", uuid.New())
+	dns.records[challenge.DNSName] = []string{challenge.TXTValue}
+	verified, _ := service.Verify(context.Background(), domain.UserPrincipal(owner), workspace, challenge.ID, uuid.New())
+	delete(dns.records, challenge.DNSName)
+	if _, err := service.Capture(context.Background(), domain.UserPrincipal(owner), workspace, verified.ID, uuid.New()); !errors.Is(err, domain.ErrDomainChallengeFailed) {
+		t.Fatalf("removed proof capture=%v", err)
+	}
+	current, _ := repo.Get(context.Background(), workspace, verified.ID)
+	if current.Status != domain.DomainVerified {
+		t.Fatalf("failed capture changed status=%s", current.Status)
+	}
+	dns.records[challenge.DNSName] = []string{challenge.TXTValue}
+	now = challenge.ChallengeExpiresAt
+	if _, err := service.Capture(context.Background(), domain.UserPrincipal(owner), workspace, verified.ID, uuid.New()); !errors.Is(err, domain.ErrDomainChallengeExpired) {
+		t.Fatalf("expired proof capture=%v", err)
+	}
+}
+
+func TestExpiredPendingDomainCanBeReclaimedButVerifiedDomainCannot(t *testing.T) {
+	now := time.Now().UTC()
+	owner := uuid.New()
+	firstWorkspace, secondWorkspace, thirdWorkspace := uuid.New(), uuid.New(), uuid.New()
+	repo := newDomainRepoStub()
+	dns := &resolverStub{records: map[string][]string{}}
+	service := NewDomainService(repo, accessStub{owner: owner}, dns, WithDomainClock(func() time.Time { return now }))
+	first, _ := service.Begin(context.Background(), domain.UserPrincipal(owner), firstWorkspace, "example.com", uuid.New())
+	now = first.ChallengeExpiresAt
+	second, err := service.Begin(context.Background(), domain.UserPrincipal(owner), secondWorkspace, "EXAMPLE.COM.", uuid.New())
+	if err != nil {
+		t.Fatalf("expired reclaim=%v", err)
+	}
+	if second.WorkspaceID != secondWorkspace || second.ID == first.ID {
+		t.Fatalf("reclaim=%+v", second)
+	}
+	dns.records[second.DNSName] = []string{second.TXTValue}
+	if _, err = service.Verify(context.Background(), domain.UserPrincipal(owner), secondWorkspace, second.ID, uuid.New()); err != nil {
+		t.Fatal(err)
+	}
+	now = second.ChallengeExpiresAt.Add(time.Hour)
+	if _, err = service.Begin(context.Background(), domain.UserPrincipal(owner), thirdWorkspace, "example.com", uuid.New()); !errors.Is(err, domain.ErrDomainConflict) {
+		t.Fatalf("verified takeover=%v", err)
+	}
+}
+
+func TestDomainMutationsRecheckOwnerInsideWorkspaceLock(t *testing.T) {
+	owner, workspace := uuid.New(), uuid.New()
+	tests := []struct {
+		name    string
+		prepare func(*DomainService, *domainRepoStub, *resolverStub) func() error
+	}{
+		{name: "begin", prepare: func(service *DomainService, _ *domainRepoStub, _ *resolverStub) func() error {
+			return func() error {
+				_, err := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", uuid.New())
+				return err
+			}
+		}},
+		{name: "verify", prepare: func(service *DomainService, _ *domainRepoStub, dns *resolverStub) func() error {
+			challenge, _ := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", uuid.New())
+			dns.records[challenge.DNSName] = []string{challenge.TXTValue}
+			return func() error {
+				_, err := service.Verify(context.Background(), domain.UserPrincipal(owner), workspace, challenge.ID, uuid.New())
+				return err
+			}
+		}},
+		{name: "capture", prepare: func(service *DomainService, _ *domainRepoStub, dns *resolverStub) func() error {
+			challenge, _ := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", uuid.New())
+			dns.records[challenge.DNSName] = []string{challenge.TXTValue}
+			verified, _ := service.Verify(context.Background(), domain.UserPrincipal(owner), workspace, challenge.ID, uuid.New())
+			return func() error {
+				_, err := service.Capture(context.Background(), domain.UserPrincipal(owner), workspace, verified.ID, uuid.New())
+				return err
+			}
+		}},
+		{name: "revoke", prepare: func(service *DomainService, _ *domainRepoStub, dns *resolverStub) func() error {
+			challenge, _ := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", uuid.New())
+			dns.records[challenge.DNSName] = []string{challenge.TXTValue}
+			verified, _ := service.Verify(context.Background(), domain.UserPrincipal(owner), workspace, challenge.ID, uuid.New())
+			captured, _ := service.Capture(context.Background(), domain.UserPrincipal(owner), workspace, verified.ID, uuid.New())
+			return func() error {
+				_, err := service.Revoke(context.Background(), domain.UserPrincipal(owner), workspace, captured.Domain.ID, uuid.New())
+				return err
+			}
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newDomainRepoStub()
+			dns := &resolverStub{records: map[string][]string{}}
+			service := NewDomainService(repo, accessStub{owner: owner}, dns)
+			mutate := tt.prepare(service, repo, dns)
+			checks := 0
+			service.access = accessStub{owner: owner, checks: &checks, failOnCheck: 2}
+			if err := mutate(); !errors.Is(err, domain.ErrAccessDenied) {
+				t.Fatalf("mutation error=%v checks=%d", err, checks)
+			}
+			if checks != 2 {
+				t.Fatalf("owner checks=%d", checks)
+			}
+		})
 	}
 }
 

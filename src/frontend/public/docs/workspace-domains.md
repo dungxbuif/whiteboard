@@ -20,7 +20,9 @@ Send `{"requestId":"UUID"}` to:
 - `POST /workspaces/{workspace}/domains/{domainId}/capture`
 - `POST /workspaces/{workspace}/domains/{domainId}/revoke`
 
-Verification requires an exact TXT match at `_whiteboard-verification.<normalized-domain>`. Capture is a separate authenticated owner decision. It returns `dataMoved: false` and does not link email identities, merge users, change memberships, or move data.
+Verification requires an exact TXT match at `_whiteboard-verification.<normalized-domain>`. Capture is a separate authenticated owner decision and repeats that exact DNS lookup immediately before the state change. The original challenge must still be unexpired. A missing proof leaves the domain verified for retry before expiry; an expired challenge requires a new challenge. Capture returns `dataMoved: false` and does not link email identities, merge users, change memberships, or move data.
+
+An expired pending claim may be atomically reclaimed by another workspace. Verified, captured, and revoked claims cannot be taken over.
 
 List current records with `GET /workspaces/{workspace}/domains`. All endpoints require an authenticated workspace owner.
 

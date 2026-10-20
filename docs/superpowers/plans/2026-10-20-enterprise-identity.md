@@ -43,18 +43,18 @@ modify settings route registration in App and dashboard owner navigation.
 Produces owner `/workspaces/{id}/domains` create/verify/revoke routes, explicit
 capture endpoint and `/w/{workspace}/settings/identity` UI.
 
-- [ ] Write `TestDomainExactIDNAChallenge`, `TestDomainExpiredReplayAndConflict`,
+- [x] Write `TestDomainExactIDNAChallenge`, `TestDomainExpiredReplayAndConflict`,
   `TestCaptureDoesNotMoveExistingData`, `TestDomainRequiresOwner`: exact
   normalized unique domain, `_whiteboard-verification` TXT, challenge expiry24h,
   consumed challenge cannot claim a second workspace, challenge value not logged.
-- [ ] Run focused domain Go/frontend tests (RED). Implement DNS verification
+- [x] Run focused domain Go/frontend tests (RED). Implement DNS verification
   and domain discovery returning workspace login hints without listing users.
   Bind domain activation to explicit owner connection configuration; join/capture
   needs verified identity and authenticated acceptance, never DNS evidence alone.
-- [ ] Verify fresh/migration13 schema, DNS failure/timeouts, ownership reverify,
+- [x] Verify fresh/migration13 schema, DNS failure/timeouts, ownership reverify,
   conflicting claims, IDN and parent/subdomain separation. Real production DNS
   publication is an operator input; fake resolver tests do not prove public TXT.
-- [ ] Reconcile identity API/ERD/setup/public docs and commit
+- [x] Reconcile identity API/ERD/setup/public docs and commit
   `feat(identity): verify workspace domains and explicit capture`.
 
 ## Task 2: I2 — OIDC SSO, safe linking and revocable session assurance

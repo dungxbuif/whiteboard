@@ -10,10 +10,14 @@ The state machine is `pending -> verified -> captured -> revoked`:
 
 - `pending` has a SHA-256 digest of a 32-byte random challenge and a 24-hour expiry. The raw challenge is returned once and is never persisted or logged.
 - `verified` means an exact TXT record was observed at `_whiteboard-verification.<domain>` before expiry.
-- `captured` records a separate, authenticated owner acceptance. DNS evidence alone cannot activate identity behavior.
+- `captured` records a separate, authenticated owner acceptance. Capture repeats the exact TXT lookup and requires the original challenge to remain unexpired, so DNS proof must still be current at acceptance time. DNS evidence alone cannot activate identity behavior.
 - `revoked` disables the capture while preserving the unique claim and audit state.
 
-Every operation resolves the workspace route and requires its current owner. Mutations run inside the existing workspace lock. A consumed or expired challenge cannot be replayed, including against another workspace. Capture reports `dataMoved: false`; membership and content ownership are outside this transaction.
+Every operation resolves the workspace route and requires its current owner. Each mutation checks ownership once before work and again inside the existing workspace lock, closing an owner-change race. A consumed challenge cannot be replayed. Capture reports `dataMoved: false`; membership and content ownership are outside this transaction.
+
+If capture cannot find the exact TXT proof, it fails closed with `DNS_VERIFICATION_FAILED` and leaves the domain `verified`, allowing the owner to restore DNS and retry before expiry. At or after expiry it returns `CHALLENGE_EXPIRED`; the owner must issue a fresh challenge.
+
+An expired `pending` claim can be reclaimed by another workspace. Creation locks the exact domain row and atomically replaces its workspace, ID, digest, and expiry only when the previous row is still pending and expired. Concurrent reclaimers produce one winner; verified, captured, and revoked rows cannot be taken by another workspace.
 
 ## API
 

@@ -22,6 +22,14 @@ test('domain capture is owner-only, explicit, and exposes a user-free discovery 
   await page.goto(`${stack.baseURL}/w/${stack.owner.workspaceId}/settings/identity`);
   await expect(page.getByText('xn--bcher-kva.example')).toBeVisible();
   await page.getByRole('button', { name: 'Accept and capture' }).click();
+  await expect(page.getByText('Could not update domain capture. Reload and retry.')).toBeVisible();
+  const failedCapture = await stack.pool.query('SELECT status FROM workspace_domains WHERE id=$1', [created.id]);
+  expect(failedCapture.rows[0].status).toBe('verified');
+
+  // Fixture transition only: discovery/UI shape evidence after capture. Successful
+  // capture with current TXT is covered by the injected-resolver use-case test.
+  await stack.pool.query("UPDATE workspace_domains SET status='captured',captured_at=clock_timestamp(),revision=revision+1 WHERE id=$1", [created.id]);
+  await page.reload();
   await expect(page.getByText('captured')).toBeVisible();
 
   const discovery = await stack.json('/identity/domains/discover?domain=B%C3%9CCHER.example');

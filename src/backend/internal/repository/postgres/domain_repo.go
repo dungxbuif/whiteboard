@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type DomainRepository struct{ db *gorm.DB }
@@ -81,10 +82,21 @@ func (r *DomainRepository) Create(ctx domain.Context, value domain.WorkspaceDoma
 		return domain.WorkspaceDomain{}, err
 	}
 	var existing workspaceDomainRow
-	lookup := db.Where("domain=?", value.Domain).First(&existing)
+	lookup := db.Clauses(clause.Locking{Strength: "UPDATE"}).Where("domain=?", value.Domain).First(&existing)
 	if lookup.Error == nil {
 		if existing.WorkspaceID != value.WorkspaceID {
-			return domain.WorkspaceDomain{}, domain.ErrDomainConflict
+			if existing.Status != domain.DomainPending {
+				return domain.WorkspaceDomain{}, domain.ErrDomainConflict
+			}
+			updates := map[string]any{"id": value.ID, "workspace_id": value.WorkspaceID, "status": domain.DomainPending, "challenge_hash": value.ChallengeHash, "challenge_expires_at": value.ChallengeExpiresAt, "verified_at": nil, "captured_at": nil, "revision": 1, "created_at": value.CreatedAt, "updated_at": value.UpdatedAt}
+			result := db.Model(&workspaceDomainRow{}).Where("id=? AND workspace_id=? AND revision=? AND status=? AND challenge_expires_at<=clock_timestamp()", existing.ID, existing.WorkspaceID, existing.Revision, domain.DomainPending).Updates(updates)
+			if result.Error != nil {
+				return domain.WorkspaceDomain{}, domainWriteError(result.Error)
+			}
+			if result.RowsAffected != 1 {
+				return domain.WorkspaceDomain{}, domain.ErrDomainConflict
+			}
+			return r.Get(ctx, value.WorkspaceID, value.ID)
 		}
 		updates := map[string]any{"status": domain.DomainPending, "challenge_hash": value.ChallengeHash, "challenge_expires_at": value.ChallengeExpiresAt, "verified_at": nil, "captured_at": nil, "revision": gorm.Expr("revision+1"), "updated_at": value.UpdatedAt}
 		result := db.Model(&workspaceDomainRow{}).Where("id=? AND workspace_id=? AND revision=?", existing.ID, existing.WorkspaceID, existing.Revision).Updates(updates)

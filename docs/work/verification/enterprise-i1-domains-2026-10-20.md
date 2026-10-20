@@ -10,6 +10,13 @@ capture, and revoke run under the workspace lock. Capture is an explicit owner
 action after verification; it never moves users, scenes, or other workspace data
 and DNS evidence alone never grants membership.
 
+Review remediation requires current proof at capture: the service repeats the
+exact TXT lookup and expiry check inside the workspace transaction. Missing DNS
+leaves the record verified for retry; expiry requires a new challenge. Every
+mutation rechecks owner status after acquiring the workspace lock. An expired
+pending row can move to one competing workspace under a PostgreSQL row lock;
+verified, captured, and revoked rows remain non-transferable.
+
 Verification plan: usecase tests cover normalization, owner denial, expiry,
 replay, conflict, parent/subdomain separation and explicit capture; guarded
 PostgreSQL tests cover uniqueness, workspace scoping and migration; handler and
