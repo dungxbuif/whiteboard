@@ -4,6 +4,7 @@ import (
 	"context"
 	"devtool/internal/domain"
 	"devtool/internal/usecase"
+	"errors"
 	"os"
 	"testing"
 
@@ -64,8 +65,25 @@ func TestNotificationRetryAndRevocation(t *testing.T) {
 		t.Fatalf("deepLink=%q want=%q", page.Items[0].DeepLink, wantLink)
 	}
 	notificationID := page.Items[0].ID
-	if err = service.MarkRead(context.Background(), recipient, notificationID, uuid.New()); err != nil {
+	readRequest := uuid.New()
+	if err = service.MarkRead(context.Background(), recipient, notificationID, readRequest); err != nil {
 		t.Fatal(err)
+	}
+	mustExec(t, db, `INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key)
+		VALUES (?,?, 'user', ?, 'comment.replied', ?, jsonb_build_object('threadId',?::text,'commentId',?::text), 'comment', ?)`, workspace, scene, owner.String(), uuid.NewString(), thread, uuid.New(), uuid.NewString())
+	var secondEventID int64
+	if err = db.Raw("SELECT max(id) FROM workspace_events").Scan(&secondEventID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err = service.DeliverEvent(context.Background(), secondEventID); err != nil {
+		t.Fatal(err)
+	}
+	page, err = service.List(context.Background(), recipient, "", 50)
+	if err != nil || len(page.Items) != 2 {
+		t.Fatalf("second page=%+v err=%v", page, err)
+	}
+	if err = service.MarkRead(context.Background(), recipient, page.Items[0].ID, readRequest); !errors.Is(err, domain.ErrRequestIDReused) {
+		t.Fatalf("read request reuse=%v", err)
 	}
 
 	mustExec(t, db, "DELETE FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, recipient)
@@ -89,6 +107,51 @@ func TestNotificationRetryAndRevocation(t *testing.T) {
 		t.Fatalf("revoked delivery=%d err=%v", delivered, err)
 	}
 	_ = domain.Notification{}
+}
+
+func TestNotificationPaginationScansPastRevokedRows(t *testing.T) {
+	db := accessTestDB(t, 19)
+	owner, recipient, revokedWorkspace := accessFixture(t, db)
+	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'viewer')", revokedWorkspace, recipient)
+	authorizedOwner, authorizedWorkspace := uuid.New(), uuid.New()
+	mustExec(t, db, "INSERT INTO users(id,email,name) VALUES (?,?,'Owner 2')", authorizedOwner, authorizedOwner.String()+"@example.test")
+	mustExec(t, db, "INSERT INTO workspaces(id,name,owner_id) VALUES (?,'Authorized',?)", authorizedWorkspace, authorizedOwner)
+	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'viewer')", authorizedWorkspace, recipient)
+	revokedScene, authorizedScene := uuid.New(), uuid.New()
+	revokedThread, authorizedThread := uuid.New(), uuid.New()
+	for _, row := range []struct{ workspace, scene, thread, creator uuid.UUID }{{revokedWorkspace, revokedScene, revokedThread, owner}, {authorizedWorkspace, authorizedScene, authorizedThread, authorizedOwner}} {
+		mustExec(t, db, "INSERT INTO scenes(id,workspace_id,title) VALUES (?,?,'Inbox')", row.scene, row.workspace)
+		mustExec(t, db, "UPDATE workspace_feature_policies SET comments_enabled=true WHERE workspace_id=?", row.workspace)
+		mustExec(t, db, `INSERT INTO comment_threads(id,workspace_id,scene_id,creator_kind,creator_id,creator_name,anchor_x,anchor_y,status) VALUES (?,?,?,'user',?,'Owner',1,2,'open')`, row.thread, row.workspace, row.scene, row.creator.String())
+	}
+	for index := 0; index < 55; index++ {
+		mustExec(t, db, `INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key,occurred_at) VALUES (?,?, 'user', ?, 'comment.replied', ?, jsonb_build_object('threadId',?::text), 'comment', ?, clock_timestamp() + (? * interval '1 second'))`, revokedWorkspace, revokedScene, owner.String(), uuid.NewString(), revokedThread, uuid.NewString(), index+10)
+		var eventID int64
+		db.Raw("SELECT max(id) FROM workspace_events").Scan(&eventID)
+		mustExec(t, db, "INSERT INTO user_notifications(user_id,workspace_id,scene_id,event_id,kind,actor_name,thread_id,created_at) VALUES (?,?,?,?, 'comment.replied','Owner',?,clock_timestamp() + (? * interval '1 second'))", recipient, revokedWorkspace, revokedScene, eventID, revokedThread, index+10)
+	}
+	for index := 0; index < 3; index++ {
+		mustExec(t, db, `INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key) VALUES (?,?, 'user', ?, 'comment.replied', ?, jsonb_build_object('threadId',?::text), 'comment', ?)`, authorizedWorkspace, authorizedScene, authorizedOwner.String(), uuid.NewString(), authorizedThread, uuid.NewString())
+		var eventID int64
+		db.Raw("SELECT max(id) FROM workspace_events").Scan(&eventID)
+		mustExec(t, db, "INSERT INTO user_notifications(user_id,workspace_id,scene_id,event_id,kind,actor_name,thread_id,created_at) VALUES (?,?,?,?, 'comment.replied','Owner 2',?,clock_timestamp() - (? * interval '1 second'))", recipient, authorizedWorkspace, authorizedScene, eventID, authorizedThread, index+10)
+	}
+	mustExec(t, db, "DELETE FROM workspace_members WHERE workspace_id=? AND user_id=?", revokedWorkspace, recipient)
+	access, _ := usecase.NewAccessService(NewAccessRepository(db))
+	features := usecase.NewFeatureService(NewFeatureRepository(db), access)
+	service := usecase.NewNotificationService(NewNotificationRepository(db), features, access)
+	first, err := service.List(context.Background(), recipient, "", 2)
+	if err != nil || len(first.Items) != 2 || first.NextCursor == "" {
+		t.Fatalf("first=%+v err=%v", first, err)
+	}
+	second, err := service.List(context.Background(), recipient, first.NextCursor, 2)
+	if err != nil || len(second.Items) != 1 || second.NextCursor != "" || second.Items[0].ID == first.Items[0].ID || second.Items[0].ID == first.Items[1].ID {
+		t.Fatalf("second=%+v err=%v", second, err)
+	}
+	mustExec(t, db, "DROP TABLE workspace_feature_policies CASCADE")
+	if _, err = service.List(context.Background(), recipient, "", 2); err == nil {
+		t.Fatal("feature-policy infrastructure failure was treated as an authorization filter")
+	}
 }
 
 func TestNotificationMigrationUpDown(t *testing.T) {

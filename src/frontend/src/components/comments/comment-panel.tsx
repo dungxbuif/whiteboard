@@ -5,7 +5,7 @@ import { createCommentClient, type CommentClient, type CommentPrincipal, type Co
 
 type RefetchRegistration = { ready: Promise<void>; unregister: () => void };
 
-export function CommentPanel({ sceneRef, principal, api, anchor = { x: 0, y: 0 }, registerRefetch, onThreadsChange }: { sceneRef: SceneRef; principal: CommentPrincipal; api?: CommentClient; anchor?: { elementId?: string; x: number; y: number }; registerRefetch?: (key: string, refetch: () => Promise<void>) => RefetchRegistration; onThreadsChange?: (threads: CommentThread[]) => void }) {
+export function CommentPanel({ sceneRef, principal, api, anchor = { x: 0, y: 0 }, registerRefetch, onThreadsChange, initialThreadId }: { sceneRef: SceneRef; principal: CommentPrincipal; api?: CommentClient; anchor?: { elementId?: string; x: number; y: number }; registerRefetch?: (key: string, refetch: () => Promise<void>) => RefetchRegistration; onThreadsChange?: (threads: CommentThread[]) => void; initialThreadId?: string }) {
   const client = useMemo(() => api ?? createCommentClient(principal), [api, principal.kind, principal.id, principal.token]);
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const [selected, setSelected] = useState('');
@@ -15,10 +15,12 @@ export function CommentPanel({ sceneRef, principal, api, anchor = { x: 0, y: 0 }
   const active = threads.find(thread => thread.id === selected) ?? threads[0];
   const refresh = useCallback(async () => {
     const page = await client.list(sceneRef);
-    setThreads(page.items);
-    setSelected(current => current || page.items[0]?.id || '');
-  }, [client, sceneRef.workspaceId, sceneRef.sceneId]);
-  useEffect(() => { void refresh().catch(reason => setError(reason instanceof Error ? reason.message : 'Comments unavailable')); }, [client, sceneRef.workspaceId, sceneRef.sceneId]);
+    let items = page.items;
+    if (initialThreadId && !items.some(thread => thread.id === initialThreadId)) items = [await client.get(sceneRef, initialThreadId), ...items];
+    setThreads(items);
+    setSelected(current => initialThreadId || current || items[0]?.id || '');
+  }, [client, sceneRef.workspaceId, sceneRef.sceneId, initialThreadId]);
+  useEffect(() => { void refresh().catch(reason => setError(reason instanceof Error ? reason.message : 'Comments unavailable')); }, [refresh]);
   useEffect(() => { onThreadsChange?.(threads); }, [onThreadsChange, threads]);
   useEffect(() => {
     if (!registerRefetch) return;
@@ -40,8 +42,15 @@ export function CommentPanel({ sceneRef, principal, api, anchor = { x: 0, y: 0 }
   };
   const redact = async (messageId: string, revision: string) => {
     if (!active) return;
-    await client.deleteMessage(sceneRef, active.id, messageId, revision);
-    replace(await client.get(sceneRef, active.id));
+    setError('');
+    try { await client.deleteMessage(sceneRef, active.id, messageId, revision); replace(await client.get(sceneRef, active.id)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Redaction failed'); }
+  };
+  const moderate = async () => {
+    if (!active || !principal.canResolve) return;
+    setError('');
+    try { replace(await client.updateThread(sceneRef, active, { resolved: active.status !== 'resolved' })); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : 'Thread update failed'); }
   };
   const create = async () => {
     if (!draft.trim()) return;
@@ -56,7 +65,7 @@ export function CommentPanel({ sceneRef, principal, api, anchor = { x: 0, y: 0 }
     <div className="flex flex-wrap gap-2">{threads.map((thread, index) => <Button key={thread.id} onClick={() => { setCreating(false); setSelected(thread.id); }} size="sm" variant={!creating && thread.id === active.id ? 'default' : 'outline'}>Thread {index + 1}</Button>)}<Button onClick={() => setCreating(true)} size="sm" variant={creating ? 'default' : 'outline'}>New</Button><Button onClick={() => void refresh()} size="sm" variant="ghost">Refresh</Button></div>
     {creating ? <><label className="grid gap-1 text-sm">New discussion<textarea aria-label="New discussion" className="min-h-24 rounded-md border bg-background p-2" maxLength={4000} onChange={event => setDraft(event.target.value)} value={draft} /></label><Button disabled={!draft.trim()} onClick={() => void create()}>Create discussion</Button></> : <>
     <div className="grid gap-3">
-      <div className="flex items-center justify-between gap-2"><span className="text-sm text-muted-foreground">{active.anchor.elementId ? 'Anchored discussion' : 'Canvas discussion'}</span><Button onClick={async () => replace(await client.updateThread(sceneRef, active, { resolved: active.status !== 'resolved' }))} size="sm" variant="outline">{active.status === 'resolved' ? 'Reopen' : 'Resolve'}</Button></div>
+      <div className="flex items-center justify-between gap-2"><span className="text-sm text-muted-foreground">{active.anchor.elementId ? 'Anchored discussion' : 'Canvas discussion'}</span>{principal.canResolve ? <Button onClick={() => void moderate()} size="sm" variant="outline">{active.status === 'resolved' ? 'Reopen' : 'Resolve'}</Button> : null}</div>
       {active.messages.map(message => <article className="rounded-lg border p-3" key={message.id}>
         <strong className="text-sm">{message.authorName}</strong>
         {message.deletedAt ? <p className="text-sm italic text-muted-foreground">Message removed</p> : <p className="whitespace-pre-wrap break-words text-sm">{message.body}</p>}

@@ -11,7 +11,8 @@ or change Excalidraw shapes.
 3. Write 1–4,000 Unicode characters and submit.
 
 An anchor attached to a native element follows that element when it moves or
-resizes. If the element is deleted, the marker stays at its saved fallback
+resizes. Its marker also follows canvas pan and zoom, including the canvas
+offset within the page. If the element is deleted, the marker stays at its saved fallback
 position and says **Element unavailable**. Restoring an element does not attach
 an old discussion to a different element automatically.
 
@@ -32,6 +33,10 @@ dashboard **Notifications** control lists comment changes from other people.
 Choosing an item marks it read and opens the exact scene and thread. The server
 checks your current scene access both when it creates an inbox item and when you
 read or open it; revoked scenes disappear from results.
+
+Choose **Load more** to continue from the server cursor. The inbox may skip
+revoked items while it searches for the next accessible result, so a page can
+span more stored rows than the number shown.
 
 Notifications are in-app only. Delivery retries are safe and create at most one
 row per user and source event.

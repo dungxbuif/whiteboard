@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"devtool/internal/domain"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -118,6 +120,10 @@ func (r *NotificationRepository) MarkRead(ctx domain.Context, userID, id, reques
 	result := db.Model(&notificationRow{}).Where("user_id=? AND id=? AND (read_request_id IS NULL OR read_request_id=?)", userID, id, requestID).
 		Updates(map[string]any{"read_at": gorm.Expr("COALESCE(read_at,clock_timestamp())"), "read_request_id": requestID})
 	if result.Error != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(result.Error, &pgErr) && pgErr.Code == "23505" {
+			return domain.ErrRequestIDReused
+		}
 		return accessError(result.Error)
 	}
 	if result.RowsAffected != 1 {

@@ -22,7 +22,10 @@ authorized refetch; clients must retain the unsent local draft. Message pages
 are stable, capped at 50, and continue through `nextMessageCursor`.
 
 Anchors store an optional native Excalidraw element ID and fallback scene
-coordinates. Resolve the current element geometry for display. When the ID is
+coordinates. Convert the element centre or fallback from scene coordinates to
+viewport coordinates with the current Excalidraw `scrollX`, `scrollY`, zoom,
+`offsetLeft`, and `offsetTop`, and recompute while the canvas pans or zooms.
+When the ID is
 absent from current scene elements, use the fallback and label the anchor
 `Element unavailable`; never synthesize an Excalidraw element or retarget it.
 
@@ -35,4 +38,9 @@ The inbox accepts login principals only. Each item contains a server-created
 deep link `/w/{workspace}/scenes/{scene}?thread={thread}`. Delivery is unique by
 `(user,event)`, excludes the actor, and rechecks current comment-read authority.
 List and mark-read recheck authority again, so stale notification IDs cannot
-reveal revoked scenes. Guests never have a private inbox.
+reveal revoked scenes. The opaque continuation cursor is the last consumed raw
+row, including filtered rows; clients must follow `nextCursor` until absent and
+deduplicate by notification ID. Authorization denials are filtered, while
+policy/database failures fail the request. Reusing a read `requestId` for a
+different notification returns `409 REQUEST_ID_REUSED`. Guests never have a
+private inbox. Resolve/reopen controls require current editor or owner authority.

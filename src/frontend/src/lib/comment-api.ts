@@ -2,7 +2,7 @@ import api from '@/lib/api';
 import { publicApi } from '@/lib/public-api';
 
 export type SceneRef = { workspaceId: string; sceneId: string };
-export type CommentPrincipal = { kind: 'user' | 'public'; id: string; owner?: boolean; token?: string };
+export type CommentPrincipal = { kind: 'user' | 'public'; id: string; owner?: boolean; canResolve?: boolean; token?: string };
 export type CommentAnchor = { elementId?: string; x: number; y: number };
 export type CommentMessage = { id: string; threadId: string; authorKind: string; authorName: string; body: string; revision: string; mine: boolean; editedAt?: string; deletedAt?: string; createdAt: string; updatedAt: string };
 export type CommentThread = { id: string; sceneId: string; creatorKind: string; creatorName: string; anchor: CommentAnchor; status: 'open' | 'resolved'; revision: string; subscribed: boolean; messages: CommentMessage[]; nextMessageCursor?: string; createdAt: string; updatedAt: string };

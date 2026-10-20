@@ -10,7 +10,7 @@ import { InviteAccept } from '@/components/collaboration/invite-accept';
 import { MemberList } from '@/components/collaboration/member-list';
 import { AgentSettings } from '@/components/collaboration/agent-settings';
 import { ExcalidrawWrapper } from '@/components/whiteboard/excalidraw-wrapper';
-import { usePathname, navigate } from '@/lib/router';
+import { useLocation, navigate } from '@/lib/router';
 import { Button } from '@/components/ui/button';
 import useAuthStore from '@/store/auth-store';
 import useFolderStore from '@/store/folder-store';
@@ -19,7 +19,9 @@ import useWorkspaceStore from '@/store/workspace-store';
 import useSearchStore from '@/store/search-store';
 
 function App() {
-  const pathname = usePathname();
+  const location = useLocation();
+  const pathname = location.pathname;
+  const routeThread = new URLSearchParams(location.search).get('thread') ?? undefined;
   const publicToken = pathname.match(/^\/p\/([^/]+)\/?$/)?.[1] ?? null;
   const inviteToken = pathname.match(/^\/invite\/([^/]+)\/?$/)?.[1] ?? null;
   const sceneRoute = pathname.match(/^\/w\/([^/]+)\/scenes\/([^/]+)\/?$/);
@@ -63,7 +65,7 @@ function App() {
   if (routeError) return <main className="grid min-h-screen place-items-center p-6"><p role="alert" className="text-destructive">{routeError}</p><Button onClick={() => navigate('/')}>Back to dashboard</Button></main>;
   if (sceneRoute) {
     if (!activeScene || !workspace || activeScene.workspaceId !== workspace.id || (activeScene.id !== routeScene && activeScene.publicId !== routeScene)) return <main className="grid min-h-screen place-items-center">Loading scene...</main>;
-    return <ExcalidrawWrapper key={activeScene.id} />;
+    return <ExcalidrawWrapper initialThreadId={routeThread} key={activeScene.id} />;
   }
   return <DashboardShell>{settingsRoute ? !ready ? <p>Loading workspace...</p> : workspace?.role !== 'owner' ? <p role="alert">Only workspace owners can manage settings.</p> : settingsRoute[2] === 'members' ? <MemberList key={workspace.id} workspaceId={workspace.id} scenes={scenes} /> : <AgentSettings key={workspace.id} workspaceId={workspace.id} isOwner scenes={scenes} /> : <><DashboardHeader />{searchView !== 'all' || searchQuery.trim() ? <SearchResults /> : <><FolderList /><SceneList /></>}</>}</DashboardShell>;
 }
