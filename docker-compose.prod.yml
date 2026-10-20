@@ -189,8 +189,8 @@ networks:
     ipam:
       config:
         - subnet: 172.29.240.0/28
-    pg-net:
-      external: true
+  pg-net:
+    external: true
   homelab-net:
     external: true
   whiteboard-app:
