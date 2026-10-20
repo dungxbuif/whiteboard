@@ -61,15 +61,23 @@ These requirements are approved direction, not delivered Collaboration v2 scope.
 They remain visible so local v2 completion cannot be mistaken for enterprise
 feature parity.
 
+The [enterprise proposed detail design](../superpowers/specs/2026-10-20-enterprise-parity-design.md)
+and [22-task programme](../superpowers/plans/2026-10-20-enterprise-parity.md)
+now map every ENT requirement to code boundaries, API/schema proposals and
+verification. The [phase](../work/phases/PHASE-ENTERPRISE.md) remains draft for
+contract/default review; `ready` below records approved direction, not shipped
+implementation or approval of new schema/security decisions. Canvas controls
+must live inside/floating over the full canvas per the user on 2026-10-20.
+
 | ID | Requirement | Priority | Source | Status | Next artifact |
 | --- | --- | --- | --- | --- | --- |
-| ENT-P1-01 | Durable scene comments and guest comments with element anchors, moderation, and notification UI. | P1 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets. |
-| ENT-P1-02 | Screen sharing with explicit media permissions and bounded participant admission. | P1 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets. |
-| ENT-P1-03 | Live presentation leadership, spotlight, waiting-room admission, reactions, and view locking. | P1 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets. |
-| ENT-P1-04 | A user-facing activity feed backed by the audit stream and an explicit retention policy. | P1 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets. |
-| ENT-P2-01 | User-visible scene version history, labels, diff, and restore. | P2 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets. |
-| ENT-P2-02 | Workspace libraries and collections with sharing and search contracts. | P2 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets. |
-| ENT-P2-03 | Domain capture plus enterprise SSO/SCIM and retention controls. | P2 | Collaboration v2 parity decision | ready | Dedicated requirement slice and tickets after password ACL release stability. |
+| ENT-P1-01 | Durable scene comments and guest comments with element anchors, moderation, and notification UI. | P1 | Collaboration v2 parity decision | ready | [Draft C1/C2](../superpowers/plans/2026-10-20-enterprise-engagement.md). |
+| ENT-P1-02 | Screen sharing with explicit media permissions and bounded participant admission. | P1 | Collaboration v2 parity decision | ready | [Draft M1](../superpowers/plans/2026-10-20-enterprise-live.md). |
+| ENT-P1-03 | Live presentation leadership, spotlight, waiting-room admission, reactions, and view locking. | P1 | Collaboration v2 parity decision | ready | [Draft M2/M3](../superpowers/plans/2026-10-20-enterprise-live.md). |
+| ENT-P1-04 | A user-facing activity feed backed by the audit stream and an explicit retention policy. | P1 | Collaboration v2 parity decision | ready | [Draft C3](../superpowers/plans/2026-10-20-enterprise-engagement.md), [R1](../superpowers/plans/2026-10-20-enterprise-identity.md). |
+| ENT-P2-01 | User-visible scene version history, labels, diff, and restore. | P2 | Collaboration v2 parity decision | ready | [Draft V1/V2](../superpowers/plans/2026-10-20-enterprise-content.md). |
+| ENT-P2-02 | Workspace libraries and collections with sharing and search contracts. | P2 | Collaboration v2 parity decision | ready | [Draft L1/L2](../superpowers/plans/2026-10-20-enterprise-content.md). |
+| ENT-P2-03 | Domain capture plus enterprise SSO/SCIM and retention controls. | P2 | Collaboration v2 parity decision | ready | [Draft I1–I3/R1–R2](../superpowers/plans/2026-10-20-enterprise-identity.md). |
 | HARNESS-REQ-01 | Harness CLI hard gates, loop guard, and security standard are enforced or explicitly removed by the owner. | P2 | [Harness phase](../work/phases/PHASE-2.md) | ready | Create implementation tickets or record the owner decision. |
 
 ## Non-Functional Requirements

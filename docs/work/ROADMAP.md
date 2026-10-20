@@ -43,7 +43,7 @@ A high-performance, self-hosted whiteboard ecosystem with Google Drive-like mana
 | M3 | Phase 3: Shareable Production | done | [PHASE-3.md](phases/PHASE-3.md) | 3 plans (03-01 to 03-03) |
 | M4 | Phase 4: Real-time Collaboration & Calling | in_review | [PHASE-COLLAB-V2.md](phases/PHASE-COLLAB-V2.md) | VM100 v2, reboot recovery, DNS restart/replay and TURN allocation pass; final product acceptance matrix pending |
 | M5 | Phase 5: AI Features (OpenAI-Compatible API) | in_review | [PHASE-5.md](phases/PHASE-5.md) | Implementation verified; public live-provider UAT blocked on key |
-| ME | Enterprise parity | ready | [Requirements](../requirements/REQUIREMENTS.md#approved-product-backlog) | Comments, screen sharing, live presentation/activity, versioning, libraries, domain/SSO/SCIM/retention need tickets |
+| ME | Enterprise parity | ready | [Enterprise phase](phases/PHASE-ENTERPRISE.md) | [Proposed design and programme](../superpowers/plans/2026-10-20-enterprise-parity.md): 22 draft tasks; canvas overlays, all P1/P2 parity, integration and release gates |
 | MH | Harness: Develop Harness CLI (Hard Enforcement) | ready | [PHASE-2.md](phases/PHASE-2.md) | Create implementation tickets or record an owner decision removing the milestone |
 
 ## Phase 1 Plans

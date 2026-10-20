@@ -12,6 +12,11 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Planning only (2026-10-20): [enterprise programme](../superpowers/plans/2026-10-20-enterprise-parity.md)
+  covers comments/guests, screen/live presentation, activity, versions,
+  libraries/collections, domain/SSO/SCIM/retention and full-canvas floating
+  controls in 22 draft tasks. No enterprise runtime feature has shipped.
+
 - Collaboration v2 is deployed on VM100 from `772d3ea`: the custom authenticated `/collab/` WebSocket is the only realtime path; legacy Socket.IO is removed. Backup/restore, secrets, frozen Linux/amd64 images, migration13, public deep-link/S3/MCP/denial/log, Docker DNS restart/replay, authenticated TURN allocation, controlled reboot recovery and Compose tmpfs correction are recorded in the [release note](2026-10-19-collaboration-v2.md). Public share/invite/roles, native MCP write/export, browser voice/media and mobile/keyboard canaries remain before sign-off.
 
 - Access UI C2 (merged and reviewed): invitations, independent public links, membership/override controls, scoped agent keys, role-aware controls and stable scene/settings routes. Workspace, folder, Starred, Trash and search navigation work from Settings; original dashboard styling and native scene styling remain.

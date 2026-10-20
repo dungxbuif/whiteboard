@@ -3,16 +3,17 @@ artifact_type: context
 id: CONTEXT
 status: active
 owner: shared
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # Context
 
 ## Current Focus
 
-- **Active Phase:** Production release review — [Collaboration v2](work/phases/PHASE-COLLAB-V2.md).
-- **Active Work:** Collaboration v2 is deployed on VM100 from `772d3ea`. Backup/restore, secrets, frozen Linux/amd64 images, migration 13, public health/deep-link/S3/MCP/internal denial/log checks, runtime DNS restart/replay, authenticated TURN allocation and automatic controlled-reboot recovery are verified.
-- **Next Work:** Finish [COLLAB-V2-RELEASE](work/BACKLOG.md): public view/edit, invitation/role/revoke, native MCP write/export, public browser voice/media, mobile/keyboard acceptance and final release sign-off.
+- **Active Phase:** Enterprise parity planning — [phase](work/phases/PHASE-ENTERPRISE.md).
+- **Active Work:** Proposed detail design and 22-task programme cover all seven enterprise requirement groups. User requests scene controls inside/floating over the canvas without a separate height-consuming header; UI1/UI2 address existing controls first.
+- **Next Work:** Review [enterprise design](superpowers/specs/2026-10-20-enterprise-parity-design.md) and [implementation programme](superpowers/plans/2026-10-20-enterprise-parity.md), then execute the reviewed slices. No enterprise runtime change has shipped.
+- **Released baseline:** VM100 frontend source `24b1cd0`; evidence-only follow-up `1d2af8a` is on master. Current [release evidence](releases/2026-10-19-collaboration-v2.md) records public canaries, production image and proof boundaries.
 
 ## Project
 
@@ -43,11 +44,17 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 
 - Retired Google OAuth history was scrubbed before the remote push; provider-side credential revocation is still required.
 - Live AI provider UAT requires the user-provided backend-only OpenAI-compatible key.
-- Final release sign-off still requires the remaining public view/edit,
-  invitation/role/revoke, native MCP write/export, public browser voice/media and mobile/keyboard acceptance
-  matrix; see [release checklist](operations/RELEASE_CHECKLIST.md).
+- Enterprise contract/policy defaults are draft for review before implementation;
+  see the [enterprise phase](work/phases/PHASE-ENTERPRISE.md). Real OIDC tenant
+  credentials and DNS publication are rollout inputs, not prerequisites for
+  unrelated comments/media/content implementation.
 
 ## Recent Changes
+
+- 2026-10-20: Prepared enterprise proposed detail design plus six implementation
+  plan documents / 22 tasks, legacy comparison, requirements coverage and
+  integration/rollout gates. Canvas controls must overlay the full viewport.
+  This is planning only; no new migrations/dependencies/deployments.
 
 - 2026-10-19: Deployed Collaboration v2 on VM100 and advanced production to
   `772d3ea`. Four services recover automatically after a controlled reboot;

@@ -18,6 +18,10 @@ updated: 2026-10-19
 
 # Validation Matrix
 
+Enterprise planning (2026-10-20): [coverage and planning evidence](verification/enterprise-planning-2026-10-20.md)
+map ENT-P1-01–04 / ENT-P2-01–03 and canvas-control placement to 22 draft tasks.
+This is documentation proof only; no enterprise runtime status is advanced.
+
 ## Field Ownership
 
 - Human owns proof overrides and acceptance sign-off.
