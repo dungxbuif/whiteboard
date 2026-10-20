@@ -128,7 +128,8 @@ test.describe('Dashboard E2E Flows', () => {
           await route.fulfill({ json: scene });
           return;
         }
-        await route.fulfill({ json: mockScenes });
+        const folderId = url.searchParams.get('folderId');
+        await route.fulfill({ json: mockScenes.filter(scene => scene.folderId === folderId) });
         return;
       }
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
@@ -257,7 +258,9 @@ test.describe('Dashboard E2E Flows', () => {
     const movePatch = page.waitForRequest(request => request.method() === 'PATCH' && /\/folders\/folder-research$/.test(new URL(request.url()).pathname));
     await move.getByRole('button', { name: 'Save changes' }).click();
     expect((await movePatch).postDataJSON()).toEqual({ newParentId: null });
-    await expect(page.getByRole('button', { name: 'Research', exact: true }).first()).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Folder contents' }).getByRole('button', { name: 'Research', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'All files' }).last().click();
+    await expect(page.getByRole('region', { name: 'Folder contents' }).getByRole('button', { name: 'Research', exact: true })).toBeVisible();
   });
 
   test('submits scene duplicate and move, then exits the native canvas', async ({ page }) => {
@@ -283,6 +286,9 @@ test.describe('Dashboard E2E Flows', () => {
     const moveRequest = page.waitForRequest(request => request.method() === 'PATCH' && /\/scenes\/scene-created\/?$/.test(new URL(request.url()).pathname));
     await move.getByRole('button', { name: 'Move', exact: true }).click();
     expect((await moveRequest).postDataJSON()).toEqual({ folderId: 'folder-product' });
+    await expect(page.getByRole('region', { name: 'Scenes' }).getByText('Untitled scene')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Product Boards', exact: true }).first().click();
+    await expect(page.getByRole('region', { name: 'Scenes' }).getByText('Untitled scene')).toBeVisible();
   });
 
   test('should handle empty workspace state gracefully', async ({ page }) => {

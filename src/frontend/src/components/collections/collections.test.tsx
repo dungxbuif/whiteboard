@@ -87,6 +87,32 @@ describe('legacy collections', () => {
     expect(screen.queryByText('Collections are unavailable for this workspace')).not.toBeInTheDocument();
   });
 
+  it.each(['success', 'disabled'] as const)('ignores late create %s from the previous workspace', async outcome => {
+    let resolveCreate!: (value: Collection) => void;
+    let rejectCreate!: (reason: unknown) => void;
+    const pendingCreate = new Promise<Collection>((resolve, reject) => { resolveCreate = resolve; rejectCreate = reject; });
+    const collectionB = { ...workspaceCollection, id: 'collection-b', name: 'Workspace B boards' };
+    const list = vi.fn((workspaceId: string) => Promise.resolve({ items: [workspaceId === 'workspace-1' ? workspaceCollection : collectionB] }));
+    const api = client({ list, create: vi.fn().mockReturnValue(pendingCreate) });
+    const view = render(<CollectionList api={api} canManage workspaceId="workspace-1" workspaceSlug="one" />);
+    expect(await screen.findByRole('link', { name: /Launch boards/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+    fireEvent.change(screen.getByLabelText('Collection name'), { target: { value: 'Plans' } });
+    fireEvent.submit(screen.getByRole('form', { name: 'Create collection' }));
+    await waitFor(() => expect(api.create).toHaveBeenCalledWith('workspace-1', { name: 'Plans', visibility: 'workspace' }));
+    view.rerender(<CollectionList api={api} canManage workspaceId="workspace-2" workspaceSlug="two" />);
+    expect(await screen.findByRole('link', { name: /Workspace B boards/ })).toHaveAttribute('href', '/w/two/collections/collection-b');
+    await act(async () => {
+      if (outcome === 'success') resolveCreate(workspaceCollection);
+      else rejectCreate({ response: { status: 403, data: { code: 'FEATURE_DISABLED' } } });
+    });
+    expect(screen.getByRole('link', { name: /Workspace B boards/ })).toBeInTheDocument();
+    expect(screen.queryByText('Collections are unavailable for this workspace')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Create collection' })).not.toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     { response: { status: 403, data: { code: 'ACCESS_DENIED' } } },
     { response: { status: 503, data: { code: 'FEATURE_DISABLED' } } },

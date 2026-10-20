@@ -27,6 +27,7 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
   const [filter, setFilter] = useState('');
   const [nextCursor, setNextCursor] = useState('');
   const requestVersion = useRef(0);
+  const workspaceVersion = useRef(0);
   const load = useCallback(async (cursor = '') => {
     const version = ++requestVersion.current;
     setLoading(true);
@@ -52,6 +53,31 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
     } finally { if (version === requestVersion.current) setLoading(false); }
   }, [api, workspaceId]);
   useEffect(() => { void load(''); return () => { requestVersion.current += 1; }; }, [load]);
+  useEffect(() => {
+    workspaceVersion.current += 1;
+    setOpen(false);
+    setPending(false);
+    return () => { workspaceVersion.current += 1; };
+  }, [workspaceId]);
+  const create = async (draft: Parameters<CollectionClient['create']>[1]) => {
+    const version = workspaceVersion.current;
+    setPending(true);
+    try {
+      await api.create(workspaceId, draft);
+      if (version !== workspaceVersion.current) return;
+      setOpen(false);
+      await load('');
+    } catch (cause) {
+      if (version !== workspaceVersion.current) return;
+      if (featureDisabled(cause)) {
+        setError('');
+        setDisabled(true);
+        setOpen(false);
+        setItems([]);
+        setNextCursor('');
+      } else setError('Collection could not be created.');
+    } finally { if (version === workspaceVersion.current) setPending(false); }
+  };
   return <section aria-labelledby="collection-sidebar-heading" className="mt-4 grid gap-1 border-t pt-4">
     <div className="flex items-center justify-between px-2">
       <p className="text-xs text-muted-foreground" id="collection-sidebar-heading">Collections</p>
@@ -70,6 +96,6 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
     })}
     {!items.length && !error && !disabled && !loading ? <p className="px-2 py-1 text-xs text-muted-foreground">No collections yet.</p> : null}
     {nextCursor && !filter.trim() ? <Button className="justify-start" onClick={() => void load(nextCursor)} size="sm" type="button" variant="ghost">Load more collections</Button> : null}
-    <CollectionDialog open={open} title="Create collection" pending={pending} onOpenChange={value => { setOpen(value); if (!value) api.cancelPending(); }} onSubmit={async draft => { setPending(true); try { await api.create(workspaceId, draft); setOpen(false); await load(''); } catch (cause) { if (featureDisabled(cause)) { setError(''); setDisabled(true); setOpen(false); setItems([]); setNextCursor(''); } else setError('Collection could not be created.'); } finally { setPending(false); } }} />
+    <CollectionDialog open={open} title="Create collection" pending={pending} onOpenChange={value => { setOpen(value); if (!value) api.cancelPending(); }} onSubmit={create} />
   </section>;
 }
