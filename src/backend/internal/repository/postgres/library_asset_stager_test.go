@@ -105,6 +105,37 @@ func TestSceneCopyRejectsInlineFileWithoutSceneAsset(t *testing.T) {
 	}
 }
 
+func TestSceneCopyRejectsNonFileOrMismatchedMimeAsset(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind, assetMime string
+		directID              bool
+	}{
+		{name: "thumbnail lookup", kind: "scene_thumbnail", assetMime: "image/png"},
+		{name: "thumbnail direct id", kind: "scene_thumbnail", assetMime: "image/png", directID: true},
+		{name: "wrong MIME direct id", kind: "excalidraw_file", assetMime: "image/jpeg", directID: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := accessTestDB(t, 999)
+			owner, _, workspace := accessFixture(t, db)
+			source, target, asset := uuid.New(), uuid.New(), uuid.New()
+			for index, scene := range []uuid.UUID{source, target} {
+				mustExec(t, db, `INSERT INTO scenes(id,workspace_id,title,content,created_by) VALUES(?,?,?,?::jsonb,?)`, scene, workspace, "Asset "+string(rune('A'+index)), `{"elements":[],"appState":{},"files":{}}`, owner)
+			}
+			mustExec(t, db, `INSERT INTO scene_assets(id,workspace_id,scene_id,uploaded_by,uploaded_principal_id,uploaded_principal_type,asset_kind,file_id,storage_bucket,storage_key,mime_type,byte_size) VALUES(?,?,?,?,?,'user',?,?,?,?,?,7)`, asset, workspace, source, owner, owner.String(), tc.kind, "file", "bucket", "source", tc.assetMime)
+			assetField := ""
+			if tc.directID {
+				assetField = `,"assetId":"` + asset.String() + `"`
+			}
+			content := json.RawMessage(`{"elements":[],"appState":{},"files":{"file":{"id":"file","mimeType":"image/png","created":1` + assetField + `}}}`)
+			copier := &libraryCopyStub{}
+			stager := NewLibraryAssetStager(db, copier, time.Hour)
+			if _, err := stager.StageSceneCopy(context.Background(), domain.UserPrincipal(owner), domain.SceneRef{WorkspaceID: workspace, SceneID: source}, domain.SceneRef{WorkspaceID: workspace, SceneID: target}, uuid.New(), content); !errors.Is(err, domain.ErrInvalidLibrary) || copier.calls != 0 {
+				t.Fatalf("wrong source asset copied: err=%v objectCopies=%d", err, copier.calls)
+			}
+		})
+	}
+}
+
 func TestLibraryAssetPinRaceStagesOneIdempotentTarget(t *testing.T) {
 	db := accessTestDB(t, 999)
 	owner, _, workspace := accessFixture(t, db)

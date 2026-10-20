@@ -225,7 +225,7 @@ func TestDuplicateRejectsRevocationAfterStagingBeforePublish(t *testing.T) {
 func TestDuplicateV1ContentDropsRendererStateAndInlineFiles(t *testing.T) {
 	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
 	asset := uuid.NewString()
-	legacy := json.RawMessage(`{"elements":[{"id":"image","type":"image","fileId":"file"}],"appState":{"theme":"dark","gridSize":20,"openSidebar":"library","collaborators":{"user":{}}},"files":{"file":{"id":"file","mimeType":"image/png","created":1,"assetId":"` + asset + `","dataURL":"data:image/png;base64,secret","lastRetrieved":2}},"presentationOrder":["image"]}`)
+	legacy := json.RawMessage(`{"elements":[` + validDuplicateImageElement + `],"appState":{"theme":"dark","gridSize":20,"openSidebar":"library","collaborators":{"user":{}}},"files":{"file":{"id":"file","mimeType":"image/png","created":1,"assetId":"` + asset + `","dataURL":"data:image/png;base64,secret","lastRetrieved":2}}}`)
 	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: legacy}}
 	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
 	service.SetDuplicateDependencies(scenes, nil, &duplicateAssetStagerStub{}, duplicateAccessStub{})
@@ -242,12 +242,45 @@ func TestDuplicateV1ContentDropsRendererStateAndInlineFiles(t *testing.T) {
 	if err := json.Unmarshal(copy.Content, &content); err != nil {
 		t.Fatal(err)
 	}
-	if len(content.Elements) != 1 || content.Elements[0]["fileId"] != "file" || content.AppState["theme"] != "dark" || content.AppState["gridSize"] != float64(20) || len(content.AppState) != 2 || len(content.PresentationOrder) != 1 {
+	if len(content.Elements) != 1 || content.Elements[0]["fileId"] != "file" || content.AppState["theme"] != "dark" || content.AppState["gridSize"] != float64(20) || len(content.AppState) != 2 || len(content.PresentationOrder) != 0 {
 		t.Fatalf("durable scene fields changed: %s", copy.Content)
 	}
 	file := content.Files["file"]
 	if file["assetId"] != asset || file["mimeType"] != "image/png" || file["lastRetrieved"] != float64(2) || file["dataURL"] != nil {
 		t.Fatalf("inline or scene asset fields wrong: %s", copy.Content)
+	}
+}
+
+const validDuplicateImageElement = `{"id":"image","type":"image","x":0,"y":0,"width":100,"height":100,"angle":0,"strokeColor":"#111111","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"groupIds":[],"frameId":null,"roundness":null,"seed":1,"version":1,"versionNonce":1,"index":null,"isDeleted":false,"boundElements":null,"updated":1,"link":null,"locked":false,"fileId":"file","status":"saved","scale":[1,1],"crop":null}`
+
+func TestDuplicateV1RejectsBrokenImageReferenceAndShape(t *testing.T) {
+	for name, element := range map[string]string{
+		"missing file":  validDuplicateImageElement,
+		"invalid image": strings.Replace(validDuplicateImageElement, `"status":"saved",`, "", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			content := json.RawMessage(`{"elements":[` + element + `],"appState":{},"files":{}}`)
+			scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: content}}
+			service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+			service.SetDuplicateDependencies(scenes, nil, &duplicateAssetStagerStub{}, duplicateAccessStub{})
+			_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+			if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.created != nil || scenes.published {
+				t.Fatalf("invalid v1 image was copied: err=%v created=%v published=%v", err, scenes.created != nil, scenes.published)
+			}
+		})
+	}
+}
+
+func TestDuplicateV1RejectsIncompleteFileDescriptor(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	content := json.RawMessage(`{"elements":[` + validDuplicateImageElement + `],"appState":{},"files":{"file":{"id":"file","mimeType":"image/png","assetId":"` + uuid.NewString() + `"}}}`)
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: content}}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, &duplicateAssetStagerStub{}, duplicateAccessStub{})
+	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.created != nil {
+		t.Fatalf("incomplete asset descriptor was copied: err=%v created=%v", err, scenes.created != nil)
 	}
 }
 

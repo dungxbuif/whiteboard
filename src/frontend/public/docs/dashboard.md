@@ -26,7 +26,8 @@ collaboration edits and uploaded images. Large scenes can be copied; a failed
 copy does not appear as a partial scene in the dashboard or Trash. Edit access
 is checked again before the copy becomes visible. Legacy copies keep durable
 canvas settings and supported scene-owned images; inline-only legacy images
-need repair before copying. The copy excludes collaborator and session state. Viewers do not
+or broken image references need repair before copying. The copy excludes
+collaborator and session state. Viewers do not
 see these edit controls. A successful move or copy remains visible if its
 follow-up list reload fails; a later reload can refresh the list.
 

@@ -63,30 +63,27 @@ func (s *LibraryAssetStager) StageSceneCopy(ctx domain.Context, principal domain
 	pins := make([]domain.LibraryAssetPin, 0, len(files))
 	for fileID, raw := range files {
 		var file struct {
-			AssetID string `json:"assetId"`
+			AssetID  string `json:"assetId"`
+			MimeType string `json:"mimeType"`
 		}
-		if err := json.Unmarshal(raw, &file); err != nil {
+		if err := json.Unmarshal(raw, &file); err != nil || file.MimeType == "" {
 			return nil, domain.ErrInvalidLibrary
 		}
-		var assetID uuid.UUID
+		query := s.db.WithContext(ctx).Where("workspace_id=? AND scene_id=? AND file_id=? AND asset_kind='excalidraw_file' AND mime_type=? AND deleted_at IS NULL", source.WorkspaceID, source.SceneID, fileID, file.MimeType)
 		if file.AssetID != "" {
-			var err error
-			assetID, err = uuid.Parse(file.AssetID)
+			assetID, err := uuid.Parse(file.AssetID)
 			if err != nil {
 				return nil, domain.ErrInvalidLibrary
 			}
-		} else {
-			var sourceAsset domain.SceneAsset
-			err := s.db.WithContext(ctx).Where("workspace_id=? AND scene_id=? AND file_id=? AND deleted_at IS NULL", source.WorkspaceID, source.SceneID, fileID).First(&sourceAsset).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, domain.ErrInvalidLibrary // inline or unscoped legacy file cannot be copied safely
-			}
-			if err != nil {
-				return nil, err
-			}
-			assetID = sourceAsset.ID
+			query = query.Where("id=?", assetID)
 		}
-		pins = append(pins, domain.LibraryAssetPin{SourceSceneID: source.SceneID, AssetID: assetID, FileID: fileID})
+		var sourceAsset domain.SceneAsset
+		if err := query.First(&sourceAsset).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, domain.ErrInvalidLibrary
+		} else if err != nil {
+			return nil, err
+		}
+		pins = append(pins, domain.LibraryAssetPin{SourceSceneID: source.SceneID, AssetID: sourceAsset.ID, FileID: fileID})
 	}
 	staged, err := s.Stage(ctx, principal, target, requestID, pins)
 	if err != nil {
@@ -184,7 +181,7 @@ func (s *LibraryAssetStager) Stage(ctx domain.Context, principal domain.Principa
 		targetFile := libraryTargetFile(requestID, pin.FileID)
 		targetAsset := uuid.NewSHA1(uuid.NameSpaceOID, []byte(target.WorkspaceID.String()+":"+target.SceneID.String()+":"+requestID.String()+":"+pin.FileID))
 		var source domain.SceneAsset
-		if err := s.db.WithContext(ctx).Where("workspace_id=? AND scene_id=? AND id=? AND file_id=? AND deleted_at IS NULL", target.WorkspaceID, pin.SourceSceneID, pin.AssetID, pin.FileID).First(&source).Error; err != nil {
+		if err := s.db.WithContext(ctx).Where("workspace_id=? AND scene_id=? AND id=? AND file_id=? AND asset_kind='excalidraw_file' AND deleted_at IS NULL", target.WorkspaceID, pin.SourceSceneID, pin.AssetID, pin.FileID).First(&source).Error; err != nil {
 			return nil, accessError(err)
 		}
 		keySum := sha256.Sum256([]byte(target.WorkspaceID.String() + ":" + target.SceneID.String() + ":" + requestID.String() + ":" + pin.FileID))

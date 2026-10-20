@@ -13,7 +13,7 @@ All commands ran in the dashboard-management-parity worktree on 2026-10-21.
 
 | Command | Location | Result |
 | --- | --- | --- |
-| `rtk go test ./...` | `src/backend` | pass: 371 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after publish-authorization and v1 copy fixes |
+| `rtk go test ./...` | `src/backend` | pass: 376 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after v1 reference and asset identity fixes |
 | `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 233 tests in 51 files |
 | `rtk npm run build --workspace ./frontend` | `src` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
 | `rtk npx playwright test e2e/dashboard-style.spec.ts e2e/dashboard.spec.ts --workers=1 --reporter=line` | `src/frontend` | pass: 18 browser tests |
@@ -38,7 +38,10 @@ Playwright suite could not start because its expected local PostgreSQL role
 Delayed-staging unit tests cover scene/workspace access revocation before
 duplicate publication; a PostgreSQL fixture rejects legacy inline images with
 no scene-scoped asset row. V1 canonicalization tests cover durable fields and
-the removal of renderer/session state and inline bytes.
+the removal of renderer/session state and inline bytes. Latest usecase tests
+reject missing image-file references, incomplete image shape and missing file
+creation time; PostgreSQL
+tests reject thumbnail asset rows and MIME mismatches before object copying.
 
 ## Release boundary
 

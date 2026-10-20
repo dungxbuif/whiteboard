@@ -122,7 +122,9 @@ export path supports scenes above the ordinary read projection's 500-element/
 256 KiB limit. A legacy scene uses its stored content after normalizing it to
 the promotion contract: only durable app state and scene-owned file metadata
 are retained; renderer/session fields and inline file bytes are dropped. A
-legacy file without a scene-scoped asset cannot be copied. Referenced scene assets
+legacy file without a matching active scene-scoped `excalidraw_file` asset and
+matching MIME cannot be copied. Invalid durable element shape or an image
+reference missing from `files` also rejects the copy. Referenced scene assets
 are copied to new object keys and scene-scoped rows, with file IDs and image
 references rewritten. The scene remains hidden until content and assets are
 complete; failed copies use an independent cleanup context to remove staged
