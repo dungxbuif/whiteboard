@@ -13,7 +13,7 @@ All commands ran in the dashboard-management-parity worktree on 2026-10-21.
 
 | Command | Location | Result |
 | --- | --- | --- |
-| `rtk go test ./...` | `src/backend` | pass: 390 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after nested metadata, binding and pressure validation |
+| `rtk go test ./...` | `src/backend` | pass: 395 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after scene-root metadata-depth validation |
 | `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 233 tests in 51 files |
 | `rtk npm run build --workspace ./frontend` | `src` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
 | `rtk npx playwright test e2e/dashboard-style.spec.ts e2e/dashboard.spec.ts --workers=1 --reporter=line` | `src/frontend` | pass: 18 browser tests |
@@ -48,6 +48,9 @@ hidden-scene creation and again before publication.
 Latest checks also reject null or unsafe nested `customData`, extra fields in
 bound entries/bindings, and out-of-range freedraw pressure before or after
 staging.
+Depth-boundary checks accept 29 metadata containers and reject 30, both on
+the source and after staging, matching collaboration's scene-root 32-level
+limit.
 
 ## Release boundary
 

@@ -302,6 +302,56 @@ func TestDuplicateV1RejectsUnsafeStagedMetadata(t *testing.T) {
 	}
 }
 
+func duplicateNestedMetadata(depth int) string {
+	value := `"ok"`
+	for range depth {
+		value = `{"safe":` + value + `}`
+	}
+	return value
+}
+
+func duplicateContentWithMetadata(depth int) json.RawMessage {
+	element := strings.Replace(validDuplicateRectangleElement, `"locked":false`, `"locked":false,"customData":`+duplicateNestedMetadata(depth), 1)
+	return json.RawMessage(`{"elements":[` + element + `],"appState":{},"files":{}}`)
+}
+
+func TestDuplicateV1MetadataDepthMatchesSceneRoot(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		depth      int
+		stage      bool
+		wantReject bool
+	}{
+		{name: "source depth 29 accepted", depth: 29},
+		{name: "source depth 30 rejected", depth: 30, wantReject: true},
+		{name: "staged depth 29 accepted", depth: 29, stage: true},
+		{name: "staged depth 30 rejected", depth: 30, stage: true, wantReject: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			source := duplicateContentWithMetadata(tc.depth)
+			if tc.stage {
+				source = duplicateContentWithMetadata(1)
+			}
+			scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: source}}
+			assets := &duplicateAssetStagerStub{}
+			if tc.stage {
+				assets.result = duplicateContentWithMetadata(tc.depth)
+			}
+			service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+			service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+			_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+			if tc.wantReject {
+				if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.published || (tc.stage && (!scenes.deleted || !assets.cleaned)) || (!tc.stage && scenes.created != nil) {
+					t.Fatalf("deep metadata escaped: err=%v created=%v published=%v deleted=%v cleaned=%v", err, scenes.created != nil, scenes.published, scenes.deleted, assets.cleaned)
+				}
+			} else if err != nil || !scenes.published {
+				t.Fatalf("valid metadata rejected: err=%v published=%v", err, scenes.published)
+			}
+		})
+	}
+}
+
 func TestDuplicateV1RejectsBrokenImageReferenceAndShape(t *testing.T) {
 	for name, element := range map[string]string{
 		"missing file":  validDuplicateImageElement,

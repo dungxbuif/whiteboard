@@ -26,9 +26,9 @@ copy retains durable canvas settings and scene-owned image files while dropping
 renderer/session fields and inline file bytes. An image without a scene-owned
 asset, a thumbnail in place of a file asset, a mismatched image MIME, malformed
 durable scene fields (including unsafe nested metadata, bindings, or pressure
-values), or a broken image-to-file reference makes the copy fail
-instead of producing a
-broken image. If cleanup
+values), or a broken image-to-file reference makes the copy fail instead of
+producing a broken image. Nested metadata follows the collaboration scene's
+32-level limit counted from the scene root. If cleanup
 fails after an unsuccessful copy, the API returns `500 DUPLICATE_CLEANUP_FAILED`;
 the partial scene stays hidden for operator recovery. If the server cannot
 verify whether publication committed, it preserves the copy and returns

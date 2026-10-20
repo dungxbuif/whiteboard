@@ -188,7 +188,9 @@ func validDuplicateNativeElement(raw json.RawMessage) bool {
 		}
 	}
 	if metadata, exists := element["customData"]; exists {
-		if _, ok := metadata.(map[string]any); !ok || !validDuplicateMetadata(metadata, 0) {
+		// The collaboration contract counts from the scene root: elements is 1,
+		// an element is 2, and its customData object is 3.
+		if _, ok := metadata.(map[string]any); !ok || !validDuplicateMetadata(metadata, 3) {
 			return false
 		}
 	}
