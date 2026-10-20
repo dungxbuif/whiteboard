@@ -79,6 +79,8 @@ type duplicateSceneRepoStub struct {
 	created                *domain.Scene
 	deleted                bool
 	published              bool
+	publishCommitted       bool
+	stateErr               error
 	cleanupContextCanceled bool
 	publishErr             error
 }
@@ -95,14 +97,52 @@ func (s *duplicateSceneRepoStub) Create(_ domain.Context, scene *domain.Scene) e
 }
 func (s *duplicateSceneRepoStub) PublishDuplicate(_ domain.Context, scene *domain.Scene) error {
 	s.published = true
+	if s.publishCommitted {
+		scene.PendingDuplicate = false
+		scene.DeletedAt.Valid = false
+	}
 	if s.publishErr != nil {
 		return s.publishErr
 	}
 	s.created = scene
 	return nil
 }
+func (s *duplicateSceneRepoStub) FindDuplicateState(ctx domain.Context, _ uuid.UUID, id uuid.UUID) (*domain.Scene, error) {
+	s.cleanupContextCanceled = ctx.Err() != nil
+	if s.stateErr != nil {
+		return nil, s.stateErr
+	}
+	if s.created == nil || s.created.ID != id || s.deleted {
+		return nil, nil
+	}
+	return s.created, nil
+}
+
+func TestDuplicateUncertainPublishStatePreservesObjects(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}, publishErr: errors.New("publish connection lost"), stateErr: errors.New("verification unavailable")}
+	assets := &duplicateAssetStagerStub{}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	var uncertain *domain.DuplicateStateError
+	if !errors.As(err, &uncertain) || scenes.deleted || assets.cleaned || scenes.cleanupContextCanceled {
+		t.Fatalf("err=%v scenes=%+v assets=%+v", err, scenes, assets)
+	}
+}
+func (s *duplicateSceneRepoStub) ClaimDuplicateCleanup(ctx domain.Context, _ uuid.UUID, _ uuid.UUID) (bool, error) {
+	s.cleanupContextCanceled = ctx.Err() != nil
+	if s.created == nil || !s.created.PendingDuplicate {
+		return false, nil
+	}
+	s.created.DuplicateCleanupStarted = true
+	return true, nil
+}
 func (s *duplicateSceneRepoStub) HardDelete(ctx domain.Context, _ uuid.UUID, _ uuid.UUID) error {
 	s.cleanupContextCanceled = ctx.Err() != nil
+	if s.created == nil || !s.created.PendingDuplicate || !s.created.DuplicateCleanupStarted {
+		return domain.ErrInaccessible
+	}
 	s.deleted = true
 	return nil
 }
@@ -194,6 +234,18 @@ func TestDuplicatePublishFailureCompensatesStagedAssets(t *testing.T) {
 	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
 	if err == nil || !strings.Contains(err.Error(), "publish failed") || !assets.called || !assets.cleaned || !scenes.deleted || scenes.cleanupContextCanceled {
 		t.Fatalf("err=%v assets=%+v scenes=%+v", err, assets, scenes)
+	}
+}
+
+func TestDuplicatePublishCommitThenErrorPreservesPublishedSceneAndAssets(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}, publishErr: errors.New("connection lost after commit"), publishCommitted: true}
+	assets := &duplicateAssetStagerStub{}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	copy, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if err != nil || copy == nil || copy.PendingDuplicate || copy.DeletedAt.Valid || !scenes.published || scenes.deleted || assets.cleaned {
+		t.Fatalf("copy=%+v err=%v scenes=%+v assets=%+v", copy, err, scenes, assets)
 	}
 }
 

@@ -146,6 +146,13 @@ func (s *LibraryAssetStager) CleanupSceneCopy(ctx domain.Context, target domain.
 	if s == nil || s.db == nil || s.objects == nil {
 		return domain.ErrInvalidLibrary
 	}
+	var claimed int64
+	if err := s.db.WithContext(ctx).Unscoped().Model(&domain.Scene{}).Where("workspace_id=? AND id=? AND pending_duplicate=TRUE AND duplicate_cleanup_started=TRUE AND deleted_at IS NOT NULL", target.WorkspaceID, target.SceneID).Count(&claimed).Error; err != nil {
+		return err
+	}
+	if claimed != 1 {
+		return domain.ErrInaccessible
+	}
 	var rows []libraryStageRow
 	if err := s.db.WithContext(ctx).Where("workspace_id=? AND target_scene_id=? AND request_id=?", target.WorkspaceID, target.SceneID, requestID).Find(&rows).Error; err != nil {
 		return err

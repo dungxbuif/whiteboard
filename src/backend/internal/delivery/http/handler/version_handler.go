@@ -134,7 +134,11 @@ func writeVersionError(w http.ResponseWriter, r *http.Request, err error) {
 	code, message, status := "INVALID_INPUT", "Invalid version request", http.StatusBadRequest
 	var remote *domain.AgentCollabError
 	var cleanup *domain.DuplicateCleanupError
+	var uncertain *domain.DuplicateStateError
 	switch {
+	case errors.As(err, &uncertain):
+		code, message, status = "DUPLICATE_STATE_UNCERTAIN", "Scene copy outcome requires verification", http.StatusServiceUnavailable
+		slog.Error("scene duplicate state uncertain", "scene_id", uncertain.SceneID.String(), "request_id", chimiddleware.GetReqID(r.Context()), "verification_error_type", fmt.Sprintf("%T", uncertain.Verification))
 	case errors.As(err, &cleanup):
 		code, message, status = "DUPLICATE_CLEANUP_FAILED", "Scene copy failed and requires cleanup", http.StatusInternalServerError
 		slog.Error("scene duplicate cleanup failed", "scene_id", cleanup.SceneID.String(), "phase", cleanup.Phase, "request_id", chimiddleware.GetReqID(r.Context()), "cleanup_error_type", fmt.Sprintf("%T", cleanup.Cleanup))

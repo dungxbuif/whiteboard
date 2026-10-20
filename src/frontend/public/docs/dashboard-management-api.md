@@ -21,7 +21,10 @@ copy: the server reads the larger bounded export projection, copies scene-owned
 image objects and rows, and rewrites image references. It keeps the new scene
 hidden and out of Trash/search/Restore until the copy completes. If cleanup
 fails after an unsuccessful copy, the API returns `500 DUPLICATE_CLEANUP_FAILED`;
-the partial scene stays hidden for operator recovery. Presence, collaborator, and session state are
+the partial scene stays hidden for operator recovery. If the server cannot
+verify whether publication committed, it preserves the copy and returns
+`503 DUPLICATE_STATE_UNCERTAIN`; reload before retrying to avoid another copy.
+Presence, collaborator, and session state are
 not copied. Projection requests accept scene UUIDs and public aliases within
 the selected workspace. All projection responses, including authentication
 failure and service errors, set `Cache-Control: no-store`; clients must not

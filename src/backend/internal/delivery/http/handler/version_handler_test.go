@@ -53,6 +53,19 @@ func TestVersionHandlerDuplicateCleanupFailureHasDistinctCode(t *testing.T) {
 	}
 }
 
+func TestVersionHandlerDuplicateUncertainStateHasDistinctCode(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	service := &versionServiceHandlerStub{err: &domain.DuplicateStateError{SceneID: uuid.New(), Cause: errors.New("publish failed"), Verification: errors.New("database unavailable")}}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodPost, "/scenes/scene/duplicate", strings.NewReader(`{"title":"Copy","folderId":null}`))
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"DUPLICATE_STATE_UNCERTAIN"`) || strings.Contains(response.Body.String(), "database unavailable") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestVersionHandlerPropagatesLoginCredentialExpiry(t *testing.T) {
 	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
 	expires := time.Now().Add(15 * time.Minute).Truncate(time.Second)

@@ -106,4 +106,48 @@ func TestSceneRepository(t *testing.T) {
 	if err != nil || published.PendingDuplicate || published.ContentVersion != 2 || !json.Valid(published.Content) {
 		t.Fatalf("published=%+v err=%v", published, err)
 	}
+	if err := repo.HardDelete(ctx, workspaceID, hidden.ID); err != domain.ErrInaccessible {
+		t.Fatalf("published scene was deletion-eligible: %v", err)
+	}
+
+	concurrent := &domain.Scene{ID: uuid.New(), WorkspaceID: workspaceID, Title: "Concurrent copy", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), PendingDuplicate: true}
+	concurrent.DeletedAt.Time, concurrent.DeletedAt.Valid = time.Now(), true
+	if err := repo.Create(ctx, concurrent); err != nil {
+		t.Fatal(err)
+	}
+	concurrent.Content = json.RawMessage(`{"elements":[{"id":"committed"}],"appState":{},"files":{}}`)
+	start := make(chan struct{})
+	restoreDone := make(chan error, 1)
+	publishDone := make(chan error, 1)
+	go func() { <-start; restoreDone <- repo.Restore(ctx, workspaceID, concurrent.ID) }()
+	go func() { <-start; publishDone <- repo.PublishDuplicate(ctx, concurrent) }()
+	close(start)
+	if err := <-restoreDone; err != domain.ErrInaccessible {
+		t.Fatalf("concurrent restore=%v", err)
+	}
+	if err := <-publishDone; err != nil {
+		t.Fatalf("concurrent publish=%v", err)
+	}
+	if final, err := repo.FindByID(ctx, workspaceID, concurrent.ID); err != nil || final.PendingDuplicate || final.ContentVersion != 2 {
+		t.Fatalf("concurrent final=%+v err=%v", final, err)
+	}
+
+	claimedCopy := &domain.Scene{ID: uuid.New(), WorkspaceID: workspaceID, Title: "Aborted copy", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), PendingDuplicate: true}
+	claimedCopy.DeletedAt.Time, claimedCopy.DeletedAt.Valid = time.Now(), true
+	if err := repo.Create(ctx, claimedCopy); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.HardDelete(ctx, workspaceID, claimedCopy.ID); err != domain.ErrInaccessible {
+		t.Fatalf("unclaimed copy was deletion-eligible: %v", err)
+	}
+	claimed, err := repo.ClaimDuplicateCleanup(ctx, workspaceID, claimedCopy.ID)
+	if err != nil || !claimed {
+		t.Fatalf("claim=%v err=%v", claimed, err)
+	}
+	if err := repo.PublishDuplicate(ctx, claimedCopy); err == nil {
+		t.Fatal("cleanup claim did not block publish")
+	}
+	if err := repo.HardDelete(ctx, workspaceID, claimedCopy.ID); err != nil {
+		t.Fatalf("claimed cleanup failed: %v", err)
+	}
 }

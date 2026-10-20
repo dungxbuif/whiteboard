@@ -105,16 +105,11 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 	}
 	copy := &domain.Scene{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, FolderID: folderID, Title: title, Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), ContentVersion: 1, CreatedBy: principal.UserID, UpdatedBy: principal.UserID, WriterMode: "v1", PendingDuplicate: true}
 	copy.DeletedAt.Time, copy.DeletedAt.Valid = time.Now(), true // invisible until staging commits
-	if err = s.scenes.Create(ctx, copy); err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if cleanupErr := s.scenes.HardDelete(cleanupCtx, ref.WorkspaceID, copy.ID); cleanupErr != nil {
-			return nil, &domain.DuplicateCleanupError{SceneID: copy.ID, Phase: "create", Cause: err, Cleanup: cleanupErr}
-		}
-		return nil, err
-	}
 	target := domain.SceneRef{WorkspaceID: ref.WorkspaceID, SceneID: copy.ID}
 	requestID := uuid.New()
+	if err = s.scenes.Create(ctx, copy); err != nil {
+		return s.reconcileDuplicateFailure(target, requestID, err)
+	}
 	result, err := s.stager.StageSceneCopy(ctx, principal, ref, target, requestID, content)
 	if err == nil {
 		err = ctx.Err()
@@ -124,20 +119,51 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 		err = s.scenes.PublishDuplicate(ctx, copy)
 	}
 	if err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		if cleanupErr := s.stager.CleanupSceneCopy(cleanupCtx, target, requestID); cleanupErr != nil {
-			return nil, &domain.DuplicateCleanupError{SceneID: copy.ID, Phase: "asset", Cause: err, Cleanup: cleanupErr}
-		}
-		if cleanupErr := s.scenes.HardDelete(cleanupCtx, ref.WorkspaceID, copy.ID); cleanupErr != nil {
-			return nil, &domain.DuplicateCleanupError{SceneID: copy.ID, Phase: "scene", Cause: err, Cleanup: cleanupErr}
-		}
-		return nil, err
+		return s.reconcileDuplicateFailure(target, requestID, err)
 	}
 	copy.DeletedAt.Valid = false
 	copy.PendingDuplicate = false
 	copy.ContentVersion++
 	return copy, nil
+}
+
+// The publish write may have committed before its connection returned an
+// error. Read through a fresh context and claim compensation atomically before
+// deleting any staged object or scene row.
+func (s *VersionService) reconcileDuplicateFailure(target domain.SceneRef, requestID uuid.UUID, cause error) (*domain.Scene, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	state, err := s.scenes.FindDuplicateState(ctx, target.WorkspaceID, target.SceneID)
+	if err != nil {
+		return nil, &domain.DuplicateStateError{SceneID: target.SceneID, Cause: cause, Verification: err}
+	}
+	if state == nil {
+		return nil, cause
+	}
+	if !state.PendingDuplicate {
+		return state, nil
+	}
+	claimed, err := s.scenes.ClaimDuplicateCleanup(ctx, target.WorkspaceID, target.SceneID)
+	if err != nil {
+		return nil, &domain.DuplicateStateError{SceneID: target.SceneID, Cause: cause, Verification: err}
+	}
+	if !claimed {
+		state, err = s.scenes.FindDuplicateState(ctx, target.WorkspaceID, target.SceneID)
+		if err != nil {
+			return nil, &domain.DuplicateStateError{SceneID: target.SceneID, Cause: cause, Verification: err}
+		}
+		if state != nil && !state.PendingDuplicate {
+			return state, nil
+		}
+		return nil, &domain.DuplicateStateError{SceneID: target.SceneID, Cause: cause, Verification: domain.ErrInaccessible}
+	}
+	if err := s.stager.CleanupSceneCopy(ctx, target, requestID); err != nil {
+		return nil, &domain.DuplicateCleanupError{SceneID: target.SceneID, Phase: "asset", Cause: cause, Cleanup: err}
+	}
+	if err := s.scenes.HardDelete(ctx, target.WorkspaceID, target.SceneID); err != nil {
+		return nil, &domain.DuplicateCleanupError{SceneID: target.SceneID, Phase: "scene", Cause: cause, Cleanup: err}
+	}
+	return nil, cause
 }
 
 // CurrentProjection reads the durable collaboration document, including updates

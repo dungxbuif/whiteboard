@@ -10,25 +10,26 @@ import (
 )
 
 type Scene struct {
-	Access           string          `json:"access,omitempty" gorm:"-"`
-	Owner            bool            `json:"owner" gorm:"-"`
-	WriterMode       string          `json:"writerMode,omitempty" gorm:"not null;default:v1"`
-	ContentPatch     bool            `json:"-" gorm:"-"`
-	ID               uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
-	PublicID         *string         `json:"publicId,omitempty"`
-	WorkspaceID      uuid.UUID       `json:"workspaceId" gorm:"type:uuid;not null;index"`
-	FolderID         *uuid.UUID      `json:"folderId" gorm:"type:uuid;index"`
-	Title            string          `json:"title" gorm:"not null"`
-	Content          json.RawMessage `json:"content" gorm:"type:jsonb;not null"`
-	ContentVersion   int64           `json:"contentVersion" gorm:"not null;default:1"`
-	IsStarred        bool            `json:"isStarred" gorm:"not null;default:false"`
-	PendingDuplicate bool            `json:"-" gorm:"not null;default:false"`
-	DeletedAt        gorm.DeletedAt  `json:"deletedAt,omitempty" gorm:"index"`
-	CreatedBy        *uuid.UUID      `json:"createdBy,omitempty" gorm:"type:uuid"`
-	UpdatedBy        *uuid.UUID      `json:"updatedBy,omitempty" gorm:"type:uuid"`
-	LastOpenedAt     *time.Time      `json:"lastOpenedAt,omitempty"`
-	CreatedAt        time.Time       `json:"createdAt"`
-	UpdatedAt        time.Time       `json:"updatedAt"`
+	Access                  string          `json:"access,omitempty" gorm:"-"`
+	Owner                   bool            `json:"owner" gorm:"-"`
+	WriterMode              string          `json:"writerMode,omitempty" gorm:"not null;default:v1"`
+	ContentPatch            bool            `json:"-" gorm:"-"`
+	ID                      uuid.UUID       `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
+	PublicID                *string         `json:"publicId,omitempty"`
+	WorkspaceID             uuid.UUID       `json:"workspaceId" gorm:"type:uuid;not null;index"`
+	FolderID                *uuid.UUID      `json:"folderId" gorm:"type:uuid;index"`
+	Title                   string          `json:"title" gorm:"not null"`
+	Content                 json.RawMessage `json:"content" gorm:"type:jsonb;not null"`
+	ContentVersion          int64           `json:"contentVersion" gorm:"not null;default:1"`
+	IsStarred               bool            `json:"isStarred" gorm:"not null;default:false"`
+	PendingDuplicate        bool            `json:"-" gorm:"not null;default:false"`
+	DuplicateCleanupStarted bool            `json:"-" gorm:"not null;default:false"`
+	DeletedAt               gorm.DeletedAt  `json:"deletedAt,omitempty" gorm:"index"`
+	CreatedBy               *uuid.UUID      `json:"createdBy,omitempty" gorm:"type:uuid"`
+	UpdatedBy               *uuid.UUID      `json:"updatedBy,omitempty" gorm:"type:uuid"`
+	LastOpenedAt            *time.Time      `json:"lastOpenedAt,omitempty"`
+	CreatedAt               time.Time       `json:"createdAt"`
+	UpdatedAt               time.Time       `json:"updatedAt"`
 }
 
 type SceneRepository interface {
@@ -41,6 +42,8 @@ type SceneRepository interface {
 	SetStar(ctx Context, workspaceID uuid.UUID, id uuid.UUID, isStarred bool) error
 	HardDelete(ctx Context, workspaceID, id uuid.UUID) error
 	PublishDuplicate(ctx Context, scene *Scene) error
+	FindDuplicateState(ctx Context, workspaceID, id uuid.UUID) (*Scene, error)
+	ClaimDuplicateCleanup(ctx Context, workspaceID, id uuid.UUID) (bool, error)
 }
 
 type SceneAssetCopyStager interface {
@@ -61,6 +64,19 @@ func (e *DuplicateCleanupError) Error() string {
 	return fmt.Sprintf("duplicate %s cleanup failed for hidden scene %s: %v", e.Phase, e.SceneID, e.Cleanup)
 }
 func (e *DuplicateCleanupError) Unwrap() []error { return []error{e.Cause, e.Cleanup} }
+
+// DuplicateStateError means the publish outcome could not be verified safely.
+// The destination is preserved for reconciliation instead of being deleted.
+type DuplicateStateError struct {
+	SceneID      uuid.UUID
+	Cause        error
+	Verification error
+}
+
+func (e *DuplicateStateError) Error() string {
+	return fmt.Sprintf("duplicate state uncertain for scene %s: %v", e.SceneID, e.Verification)
+}
+func (e *DuplicateStateError) Unwrap() []error { return []error{e.Cause, e.Verification} }
 
 type SceneUsecase interface {
 	Create(ctx Context, workspaceID, userID uuid.UUID, title string, folderID *uuid.UUID, content json.RawMessage) (*Scene, error)

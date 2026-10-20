@@ -46,6 +46,51 @@ image-to-diagram is required.
 
 ## Release process
 
+### Upgrade through migration 000029
+
+When upgrading from a build that already offered scene duplication, stop all
+old backend replicas and let in-flight requests exit before starting migration
+`000029`. The old build could have left a soft-deleted destination scene while
+copying assets. The migration marks targets recorded in `library_asset_stages`
+as pending; it refuses ambiguous empty scenes deleted at creation time that
+have no stage record. Check the candidates before rerunning migration:
+
+```sql
+SELECT s.id, s.workspace_id, s.created_at, s.deleted_at,
+       EXISTS (SELECT 1 FROM library_asset_stages a
+               WHERE a.workspace_id=s.workspace_id AND a.target_scene_id=s.id) AS has_stage
+FROM scenes s
+WHERE s.deleted_at IS NOT NULL AND s.writer_mode='v1' AND s.content_version=1
+  AND s.content='{"elements":[],"appState":{},"files":{}}'::jsonb
+  AND ABS(EXTRACT(EPOCH FROM (s.deleted_at-s.created_at))) <= 60;
+```
+
+Review each unbacked row against request logs and its scene asset rows. An
+abandoned duplicate with no stage record can be removed by a targeted,
+workspace-scoped hard delete after confirming no object copy occurred. Preserve
+a confirmed legitimate trashed scene by recording its ID and original
+`deleted_at` in an operator table, temporarily clearing `deleted_at` while
+all backends are stopped, then restoring the original timestamp after migration:
+
+```sql
+CREATE TABLE IF NOT EXISTS scene_duplicate_upgrade_preserved
+    (id uuid PRIMARY KEY, deleted_at timestamptz NOT NULL);
+INSERT INTO scene_duplicate_upgrade_preserved
+SELECT id, deleted_at FROM scenes WHERE id IN ('<reviewed-scene-uuid>');
+UPDATE scenes s SET deleted_at=NULL
+FROM scene_duplicate_upgrade_preserved p WHERE s.id=p.id;
+-- Run migration 000029, then before restarting the backend:
+UPDATE scenes s SET deleted_at=p.deleted_at
+FROM scene_duplicate_upgrade_preserved p WHERE s.id=p.id AND s.pending_duplicate=FALSE;
+DROP TABLE scene_duplicate_upgrade_preserved;
+```
+
+Replace the placeholder only with reviewed IDs; retain the operator table if
+the migration or timestamp restoration fails. Do not let old backend
+replicas resume before migration succeeds. After the upgrade, pending copies
+are excluded from Trash/search/Restore, and cleanup failures carry a scene ID
+in structured logs for operator reconciliation.
+
 1. Run the pre-release checklist and all repository tests.
 2. Build and start the migration job, backend, collaboration runtime, MCP adapter, and frontend:
    `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.

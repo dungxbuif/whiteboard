@@ -128,7 +128,15 @@ records remain for recovery instead of appearing as a partial copy. Migration
 `000029` marks these rows `pending_duplicate`; Trash, search, scene Restore and
 recursive folder Restore exclude them until the publish update clears the marker
 and `deleted_at` atomically.
-The down migration refuses to remove the marker while pending copies exist.
+Compensation first claims a pending row with `duplicate_cleanup_started`;
+publication refuses claimed rows, while hard deletion refuses published rows.
+After an ambiguous publish error, the server independently reads this state and
+returns a committed scene instead of deleting it. If the read fails, it preserves
+objects and returns `503 DUPLICATE_STATE_UNCERTAIN`. Migration `000029` backfills
+staged old copies and refuses ambiguous near-creation soft deletes until old
+backend writers are drained and candidates classified per the
+[deployment runbook](../operations/DEPLOYMENT.md). The down migration refuses
+to remove the marker while pending copies exist.
 A cleanup failure returns `500 DUPLICATE_CLEANUP_FAILED` and logs
 the hidden scene ID, phase and request ID without exposing storage details to
 the caller.

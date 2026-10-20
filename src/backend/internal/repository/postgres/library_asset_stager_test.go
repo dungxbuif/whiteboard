@@ -34,6 +34,9 @@ func TestSceneCopyStagesImageAndRewritesReferences(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := db.Exec("UPDATE scenes SET pending_duplicate=TRUE, deleted_at=NOW() WHERE id=?", target).Error; err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Exec(`INSERT INTO scene_assets(id,workspace_id,scene_id,uploaded_by,uploaded_principal_id,uploaded_principal_type,asset_kind,file_id,storage_bucket,storage_key,mime_type,byte_size) VALUES(?,?,?,?,?,'user','excalidraw_file','image','bucket','source','image/png',7)`, asset, workspace, source, owner, owner.String()).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -67,6 +70,10 @@ func TestSceneCopyStagesImageAndRewritesReferences(t *testing.T) {
 		t.Fatalf("target asset rows=%d", count)
 	}
 	copier.deleteErr = errors.New("storage unavailable")
+	claimed, err := NewSceneRepository(db).ClaimDuplicateCleanup(context.Background(), workspace, target)
+	if err != nil || !claimed {
+		t.Fatalf("cleanup claim=%v err=%v", claimed, err)
+	}
 	if err := stager.CleanupSceneCopy(context.Background(), domain.SceneRef{WorkspaceID: workspace, SceneID: target}, requestID); err == nil {
 		t.Fatal("expected object cleanup failure")
 	}

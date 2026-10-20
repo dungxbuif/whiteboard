@@ -18,7 +18,7 @@ sidebar, header, cards, and overflow menus.
   hierarchy and path invariants. Keep trash and restore semantics unchanged.
 - Add editor/owner scene move and duplicate controls, retaining rename, star,
   share, and trash actions. Duplicate copies persisted scene content through
-  the authenticated scene-create contract and never copies session-only state.
+  an authenticated server-side copy contract and never copies session-only state.
 - Make feature-disabled collections render an explanatory, non-error state with
   a retry action for transient failures. Collection management remains behind
   the existing feature policy.
@@ -34,8 +34,10 @@ sidebar, header, cards, and overflow menus.
   updates. Reuse the folder move depth/descendant checks and reject empty names,
   self/descendant moves, and invalid workspace scope.
 - Reuse `PATCH /api/v1/scenes/{id}` for title/folder changes and
-  `POST /api/v1/scenes` for duplicate creation. The duplicate request carries a
-  new title, target folder, and canonical persisted content only.
+  use `POST /api/v1/scenes/{id}/duplicate` for duplicate creation. The request
+  carries a new title and target folder; the server reads durable v2 content,
+  copies scene-owned image assets, and publishes only after staging completes.
+  `POST /api/v1/scenes` remains the new-scene/import contract.
 - All mutations require the current workspace membership and use the same
   access decision as existing create/update/trash routes.
 

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"devtool/internal/domain"
@@ -33,13 +34,44 @@ func (r *SceneRepository) Create(ctx context.Context, scene *domain.Scene) error
 }
 
 func (r *SceneRepository) HardDelete(ctx context.Context, workspaceID, id uuid.UUID) error {
-	return accessDB(ctx, r.db).Unscoped().Where("workspace_id=? AND id=?", workspaceID, id).Delete(&domain.Scene{}).Error
+	result := accessDB(ctx, r.db).Unscoped().Where("workspace_id=? AND id=? AND pending_duplicate=TRUE AND duplicate_cleanup_started=TRUE AND deleted_at IS NOT NULL", workspaceID, id).Delete(&domain.Scene{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return domain.ErrInaccessible
+	}
+	return nil
+}
+
+// ClaimDuplicateCleanup serializes compensation against publication. A
+// publisher can only commit before this claim or not at all.
+func (r *SceneRepository) ClaimDuplicateCleanup(ctx context.Context, workspaceID, id uuid.UUID) (bool, error) {
+	result := accessDB(ctx, r.db).Unscoped().Model(&domain.Scene{}).
+		Where("workspace_id=? AND id=? AND pending_duplicate=TRUE AND deleted_at IS NOT NULL", workspaceID, id).
+		Update("duplicate_cleanup_started", true)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}
+
+func (r *SceneRepository) FindDuplicateState(ctx context.Context, workspaceID, id uuid.UUID) (*domain.Scene, error) {
+	var scene domain.Scene
+	err := accessDB(ctx, r.db).Unscoped().Where("workspace_id=? AND id=?", workspaceID, id).First(&scene).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &scene, nil
 }
 
 // PublishDuplicate makes a fully staged duplicate visible in one database write.
 func (r *SceneRepository) PublishDuplicate(ctx context.Context, scene *domain.Scene) error {
 	result := accessDB(ctx, r.db).Unscoped().Model(&domain.Scene{}).
-		Where("workspace_id=? AND id=? AND deleted_at IS NOT NULL AND pending_duplicate = TRUE", scene.WorkspaceID, scene.ID).
+		Where("workspace_id=? AND id=? AND deleted_at IS NOT NULL AND pending_duplicate = TRUE AND duplicate_cleanup_started = FALSE", scene.WorkspaceID, scene.ID).
 		Updates(map[string]any{"content": scene.Content, "content_version": gorm.Expr("content_version + 1"), "deleted_at": nil, "pending_duplicate": false, "updated_at": gorm.Expr("NOW()")})
 	if result.Error != nil {
 		return result.Error

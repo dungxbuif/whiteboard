@@ -13,9 +13,9 @@ All commands ran in the dashboard-management-parity worktree on 2026-10-21.
 
 | Command | Location | Result |
 | --- | --- | --- |
-| `rtk go test ./...` | `src/backend` | pass: 357 tests in 14 packages |
-| `rtk npm run test:unit` | `src/frontend` | pass: 224 tests in 50 files |
-| `rtk npm run build` | `src/frontend` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
+| `rtk go test ./...` | `src/backend` | pass: 367 tests in 14 packages after duplicate recovery fixes |
+| `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 233 tests in 51 files |
+| `rtk npm run build --workspace ./frontend` | `src` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
 | `rtk npx playwright test e2e/dashboard-style.spec.ts e2e/dashboard.spec.ts --workers=1 --reporter=line` | `src/frontend` | pass: 18 browser tests |
 | `rtk git diff --check` | repository root | pass |
 | local Markdown link check for changed docs | repository root | pass after this note was created |
@@ -24,7 +24,12 @@ Browser tests exercise owner rename, folder rename/move, scene duplicate/move,
 location lists, disabled Collections, dashboard presentation and native canvas
 return. Go tests cover current scene-read authorization, durable un-compacted
 projection, and `Cache-Control: no-store` on unauthenticated and service-error
-projection responses. These are local automated checks, not VM100 canaries.
+projection responses. The added tests cover commit-then-error duplicate
+publication, state-uncertain preservation, pending copy exclusion from restore,
+and conditional cleanup. PostgreSQL-backed concurrent Restore/Publish and asset
+cleanup tests are gated by `ACCESS_TEST_DATABASE_URL` and were skipped on this
+host; the real-stack suite attempted earlier could not start because the local
+PostgreSQL role `test` is absent. These are local automated checks, not VM100 canaries.
 
 ## Release boundary
 
@@ -44,8 +49,9 @@ existing deployed-status statement refers to the prior dashboard baseline.
   `src/frontend/public/docs/dashboard.md` explain the controls and error states.
   `src/frontend/public/llms.txt` points agents to the new plain Markdown API
   reference.
-- ERD and migrations: unchanged because these controls reuse existing workspace,
-  folder and scene data. Architecture boundaries and deployment configuration:
-  unchanged; the projection route reads the existing durable writer. No new ADR
-  was needed because the approved dashboard design already records this choice.
+- Migration `000029` adds pending-copy and cleanup-claim state. It has **not**
+  been applied in production; the old backend must be drained and ambiguous
+  soft-deleted rows classified per the [deployment runbook](../../operations/DEPLOYMENT.md).
+  The authenticated duplicate route reads the existing durable writer. The
+  approved design and plan now record the corrected server-side copy contract.
   Release changelog is unchanged until production rollout is verified.

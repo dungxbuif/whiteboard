@@ -4,7 +4,7 @@
 
 **Goal:** Complete the production dashboard's everyday management controls while preserving the checked-in legacy UI and native Excalidraw canvas behavior.
 
-**Architecture:** Extend the existing Go domain/usecase/repository and chi routes with owner/editor-scoped metadata mutations, then expose those mutations through the existing Zustand stores and Radix dashboard menus/dialogs. Keep scene content duplication on the existing scene-create contract, and make collection feature-policy responses a stable sidebar state instead of a generic error.
+**Architecture:** Extend the existing Go domain/usecase/repository and chi routes with owner/editor-scoped metadata mutations, then expose those mutations through the existing Zustand stores and Radix dashboard menus/dialogs. Duplicate through the authenticated server-side `/scenes/{id}/duplicate` route so the writer supplies durable v2 content and scene-owned assets are copied safely. Collection feature-policy responses become a stable sidebar state instead of a generic error.
 
 **Tech Stack:** Go, chi, GORM/PostgreSQL, React 18, TypeScript, Vite, Zustand, Radix UI, Vitest, Playwright.
 
@@ -79,7 +79,7 @@
 - [ ] **Step 3: Add store methods** using existing `api.patch`, `api.post`, workspace headers, and response replacement; preserve active IDs and refetch lists after mutations.
 - [ ] **Step 4: Add workspace rename UI** to the switcher menu using the existing legacy button/dialog primitives and owner role guard.
 - [ ] **Step 5: Add folder rename/move UI** to the overflow menu using a single management dialog that lists valid folders and blocks invalid descendants.
-- [ ] **Step 6: Add scene duplicate/move UI** to scene actions; duplicate only `title`, `folderId`, and canonical persisted `content`, then navigate to the new scene.
+- [ ] **Step 6: Add scene duplicate/move UI** to scene actions; submit only `title` and `folderId` to the server-side duplicate route, then navigate to the new scene if the workspace is still active.
 - [ ] **Step 7: Run focused frontend tests** with `npm test -- --run ...` from `src/frontend` and confirm all pass.
 - [ ] **Step 8: Commit** with `feat: expose dashboard management controls`.
 
