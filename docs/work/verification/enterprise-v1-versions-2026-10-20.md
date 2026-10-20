@@ -12,7 +12,7 @@ human/agent documentation.
 | Full backend | `ACCESS_TEST_DATABASE_URL=postgres://dungxbuif@127.0.0.1:55439/devtool_a1_test?sslmode=disable go test ./...` | PASS across command, HTTP, repository, S3 and usecase packages. |
 | Migration/repository focus | `ACCESS_TEST_DATABASE_URL=... go test ./internal/repository/postgres -run TestVersionRepositoryReadsContentAndGuardsMetadataRevision -count=1` | PASS. Migration 000018 applied in a disposable random schema; canonical content/read, metadata conflict and immutable-content trigger verified. |
 | Guest denial / Go binding | `go test ./internal/usecase ./internal/delivery/http/handler` | PASS. Public principal is rejected before repository access; create grant binds canonical payload, request ID and exact sequence; GET mints fresh scoped asset URLs; label/pin writes emit safe metadata-only events. |
-| Full collab suite | `COLLAB_TEST_DATABASE_URL=... npm test --workspace ./collab` | BLOCKED by concurrent M1 work: `rooms.ts` referenced the not-yet-committed `Authority.requireFeature`. The same V1 sources passed the focused build/tests before that concurrent edit and the direct focused suite afterward. |
+| Full collab suite | `COLLAB_TEST_DATABASE_URL=... npm test --workspace ./collab` | PASS after the concurrent M1 authority work landed: 22 files, 173 tests, including TypeScript build. |
 
 Commits containing the work are `ac76f8d` (initial V1 snapshot, captured by a
 shared-index coordination incident) and `6085a15` (durable recovery scan and
