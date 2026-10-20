@@ -6,6 +6,7 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"net/http"
 	"strings"
+	"time"
 
 	"devtool/internal/domain"
 
@@ -86,6 +87,26 @@ func AuthMiddleware(secret []byte, activeUserStores ...ActiveUserStore) func(htt
 			}
 			ctx := context.WithValue(r.Context(), domain.ContextKeyCredentialExpiry, expiry.Time)
 			ctx = context.WithValue(ctx, domain.ContextKeyUserID, userID)
+			if rawSID, present := claims["sid"]; present {
+				sidValue, sidOK := rawSID.(string)
+				sid, sidErr := uuid.Parse(sidValue)
+				method, methodOK := claims["auth_method"].(string)
+				authNumber, timeOK := claims["auth_time"].(float64)
+				if !sidOK || sidErr != nil || sid == uuid.Nil || !methodOK || (method != domain.AuthMethodPassword && method != domain.AuthMethodOIDC && method != domain.AuthMethodBreakGlass) || !timeOK || authNumber <= 0 {
+					writeAuthenticationError(w, r)
+					return
+				}
+				ctx = context.WithValue(ctx, domain.ContextKeySessionID, sid)
+				ctx = context.WithValue(ctx, domain.ContextKeyAuthMethod, method)
+				ctx = context.WithValue(ctx, domain.ContextKeyAuthTime, time.Unix(int64(authNumber), 0))
+			} else {
+				_, methodPresent := claims["auth_method"]
+				_, timePresent := claims["auth_time"]
+				if methodPresent || timePresent {
+					writeAuthenticationError(w, r)
+					return
+				}
+			}
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -95,6 +116,19 @@ func AuthMiddleware(secret []byte, activeUserStores ...ActiveUserStore) func(htt
 func UserIDFromContext(ctx context.Context) (uuid.UUID, bool) {
 	id, ok := ctx.Value(domain.ContextKeyUserID).(uuid.UUID)
 	return id, ok
+}
+
+func UserPrincipalFromContext(ctx context.Context) (domain.Principal, bool) {
+	id, ok := UserIDFromContext(ctx)
+	if !ok {
+		return domain.Principal{}, false
+	}
+	p := domain.UserPrincipal(id)
+	p.CredentialExpiresAt, _ = ctx.Value(domain.ContextKeyCredentialExpiry).(time.Time)
+	p.SessionID, _ = ctx.Value(domain.ContextKeySessionID).(uuid.UUID)
+	p.AuthMethod, _ = ctx.Value(domain.ContextKeyAuthMethod).(string)
+	p.AuthenticatedAt, _ = ctx.Value(domain.ContextKeyAuthTime).(time.Time)
+	return p, true
 }
 
 func writeAuthenticationError(w http.ResponseWriter, r *http.Request) {

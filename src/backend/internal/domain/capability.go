@@ -42,6 +42,8 @@ type MutationClaims struct {
 	GrantVersion  string        `json:"grantVersion,omitempty"`
 	Access        string        `json:"access"`
 	ACLVersion    string        `json:"aclVersion"`
+	SessionID     string        `json:"sid,omitempty"`
+	AuthMethod    string        `json:"authMethod,omitempty"`
 }
 type SignedGrant struct {
 	Token     string    `json:"token"`

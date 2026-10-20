@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import api from '../lib/api';
+import { ssoClient } from '../lib/sso-api';
 
 export interface User {
   id: string;
@@ -14,6 +15,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithSSO: (connectionId: string, returnPath?: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -38,6 +40,11 @@ const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  loginWithSSO: async (connectionId, returnPath = window.location.pathname + window.location.search) => {
+    const result = await ssoClient.begin(connectionId, returnPath);
+    window.location.assign(result.url);
+  },
+
   logout: () => {
     localStorage.removeItem('auth_token');
     set({
@@ -49,12 +56,24 @@ const useAuthStore = create<AuthState>((set) => ({
   },
 
   checkAuth: async () => {
-    const hashToken = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token');
-    if (hashToken) {
-      localStorage.setItem('auth_token', hashToken);
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+    let token = localStorage.getItem('auth_token');
+    const query = new URLSearchParams(window.location.search);
+    const exchangeCode = window.location.pathname === '/auth/sso/exchange' ? query.get('code') : null;
+    if (exchangeCode) {
+      try {
+        const result = await ssoClient.exchange(exchangeCode);
+        token = result.token;
+        localStorage.setItem('auth_token', token);
+        const target = query.get('return');
+        const safeTarget = target?.startsWith('/') && !target.startsWith('//') ? target : '/';
+        window.history.replaceState({}, document.title, safeTarget);
+      } catch {
+        localStorage.removeItem('auth_token');
+        window.history.replaceState({}, document.title, '/');
+        set({ user: null, token: null, isAuthenticated: false, isLoading: false });
+        return;
+      }
     }
-    const token = hashToken || localStorage.getItem('auth_token');
     if (!token) {
       set({ isLoading: false });
       return;

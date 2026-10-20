@@ -125,7 +125,10 @@ func (s *CapabilityService) AuthorizeCommand(ctx domain.Context, p domain.Princi
 		if d.ACLVersion < 1 || ((m.Action != domain.ActionSceneRead && m.Action != domain.ActionSceneExport) && d.Access != domain.AccessEdit) {
 			return domain.ErrAccessDenied
 		}
-		c := domain.MutationClaims{RegisteredClaims: jwt.RegisteredClaims{Issuer: domain.RoomIssuer, Subject: p.ID, Audience: jwt.ClaimStrings{domain.MutationAudience}, IssuedAt: jwt.NewNumericDate(time.Now()), ExpiresAt: jwt.NewNumericDate(expires), ID: uuid.NewString()}, Purpose: domain.MutationPurpose, SceneMutation: m, PrincipalType: p.Kind, PrincipalID: p.ID, GrantID: p.GrantID, GrantVersion: p.GrantVersion, Access: d.Access, ACLVersion: strconv.FormatInt(d.ACLVersion, 10)}
+		c := domain.MutationClaims{RegisteredClaims: jwt.RegisteredClaims{Issuer: domain.RoomIssuer, Subject: p.ID, Audience: jwt.ClaimStrings{domain.MutationAudience}, IssuedAt: jwt.NewNumericDate(time.Now()), ExpiresAt: jwt.NewNumericDate(expires), ID: uuid.NewString()}, Purpose: domain.MutationPurpose, SceneMutation: m, PrincipalType: p.Kind, PrincipalID: p.ID, GrantID: p.GrantID, GrantVersion: p.GrantVersion, Access: d.Access, ACLVersion: strconv.FormatInt(d.ACLVersion, 10), AuthMethod: p.AuthMethod}
+		if p.SessionID != uuid.Nil {
+			c.SessionID = p.SessionID.String()
+		}
 		token, e := jwt.NewWithClaims(jwt.SigningMethodHS256, c).SignedString(s.secret)
 		if e != nil {
 			return e

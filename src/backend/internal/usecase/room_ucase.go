@@ -55,11 +55,16 @@ type roomClaims struct {
 	DisplayName   string               `json:"displayName"`
 	Access        string               `json:"access"`
 	ACLVersion    string               `json:"aclVersion"`
+	SessionID     string               `json:"sid,omitempty"`
+	AuthMethod    string               `json:"authMethod,omitempty"`
 }
 
 func (s *RoomService) sign(p domain.Principal, ref domain.SceneRef, d domain.AccessDecision, audience, purpose string, expires time.Time) (string, error) {
 	now := time.Now()
-	claims := roomClaims{RegisteredClaims: jwt.RegisteredClaims{Issuer: domain.RoomIssuer, Subject: p.ID, Audience: jwt.ClaimStrings{audience}, IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(expires), ID: uuid.NewString()}, Purpose: purpose, WorkspaceID: ref.WorkspaceID.String(), SceneID: ref.SceneID.String(), PrincipalType: p.Kind, PrincipalID: p.ID, GrantID: p.GrantID, GrantVersion: p.GrantVersion, DisplayName: p.DisplayName, Access: d.Access, ACLVersion: strconv.FormatInt(d.ACLVersion, 10)}
+	claims := roomClaims{RegisteredClaims: jwt.RegisteredClaims{Issuer: domain.RoomIssuer, Subject: p.ID, Audience: jwt.ClaimStrings{audience}, IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(expires), ID: uuid.NewString()}, Purpose: purpose, WorkspaceID: ref.WorkspaceID.String(), SceneID: ref.SceneID.String(), PrincipalType: p.Kind, PrincipalID: p.ID, GrantID: p.GrantID, GrantVersion: p.GrantVersion, DisplayName: p.DisplayName, Access: d.Access, ACLVersion: strconv.FormatInt(d.ACLVersion, 10), AuthMethod: p.AuthMethod}
+	if p.SessionID != uuid.Nil {
+		claims.SessionID = p.SessionID.String()
+	}
 	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
 }
 func (s *RoomService) ExchangePublicSession(ctx domain.Context, token, password, name string) (domain.SceneSession, error) {
@@ -207,7 +212,14 @@ func (s *RoomService) parse(raw, audience, purpose string) (domain.SceneSessionI
 	if e != nil || scene == uuid.Nil {
 		return identity, domain.ErrInvalidSceneSession
 	}
-	p := domain.Principal{Kind: claims.PrincipalType, ID: claims.PrincipalID, GrantID: claims.GrantID, GrantVersion: claims.GrantVersion, DisplayName: claims.DisplayName, CredentialExpiresAt: claims.ExpiresAt.Time}
+	p := domain.Principal{Kind: claims.PrincipalType, ID: claims.PrincipalID, GrantID: claims.GrantID, GrantVersion: claims.GrantVersion, DisplayName: claims.DisplayName, CredentialExpiresAt: claims.ExpiresAt.Time, AuthMethod: claims.AuthMethod}
+	if claims.SessionID != "" {
+		sid, err := uuid.Parse(claims.SessionID)
+		if err != nil || sid == uuid.Nil {
+			return identity, domain.ErrInvalidSceneSession
+		}
+		p.SessionID = sid
+	}
 	switch p.Kind {
 	case domain.PrincipalPublic:
 		if p.GrantVersion == "" || !strings.HasPrefix(p.ID, "guest:") || len(p.ID) <= len("guest:") {

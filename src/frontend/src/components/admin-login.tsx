@@ -6,9 +6,11 @@ import useAuthStore from "@/store/auth-store";
 
 export function PasswordLogin() {
   const login = useAuthStore((state) => state.login);
+  const loginWithSSO = useAuthStore((state) => state.loginWithSSO);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [connectionId, setConnectionId] = useState("");
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -18,6 +20,12 @@ export function PasswordLogin() {
     } catch {
       setError("Invalid email or password");
     }
+  }
+
+  async function handleSSO() {
+    setError("");
+    try { await loginWithSSO(connectionId.trim()); }
+    catch { setError("Could not start workspace SSO"); }
   }
 
   return (
@@ -39,6 +47,13 @@ export function PasswordLogin() {
             {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
             <Button className="w-full" type="submit">Sign in</Button>
           </form>
+          <div className="my-5 h-px bg-border" />
+          <div className="grid gap-3">
+            <label className="grid gap-2 text-sm font-medium" htmlFor="sso-connection">Workspace SSO connection</label>
+            <Input autoComplete="off" id="sso-connection" onChange={(event) => setConnectionId(event.target.value)} placeholder="Connection ID" value={connectionId} />
+            <Button className="w-full" disabled={!connectionId.trim()} onClick={() => void handleSSO()} type="button" variant="outline">Continue with workspace SSO</Button>
+            <p className="text-xs text-muted-foreground">Use the connection ID supplied by your workspace owner. Password sign-in remains available for workspaces that allow it.</p>
+          </div>
         </CardContent>
       </Card>
     </main>

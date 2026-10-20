@@ -313,7 +313,7 @@ func (h *CapabilityHandler) RealtimeConfig(w http.ResponseWriter, r *http.Reques
 
 func (h *CapabilityHandler) UploadHandler(auth func(http.Handler) http.Handler) http.Handler {
 	login := auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := middleware.UserIDFromContext(r.Context())
+		p, ok := middleware.UserPrincipalFromContext(r.Context())
 		if !ok {
 			capabilityError(w, r, domain.ErrInvalidSceneSession)
 			return
@@ -328,8 +328,6 @@ func (h *CapabilityHandler) UploadHandler(auth func(http.Handler) http.Handler) 
 			capabilityError(w, r, e)
 			return
 		}
-		p := domain.UserPrincipal(user)
-		p.CredentialExpiresAt, _ = r.Context().Value(domain.ContextKeyCredentialExpiry).(time.Time)
 		var in struct {
 			Assets []domain.AssetUploadRequest `json:"assets" validate:"required,min=1,max=100,dive"`
 		}

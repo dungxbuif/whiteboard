@@ -168,3 +168,54 @@ func TestAuthMiddlewareFailsClosedUnlessJWTSubjectIsActive(t *testing.T) {
 		})
 	}
 }
+
+func TestAuthMiddlewareBindsLoginSessionClaims(t *testing.T) {
+	secret := []byte("login-secret-0123456789abcdef0123456789")
+	userID, sid := uuid.New(), uuid.New()
+	authTime := time.Now().Add(-time.Minute).Truncate(time.Second)
+	token, e := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{"sub": userID.String(), "sid": sid.String(), "auth_method": domain.AuthMethodOIDC, "auth_time": authTime.Unix(), "exp": time.Now().Add(time.Hour).Unix()}).SignedString(secret)
+	if e != nil {
+		t.Fatal(e)
+	}
+	handler := AuthMiddleware(secret)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		p, ok := UserPrincipalFromContext(r.Context())
+		if !ok || p.SessionID != sid || p.AuthMethod != domain.AuthMethodOIDC || !p.AuthenticatedAt.Equal(authTime) {
+			t.Fatalf("principal=%+v ok=%v", p, ok)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set(domain.HeaderAuthorization, domain.BearerPrefix+token)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestAuthMiddlewareRejectsPartialSessionClaims(t *testing.T) {
+	secret := []byte("login-secret-0123456789abcdef0123456789")
+	userID := uuid.New()
+	for _, partial := range []jwt.MapClaims{
+		{"auth_method": domain.AuthMethodOIDC},
+		{"auth_time": time.Now().Unix()},
+		{"sid": uuid.NewString(), "auth_method": domain.AuthMethodOIDC},
+	} {
+		partial["sub"] = userID.String()
+		partial["exp"] = time.Now().Add(time.Hour).Unix()
+		token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, partial).SignedString(secret)
+		if err != nil {
+			t.Fatal(err)
+		}
+		handler := AuthMiddleware(secret)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Fatal("partial session token reached handler")
+		}))
+		request := httptest.NewRequest(http.MethodGet, "/", nil)
+		request.Header.Set(domain.HeaderAuthorization, domain.BearerPrefix+token)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("claims=%v status=%d", partial, response.Code)
+		}
+	}
+}

@@ -16,9 +16,13 @@ const (
 	DefaultSessionDuration   = 7 * 24 * time.Hour
 
 	// Context Keys
-	ContextKeyUserID      = "user_id"
-	ContextKeyWorkspaceID = "workspace_id"
-	ContextKeySceneID     = "scene_id"
+	ContextKeyUserID         = "user_id"
+	ContextKeyWorkspaceID    = "workspace_id"
+	ContextKeySceneID        = "scene_id"
+	ContextKeySessionID      = "session_id"
+	ContextKeyAuthMethod     = "auth_method"
+	ContextKeyAuthTime       = "auth_time"
+	ContextKeyBrowserBinding = "browser_binding"
 
 	// Folder Constants
 	MaxFolderDepth      = 30
