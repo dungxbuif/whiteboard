@@ -26,7 +26,7 @@ All new scene panels overlay the full canvas; dashboard follows legacy style.
 - Library ID collisions/file references/import bombs: L2 remapping and limits.
 - Retention racing a reference insertion: V1/L2 pin locks consumed by R2.
 
-## Task V1: Immutable user checkpoints and protected assets
+## Task 1: V1 — Immutable user checkpoints and protected assets
 
 **Files:** Create `src/collab/src/versions.ts`, `versions.integration.test.ts`,
 backend `internal/domain/scene_version.go`, `internal/usecase/version_ucase.go`,
@@ -55,7 +55,7 @@ Captures and version asset pins commit in the same Node transaction.
 - [ ] Run real DB concurrency/compaction/migration cases; add history API/ERD
   and reference ownership ADR; commit `feat(history): capture immutable scene versions`.
 
-## Task V2: Semantic diff and durable restore with recovery checkpoint
+## Task 2: V2 — Semantic diff and durable restore with recovery checkpoint
 
 **Files:** Create `src/collab/src/version-restore.ts`, `version-restore.test.ts`,
 `version-restore.integration.test.ts`; modify `document.ts` only if invariant
@@ -87,7 +87,7 @@ Restore is a separate version:restore action, not a generic agent patch tool.
   frontend build; reconcile recovery/API/user/public guides and commit
   `feat(history): restore versions through the durable writer`.
 
-## Task L1: Legacy-style workspace/private collections
+## Task 3: L1 — Legacy-style workspace/private collections
 
 **Files:** Create backend `internal/domain/collection.go`,
 `internal/usecase/collection_ucase.go`, `internal/repository/postgres/collection_repo.go`,
@@ -114,7 +114,7 @@ explicit private creator and visibility, stable position order.
 - [ ] Update collection API/ERD/dashboard/public docs; commit
   `feat(collections): organize scenes with legacy dashboard controls`.
 
-## Task L2: Reusable native library with safe insert/export
+## Task 4: L2 — Reusable native library with safe insert/export
 
 **Files:** Create backend `internal/domain/library.go`,
 `internal/usecase/library_ucase.go`, `internal/repository/postgres/library_repo.go`,

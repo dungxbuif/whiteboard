@@ -26,7 +26,7 @@ All new controls are overlays/native slots; drawing survives capture errors.
 - Concurrent host transfer/spotlight and stale revisions: M3 session tests.
 - Public revoke/refresh during media and mobile autoplay: M3 browser tests.
 
-## Task M1: Independent admitted screen-media lifecycle
+## Task 1: M1 — Independent admitted screen-media lifecycle
 
 **Files:** Create `src/collab/src/screen-share.ts`, `screen-share.test.ts`,
 `src/frontend/src/collab/screen-share.ts`, `screen-share.test.ts`,
@@ -59,7 +59,7 @@ carry connection/session IDs and use current sender/recipient authority.
   using `tests/packaging/enterprise-media.mjs` (E1), plus voice regression.
   Reconcile protocol/media guide and commit `feat(media): add admitted screen sharing`.
 
-## Task M2: Separate presentation admission and waiting credentials
+## Task 2: M2 — Separate presentation admission and waiting credentials
 
 **Files:** Create backend `internal/domain/presentation.go`,
 `internal/usecase/presentation_ucase.go`,
@@ -93,7 +93,7 @@ connection state; Go checks a signed private host/session decision before grant.
   upgrade and room/asset regressions; reconcile API/ERD/token ADR and commit
   `feat(presentation): enforce audience waiting-room admission`.
 
-## Task M3: Host controls, spotlight/reactions/view lock and audience UI
+## Task 3: M3 — Host controls, spotlight/reactions/view lock and audience UI
 
 **Files:** Create frontend `src/collab/live-presentation.ts`, tests,
 `src/components/presentation/{host-controls,audience-view,waiting-room}.tsx`

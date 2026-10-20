@@ -27,7 +27,7 @@ SCIM count<=100; retirement grace7days. Password/default workspace flow persists
 - Last owner/manual membership/cross-workspace loss: I3 provenance tests.
 - Retention policy/hold/reference/backup race and S3 partial failure: R1/R2 tests.
 
-## Task I1: Domain verification and explicit workspace capture
+## Task 1: I1 — Domain verification and explicit workspace capture
 
 **Files:** Create backend `internal/domain/workspace_identity.go`,
 `internal/usecase/domain_ucase.go`, `internal/repository/postgres/domain_repo.go`,
@@ -57,7 +57,7 @@ capture endpoint and `/w/{workspace}/settings/identity` UI.
 - [ ] Reconcile identity API/ERD/setup/public docs and commit
   `feat(identity): verify workspace domains and explicit capture`.
 
-## Task I2: OIDC SSO, safe linking and revocable session assurance
+## Task 2: I2 — OIDC SSO, safe linking and revocable session assurance
 
 **Files:** Create backend `internal/domain/auth_session.go`,
 `internal/usecase/sso_ucase.go`, `auth_session_ucase.go`,
@@ -103,7 +103,7 @@ they fail enforced-workspace access until a fresh SSO session.
 - [ ] Review auth/assurance ADR, migration/secret rotation/recovery runbooks,
   human and public setup; commit `feat(sso): add workspace OIDC and session assurance`.
 
-## Task I3: SCIM Users/Groups, role provenance and deprovision
+## Task 3: I3 — SCIM Users/Groups, role provenance and deprovision
 
 **Files:** Create backend `internal/domain/scim.go`,
 `internal/usecase/scim_ucase.go`, `internal/repository/postgres/scim_repo.go`,
@@ -136,7 +136,7 @@ connection+externalId/group and distinguishes manual grants.
   default My Workspace idempotency. Reconcile IdP setup, SCIM discovery schemas,
   API/security docs; commit `feat(scim): provision workspace memberships safely`.
 
-## Task R1: Retention policy preview, holds and metadata purge
+## Task 4: R1 — Retention policy preview, holds and metadata purge
 
 **Files:** Create backend `internal/domain/retention.go`,
 `internal/usecase/retention_ucase.go`, `internal/repository/postgres/retention_repo.go`,
@@ -166,7 +166,7 @@ all jobs re-read effective policy and holds under locks before mutation.
 - [ ] Reconcile ERD/retention/user/public docs and commit
   `feat(retention): preview and enforce workspace retention policies`.
 
-## Task R2: Reference-aware object lifecycle and backup protection
+## Task 5: R2 — Reference-aware object lifecycle and backup protection
 
 **Files:** Create backend `internal/domain/asset_reference.go`,
 `internal/usecase/asset_gc_ucase.go`,

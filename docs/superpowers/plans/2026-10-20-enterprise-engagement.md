@@ -25,7 +25,7 @@ No raw content in events, no email delivery, no comments embedded as elements.
 - Retry after notification delivery and recipient revoke: C2 job tests.
 - Activity counts/cursors on private scenes: C3 SQL/API negative tests.
 
-## Task C1: Durable comment service and guest authorization
+## Task 1: C1 — Durable comment service and guest authorization
 
 **Files:** Create `src/backend/internal/domain/comment.go`,
 `internal/usecase/comment_ucase.go`, `internal/repository/postgres/comment_repo.go`,
@@ -55,7 +55,7 @@ Produces the six comment routes in the spec; DELETE uses a strict JSON body.
 - [ ] Reconcile API/ERD/public-link policy and commit
   `feat(comments): persist authorized anchored discussions`.
 
-## Task C2: Canvas threads, moderation and notification inbox
+## Task 2: C2 — Canvas threads, moderation and notification inbox
 
 **Files:** Create frontend `src/components/comments/{comment-panel,comment-anchor,
 notification-inbox}.tsx`, `src/lib/comment-api.ts` and tests under
@@ -86,7 +86,7 @@ subscribers, unique `(user_id,event_id)`; no guest private inbox.
   comment and inbox guides plus llms links; commit
   `feat(comments): add canvas discussion and notifications`.
 
-## Task C3: Workspace/scene activity browsing
+## Task 3: C3 — Workspace/scene activity browsing
 
 **Files:** Create backend `internal/usecase/activity_ucase.go`,
 `internal/repository/postgres/activity_repo.go`, `internal/delivery/http/handler/activity_handler.go`

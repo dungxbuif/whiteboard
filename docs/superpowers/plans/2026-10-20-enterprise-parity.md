@@ -73,7 +73,7 @@ retention have mandatory cross-package reviews before activation.
 | ENT-P2-02 libraries/collections | L1, L2, R2 | private collection denial, imported library IDs/assets/search/export |
 | ENT-P2-03 domain/SSO/SCIM/retention | I1, I2, I3, R1, R2 | DNS/OIDC negative cases, SCIM protocol/revoke, hold/reference/backup purge races |
 
-## Task E1: Complete integrated acceptance and security review
+## Task 1: E1 — Complete integrated acceptance and security review
 
 **Files:** Create `src/frontend/e2e/real-stack/enterprise.spec.ts`,
 `enterprise-revocation.spec.ts`, `enterprise-retention.spec.ts`,
@@ -103,7 +103,7 @@ scene, asset and agent APIs. Produces release acceptance evidence; no API.
 - [ ] Update validation matrix, reconcile ADR/API/ERD/protocol/guides and commit
   as `test(enterprise): verify integrated parity acceptance`.
 
-## Task E2: Stage migrations and VM100 release
+## Task 2: E2 — Stage migrations and VM100 release
 
 **Files:** Modify `docker-compose.prod.yml`, `src/.env.example`,
 `docs/operations/DEPLOYMENT.md`, `ENVIRONMENTS.md`, `RELEASE_CHECKLIST.md`;
