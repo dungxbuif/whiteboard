@@ -78,18 +78,18 @@ bind session+principal+scene+expiry and remain independent of ordinary links.
 Node `PresentationSessions.start/stop/admit/remove/transfer` owns current
 connection state; Go checks a signed private host/session decision before grant.
 
-- [ ] Write `TestPendingTokenCannotMintRoomOrReadAssets`,
+- [x] Write `TestPendingTokenCannotMintRoomOrReadAssets`,
   `TestPresentationLinkRevokeDoesNotRevokeMembership`,
   `waitingClientReceivesOnlyOwnStatus`, `hostDisconnectEndsSession`.
   Pending auth sends neither ready/sync_chunk nor roster and rejects binary
   data/voice/screen. Admission requires active matching session and current host.
-- [ ] Run focused Go Presentation tests and Node `presentation` tests; expect
+- [x] Run focused Go Presentation tests and Node `presentation` tests; expect
   RED. Implement grant-bound links (hashed, expiry/revision, explicit revoke),
   private session validation and `presentation_auth` distinct from room auth.
-- [ ] Serialize active session changes on existing single runtime owner; cap
+- [x] Serialize active session changes on existing single runtime owner; cap
   waiting queue at100, session invites24h, pending grants5min; attempts rate60/min/IP.
   Store links, not ephemeral participants, in Postgres. Restart invalidates sessions.
-- [ ] Run member/guest/revoke/expiry/cross-scene negative tests, migration
+- [x] Run member/guest/revoke/expiry/cross-scene negative tests, migration
   upgrade and room/asset regressions; reconcile API/ERD/token ADR and commit
   `feat(presentation): enforce audience waiting-room admission`.
 
