@@ -67,6 +67,28 @@ func TestVersionHandlerServesCurrentDurableProjection(t *testing.T) {
 	}
 }
 
+func TestVersionProjectionNoStoreOnAuthenticationAndServiceErrors(t *testing.T) {
+	workspace, scene := uuid.New(), uuid.New()
+	secret := []byte(strings.Repeat("v", 32))
+	service := &versionServiceHandlerStub{}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(middleware.AuthMiddleware(secret))
+	request := httptest.NewRequest(http.MethodGet, "/scenes/scene/projection", nil)
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusUnauthorized || response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("unauthenticated status=%d cache=%q", response.Code, response.Header().Get("Cache-Control"))
+	}
+
+	service.err = &domain.AgentCollabError{Status: http.StatusServiceUnavailable, Code: "UNAVAILABLE"}
+	routes = NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(uuid.New()))
+	response = httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("service status=%d cache=%q", response.Code, response.Header().Get("Cache-Control"))
+	}
+}
+
 func TestVersionHandlerReturnsUnavailableWhenWriterBridgeIsMissing(t *testing.T) {
 	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
 	service := &versionServiceHandlerStub{err: &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}}

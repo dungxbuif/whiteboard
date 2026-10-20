@@ -37,9 +37,18 @@ func (h *VersionHandler) Routes(auth func(http.Handler) http.Handler) http.Handl
 }
 func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Handler) {
 	r.Group(func(r chi.Router) {
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				w.Header().Set("Cache-Control", "no-store")
+				next.ServeHTTP(w, request)
+			})
+		})
+		r.Use(auth)
+		r.Get("/scenes/{id}/projection", h.CurrentProjection)
+	})
+	r.Group(func(r chi.Router) {
 		r.Use(auth)
 		r.Get("/scenes/{id}/versions", h.List)
-		r.Get("/scenes/{id}/projection", h.CurrentProjection)
 		r.Post("/scenes/{id}/versions", h.Create)
 		r.Get("/scenes/{id}/versions/{versionId}", h.Get)
 		r.Get("/scenes/{id}/versions/{versionId}/diff", h.Diff)
