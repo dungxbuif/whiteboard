@@ -8,6 +8,18 @@ separately.
 
 Open a scene and wait for **Saved** or **Read-only**. The canvas stays read-only until the server checks current access and the document finishes synchronizing. A pending count means changes are on this device and still await the server's durable acknowledgement. Closing the tab does not mean those changes were saved on the server.
 
+The scene fills the browser viewport without a separate control header. Open
+Excalidraw's main menu for the scene name and **Back to dashboard**. **People**,
+**Join voice**, **Present**, and the AI assistant are canvas controls. The idle
+voice counter stays hidden until a call is joining or active. Save and recovery
+state floats at the lower edge; open **More scene actions** for local undo/redo,
+retry, or recovery export when available.
+
+Canvas tools share one non-modal floating panel, so opening AI, comments,
+activity, history, or library replaces the previously open panel. Press Escape
+or Close to return focus to the control that opened it. The overlay does not
+block drawing outside its visible controls, including at narrow mobile widths.
+
 If the connection drops after admission, an editor can continue on the loaded scene. Changes stay in IndexedDB and replay after fresh admission and synchronization. Reloading without network access is not an installed/offline app feature: the page must be available, and a fresh page remains read-only until admission. When access is revoked or reduced to viewing, pending work stays available for recovery but is not transmitted as an authorized edit.
 
 Use **Export recovery** before clearing browser data, changing accounts after a failed save, or recovering a history-limit error. The JSON contains the local Yjs checkpoint, pending update bytes with original request identities, retained image bytes and unfinished canvas drafts. Keep it private. Recovery exports are diagnostic/operational files; automatic import into another identity/document is not offered. A changed document generation stops replay and asks for recovery instead of deleting old edits.
@@ -29,6 +41,14 @@ Transport hooks for presence/voice integration: subscribeControl(listener), send
 Open **People** to inspect connected tabs and their Editor/Viewer role. Choose **Follow** to track a participant's camera and **Stop following** to exit; departure clears followers automatically. Presence, cursors, selection and camera never change the saved board.
 
 Choose **Join voice** to request one of ten room slots. The app asks for microphone permission only after admission. A denial or full room does not disable drawing. Use **Mute**, **Unmute** and **Leave voice** in the toolbar. If the browser blocks autoplay, choose **Play voice audio**. Connection loss, access revocation and leaving the call stop local tracks and remove peer/audio objects. Media uses short-lived scoped TURN credentials; secrets are never embedded in the frontend.
+
+Signed-in editors can choose **Share screen** without joining voice. Admission
+shows a separate **Start sharing** button so the browser picker opens from a
+trusted click. The capture is video-only, up to 720p at 15 fps. One publisher is
+allowed per room; voice and screen sharing together admit ten distinct
+connections, counting a person using both once. Cancellation or media failure
+keeps drawing available. See [screen sharing](live-media.md) for the control and
+cleanup contract.
 
 Definitive authority rejection clears the retained guest token immediately; transient network failures preserve it. The guest principal and pending recovery remain. **Export recovery and rejoin** downloads that recovery before starting a fresh exchange, which may create a different guest identity.
 

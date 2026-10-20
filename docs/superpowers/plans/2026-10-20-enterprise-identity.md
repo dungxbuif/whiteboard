@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-Programme constraints apply; draft pending review. Depends on F1–F3;
+Programme constraints apply; approved for implementation. Depends on F1–F3;
 R1/R2 additionally depend on comments/version/library reference models.
 Workspace is the enterprise boundary. No automatic email-based identity merge,
 global SCIM deletion, canonical Yjs purge, receipt truncation or bucket-only expiry.
@@ -27,7 +27,7 @@ SCIM count<=100; retirement grace7days. Password/default workspace flow persists
 - Last owner/manual membership/cross-workspace loss: I3 provenance tests.
 - Retention policy/hold/reference/backup race and S3 partial failure: R1/R2 tests.
 
-## Task I1: Domain verification and explicit workspace capture
+## Task 1: I1 — Domain verification and explicit workspace capture
 
 **Files:** Create backend `internal/domain/workspace_identity.go`,
 `internal/usecase/domain_ucase.go`, `internal/repository/postgres/domain_repo.go`,
@@ -43,21 +43,21 @@ modify settings route registration in App and dashboard owner navigation.
 Produces owner `/workspaces/{id}/domains` create/verify/revoke routes, explicit
 capture endpoint and `/w/{workspace}/settings/identity` UI.
 
-- [ ] Write `TestDomainExactIDNAChallenge`, `TestDomainExpiredReplayAndConflict`,
+- [x] Write `TestDomainExactIDNAChallenge`, `TestDomainExpiredReplayAndConflict`,
   `TestCaptureDoesNotMoveExistingData`, `TestDomainRequiresOwner`: exact
   normalized unique domain, `_whiteboard-verification` TXT, challenge expiry24h,
   consumed challenge cannot claim a second workspace, challenge value not logged.
-- [ ] Run focused domain Go/frontend tests (RED). Implement DNS verification
+- [x] Run focused domain Go/frontend tests (RED). Implement DNS verification
   and domain discovery returning workspace login hints without listing users.
   Bind domain activation to explicit owner connection configuration; join/capture
   needs verified identity and authenticated acceptance, never DNS evidence alone.
-- [ ] Verify fresh/migration13 schema, DNS failure/timeouts, ownership reverify,
+- [x] Verify fresh/migration13 schema, DNS failure/timeouts, ownership reverify,
   conflicting claims, IDN and parent/subdomain separation. Real production DNS
   publication is an operator input; fake resolver tests do not prove public TXT.
-- [ ] Reconcile identity API/ERD/setup/public docs and commit
+- [x] Reconcile identity API/ERD/setup/public docs and commit
   `feat(identity): verify workspace domains and explicit capture`.
 
-## Task I2: OIDC SSO, safe linking and revocable session assurance
+## Task 2: I2 — OIDC SSO, safe linking and revocable session assurance
 
 **Files:** Create backend `internal/domain/auth_session.go`,
 `internal/usecase/sso_ucase.go`, `auth_session_ucase.go`,
@@ -103,7 +103,7 @@ they fail enforced-workspace access until a fresh SSO session.
 - [ ] Review auth/assurance ADR, migration/secret rotation/recovery runbooks,
   human and public setup; commit `feat(sso): add workspace OIDC and session assurance`.
 
-## Task I3: SCIM Users/Groups, role provenance and deprovision
+## Task 3: I3 — SCIM Users/Groups, role provenance and deprovision
 
 **Files:** Create backend `internal/domain/scim.go`,
 `internal/usecase/scim_ucase.go`, `internal/repository/postgres/scim_repo.go`,
@@ -118,16 +118,16 @@ startIndex,itemsPerPage,Resources}` and spec SCIM error/ETag models.
 user/agent/login keys cannot authenticate SCIM routes. `MembershipSource` binds
 connection+externalId/group and distinguishes manual grants.
 
-- [ ] Add `TestSCIMDiscoveryPagingAndFilters`, `TestSCIMPatchAddReplaceRemove`,
+- [x] Add `TestSCIMDiscoveryPagingAndFilters`, `TestSCIMPatchAddReplaceRemove`,
   `TestSCIMIfMatchAndRetry`, `TestSCIMDisableRevokesOnlyManagedWorkspace`,
   `TestSCIMProtectsOwnerAndManualGrant`, `TestSCIMGroupNeverCreatesOwner`:
   startIndex1/count<=100, supported equality filters, invalid paths SCIM400,
   wrong ETag412, bulk false, token scope cross-workspace denial.
-- [ ] Run scoped SCIM tests (RED). Implement RFC7643/7644 JSON resources,
+- [x] Run scoped SCIM tests (RED). Implement RFC7643/7644 JSON resources,
   PUT/PATCH/DELETE, stable UUID mapping/unique externalId, soft-deprovision and
   atomic membership+session revoke+ACL bump+event. Effective managed role is
   strongest active mapped group editor/viewer; no group grants owner.
-- [ ] Preserve independently manual memberships unless owner explicitly adopts
+- [x] Preserve independently manual memberships unless owner explicitly adopts
   them into SCIM management. Show retained manual access in deprovision results;
   never falsely report all access removed. Removed SCIM-only membership fails
   new requests and existing room refresh/media immediately via ACL invalidation.
@@ -136,7 +136,7 @@ connection+externalId/group and distinguishes manual grants.
   default My Workspace idempotency. Reconcile IdP setup, SCIM discovery schemas,
   API/security docs; commit `feat(scim): provision workspace memberships safely`.
 
-## Task R1: Retention policy preview, holds and metadata purge
+## Task 4: R1 — Retention policy preview, holds and metadata purge
 
 **Files:** Create backend `internal/domain/retention.go`,
 `internal/usecase/retention_ucase.go`, `internal/repository/postgres/retention_repo.go`,
@@ -151,22 +151,22 @@ requestID) (RetentionPolicy,error)`, `SetHold(ctx,p,ref,versionID?,held,requestI
 Preview binds proposed policy hash+revision, counts and earliest destructive date;
 all jobs re-read effective policy and holds under locks before mutation.
 
-- [ ] Add `TestRetentionDefaultCutoffs`, `TestRetentionSevenDayActivation`,
+- [x] Add `TestRetentionDefaultCutoffs`, `TestRetentionSevenDayActivation`,
   `TestHoldWinsAgainstClaimedPurge`, `TestPolicyRevisionCancelsStaleJob`,
   `TestRetentionNeverDeletesCanonicalHistory`: activity90days, notifications30,
   auto versions beyond100; manual/pinned/comments indefinitely unless configured,
   Trash hard purge disabled; no collab receipt/log/tombstone SQL deletion.
-- [ ] Run focused real-DB retention tests (RED). Implement policy preview and
+- [x] Run focused real-DB retention tests (RED). Implement policy preview and
   explicit schedule, 7day delay, hold records, bounded metadata purge/idempotency,
   version-reference removal and preserved minimal purge audit. For any live
   comment retention, leave redaction markers/consistent thread pagination.
 - [ ] Browser test preview/effect counts, hold/unhold/review policy, keyboard/
   mobile and restricted owner route. Dry-run worker report contains counts/IDs
   only, never raw comment/version content. Do not enable deletion on production.
-- [ ] Reconcile ERD/retention/user/public docs and commit
+- [x] Reconcile ERD/retention/user/public docs and commit
   `feat(retention): preview and enforce workspace retention policies`.
 
-## Task R2: Reference-aware object lifecycle and backup protection
+## Task 5: R2 — Reference-aware object lifecycle and backup protection
 
 **Files:** Create backend `internal/domain/asset_reference.go`,
 `internal/usecase/asset_gc_ucase.go`,

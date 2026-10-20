@@ -26,11 +26,17 @@ type RoomTokenVerifier interface {
 type CapabilityHandler struct {
 	capabilities  domain.CapabilityService
 	rooms         RoomTokenVerifier
+	presentations domain.PresentationAudienceAuthority
 	access        domain.AccessService
 	assets        domain.AssetUsecase
+	features      domain.FeatureService
 	serviceSecret []byte
 	turnURL       string
 	turnSecret    []byte
+}
+
+func (h *CapabilityHandler) SetPresentationAuthority(p domain.PresentationAudienceAuthority) {
+	h.presentations = p
 }
 
 func NewCapabilityHandler(c domain.CapabilityService, r RoomTokenVerifier, a domain.AccessService, u domain.AssetUsecase, secret []byte) (*CapabilityHandler, error) {
@@ -48,6 +54,10 @@ func capabilityError(w http.ResponseWriter, r *http.Request, e error) {
 		writeSharingError(w, r, http.StatusBadRequest, "INVALID_INPUT", "Invalid capability request")
 		return
 	}
+	if errors.Is(e, domain.ErrFeatureDisabled) {
+		writeFeatureError(w, r, e)
+		return
+	}
 	sharingError(w, r, e)
 }
 func (h *CapabilityHandler) AuthorityHandler() http.Handler {
@@ -61,7 +71,68 @@ func (h *CapabilityHandler) AuthorityHandler() http.Handler {
 		}
 		middleware.InvitationBodyMiddleware(http.HandlerFunc(h.decision)).ServeHTTP(w, r)
 	}))
+	mux.Handle("POST /internal/authority/features", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw := r.Header.Get(domain.HeaderAuthorization)
+		expected := domain.BearerPrefix + string(h.serviceSecret)
+		if subtle.ConstantTimeCompare([]byte(raw), []byte(expected)) != 1 {
+			sharingError(w, r, domain.ErrInvalidSceneSession)
+			return
+		}
+		middleware.InvitationBodyMiddleware(http.HandlerFunc(h.featureDecision)).ServeHTTP(w, r)
+	}))
 	return mux
+}
+
+func (h *CapabilityHandler) SetFeatureService(features domain.FeatureService) { h.features = features }
+
+func (h *CapabilityHandler) featureDecision(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		RoomToken   string `json:"roomToken" validate:"required,max=8192"`
+		WorkspaceID string `json:"workspaceId" validate:"required,uuid"`
+		SceneID     string `json:"sceneId" validate:"required,uuid"`
+		Action      string `json:"action" validate:"required,max=64"`
+	}
+	if !decodeSharing(w, r, &in) {
+		return
+	}
+	if in.Action != string(domain.FeatureScreenPublish) && in.Action != string(domain.FeaturePresentationHost) {
+		capabilityError(w, r, domain.ErrInvalidCapability)
+		return
+	}
+	identity, err := h.rooms.VerifyRoomToken(in.RoomToken)
+	audience := false
+	if err != nil && in.Action == string(domain.FeaturePresentationHost) && h.presentations != nil {
+		var session uuid.UUID
+		identity, session, err = h.presentations.ParseAudience(in.RoomToken)
+		if err == nil {
+			err = h.presentations.ResolveAudience(r.Context(), identity.Principal, identity.SceneRef, session)
+			audience = err == nil
+		}
+	}
+	if err != nil {
+		capabilityError(w, r, err)
+		return
+	}
+	if in.WorkspaceID != identity.SceneRef.WorkspaceID.String() || in.SceneID != identity.SceneRef.SceneID.String() {
+		capabilityError(w, r, domain.ErrAccessDenied)
+		return
+	}
+	if !audience && h.features == nil {
+		writeFeatureError(w, r, errors.New("feature authority unavailable"))
+		return
+	}
+	if !audience {
+		action := domain.FeatureScreenPublish
+		if in.Action == string(domain.FeaturePresentationHost) {
+			action = domain.FeaturePresentationHost
+		}
+		if err = h.features.Require(r.Context(), identity.Principal, identity.SceneRef, action); err != nil {
+			writeFeatureError(w, r, err)
+			return
+		}
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusNoContent)
 }
 func (h *CapabilityHandler) decision(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -98,6 +169,13 @@ func (h *CapabilityHandler) identity(r *http.Request) (domain.SceneSessionIdenti
 	if e != nil {
 		identity, e = h.rooms.VerifyRoomToken(raw)
 	}
+	if e != nil && h.presentations != nil {
+		var session uuid.UUID
+		identity, session, e = h.presentations.ParseAudience(raw)
+		if e == nil {
+			e = h.presentations.ResolveAudience(r.Context(), identity.Principal, identity.SceneRef, session)
+		}
+	}
 	if e != nil {
 		return identity, e
 	}
@@ -114,6 +192,27 @@ func (h *CapabilityHandler) identity(r *http.Request) (domain.SceneSessionIdenti
 		}
 	}
 	return identity, nil
+}
+
+func (h *CapabilityHandler) authorizeScene(ctx domain.Context, identity domain.SceneSessionIdentity, ttl time.Duration) (time.Time, error) {
+	if !strings.HasPrefix(identity.Principal.ID, "presentation:") {
+		return h.capabilities.AuthorizeScene(ctx, identity.Principal, identity.SceneRef, ttl)
+	}
+	if h.presentations == nil || !strings.HasPrefix(identity.Principal.GrantID, "session:") {
+		return time.Time{}, domain.ErrAccessDenied
+	}
+	session, e := uuid.Parse(strings.TrimPrefix(identity.Principal.GrantID, "session:"))
+	if e != nil || session == uuid.Nil {
+		return time.Time{}, domain.ErrAccessDenied
+	}
+	if e = h.presentations.ResolveAudience(ctx, identity.Principal, identity.SceneRef, session); e != nil {
+		return time.Time{}, e
+	}
+	expires := time.Now().Add(ttl)
+	if identity.ExpiresAt.Before(expires) {
+		expires = identity.ExpiresAt
+	}
+	return expires, nil
 }
 func (h *CapabilityHandler) PublicUpload(w http.ResponseWriter, r *http.Request) {
 	identity, e := h.identity(r)
@@ -168,7 +267,7 @@ func (h *CapabilityHandler) PublicView(w http.ResponseWriter, r *http.Request) {
 	}
 	var result map[string]domain.AssetViewResponse
 	e = h.access.WithWorkspaceLock(r.Context(), identity.SceneRef.WorkspaceID, uuid.Nil, func(c domain.Context) error {
-		expires, e := h.capabilities.AuthorizeScene(c, identity.Principal, identity.SceneRef, domain.AssetCapabilityLifetime)
+		expires, e := h.authorizeScene(c, identity, domain.AssetCapabilityLifetime)
 		if e != nil {
 			return e
 		}
@@ -196,7 +295,7 @@ func (h *CapabilityHandler) RealtimeConfig(w http.ResponseWriter, r *http.Reques
 		capabilityError(w, r, e)
 		return
 	}
-	expires, e := h.capabilities.AuthorizeScene(r.Context(), identity.Principal, identity.SceneRef, domain.RoomTokenLifetime)
+	expires, e := h.authorizeScene(r.Context(), identity, domain.RoomTokenLifetime)
 	if e != nil {
 		capabilityError(w, r, e)
 		return
@@ -214,7 +313,7 @@ func (h *CapabilityHandler) RealtimeConfig(w http.ResponseWriter, r *http.Reques
 
 func (h *CapabilityHandler) UploadHandler(auth func(http.Handler) http.Handler) http.Handler {
 	login := auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := middleware.UserIDFromContext(r.Context())
+		p, ok := middleware.UserPrincipalFromContext(r.Context())
 		if !ok {
 			capabilityError(w, r, domain.ErrInvalidSceneSession)
 			return
@@ -229,8 +328,6 @@ func (h *CapabilityHandler) UploadHandler(auth func(http.Handler) http.Handler) 
 			capabilityError(w, r, e)
 			return
 		}
-		p := domain.UserPrincipal(user)
-		p.CredentialExpiresAt, _ = r.Context().Value(domain.ContextKeyCredentialExpiry).(time.Time)
 		var in struct {
 			Assets []domain.AssetUploadRequest `json:"assets" validate:"required,min=1,max=100,dive"`
 		}

@@ -58,7 +58,8 @@ export class LocalUndo {
   canUndo(): boolean { return this.undoStack.length > 0; }
   canRedo(): boolean { return this.redoStack.length > 0; }
   stopCapturing(): void { this.lastCapture = 0; }
-  destroy(): void { this.undoStack = []; this.redoStack = []; this.undoBytes = 0; this.lastCapture = 0; }
+  clear(): void { this.undoStack = []; this.redoStack = []; this.undoBytes = 0; this.lastCapture = 0; }
+  destroy(): void { this.clear(); }
 
   private prune(): void {
     while (this.undoStack.length > MAX_ENTRIES || this.undoBytes > MAX_HISTORY_BYTES) {

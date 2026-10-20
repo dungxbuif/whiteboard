@@ -14,6 +14,10 @@ func RedactPublicCredentials(next http.Handler) http.Handler {
 			r.URL.RawQuery = ""
 			r.URL.ForceQuery = false
 			r.RequestURI = legacyPrefix + "[REDACTED]"
+		} else if strings.HasPrefix(r.URL.Path, "/api/v1/presentations/") && strings.HasSuffix(r.URL.Path, "/join") {
+			r.URL.RawQuery = ""
+			r.URL.ForceQuery = false
+			r.RequestURI = "/api/v1/presentations/[REDACTED]/join"
 		}
 		next.ServeHTTP(w, r)
 	})

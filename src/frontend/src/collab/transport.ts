@@ -1,14 +1,14 @@
 import * as Y from 'yjs';
 import { encodeRecoveryBytes, encodeRecoveryBlob } from './recovery';
-import { decodeFrame, encodeFrame, MAX_FRAME_BYTES, type SceneRef } from '@collab/contracts';
+import { decodeFrame, encodeFrame, MAX_FRAME_BYTES, parseFeatureChanged, parsePresentationAdmitted, type SceneContent, type SceneRef } from '@collab/contracts';
 import { ExcalidrawAdapter, REMOTE_ORIGIN, REPLAY_ORIGIN } from './excalidraw-adapter';
 import { type OfflineStore, type PendingScope, scopeKey } from './offline-store';
 export type RoomGrant = { token: string; expiresAt: string };
 export type WireSocket = Pick<WebSocket, 'readyState' | 'send' | 'close' | 'addEventListener' | 'binaryType'>;
 export type CollabStatus = 'connecting' | 'synced' | 'pending' | 'offline' | 'readonly' | 'revoked' | 'degraded' | 'legacy';
-export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string; connectionId?: string };
+export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string; connectionId?: string; sequence?: string };
 export type Control = { type: string; requestId: string; payload: Record<string, unknown> };
-export type TransportOptions = { sceneRef: SceneRef; principalId: string; adapter: ExcalidrawAdapter; store: OfflineStore; grant: () => Promise<RoomGrant>; url: string; socket?: (url: string) => WireSocket; onAccessLost?: () => void; onLegacy?: (code: string) => Promise<boolean> };
+export type TransportOptions = { sceneRef: SceneRef; principalId: string; adapter: ExcalidrawAdapter; store: OfflineStore; grant: () => Promise<RoomGrant>; url: string; authType?:'auth'|'presentation_auth'; socket?: (url: string) => WireSocket; onAccessLost?: () => void; onLegacy?: (code: string) => Promise<boolean>; onPresentationAdmitted?:(grant:{sessionId:string;token:string;expiresAt:number})=>void };
 const MAX_HISTORY_BYTES = 64 * 1024 * 1024;
 const SEND_INTERVAL_MS = 600;
 const REFRESH_EARLY_MS = 60000;
@@ -43,6 +43,8 @@ export class CollabTransport {
   private incoming: Uint8Array[] = [];
   private incomingBytes = 0;
   private chunks?: { requestId: string; count: number; total: number; chunks: Uint8Array[] };
+  private authoritative?:ExcalidrawAdapter;
+  private observed?:SceneContent;
   constructor(readonly options: TransportOptions) {}
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   subscribeControl = (listener: (control: Control) => void) => { this.controls.add(listener); return () => { this.controls.delete(listener); }; };
@@ -72,7 +74,7 @@ export class CollabTransport {
       if (!Number.isFinite(Date.parse(grant.expiresAt))) throw new Error('Invalid room expiry');
       const socket = (this.options.socket ?? (url => new WebSocket(url)))(this.options.url);
       this.socket = socket; socket.binaryType = 'arraybuffer';
-      socket.addEventListener('open', () => { if (this.current(generation)) { socket.send(JSON.stringify({ type: 'auth', requestId: crypto.randomUUID(), payload: { token: grant.token } })); this.scheduleRefresh(grant, generation); } });
+      socket.addEventListener('open', () => { if (this.current(generation)) { socket.send(JSON.stringify({ type: this.options.authType??'auth', requestId: crypto.randomUUID(), payload: { token: grant.token } })); if(this.options.authType!=='presentation_auth')this.scheduleRefresh(grant, generation); } });
       socket.addEventListener('message', event => {
         this.chain = this.chain.then(async () => { if (this.current(generation)) await this.receive((event as MessageEvent).data, generation); }).catch(error => { if (this.current(generation)) this.fail(error); });
       });
@@ -113,18 +115,18 @@ export class CollabTransport {
       const frame = decodeFrame(new Uint8Array(data as ArrayBuffer));
       if (frame.channel === 3) {
         if (!this.synced) { this.incomingBytes += frame.payload.length; if (this.incomingBytes > MAX_HISTORY_BYTES) throw new Error('Sync buffer limit; reconnect required'); this.incoming.push(frame.payload); }
-        else { this.options.adapter.applyRemote(frame.payload); await this.cache(); }
+        else { this.authoritative?.applyRemote(frame.payload);this.options.adapter.applyRemote(frame.payload); await this.cache(); }
       }
       return;
     }
     const control = JSON.parse(data) as Control, p = control.payload;
     if (!p || typeof control.type !== 'string') throw new Error('Invalid control');
     if (control.type === 'ready') {
-      if (p.workspaceId !== this.options.sceneRef.workspaceId || p.sceneId !== this.options.sceneRef.sceneId || p.principalId !== this.options.principalId || typeof p.documentId !== 'string' || !['view', 'edit'].includes(String(p.access))) throw new Error('Room scope mismatch');
+      if (p.workspaceId !== this.options.sceneRef.workspaceId || p.sceneId !== this.options.sceneRef.sceneId || p.principalId !== this.options.principalId || typeof p.documentId !== 'string' || typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence) || !['view', 'edit'].includes(String(p.access))) throw new Error('Room scope mismatch');
       const scope = { ...this.options.sceneRef, principalId: this.options.principalId, documentId: p.documentId };
       if (this.scope && scopeKey(this.scope) !== scopeKey(scope)) { this.fail(new Error('Document generation changed. Export retained work before continuing.')); this.socket?.close(); return; }
       this.scope = scope; this.admitted = true; this.synced = false; this.chunks = undefined; this.access = String(p.access);
-      this.set({ connectionId: typeof p.connectionId === 'string' ? p.connectionId : undefined, canEdit: false, status: p.access === 'edit' ? 'connecting' : 'readonly' }); return;
+      this.set({ connectionId: typeof p.connectionId === 'string' ? p.connectionId : undefined, canEdit: false, sequence: p.sequence, status: p.access === 'edit' ? 'connecting' : 'readonly' }); return;
     }
     if (control.type === 'sync_chunk') {
       if (!this.scope || p.documentId !== this.scope.documentId) throw new Error('Snapshot generation mismatch');
@@ -137,10 +139,21 @@ export class CollabTransport {
       if (group.chunks.length === group.count) {
         const size = group.chunks.reduce((sum, chunk) => sum + chunk.length, 0); if (size !== group.total) throw new Error('Snapshot length mismatch');
         const bytes = new Uint8Array(size); let offset = 0; for (const chunk of group.chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-        this.options.adapter.applyRemote(bytes);
-        for (const update of this.incoming) this.options.adapter.applyRemote(update); this.incoming = []; this.incomingBytes = 0;
-        const pending = await this.options.store.pending(this.scope); if (!this.current(generation)) return;
+        this.options.adapter.applyRemote(bytes);const incoming=this.incoming;
+        for (const update of incoming) this.options.adapter.applyRemote(update); this.incoming = []; this.incomingBytes = 0;
+        this.authoritative?.doc.destroy();this.authoritative=new ExcalidrawAdapter();this.authoritative.applyRemote(bytes);for(const update of incoming)this.authoritative.applyRemote(update);
+        this.observed=this.options.adapter.content();
+        await this.whenDurable();if(!this.current(generation))return;
+        let pending = await this.options.store.pending(this.scope); if (!this.current(generation)) return;
         for (const row of pending) Y.applyUpdate(this.options.adapter.doc, new Uint8Array(row.update), REPLAY_ORIGIN);
+        const safe=pending.filter(row=>!row.sent&&row.intent),unsafe=pending.filter(row=>row.sent||!row.intent);
+        if(safe.length){
+          const rebaseBase=this.authoritative.content(),causal:Uint8Array[]=[];for(const row of safe){const update=this.authoritative.reapplyIntent(row.intent!.base,row.intent!.desired);causal.push(update);this.options.adapter.applyRemote(update);}
+          const replacement={scope:this.scope,requestId:crypto.randomUUID(),update:Y.mergeUpdates(causal),created:safe[0].created,intent:{base:rebaseBase,desired:this.authoritative.content()}};
+          if(!await this.options.store.replaceUnsent(this.scope,safe,replacement))throw new Error('Pending edits changed during causal replay; reconnect required');
+          pending=await this.options.store.pending(this.scope);const expected=new Set([...unsafe.map(row=>row.requestId),replacement.requestId]);if(pending.length!==expected.size||pending.some(row=>!expected.has(row.requestId)))throw new Error('Pending edits changed during causal replay; reconnect required');
+        }
+        if(unsafe.length)throw new Error('Ambiguous or legacy pending edits require recovery before reconnect');
         this.synced = true; this.attempts = 0; this.chunks = undefined;
         await this.cache(); if (!this.current(generation)) return;
         this.set({ status: this.access === 'edit' ? pending.length ? 'pending' : 'synced' : 'readonly', canEdit: this.access === 'edit', pending: pending.length, recovery: pending.length > 0, error: undefined });
@@ -150,34 +163,45 @@ export class CollabTransport {
     }
     if (control.type === 'ack') {
       if (!this.scope || !this.synced || p.requestId !== control.requestId || !this.sent.has(control.requestId) || typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence)) return;
-      await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer);
+      const acknowledged=(await this.options.store.pending(this.scope)).find(row=>row.requestId===control.requestId);if(acknowledged)this.authoritative?.applyRemote(new Uint8Array(acknowledged.update));
+      await this.options.store.ackPending(this.scope, control.requestId); this.sent.delete(control.requestId); clearTimeout(this.ackTimer); this.noteCommittedSequence(p.sequence);
       await this.updatePending(); this.scheduleFlush(); return;
     }
     const ephemeral = this.ephemeralRequests.delete(control.requestId);
     if (control.type === 'error') {
       if (await this.legacy(String(p.code))) return;
-      if (['FORBIDDEN', 'UNAUTHENTICATED'].includes(String(p.code))) { this.options.onAccessLost?.(); this.access = 'view'; this.synced = false; this.set({ status: 'revoked', canEdit: false, recovery: true, error: 'Access ended. Export pending work for recovery.' }); }
+      if (this.options.authType==='presentation_auth'&&!this.admitted) { this.controls.forEach(listener=>listener(control));this.options.onAccessLost?.();this.access='view';this.synced=false;this.set({status:'revoked',canEdit:false,recovery:false,error:String(p.message??p.code)});this.socket?.close(); }
+      else if (['FORBIDDEN', 'UNAUTHENTICATED'].includes(String(p.code))) { this.options.onAccessLost?.(); this.access = 'view'; this.synced = false; this.set({ status: 'revoked', canEdit: false, recovery: true, error: 'Access ended. Export pending work for recovery.' }); }
       else if (ephemeral || /^(VOICE_|INVALID_FOLLOW$|INVALID_PRESENCE$|PRESENCE_RATE_LIMITED$)/.test(String(p.code))) { this.controls.forEach(listener => listener(control)); }
       else if (p.retryable === true || p.code === 'RATE_LIMITED') { this.synced = false; this.set({ status: 'offline', error: String(p.code) }); this.socket?.close(); }
       else { this.fail(new Error(String(p.code))); }
       return;
     }
+    if (control.type === 'committed') {
+      if (typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence)) throw new Error('Invalid committed sequence');
+      this.noteCommittedSequence(p.sequence); this.controls.forEach(listener => listener(control)); return;
+    }
     if (control.type === 'resync_required') { this.access = 'view'; this.synced = false; this.set({ canEdit: false, connectionId: undefined, status: 'connecting' }); return; }
+    if (control.type === 'feature_changed') { control.payload = parseFeatureChanged(p); this.controls.forEach(listener => listener(control)); return; }
+    if (control.type === 'presentation_admitted') { const admitted=parsePresentationAdmitted(p);this.options.onPresentationAdmitted?.(admitted);control.payload=admitted;this.controls.forEach(listener=>listener(control));return; }
     this.controls.forEach(listener => listener(control));
   }
   private localUpdate = (update: Uint8Array, origin: unknown) => {
+    const desired=this.options.adapter.content(),base=this.observed??desired;this.observed=desired;
     if (origin === REMOTE_ORIGIN || origin === REPLAY_ORIGIN || this.stopped) return;
     const scope = this.scope;
     if (!scope || !this.state.canEdit) { this.fail(new Error('Edit without current admission')); return; }
     const id = crypto.randomUUID(), snapshot = Y.encodeStateAsUpdate(this.options.adapter.doc); this.set({ status: this.synced ? 'pending' : 'offline', recovery: true });
     this.durable = this.durable.then(async () => {
-      await this.options.store.enqueuePending(scope, id, update, snapshot); if (snapshot.length > MAX_HISTORY_BYTES) throw new Error('SNAPSHOT_HISTORY_LIMIT: export recovery'); await this.updatePending(); this.scheduleFlush();
+      const intent=this.authoritative?{base,desired}:undefined;
+      await this.options.store.enqueuePending(scope, id, update, snapshot,intent); if (snapshot.length > MAX_HISTORY_BYTES) throw new Error('SNAPSHOT_HISTORY_LIMIT: export recovery'); await this.updatePending(); this.scheduleFlush();
     }).catch(error => { this.durableError = error; this.fail(error); });
   };
   private async cache() { if (this.scope) { const bytes = Y.encodeStateAsUpdate(this.options.adapter.doc); if (bytes.length > MAX_HISTORY_BYTES) throw new Error('SNAPSHOT_HISTORY_LIMIT: export recovery'); await this.options.store.saveSnapshot(this.scope, bytes); } }
   private async updatePending() { if (!this.scope) return; const count = (await this.options.store.pending(this.scope)).length; this.set({ pending: count, recovery: count > 0, ...(this.synced && this.access === 'edit' ? { status: count ? 'pending' : 'synced' } : {}) }); }
   private scheduleFlush() { if (this.flushTimer) return; this.flushTimer = setTimeout(() => { this.flushTimer = undefined; void this.flush().catch(error => this.fail(error)); }, SEND_INTERVAL_MS); }
   async whenDurable() { await this.durable; if (this.durableError) throw this.durableError; }
+  noteCommittedSequence(sequence: string) { if (!/^\d+$/.test(sequence)) throw new Error('Invalid committed sequence'); if (this.state.sequence !== undefined && BigInt(sequence) <= BigInt(this.state.sequence)) return; this.set({ sequence }); }
   async flush() {
     const generation = this.generation;
     if (this.stopped) return;
@@ -210,12 +234,13 @@ export class CollabTransport {
     if(delay>0)this.awarenessTimer=setTimeout(send,delay);else send();
   }
   sendControl(type: string, payload: Record<string, unknown>): string | undefined {
-    if (!this.synced || this.socket?.readyState !== 1) return;
+    if ((!this.synced && type !== 'presentation_leave') || this.socket?.readyState !== 1) return;
     const now = Date.now(); for (const [id, time] of this.ephemeralRequests) if (now - time > 30000) this.ephemeralRequests.delete(id);
     while (this.ephemeralRequests.size >= 256) this.ephemeralRequests.delete(this.ephemeralRequests.keys().next().value!);
     const requestId = crypto.randomUUID(); this.ephemeralRequests.set(requestId, now);
     this.socket.send(JSON.stringify({ type, requestId, payload })); return requestId;
   }
+  abortPresentationStart = () => { if (!this.stopped) this.socket?.close(); };
   retry = () => { if (!this.stopped) { this.socket?.close(); void this.connect(); } };
   async exportRecovery() {
     await this.durable;
@@ -230,5 +255,5 @@ export class CollabTransport {
       blobs: await Promise.all((await this.options.store.blobs(scope)).map(async ({ blob, ...metadata }) => ({ ...metadata, size: blob.size, blobBase64: await encodeRecoveryBlob(blob) }))),
     }))) };
   }
-  stop() { window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online); this.stopped = true; this.generation++; this.flushing = undefined; this.synced = false; this.admitted = false; this.access = 'view'; this.set({ status: 'offline', canEdit: false }); this.options.adapter.doc.off('update', this.localUpdate); clearTimeout(this.retryTimer); clearTimeout(this.refreshTimer); clearTimeout(this.flushTimer); clearTimeout(this.ackTimer); this.socket?.close(); }
+  stop() { window.removeEventListener('offline', this.offline); window.removeEventListener('online', this.online); this.stopped = true; this.generation++; this.flushing = undefined; this.synced = false; this.admitted = false; this.access = 'view'; this.set({ status: 'offline', canEdit: false }); this.options.adapter.doc.off('update', this.localUpdate);this.authoritative?.doc.destroy();this.authoritative=undefined;this.observed=undefined; clearTimeout(this.retryTimer); clearTimeout(this.refreshTimer); clearTimeout(this.flushTimer); clearTimeout(this.ackTimer); this.socket?.close(); }
 }

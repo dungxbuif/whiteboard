@@ -56,6 +56,15 @@ func TestAuthorityBoundGrant(t *testing.T) {
 		t.Fatalf("unbound grant: %+v", c)
 	}
 }
+func TestVersionCreateAuthorityBoundGrant(t *testing.T) {
+	p, m := mutationFixture()
+	m.Action, m.ExpectedSequence = domain.ActionVersionCreate, "42"
+	s, _ := NewCapabilityService(capabilityAccess{decision: domain.AccessDecision{Access: domain.AccessEdit, ACLVersion: 7}}, nil, nil, []byte(strings.Repeat("g", 32)))
+	g, err := s.AuthorizeCommand(context.Background(), p, m)
+	if err != nil || g.Token == "" {
+		t.Fatalf("version grant=%q err=%v", g.Token, err)
+	}
+}
 func TestAuthorityExpiredViewerUnknownDenied(t *testing.T) {
 	for _, kind := range []string{"expired", "viewer", "agent", "missing-expiry", "bad-hash"} {
 		t.Run(kind, func(t *testing.T) {

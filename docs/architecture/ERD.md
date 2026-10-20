@@ -25,6 +25,15 @@ shared_fields: [status, trace]
 | scenes | Scene content and metadata | Workspace | UUID key, nullable unique public_id; workspace_id/id unique pair. |
 | scene_member_overrides | Per-scene content role | Owner management | scene_id/user_id primary key; editor/viewer only. |
 | acl_audit_events | Durable permission metadata | Access authority | Sequence, workspace, optional scene/actor/subject, event type and ACL version; no raw credentials. |
+| comment_threads | Scene-scoped anchored discussion | Comment service | Composite workspace/scene/id key, creator principal snapshot, optional element ID plus fallback x/y, open/resolved revision. |
+| comments | Durable plain-text message or redaction marker | Comment service | Composite tenant/thread/message key, author principal snapshot, body, revision and edit/delete timestamps. |
+| comment_subscriptions | Authenticated user's thread subscription | Comment service | Composite thread/user key; guests never receive private subscriptions. |
+| user_notifications | Authorized member inbox item | Notification worker/API | Unique user/event delivery, scene/thread deep-link identity and per-user read receipt. |
+| scene_versions | Immutable product checkpoint plus mutable label/pin metadata | Node writer / Go reader | Exact document UUID/source sequence, canonical JSON bytes, SHA-256, creator, kind and request binding; 25 MiB maximum. |
+| version_assets | Asset retention pins for a version | Node writer | Composite version/scene/workspace and asset/scene/workspace foreign keys prevent cross-scene pins. |
+| presentation_links | Revocable hash-only presentation invite | Presentation service | Workspace/scene/session binding, positive revision, 24-hour expiry; active runtime participants remain ephemeral. |
+| collections | Workspace or creator-private scene-link container | Collection service | Composite workspace/id key, current creator membership, positive optimistic revision. |
+| collection_scenes | Stable ordered scene membership | Collection service | Composite collection and scene foreign keys include workspace; rows organize and never authorize scenes. |
 
 ## Relationships
 
@@ -34,6 +43,15 @@ shared_fields: [status, trace]
 | scene_member_overrides | scenes | Composite foreign key | workspace_id/scene_id enforces scene tenancy. |
 | scene_member_overrides | workspace_members | Composite foreign key | workspace_id/user_id requires current membership. |
 | acl_audit_events | workspaces | Many-to-one | Cascades on physical workspace removal. |
+| comment_threads | scenes | Composite many-to-one | `(workspace_id,scene_id)` prevents cross-tenant anchors. |
+| comments | comment_threads | Composite many-to-one | `(workspace_id,scene_id,thread_id)` prevents foreign-thread writes. |
+| user_notifications | users, workspace_events, scenes, comment_threads | Tenant-scoped many-to-one | Composite workspace/scene/thread references prevent a notification from linking to a foreign discussion. |
+| comment_subscriptions | comment_threads, users | Composite many-to-one | Thread scope and real user identity are both enforced by foreign keys. |
+| scene_versions | scenes | Composite many-to-one | `(workspace_id,scene_id)` fixes each checkpoint to one tenant scene. |
+| version_assets | scene_versions, scene_assets | Composite many-to-one | Both references carry workspace and scene, so a version cannot pin a foreign asset. |
+| presentation_links | scenes, users | Composite scene and creator references | Invite revocation cannot alter workspace membership or ordinary public links. |
+| collections | workspaces, workspace_members | Composite creator reference | Creator must be a current workspace member; membership removal cascades that creator's private and workspace collections. |
+| collection_scenes | collections, scenes | Composite many-to-one | Both references carry workspace ID, preventing a collection from containing a foreign-workspace scene. |
 
 ## Constraints
 
@@ -82,7 +100,32 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000011 / `workspace_invitations` | Seven-day email-bound single-use invitation metadata/hash, consumption and revocation timestamps |
 | 000012 / `scene_assets` | Scene-scoped immutable file identity and user/guest uploader metadata; transient signed capabilities are not stored as authority |
 | 000013 / `agent_operation_audit` | Go-authoritative operation outcome, key/principal/scope/correlation, latency and failure class; no raw token or scene contents |
+| 000017 / `comment_threads`, `comments`, `comment_subscriptions` | Scene-scoped anchored discussions, revisioned plain-text/redaction messages and authenticated-user subscriptions; feature receipts and workspace events remain the transaction/idempotency layers |
+| 000018 / `scene_versions`, `version_assets` | Immutable canonical checkpoints, exact writer sequence/document ID, request retry binding and same-transaction asset pins; label/pin use a separate metadata revision |
+| 000019 / `user_notifications` | In-app comment notifications unique by user/event, idempotent read requests and event-triggered `notification.deliver` jobs |
+| 000020 / `presentation_links` | Hash-only 24-hour presentation invites scoped to one workspace/scene/session; participants and host state are not persisted |
+| 000022 / `collections`, `collection_scenes`, receipt operation discriminator | Workspace/private containers and stable scene order; composite workspace references enforce tenant identity, collection deletion cascades membership only, case-folded indexes enforce the visibility scope's name uniqueness, and `feature_mutation_receipts.collection_operation` prevents cross-operation replay |
+| 000026 / `workspace_retention_policies`, `retention_previews` | Revisioned proposed/active policy plus hash-bound dry-run counts and earliest activation |
+| 000026 / `retention_holds`, `retention_mutation_receipts`, `retention_purge_audit` | Workspace-scoped deletion vetoes, principal/action/body-bound retries, and content-free purge evidence |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 
 Presence, cursor, viewport/follow and voice signaling remain ephemeral. Agent operation audit and durable scene mutation audit have different provenance and purposes. Public short IDs remain aliases; UUIDs are canonical keys and foreign-key targets. All API sequences are decimal strings to avoid JavaScript number precision loss.
+
+## I2 identity assurance schema
+
+| Migration / table | Durable contract |
+| --- | --- |
+| 000025 / `workspace_sso_connections` | One encrypted OIDC configuration per workspace, optional/enforced mode, explicit public-link decision and optimistic revision. |
+| 000025 / `sso_flow_transactions`, `sso_exchange_codes` | Hash-only, browser-bound, one-time authorization and login exchanges; link transactions bind authenticated user, source login session and request ID. |
+| 000025 / `sso_external_identities` | Globally unique exact issuer/subject identity linked explicitly to one user and connection. |
+| 000025 / `enterprise_login_sessions` | Revocable password, workspace-bound OIDC or workspace-bound 15-minute operator-recovery assurance session; legacy refresh-token `auth_sessions` remains unchanged. |
+| 000025 / `workspace_break_glass`, `workspace_break_glass_audit` | Hash-only owner recovery credential and append-only lifecycle/use audit. |
+| 000025 / `sso_mutation_receipts` | Exact principal/action/body retry binding with byte-preserved response. |
+
+Retention foreign keys cascade policy/preview/hold/receipt/audit metadata only
+when the workspace itself is deleted. Item, class-wide, and scene holds are
+checked under the same workspace/policy lock as the feature flag and purge.
+Version reference rows are removed before eligible automatic or explicitly
+age-limited manual version metadata; pinned versions remain protected. Object
+deletion remains R2 and therefore cannot be caused by R1 alone.

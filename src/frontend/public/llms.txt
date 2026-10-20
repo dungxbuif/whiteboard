@@ -7,8 +7,18 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Dashboard](docs/dashboard.md): workspace navigation, original dashboard theme, scene import limits and behavior.
 
 - [Browser collaboration](docs/browser-collaboration.md): locally verified release-candidate admission, offline recovery, scoped queues, images and local undo.
+- [Screen sharing](docs/live-media.md): admitted video-only screen media, union capacity, signaling and cleanup contract.
+- [Live presentations](docs/live-presentation.md): waiting-room isolation, existing-socket controls, revision rules, audience reactions and viewport lock.
 - [Workspace invitations](docs/collaboration.md): locally verified release-candidate invitation API, roles, registration, credential-attempt 429/Retry-After handling and replacement-scene recovery limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
+- [Version history](docs/version-history.md): immutable checkpoint API, authorization, retry semantics and limits.
+- [Comments and notifications](docs/comments-and-notifications.md): anchored threads, guest policy, moderation, pagination, inbox routes and current-authority rules.
+- [Activity](docs/activity.md): authorized workspace/scene event pages, opaque cursors, retained boundary and privacy rules.
+- [Collections](docs/collections.md): workspace/private scene-link containers, canonical routes, revisioned mutations and access invariants.
+- [Libraries](docs/libraries.md): native v2 workspace library limits, immutable revisions, safe insertion, export endpoints and authorization invariants.
+- [Workspace OIDC SSO](docs/workspace-sso.md): issuer/subject identity, authenticated linking, session assurance, enforcement and recovery constraints.
+- [Retention](docs/retention.md): owner preview, seven-day scheduling, holds, metadata limits and protected collaboration history.
+- [SCIM provisioning](docs/workspace-scim.md): workspace-scoped SCIM 2.0 discovery, user/group lifecycle, one-time token rotation, provenance and owner protection.
 
 - [Scene assets](docs/scene-assets.md): locally verified release-candidate scoped upload/view, size/MIME limits, expiry and required headers.
 

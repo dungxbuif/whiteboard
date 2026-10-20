@@ -22,3 +22,15 @@ Human docs: docs/user/dashboard.md. Publish equivalent plain Markdown under fron
 - No new API endpoint, schema, server authorization or deployment config is introduced by C1.
 - Browser tests use API fixtures and are UI proofs; real-stack permissions/persistence remain E1's integration gate.
 - macOS Chromium visual baselines are checked in. A Linux visual baseline must be rendered and inspected in E1 before enabling visual checks on Linux CI.
+
+## L1 collections extension
+
+The collections section uses the same sidebar typography, spacing, focus ring,
+Radix dialog surfaces, mobile drawer and original dashboard colors. It remains a
+peer of the folder tree because collection membership never changes a scene's
+folder. Collection detail is a reloadable dashboard route at
+`/w/{workspace}/collections/{id}`; scene links open the existing native canvas
+route. Owner/editor controls include create, rename/visibility, add, remove,
+stable reorder and delete. Viewer rendering omits mutation controls. The
+frontend reloads the server revision after a conflict and never infers access
+from collection membership.

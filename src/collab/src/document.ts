@@ -92,9 +92,13 @@ export function materializeScene(doc:Y.Doc):SceneContent {
   const presentationOrder=orderedIDs(doc.getArray('presentationOrder'),new Set(plainElements.keys()));
   return validateSceneContent({elements:[...order,...omitted].map(id=>plainElements.get(id)),appState:plainMap(doc.getMap('appState')),files,...(presentationOrder.length?{presentationOrder}:{})});
 }
-export async function validateCandidate(current:Y.Doc,update:Uint8Array):Promise<ValidatedUpdate> {
-  if(!(update instanceof Uint8Array)||update.byteLength>MAX_FRAME_BYTES)throw new Error('Update byte limit exceeded');
+async function validateCandidateLimit(current:Y.Doc,update:Uint8Array,maxUpdateBytes:number):Promise<ValidatedUpdate> {
+  if(!(update instanceof Uint8Array)||update.byteLength>maxUpdateBytes)throw new Error('Update byte limit exceeded');
   const snapshot=Y.encodeStateAsUpdate(current);
   if(snapshot.byteLength>MAX_SNAPSHOT_BYTES)throw new SnapshotHistoryLimitError();
   return runValidationJob({snapshot,update:update.slice()});
 }
+export const validateCandidate=(current:Y.Doc,update:Uint8Array)=>validateCandidateLimit(current,update,MAX_FRAME_BYTES);
+// Restore is an authenticated internal writer mutation. Its canonical content is
+// capped at 25 MiB, but its Yjs delta can legitimately exceed a socket frame.
+export const validateRestoreCandidate=(current:Y.Doc,update:Uint8Array)=>validateCandidateLimit(current,update,MAX_SNAPSHOT_BYTES);

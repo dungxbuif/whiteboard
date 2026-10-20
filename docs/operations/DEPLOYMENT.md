@@ -7,6 +7,10 @@ matrix is on the release checklist. For promoted scenes, use the
 [replacement-scene recovery runbook](collaboration-recovery.md); image-only
 rollback is not valid.
 
+Enterprise metadata jobs use the separately health-checked backend-image worker
+described in [enterprise-jobs.md](enterprise-jobs.md). Deploy it with feature
+flags disabled until each owning feature package has passed its release gate.
+
 ## Deployment Target
 
 The release bundle targets one Linux host or VM running Docker Compose. The
@@ -21,6 +25,9 @@ stack must not start another TURN listener.
 Create an untracked `.env.prod` at the repository root from `src/.env.example`.
 Set production values for `DATABASE_URL`, `JWT_SECRET`, S3 credentials,
 `FRONTEND_URL`, `TURN_URL`, `TURN_AUTH_SECRET`, and `TURN_REALM`. Configure
+one stable `DOMAIN_RECEIPT_KEY` on every backend replica so exact retries can
+decrypt prior workspace-domain responses; when omitted, the backend derives
+this key from `JWT_SECRET`, so JWT rotation also invalidates those receipts. Configure
 `AI_API_KEY` only when enabling the optional AI provider workflow. Also
 configure distinct values of at least 32 bytes for
 `COLLAB_JWT_SECRET`, `AUTHORITY_SERVICE_SECRET`, `MUTATION_GRANT_SECRET` and

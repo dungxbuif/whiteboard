@@ -43,6 +43,52 @@ from the remaining operational canaries.
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
 | `GET /api/v1/realtime/config` | HTTP | Scoped scene session or room token | active | Rechecks current scene access and returns external TURN URL(s) plus short-lived credentials; a login JWT alone is denied. |
 | `/collab/` | Custom WebSocket | Room token in first `auth` control | active | One admitted socket carries durable Yjs updates, roster, cursor/selection, follow viewport and WebRTC signaling. Credentials never appear in the URL. `/socket.io/` is retired. |
+| `GET /api/v1/scim/v2/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas` | SCIM 2.0 | Dedicated `Bearer scim_…` token | active | Discovery endpoints for workspace provisioning. Tokens are workspace-scoped and never accepted as login JWTs. |
+| `GET, POST /api/v1/scim/v2/Users`, `PATCH, PUT, DELETE /api/v1/scim/v2/Users/{id}` | SCIM 2.0 | Dedicated SCIM token | active | Provision viewers/editors, preserve manual provenance, reject owner adoption, and serialize changes with workspace locks. |
+| `GET, POST /api/v1/scim/v2/Groups`, `PATCH, PUT, DELETE /api/v1/scim/v2/Groups/{id}` | SCIM 2.0 | Dedicated SCIM token | active | Group membership materializes managed membership sources; owner rows are protected. |
+| `GET, POST /api/v1/workspaces/{id}/scim/token`, `DELETE .../scim/token` | HTTP | JWT + workspace owner | active | Rotate/revoke a token; the raw token is returned once. |
+| `GET /api/v1/workspaces/{id}/libraries`, `POST .../libraries/import`, `PUT .../libraries/{libraryId}` | HTTP | JWT + workspace edit/manage | active | Import and publish immutable native `.excalidrawlib` revisions with bounded payloads. |
+| `GET .../libraries/{libraryId}/revisions/{revision}/export`, `POST /api/v1/workspaces/{id}/scenes/{sceneId}/library-insertions` | HTTP | JWT + workspace/scene access | active | Export a revision or insert it into an authorized scene with sequence/idempotency checks. |
+
+## Collection contract
+
+Collections organize links to scenes a caller can already access. They never
+grant scene access and deleting a collection never deletes or moves a scene.
+Every request uses a login JWT and resolves the workspace path segment as a UUID
+or public alias. Mutations require current workspace edit access and a UUID
+`requestId`; updates also require the current decimal-string
+`expectedRevision`.
+
+| Method and path | Request / query | Success |
+| --- | --- | --- |
+| `GET /api/v1/workspaces/{workspace}/collections` | `cursor=<collection UUID>&limit=1..50` | `200 {items,nextCursor?}` after private-container and current scene-access filtering |
+| `POST /api/v1/workspaces/{workspace}/collections` | `{requestId,name,visibility:"workspace"|"private"}` | `201 Collection` |
+| `GET /api/v1/workspaces/{workspace}/collections/{id}` | — | `200 Collection` with currently accessible ordered scenes plus `mine` and `canSetPrivate` capabilities |
+| `PATCH /api/v1/workspaces/{workspace}/collections/{id}` | `{requestId,expectedRevision,name,visibility}` | `200 Collection` |
+| `DELETE /api/v1/workspaces/{workspace}/collections/{id}` | `{requestId,expectedRevision}` | `204`; membership rows only |
+| `POST /api/v1/workspaces/{workspace}/collections/{id}/scenes` | `{requestId,expectedRevision,sceneId}` | `200 Collection` |
+| `DELETE /api/v1/workspaces/{workspace}/collections/{id}/scenes/{sceneId}` | `{requestId,expectedRevision}` | `200 Collection`; current scene access is checked before membership |
+| `PUT /api/v1/workspaces/{workspace}/collections/{id}/order` | `{requestId,expectedRevision,sceneIds:[...]}` | `200 Collection`; input is the exact currently accessible subset and stale hidden rows are pruned atomically |
+| `/w/{workspace}/collections/{id}` | Browser route | Reloadable collection view; scene links remain canonical scene routes |
+
+Private collections are readable and mutable only by their creator. A workspace
+owner may audit-delete an inaccessible private container by ID and revision,
+without receiving its name or scene contents. A stale revision returns
+`409 REVISION_CONFLICT`; changed reuse of a request ID returns
+`409 REQUEST_ID_REUSED`; disabled policy returns `403 FEATURE_DISABLED`.
+Only `canSetPrivate:true` callers may convert a workspace collection to private;
+the response does not expose the creator's user ID. Invalid limits, including
+non-decimal values, return `400 INVALID_INPUT`. Workspace names are unique
+case-insensitively within the workspace; private names are unique
+case-insensitively per creator and workspace. Name collisions return
+`409 COLLECTION_NAME_CONFLICT`.
+
+An exact mutation retry is bound to its operation as well as its principal and
+payload. The service reauthorizes the workspace, collection visibility, and any
+referenced scene while holding the workspace lock before returning a receipt;
+it rebuilds collection bodies from current ACL-filtered data. A transport retry
+must reuse its request ID until an HTTP response is received or the caller
+explicitly cancels the attempt.
 
 ## Errors
 
@@ -133,8 +179,8 @@ Owners manage independent links for an active scene with login JWT and X-Workspa
 
 | Method and path | Request | Success |
 | --- | --- | --- |
-| GET `/api/v1/scenes/{id}/share-links` | none | 200 array `{id,access,active,expiresAt}` |
-| POST `/api/v1/scenes/{id}/share-links` | `{access:"view"\|"edit",password?,expiresAt?}` | 201 `{id,access,active,expiresAt,token}`; token returned once |
+| GET `/api/v1/scenes/{id}/share-links` | none | 200 array `{id,access,allowComments,active,expiresAt}` |
+| POST `/api/v1/scenes/{id}/share-links` | `{access:"view"\|"edit",allowComments,password?,expiresAt?}` | 201 `{id,access,allowComments,active,expiresAt,token}`; token returned once |
 | DELETE `/api/v1/scenes/{id}/share-links/{linkId}` | none | 204; independent/idempotent revoke |
 | POST `/api/v1/public/scene-session` | `{token,password?,displayName?}` | 200 SceneSession below |
 | POST `/api/v1/scenes/{id}/room-token` | no body; bearer login JWT or scene-session | 200 `{token,expiresAt,sceneSession?}` |
@@ -149,6 +195,54 @@ Each refresh checks current scene/workspace status, membership or link access/ex
 Errors use `{code,message,requestId}`: 400 INVALID_INPUT, 401 SHARE_PASSWORD_REQUIRED or UNAUTHENTICATED, 403 FORBIDDEN, 404 NOT_FOUND (including revoked/expired links), 413 BODY_TOO_LARGE, 503 AUTHORITY_UNAVAILABLE. Sharing bodies are limited to 4 KiB with unknown-field/trailing-JSON rejection. Credential responses disable caching. The legacy GET path ignores password queries; middleware strips its query and redacts RequestURI before logging.
 
 Migration 000008 preserves active/inactive legacy view links and bcrypt hashes. Legacy PUT share updates synchronize only their mapped link; new links store SHA-256 digests only. Down migration refuses multiple links and any new/edit/expiring grant that the legacy table cannot represent. See [public-link authority and migration](public-links.md) and [deployment](../operations/DEPLOYMENT.md). Browser controls and live collab-runtime behavior remain C2/B integration; no v2 deployment is claimed.
+
+## Enterprise C1 comment contract
+
+Comment metadata is served by the Go API and is never stored in Yjs scene
+content. Login callers provide `X-Workspace-ID`; public callers provide the
+existing scene-session bearer. Both forms resolve the URL scene inside the
+credential scope and recheck current feature/access authority for every read
+and mutation.
+
+| Method and path | Request / query | Success |
+| --- | --- | --- |
+| GET `/api/v1/scenes/{id}/comments` | `cursor=<thread UUID>&limit=1..50` (default 50) | 200 `{items,nextCursor}` |
+| POST `/api/v1/scenes/{id}/comments` | `{requestId,anchor:{elementId?,x,y},body}` | 201 thread |
+| GET `/api/v1/scenes/{id}/comments/{threadId}` | `messageCursor=<message UUID>&messageLimit=1..50` (default 50) | 200 thread with at most 50 messages and optional `nextMessageCursor` |
+| POST `/api/v1/scenes/{id}/comments/{threadId}/replies` | `{requestId,body}` | 201 message |
+| PATCH `/api/v1/scenes/{id}/comments/{threadId}/messages/{messageId}` | `{requestId,expectedRevision,body}` | 200 message |
+| DELETE `/api/v1/scenes/{id}/comments/{threadId}/messages/{messageId}` | strict JSON `{requestId,expectedRevision}` | 204 |
+| PATCH `/api/v1/scenes/{id}/comments/{threadId}` | `{requestId,expectedRevision,resolved?,subscribed?}` | 200 thread |
+
+Bodies are plain UTF-8 text containing 1–4,000 Unicode code points and are
+rendered as text by clients. Revisions are positive canonical decimal strings.
+Request IDs are UUIDs bound to principal, workspace, scene, action and exact
+payload; an exact retry returns the stored result while changed reuse returns
+`409 REQUEST_ID_REUSED`. Stale revisions return `409 REVISION_CONFLICT`.
+Foreign thread/message IDs return 404 without revealing another tenant or
+scene. Responses expose safe author display names and `mine`, never accept an
+author/display name in mutation bodies, and never expose stored principal IDs.
+Message pages use stable `(created_at,id)` order. Pass `nextMessageCursor` as
+the next request's `messageCursor` until it is omitted; cursors are bound to
+the requested workspace, scene and thread, so a cursor copied from another
+thread returns the same 404 as an inaccessible resource.
+
+Authors may edit or redact their own messages. Workspace owners may redact any
+message; authenticated owners/editors may resolve or reopen threads. Redaction
+keeps the message and revision with an empty body plus `deletedAt`. Authenticated
+authors are subscribed on creation/reply; guests have no workspace inbox.
+
+Authenticated members use `GET /api/v1/notifications?cursor=<notification
+UUID>&limit=1..50` and `POST /api/v1/notifications/{id}/read` with strict JSON
+`{requestId}`. Pages contain actionable
+`/w/{workspace}/scenes/{scene}?thread={thread}` links. Delivery is unique per
+`(user,event)`, excludes the actor, and checks current scene/comment authority;
+list and mark-read repeat that check. Public scene-session principals cannot
+use the private inbox.
+Writes are capped at 30 committed mutations per principal and scene per minute.
+Mutation, subscription, idempotency receipt, cursor-only event/outbox row and
+comment data share the workspace-lock transaction. Events contain only IDs,
+revision, status and request ID, never the body.
 
 ## A4 mutation and scene assets (deployed; production storage canary passed)
 
@@ -214,13 +308,29 @@ not read newly created independent links and was replaced in runtime wiring.
 Existing legacy constructor compatibility remains for old tests/integrations.
 GET/query passwords remain unsupported.
 
-Share UI uses GET/POST `/scenes/:sceneId/share-links` and DELETE `/scenes/:sceneId/share-links/:linkId`. Tokens are consumed only from creation responses; lists contain metadata. Member/override/invitation actions use A2 routes. Scene override selectors apply explicit updates and do not claim to display current override metadata (no read endpoint exists).
+Share UI uses GET/POST `/scenes/:sceneId/share-links` and DELETE `/scenes/:sceneId/share-links/:linkId`. Owners can opt each link into comments independently of view/edit access; omitted `allowComments` defaults to false. Tokens are consumed only from creation responses; lists contain metadata including the stored comment policy. Member/override/invitation actions use A2 routes. Scene override selectors apply explicit updates and do not claim to display current override metadata (no read endpoint exists).
 
 `PublicSceneEditorProps` in frontend `components/public-view.tsx` exposes
 `{scene,session,onSessionChange,onAccessLost}`. It renders a guarded snapshot
 until authenticated room admission. Live edit, renewal, revocation, offline
 replay and real API+DB+WebSocket browser behavior now pass the 17/17 local
 real-stack suite. Public-origin VM100 proof remains the E3 release gate.
+
+## C3 member activity feed (implemented locally; release pending)
+
+Authenticated members use `GET /api/v1/workspaces/{workspace}/activity` or
+`GET /api/v1/scenes/{scene}/activity` with `X-Workspace-ID` for scene aliases.
+Both accept `cursor` and `limit` (1–50) and return
+`{items,nextCursor?,retainedSince?}`. `retainedSince` is omitted when the
+authorized scope contains no retained events. The cursor is opaque and binds the stable
+descending `(occurredAt,id)` boundary.
+
+Current membership, live-scene visibility, feature policy and owner-only event
+rules are applied before pagination. Nonowners never receive `security.*` or
+`acl.*` events. Actor names are server-resolved only after authorization; raw
+comment bodies, canvas content, credentials and source provenance are absent.
+Guests and agent keys cannot use these member routes. The existing MCP scene
+activity contract is unchanged.
 
 
 ## Durable agent operations and export (deployed; production write/export canary pending)
@@ -241,3 +351,122 @@ Go signs exact mutation bytes through A4, then invokes the private Node writer w
 MCP adds native diagram catalog/schema resources, `generate_diagram`, `patch_elements`, `delete_elements`, `get_scene_activity` and `export_scene` alongside discovery/create tools. Nineteen typed diagram presets and the restricted native Mermaid subset emit editable elements; unsupported syntax returns a typed alternative. See the [catalog](../user/diagram-catalog.md) and [complete tool guide](../user/agents.md) for schemas/examples.
 
 `POST /mcp/exports` supports the remote stdio export flow. `GET /mcp/artifacts/{id}` requires the same bearer principal and current independent export scope; the URL alone grants nothing. JSON/SVG/PNG artifacts have a captured decimal revision, five-minute expiry and bounded in-memory cache. Restart/expiry requires re-export. Both endpoints retain Origin checks and audit handling. Public scene/artifact links derive from explicit `WHITEBOARD_PUBLIC_URL`, never an internal API origin. See [renderer operations](../operations/mcp.md) for limits, fonts, process boundaries and release checks.
+
+## V2 immutable scene versions and durable restore (implemented and wired; release pending)
+
+Authenticated members use the Go API; public scene-session guests are denied
+history. Responses use decimal-string sequences and metadata revisions.
+
+| Method | Endpoint | Contract |
+| --- | --- | --- |
+| GET | `/api/v1/scenes/{id}/versions?cursor&limit` | `version:read`; newest first, limit 1–50, UUID cursor |
+| POST | `/api/v1/scenes/{id}/versions` | `version:create`; `{requestId,expectedSequence,label?,pinned}`; immutable summary or 409 stale sequence |
+| GET | `/api/v1/scenes/{id}/versions/{versionId}` | `version:read`; immutable canonical content and metadata |
+| PATCH | `/api/v1/scenes/{id}/versions/{versionId}` | `version:create`; `{requestId,expectedRevision,label?,pinned?}`; label/pin only |
+| GET | `/api/v1/scenes/{id}/versions/{versionId}/diff?againstSequence={sequence}` | `version:read`; stable element/app-state semantic diff at one exact sequence |
+| POST | `/api/v1/scenes/{id}/versions/{versionId}/restore` | `version:restore`; `{requestId,expectedSequence}`; receipt plus `preRestoreVersionId` |
+
+Go checks F1 policy and current scene authority, signs the canonical create
+payload, then calls private Node `POST /internal/scenes/{sceneId}/versions`.
+Node verifies the binding under the writer transaction and atomically stores
+the exact document ID, sequence, content/hash, same-scene asset pins, safe event
+and outbox row. Content is limited to 25 MiB. Identical retries return the
+original version; changed retries are rejected.
+
+Diff reads the bounded current Node projection and rejects a raced sequence.
+Restore uses private Node `POST /internal/scenes/{sceneId}/version-restore` with a
+signed hash over workspace, scene, target version, request and sequence. Under
+the writer transaction Node rechecks policy/edit authority, validates content and
+asset pins, stores one pinned pre-restore checkpoint, then commits one Yjs update,
+receipt, mutation audit and safe events. The document UUID and stable element maps
+remain unchanged; later elements become tombstones. A stale sequence writes
+nothing. Identical retry returns the original receipt/checkpoint.
+
+The owner-fenced checkpointer waits five dirty minutes and captures at most once
+per scene per minute. R1 owns the 100 automatic-version retention policy;
+manual versions are preserved until an owner configures a day limit, while
+pinned versions are always preserved. See [ADR 0014](../decisions/0014-version-writer-ownership.md),
+[human guide](../user/version-history.md), and [agent reference](../../src/frontend/public/docs/version-history.md).
+
+## I2 workspace OIDC SSO and session assurance (implemented locally; wiring pending)
+
+| Method | Endpoint | Contract |
+| --- | --- | --- |
+| POST | `/api/v1/sso/begin` | Strict `{connectionId,returnPath}`; creates a hashed, browser-bound 10-minute state/nonce/PKCE transaction and returns the provider authorization URL. |
+| GET | `/api/v1/sso/callback` | Consumes state and provider code; redirects with only a 60-second opaque exchange code and safe relative return path. |
+| POST | `/api/v1/sso/exchange` | Strict `{code}` plus HttpOnly browser binding; consumes once and returns the login result. |
+| POST | `/api/v1/sso/link/begin` | Authenticated strict `{connectionId,returnPath,requestId}`; binds the current user and retry ID before the verified callback. |
+| GET | `/api/v1/workspaces/{id}/sso` | Owner-only connection metadata; provider secret is never returned. |
+| PUT | `/api/v1/workspaces/{id}/sso` | Owner-only exact-retry configuration with revision, explicit public-link policy, recent reauth and tested recovery before enforcement. |
+
+OIDC identity is exact issuer plus subject. Verified email is bootstrap profile
+data only and never auto-links an existing user. Member authority uses JWT
+`sid`, `auth_method` and `auth_time`, then rechecks the current enterprise login
+session and workspace connection. Missing `sid` is accepted only where password
+access remains allowed. Room and mutation capabilities bind the source session
+so renewal cannot outlive revocation. Recovery tokens additionally bind
+`recovery_workspace_id`, expire after 15 minutes, and are accepted only for that
+workspace while SSO is enforced. Link callback and exchange recheck their source
+session and current connection under the workspace lock.
+
+## M3 live presentation control plane (implemented locally; release verification pending)
+
+Live presentation control traffic extends the single `/collab/` WebSocket.
+Pending browsers authenticate with `presentation_auth`; admission upgrades that
+same connection to a view-only audience grant before `ready` and scene sync.
+The runtime never sends scene, roster, media or asset data to a pending socket.
+
+`presentation_state` is the authoritative snapshot. Its integer `revision`
+serializes frame ID, spotlight, viewport lock, participant removal/admission and
+host transfer. Every durable host control carries the current revision as a
+decimal string. A transfer target is re-authorized as a connected signed-in
+editor immediately before the revision changes. Reactions are the only
+unrevisioned presentation control: their fixed allowlist, per-connection
+one-second limit and server-issued three-second expiry keep them ephemeral.
+Link creation and revocation resolve the current runtime host revision before
+the idempotent mutation and re-resolve the same host and revision immediately
+before persistence. Host transfer or any intervening presentation revision
+rejects the link mutation.
+
+Audience state always strips the host's pending queue. Host disconnect or
+current-authority loss ends the in-memory session; participant departure clears
+a matching spotlight. The browser follows native frame IDs and treats a deleted
+frame as an explicit missing target. View lock operates only on the camera and
+never changes F1 scene authority.
+
+Before the runtime sends a pending queue to its host, it freshly checks that
+host's scene access and `presentation:host` feature, then binds the send to the
+same attached host connection and exact session revision. Failure ends the
+session before any pending identity is disclosed. If host start has no
+authoritative state acknowledgement within ten seconds, the browser closes the
+initiating collaboration socket so server detach clears a possibly accepted
+session before retry.
+
+The public `/present/{token}` route performs HTTP join and then opens the normal
+collaboration transport with `presentation_auth`. Admission returns a private
+audience token only to that socket. Credential loss unmounts the canvas and
+requires a fresh waiting-room join. See the [user guide](../user/live-presentation.md)
+and [machine-readable protocol reference](../../src/frontend/public/docs/live-presentation.md).
+Clients apply presentation revisions monotonically and ignore late state for a
+terminal session. A rejected pending socket authentication transitions to an
+ended/error screen with an explicit fresh-rejoin action.
+
+## R1 workspace retention (implemented locally; wiring pending, production activation disabled)
+
+Owner-authenticated routes expose the current policy, a persisted dry-run
+preview, explicit schedule, and holds under
+`/api/v1/workspaces/{workspace}/retention`. Preview is non-destructive and binds
+the canonical proposed policy plus current policy revision. Schedule and hold
+requests require a UUID request ID; exact retries return the stored response,
+while a changed principal, action, or body returns `409 REQUEST_ID_REUSED`.
+
+Scheduled policies activate no sooner than seven days. The worker re-locks the
+workspace and re-reads the current revision, feature flag, and holds. It removes
+bounded activity/inbox metadata, unpinned automatic-version metadata beyond the
+limit, optionally expires old unpinned manual versions, and optionally redacts
+old comment bodies in place. A scene hold protects supported metadata for that
+scene. Activity deletion cannot cascade-delete a notification that remains
+inside its separate cutoff or under hold. It never targets pinned versions,
+scene content, collaboration updates, receipts, tombstones, or object storage.
+See the [operator runbook](../operations/enterprise-retention.md)
+and [machine-readable reference](../../src/frontend/public/docs/retention.md).

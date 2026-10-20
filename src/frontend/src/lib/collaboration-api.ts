@@ -3,7 +3,7 @@ import { publicApi } from '@/lib/public-api';
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer';
 export type Membership = { workspaceId: string; userId: string; role: WorkspaceRole };
 export type Invitation = { id: string; email: string; role: 'editor' | 'viewer'; expiresAt: string };
-export type ShareLink = { id: string; access: 'view' | 'edit'; active: boolean; expiresAt: string | null };
+export type ShareLink = { id: string; access: 'view' | 'edit'; allowComments: boolean; active: boolean; expiresAt: string | null };
 export type SceneSession = { token: string; expiresAt: string; workspaceId: string; sceneId: string; access: 'view' | 'edit'; principalId: string; displayName: string };
 export type PublicSessionInput = { token: string; password?: string; displayName?: string };
 export const workspacePath = (id: string) => `/workspaces/${encodeURIComponent(id)}`;

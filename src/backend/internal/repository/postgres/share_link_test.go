@@ -24,7 +24,7 @@ import (
 
 func publicLinkFixture(t *testing.T) (*ShareLinkRepository, *usecase.ShareLinkService, *usecase.RoomService, *usecase.AccessService, uuid.UUID, domain.SceneRef) {
 	t.Helper()
-	db := accessTestDB(t, 8)
+	db := accessTestDB(t, 14)
 	owner, _, w := accessFixture(t, db)
 	scene := uuid.New()
 	mustExec(t, db, "INSERT INTO scenes(id,workspace_id,title) VALUES (?,?,'Shared')", scene, w)
@@ -47,12 +47,15 @@ func TestRevokeActiveGrant(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	second, e := links.Create(ctx, owner, ref, domain.CreateShareLink{Access: "view"})
+	second, e := links.Create(ctx, owner, ref, domain.CreateShareLink{Access: "view", AllowComments: true})
 	if e != nil {
 		t.Fatal(e)
 	}
 	if first.Token == second.Token || first.ID == second.ID {
 		t.Fatal("links not independent")
+	}
+	if first.AllowComments || !second.AllowComments {
+		t.Fatalf("comment policy not persisted: first=%v second=%v", first.AllowComments, second.AllowComments)
 	}
 	list, e := links.List(ctx, owner, ref)
 	if e != nil || len(list) != 2 {
@@ -208,10 +211,13 @@ func TestPublicSessionHTTP(t *testing.T) {
 	base := "/api/v1/scenes/" + ref.SceneID.String()
 	request("POST", base+"/share-links", `{"access":"edit"}`, login(viewer), 403)
 	request("POST", base+"/share-links", `{"access":"owner"}`, login(owner), 400)
-	created := request("POST", base+"/share-links", `{"access":"edit"}`, login(owner), 201)
+	created := request("POST", base+"/share-links", `{"access":"edit","allowComments":true}`, login(owner), 201)
 	var link domain.CreatedShareLink
 	if e := json.Unmarshal(created.Body.Bytes(), &link); e != nil {
 		t.Fatal(e)
+	}
+	if !link.AllowComments {
+		t.Fatal("allowComments missing from create response")
 	}
 	request("POST", "/api/v1/public/scene-session", `{"token":"`+link.Token+`"}`, "", 400)
 	exchanged := request("POST", "/api/v1/public/scene-session", `{"token":"`+link.Token+`","displayName":"Guest"}`, "", 200)

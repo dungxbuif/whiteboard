@@ -1,10 +1,10 @@
 ---
 artifact_type: phase
 id: ENTERPRISE-PARITY
-status: draft
+status: in_progress
 owner: shared
 updated: 2026-10-20
-approval: pending_review
+approval: approved_2026-10-20
 ---
 
 # Enterprise parity programme
@@ -20,11 +20,14 @@ control header consuming viewport height.
 
 ## Current stage
 
-Planning only: the proposed detail design and 22 bounded execution tasks exist;
-no enterprise runtime code, migration, dependency or deployment has changed.
-Implementation requires review of the new contracts/defaults. All task
-checkboxes remain unchecked. The already approved v2 baseline is reused rather
-than relabeled as enterprise parity.
+The detail design and 22 bounded execution tasks were approved for implementation
+on 2026-10-20. Local implementation and guarded real-stack acceptance are now
+complete for the enterprise slices listed below: the aggregate browser gate is
+8/8, the backend/frontend/collaboration suites and production build pass, and
+canvas controls pass at desktop and mobile sizes. Production release is still
+pending the E2 VM100 rollout, real provider/object-storage UAT and two-network
+media evidence. The already approved v2 baseline is reused rather than relabeled
+as enterprise parity.
 
 ## Trace
 
@@ -52,15 +55,15 @@ when each reviewed boundary ships, avoiding invented accepted decisions.
 
 | Slice | Tasks | Dependency | Status |
 | --- | --- | --- | --- |
-| Full-viewport canvas controls | UI1–UI2 | Existing editor | draft |
-| Feature authority/events/jobs | F1–F3 | Existing ACL/audit | draft |
-| Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | draft |
-| Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | draft |
-| Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | draft |
-| Collections/native libraries | L1–L2 | F1–F3/UI1–UI2 | draft |
-| Domain/SSO/SCIM | I1–I3 | F1–F3 | draft |
-| Retention/referenced storage | R1–R2 | F1–F3/C/V/L models | draft |
-| Integrated acceptance/release | E1–E2 | Every implementation slice | draft |
+| Full-viewport canvas controls | UI1–UI2 | Existing editor | complete |
+| Feature authority/events/jobs | F1–F3 | Existing ACL/audit | complete |
+| Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | complete |
+| Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | complete locally; production media UAT pending |
+| Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | complete locally |
+| Collections/native libraries | L1–L2 | F1–F3/UI1–UI2 | complete locally |
+| Domain/SSO/SCIM | I1–I3 | F1–F3 | complete locally; real provider UAT pending |
+| Retention/referenced storage | R1–R2 | F1–F3/C/V/L models | complete locally; production backup/policy rollout pending |
+| Integrated acceptance/release | E1–E2 | Every implementation slice | E1 local 8/8; E2 pending VM100 rollout |
 
 UI can ship before feature schema work. Comments and media may run in parallel
 after prerequisites; router/App/protocol integration and migration allocation
@@ -86,12 +89,12 @@ deletion boundaries. No execution agent was started for the planning task.
 
 ## Review decisions
 
-The proposed defaults awaiting design review are comment access policy,
+The approved defaults are comment access policy,
 ten-connection media capacity/one publisher, editor restore rights, private
 collection visibility, OIDC-first SSO, SCIM membership provenance, and retention
-duration/grace. These are written choices with tests, not unnamed implementation
-decisions. The user's canvas-control placement and existing dashboard preference
-are direct constraints, not pending design choices.
+duration/grace. These are written choices with tests; changing one requires a
+recorded design ruling. The user's canvas-control placement and existing dashboard
+preference are direct constraints.
 
 ## Out of this planning goal
 

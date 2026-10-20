@@ -1,7 +1,8 @@
 import * as Y from 'yjs';
 import type { SceneContent } from '@collab/contracts';
 export type PendingScope = { principalId: string; workspaceId: string; sceneId: string; documentId: string };
-export type PendingUpdate = { scope: PendingScope; requestId: string; update: Uint8Array; created: number; sent?: boolean };
+export type PendingIntent = {base:SceneContent;desired:SceneContent};
+export type PendingUpdate = { scope: PendingScope; requestId: string; update: Uint8Array; created: number; sent?: boolean; intent?:PendingIntent };
 export type ImageDraft = { base: SceneContent; desired: SceneContent; revision?: number; pendingBaseline?: boolean };
 type DraftRecord = { scope: PendingScope; content?: SceneContent; imageDraft?: ImageDraft; revision?: number };
 export type PendingBlob = { scope: PendingScope; id: string; blob: Blob; mimeType: string; created: number; draft?: ImageDraft };
@@ -13,7 +14,7 @@ export class OfflineStore {
   constructor(private name = 'devtool-collab-v2') {}
   private open() {
     return this.database ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const opening = indexedDB.open(this.name, 2);
+      const opening = indexedDB.open(this.name, 3);
       opening.onupgradeneeded = () => { for (const name of ['pending', 'snapshots', 'blobs', 'drafts']) if (!opening.result.objectStoreNames.contains(name)) opening.result.createObjectStore(name); };
       opening.onsuccess = () => resolve(opening.result); opening.onerror = () => reject(opening.error);
     });
@@ -24,14 +25,22 @@ export class OfflineStore {
     try { const value = await work(tx.objectStore(Array.isArray(name) ? name[0] : name)); await done; return value; }
     catch (error) { try { tx.abort(); } catch { /* Transaction may already have failed. */ } await done.catch(() => undefined); throw error; }
   }
-  async enqueuePending(scope: PendingScope, requestId: string, update: Uint8Array, snapshot?: Uint8Array): Promise<void> {
+  async enqueuePending(scope: PendingScope, requestId: string, update: Uint8Array, snapshot?: Uint8Array, intent?:PendingIntent): Promise<void> {
     await this.transaction(snapshot ? ['pending', 'snapshots'] : 'pending', 'readwrite', async store => {
       const id = key(scope, requestId), old = await request(store.get(id)) as PendingUpdate | undefined;
       if (old && (old.update.length !== update.length || old.update.some((b, i) => b !== update[i]))) throw new Error('Request identity conflict');
       const rows = await request(store.getAll()) as PendingUpdate[];
       const created = Math.max(Date.now(), ...rows.filter(row => scopeKey(row.scope) === scopeKey(scope)).map(row => row.created + 1));
-      if (!old) await request(store.put({ scope, requestId, update: update.slice(), created, sent: false }, id));
+      if (!old) await request(store.put({ scope, requestId, update: update.slice(), created, sent: false, ...(intent?{intent:structuredClone(intent)}:{}) }, id));
       if (snapshot) await request(store.transaction.objectStore('snapshots').put({ scope, update: snapshot, updated: Date.now() }, scopeKey(scope)));
+    });
+  }
+  async replaceUnsent(scope:PendingScope,rows:PendingUpdate[],replacement:PendingUpdate):Promise<boolean>{
+    return this.transaction('pending','readwrite',async store=>{
+      const current=await request(store.getAll()) as PendingUpdate[],available=new Map(current.filter(row=>scopeKey(row.scope)===scopeKey(scope)).map(row=>[row.requestId,row]));
+      if(rows.some(row=>{const found=available.get(row.requestId);return !found||found.sent||found.created!==row.created;}))return false;
+      for(const row of rows)await request(store.delete(key(scope,row.requestId)));
+      await request(store.put({...replacement,update:replacement.update.slice(),sent:false},key(scope,replacement.requestId)));return true;
     });
   }
   async ackPending(scope: PendingScope, requestId: string): Promise<void> { await this.transaction('pending', 'readwrite', async store => { await request(store.delete(key(scope, requestId))); }); }

@@ -41,3 +41,45 @@ Pending IndexedDB updates are scoped by principal/workspace/scene/documentId. Re
 Candidate validation uses at most two reusable worker threads and 32 waiting jobs per runtime. Every job creates and destroys its own Y.Doc. The two-second deadline includes queue time; worker heap limits remain 256 MiB old generation, 16 MiB young generation and 4 MiB stack. A timed-out, crashed or exhausted worker is terminated and replaced. Idle workers do not keep shutdown alive. Receipt insertion, commit-before-ACK and ownership fencing are unchanged.
 
 One task per room coalesces committed updates for 100 ms. Pending batches hold at most 4 MiB or 1,024 updates; one active batch can hold another 4 MiB. Frames retain the 1 MiB transport ceiling. Overflow closes that room for BACKPRESSURE resync from durable storage. Recipient authority is checked freshly for each batch. Temporary authority/read failure closes for UNAVAILABLE retry and never serves stale content; definitive denial uses AUTHORITY_CHANGED. These bounds are workload safeguards, not a product-level data-participant cap. See [real-stack evidence](../work/verification/collaboration-v2-real-stack.md) for measured host, workload, latency and limits of local proof.
+
+## Live presentation operations
+
+Live presentation uses the existing public `/collab/` listener, origin policy,
+heartbeat and authority service. It adds no listener, RelayHub dependency,
+database-resident participant roster or media port. Presentation links remain in
+PostgreSQL; active host, waiting, admitted, frame, spotlight, lock and reaction
+state live only in the owning collaboration process. A process restart therefore
+ends active sessions by design and hosts must start a new session.
+
+Monitor `PRESENTATION_AUTHORITY_UNAVAILABLE`, `PRESENTATION_CONFLICT`,
+`PRESENTATION_REACTION_RATE`, waiting/audience capacity and abnormal host socket
+churn. A host disconnect terminates its session. An admitted audience disconnect
+must perform a fresh invite join and admission; the runtime never reuses cached
+audience UI authority. Revoking an invite blocks new joins but does not remove
+already admitted viewers. Feature or host-authority revocation ends current
+audience sockets.
+
+Host startup rechecks that the exact initiating socket remains attached after
+each authority/token await. State fanout rechecks the current session and
+revision after recipient authority refresh and immediately before every send.
+These checks prevent a disconnected host or delayed broadcast from recreating
+an ended session. Link create/revoke similarly checks the same runtime host
+revision before and inside persistence.
+
+Pending-queue fanout additionally rechecks the current host's room admission and
+`presentation:host` feature before revealing guest identity. A failed check ends
+the session and emits `AUTHORITY_CHANGED`. Host start acknowledgement has a
+ten-second client deadline; expiry closes that exact socket, allowing the normal
+detach path to terminate any server-side session before a reconnect and retry.
+Watch repeated `START_TIMEOUT` plus host socket churn as an authority or network
+incident rather than retrying on the same connection.
+
+The runtime caps pending guests, admitted guests and retained live reactions at
+100 each. Pending sockets receive no ready, sync, roster, asset or media data.
+During incident review, never log invite, pending, host or audience tokens. To
+verify a release, run the focused presentation suites, full frontend suite and
+production build, then the guarded real-stack `enterprise-live.spec.ts` against
+the disposable test database. That browser test covers manual invite copy,
+mobile waiting isolation, admit, reaction, remove, deny and current-editor host
+transfer, plus explicit waiting Leave, keyboard Escape, permission denial and
+ended pending-auth recovery.

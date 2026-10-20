@@ -45,6 +45,18 @@ type capabilityStorage struct {
 	fail bool
 }
 
+func ensureSceneAssetCapabilityMigration(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if db.Migrator().HasColumn("scene_assets", "uploaded_principal_id") {
+		return
+	}
+	migration, err := os.ReadFile("../../../migrations/000012_scene_asset_capabilities.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, string(migration))
+}
+
 func (s capabilityStorage) PresignUploadConstrained(_ domain.Context, b, k, m string, n int64, deadline time.Time) (string, map[string]string, error) {
 	if s.fail {
 		return "", nil, errors.New("storage unavailable")
@@ -53,11 +65,7 @@ func (s capabilityStorage) PresignUploadConstrained(_ domain.Context, b, k, m st
 }
 func TestPublicUploadCapability(t *testing.T) {
 	repo, links, rooms, access, owner, ref := publicLinkFixture(t)
-	migration, e := os.ReadFile("../../../migrations/000012_scene_asset_capabilities.up.sql")
-	if e != nil {
-		t.Fatal(e)
-	}
-	mustExec(t, repo.db, string(migration))
+	ensureSceneAssetCapabilityMigration(t, repo.db)
 	assets := usecase.NewAssetUsecase(NewSceneRepository(repo.db), NewSceneAssetRepository(repo.db), capabilityStorage{}, "assets", time.Minute)
 	caps, e := usecase.NewCapabilityService(access, repo, assets, []byte(strings.Repeat("g", 32)))
 	if e != nil {
@@ -227,11 +235,7 @@ func TestRevokeRace(t *testing.T) {
 
 func TestPublicUploadCapabilityHTTP(t *testing.T) {
 	repo, links, rooms, access, owner, ref := publicLinkFixture(t)
-	up, e := os.ReadFile("../../../migrations/000012_scene_asset_capabilities.up.sql")
-	if e != nil {
-		t.Fatal(e)
-	}
-	mustExec(t, repo.db, string(up))
+	ensureSceneAssetCapabilityMigration(t, repo.db)
 	ctx := context.Background()
 	link, e := links.Create(ctx, owner, ref, domain.CreateShareLink{Access: "edit"})
 	if e != nil {
@@ -322,11 +326,7 @@ func TestPublicUploadCapabilityHTTP(t *testing.T) {
 
 func TestPublicUploadCapabilityRenewal(t *testing.T) {
 	repo, _, _, access, owner, ref := publicLinkFixture(t)
-	up, e := os.ReadFile("../../../migrations/000012_scene_asset_capabilities.up.sql")
-	if e != nil {
-		t.Fatal(e)
-	}
-	mustExec(t, repo.db, string(up))
+	ensureSceneAssetCapabilityMigration(t, repo.db)
 	assets := usecase.NewAssetUsecase(NewSceneRepository(repo.db), NewSceneAssetRepository(repo.db), capabilityStorage{}, "assets", time.Minute)
 	caps, _ := usecase.NewCapabilityService(access, repo, assets, []byte(strings.Repeat("g", 32)))
 	p := domain.UserPrincipal(owner)

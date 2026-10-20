@@ -10,9 +10,9 @@ updated: 2026-10-20
 
 ## Current Focus
 
-- **Active Phase:** Enterprise parity planning — [phase](work/phases/PHASE-ENTERPRISE.md).
-- **Active Work:** Proposed detail design and 22-task programme cover all seven enterprise requirement groups. User requests scene controls inside/floating over the canvas without a separate height-consuming header; UI1/UI2 address existing controls first.
-- **Next Work:** Review [enterprise design](superpowers/specs/2026-10-20-enterprise-parity-design.md) and [implementation programme](superpowers/plans/2026-10-20-enterprise-parity.md), then execute the reviewed slices. No enterprise runtime change has shipped.
+- **Active Phase:** Enterprise parity implementation — [phase](work/phases/PHASE-ENTERPRISE.md).
+- **Active Work:** The approved 22-task programme is executing in dependency order. Wave 0/1 and C1 durable comments are reviewed complete. M1 screen authority and V1 immutable checkpoints are in progress.
+- **Next Work:** Complete and review M1/V1, then continue notifications/activity and live-presentation packages. No enterprise runtime change has shipped yet.
 - **Released baseline:** VM100 frontend source `24b1cd0`; evidence-only follow-up `1d2af8a` is on master. Current [release evidence](releases/2026-10-19-collaboration-v2.md) records public canaries, production image and proof boundaries.
 
 ## Project
@@ -50,6 +50,15 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
   unrelated comments/media/content implementation.
 
 ## Recent Changes
+
+- 2026-10-20: User approved the enterprise detail design and complete 22-task
+  programme for implementation. Work moved to an isolated
+  `codex/enterprise-parity` worktree; foundation execution starts with Wave 0/1.
+
+- 2026-10-20: Foundation UI1–UI2/F1–F3 passed fresh review after fixes for
+  feature-route composition, policy enforcement, projection cursor safety,
+  authorized browser refetch, worker lease/drain races and recovery ordering.
+  Local gates reached 178 Go tests and 155 collaboration tests; Wave 2 began.
 
 - 2026-10-20: Prepared enterprise proposed detail design plus six implementation
   plan documents / 22 tasks, legacy comparison, requirements coverage and

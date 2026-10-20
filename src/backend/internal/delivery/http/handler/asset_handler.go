@@ -3,7 +3,6 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -73,8 +72,7 @@ func (h *AssetHandler) PresignUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	var resp map[string]domain.AssetUploadResponse
 	if h.capabilities != nil {
-		principal := domain.UserPrincipal(userID)
-		principal.CredentialExpiresAt, _ = ctx.Value(domain.ContextKeyCredentialExpiry).(time.Time)
+		principal, _ := middleware.UserPrincipalFromContext(ctx)
 		grant, e := h.capabilities.CreateAssetCapability(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: sceneID}, req.Assets)
 		err = e
 		resp = grant.URLs
@@ -138,12 +136,12 @@ func (h *AssetHandler) authorize(w http.ResponseWriter, r *http.Request, workspa
 	if h.access == nil {
 		return true
 	}
-	user, ok := middleware.UserIDFromContext(r.Context())
+	principal, ok := middleware.UserPrincipalFromContext(r.Context())
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		return false
 	}
-	d, e := h.access.Resolve(r.Context(), domain.UserPrincipal(user), domain.SceneRef{WorkspaceID: workspace, SceneID: scene})
+	d, e := h.access.Resolve(r.Context(), principal, domain.SceneRef{WorkspaceID: workspace, SceneID: scene})
 	if e == nil && edit && d.Access != domain.AccessEdit {
 		e = domain.ErrAccessDenied
 	}

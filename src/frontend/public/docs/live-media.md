@@ -1,0 +1,27 @@
+# Screen sharing
+
+Screen sharing uses the existing authenticated collaboration socket for
+admission and WebRTC signaling. It is independent of microphone voice.
+
+Signed-in editors first send `screen_request`. A successful
+`screen_admission` creates a 30-second reservation and exposes a separate
+**Start sharing** action. That click invokes `getDisplayMedia` with
+`audio:false` and maximum video constraints of 1280×720 at 15 fps. Successful
+capture confirms the server-issued session and clears the reservation.
+The client waits for that activation admission and offers to every validated
+peer returned by the server, including receivers that joined between reservation
+and the second click.
+If a receiver leaves before activation completes, its targeted stop removes only
+that receiver; the publisher can still finish capture and activate the share.
+
+`screen_signal` accepts only current same-room admitted connection and session
+IDs. `screen_stop`, authority loss, disconnect, picker cancellation, late
+capture completion, or track end closes peers and stops tracks. Capacity is ten
+distinct media connections across voice and screen, counted once per
+connection, with one screen publisher per room.
+
+The workspace `screenShareEnabled` policy is disabled by default. Go evaluates
+the current publisher's `screen:publish` decision through the private authority
+before reservation, activation and every publisher or receiver control involving
+the share. Disabling the feature ends the active share before further admission,
+signaling, or stop controls; drawing and voice remain available.

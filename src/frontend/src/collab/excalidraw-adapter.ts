@@ -43,6 +43,7 @@ export class ExcalidrawAdapter {
         let map = files.get(id); if (!map) { map = new Y.Map(); files.set(id, map); }
         fields(map, file);
       }
+      for (const id of files.keys()) if (!(id in content.files)) files.delete(id);
       order(this.doc.getArray('presentationOrder'), content.presentationOrder ?? []);
     }, origin);
   }
@@ -54,4 +55,18 @@ export class ExcalidrawAdapter {
   }
   reorderPresentation(ids: string[]): void { this.applyLocalScene({ ...this.content(), presentationOrder: ids }); }
   applyRemote(update: Uint8Array): void { Y.applyUpdate(this.doc, update, REMOTE_ORIGIN); }
+  reapplyIntent(baseInput:SceneContent,desiredInput:SceneContent):Uint8Array {
+    const base=validateSceneContent(baseInput),desired=validateSceneContent(desiredInput),vector=Y.encodeStateVector(this.doc);
+    this.doc.transact(()=>{
+      const elements=this.doc.getMap<Y.Map<unknown>>('elements'),before=new Map(base.elements.map(value=>[value.id,value]));
+      for(const value of desired.elements){const old=before.get(value.id);if(!old){let map=elements.get(value.id);if(!map){map=new Y.Map();elements.set(value.id,map);}for(const [key,field] of Object.entries(value))map.set(key,structuredClone(field));continue;}const map=elements.get(value.id);if(!map)continue;const oldFields=old as unknown as Record<string,unknown>,next=value as unknown as Record<string,unknown>,keys=new Set([...Object.keys(oldFields),...Object.keys(next)]);if([...keys].some(key=>!equal(oldFields[key],next[key]))&&next.isDeleted===false)keys.add('isDeleted');for(const key of keys)if(!equal(oldFields[key],next[key])||key==='isDeleted'){if(key in next)map.set(key,structuredClone(next[key]));else map.delete(key);}}
+      for(const old of base.elements)if(!desired.elements.some(value=>value.id===old.id))elements.get(old.id)?.set('isDeleted',true);
+      if(!equal(base.elements.map(value=>value.id),desired.elements.map(value=>value.id))){const array=this.doc.getArray<string>('order');if(array.length)array.delete(0,array.length);array.push(desired.elements.map(value=>value.id));}
+      const app=this.doc.getMap('appState');for(const key of new Set([...Object.keys(base.appState),...Object.keys(desired.appState)]))if(!equal(base.appState[key as keyof typeof base.appState],desired.appState[key as keyof typeof desired.appState])){if(key in desired.appState)app.set(key,structuredClone(desired.appState[key as keyof typeof desired.appState]));else app.delete(key);}
+      const files=this.doc.getMap<Y.Map<unknown>>('files');for(const [id,value] of Object.entries(desired.files)){const old=base.files[id],oldFields=(old??{}) as unknown as Record<string,unknown>,next=value as unknown as Record<string,unknown>;if(equal(old,value))continue;let map=files.get(id);if(!map){map=new Y.Map();files.set(id,map);}for(const key of new Set([...Object.keys(oldFields),...Object.keys(next)]))if(!equal(oldFields[key],next[key])){if(key in next)map.set(key,structuredClone(next[key]));else map.delete(key);}}
+      for(const id of Object.keys(base.files))if(!(id in desired.files))files.delete(id);
+      if(!equal(base.presentationOrder??[],desired.presentationOrder??[])){const array=this.doc.getArray<string>('presentationOrder');if(array.length)array.delete(0,array.length);if(desired.presentationOrder?.length)array.push(desired.presentationOrder);}
+    },REPLAY_ORIGIN);
+    return Y.encodeStateAsUpdate(this.doc,vector);
+  }
 }

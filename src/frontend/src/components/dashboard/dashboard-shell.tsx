@@ -27,7 +27,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <DialogTrigger asChild><Button variant="ghost" size="icon" className="md:hidden" aria-label="Open navigation"><PanelLeft /></Button></DialogTrigger>
             <DialogContent className="dashboard-drawer" aria-describedby={undefined}>
               <DialogTitle className="sr-only">Workspace navigation</DialogTitle>
-              <DashboardSidebar theme={theme} onThemeChange={onThemeChange} />
+              <DashboardSidebar theme={theme} onThemeChange={onThemeChange} onNavigate={() => setMobileOpen(false)} />
             </DialogContent>
           </Dialog>
           <span className="h-4 w-px bg-border" aria-hidden="true" />

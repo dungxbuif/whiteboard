@@ -35,8 +35,8 @@ Editors create and change content; viewers have reading controls. A scene overri
 ## Share one scene
 
 1. As the workspace owner, open a scene's action menu and select **Share**.
-2. Create a **View link** or **Edit link**. Each can have its own password (at least six characters and at most 72 UTF-8 bytes) and expiry.
-3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata only.
+2. Create a **View link** or **Edit link**. Each can have its own password (at least six characters and at most 72 UTF-8 bytes), expiry, and **Allow comments** setting. Comment permission is off by default and never grants drawing access.
+3. Copy the new URL immediately. Closing the dialog clears the one-time URL; existing links show metadata and whether comments are allowed.
 4. Select **Revoke** beside the link to stop future access. Other links remain independent.
 
 A view link reads only its scene. An edit link asks guests for a display name; this does not create an account or grant workspace membership. The browser exchanges the link and optional password in POST bodies, then retains the scoped, short-lived scene session in the current tab's sessionStorage so reload preserves its guest identity. Public password mistakes leave your normal account signed in. Public requests never attach the account login token; scoped scene credentials never replace it.
@@ -55,6 +55,20 @@ For API consumers, see the internal [API reference](../architecture/API.md). An 
 The approved browser adapter uses durable scoped offline updates, fresh room admission and one Yjs content writer. AI additions and presentation order share that writer. See [browser design](../architecture/BROWSER_COLLABORATION.md) for scope, recovery, legacy fallback and verification.
 
 For editing states, local undo, image retries and retained offline work, see [browser collaboration and recovery](../../src/frontend/public/docs/browser-collaboration.md).
+
+### Scene controls
+
+The scene uses the full browser viewport. Open Excalidraw's main menu to see
+the scene name and **Back to dashboard**. **People**, **Join voice**,
+**Present**, and the AI assistant use the canvas toolbar instead of a separate
+page header. The idle voice counter stays hidden until a call is joining or
+active.
+
+The lower canvas status shows **Saved**, pending work, read-only access, or a
+recovery error. Open **More scene actions** for local undo/redo, retry, and
+recovery export when those actions apply. The AI assistant and future comments,
+activity, history, and library tools use one floating panel at a time. Press
+Escape or Close to return focus to the control that opened it.
 
 ## People, follow and voice
 

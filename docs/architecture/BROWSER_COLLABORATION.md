@@ -19,6 +19,26 @@ Verification: unit RED→GREEN for convergence/bindings/no-echo, true IndexedDB 
 
 Affected docs: human collaboration guide, architecture B3 section, public Markdown collaboration reference. Controller appends coordinated operations note and central context/backlog/validation/changelog. No schema or public Go API change is required.
 
+## Canvas control and panel composition
+
+The scene route owns one `100dvh` canvas surface. It does not reserve a header
+row: navigation and scene identity live in Excalidraw's native main menu,
+collaboration and presentation actions use the native top-right slot, and
+save/recovery state floats over the canvas. The overlay container ignores
+pointer events while each interactive island restores them, so drawing remains
+available around the controls on desktop and mobile viewports.
+
+Secondary scene tools share `ScenePanelsProvider`. Only one of comments,
+activity, history, library, or AI may be open at a time. Panels are non-modal
+canvas overlays; Escape or Close returns focus to the trigger that opened the
+panel. This contract prevents independent tools from stacking cards over the
+canvas and gives later enterprise features one focus-management path.
+
+The AI command form is rendered inside that shared panel. Presentation,
+collaboration, local undo/redo, connection retry, and recovery keep their
+existing authority and persistence behavior; the composition change only
+moves their controls into Excalidraw-compatible surfaces.
+
 ## Reviewed refinement — legacy image recovery
 
 Controller approved bounded reuse of the same upload helper for explicit v1 fallback. Local recovery uses documentId=legacy-v1 scoped by principal/workspace/scene. This namespace is never replayed into a server Yjs document. Original blobs and drafts remain until a confirmed successful HTTP content save after successful PUTs. COLLAB_REQUIRED fences HTTP and retains this namespace for explicit recovery, never auto-merges the full legacy canvas into v2. Failed or expired capabilities retry only compatible file metadata; definitive authorization failures stop upload and retain bytes. No API/schema/runtime boundary change. Cost: retained legacy recovery requires manual export/import handling after promotion.

@@ -25,6 +25,39 @@ type routerSceneUsecase struct {
 	domain.SceneUsecase
 }
 
+type routerFeatureService struct{ policy domain.WorkspaceFeaturePolicy }
+
+func (s routerFeatureService) Require(context.Context, domain.Principal, domain.SceneRef, domain.FeatureAction) error {
+	return nil
+}
+func (s routerFeatureService) Policy(_ context.Context, _ domain.Principal, workspaceID uuid.UUID) (domain.WorkspaceFeaturePolicy, error) {
+	s.policy.WorkspaceID = workspaceID
+	return s.policy, nil
+}
+func (s routerFeatureService) UpdatePolicy(context.Context, domain.Principal, uuid.UUID, int64, uuid.UUID, domain.WorkspaceFeaturePolicyPatch) (domain.WorkspaceFeaturePolicy, error) {
+	return s.policy, nil
+}
+func (s routerFeatureService) Mutate(context.Context, domain.Principal, domain.SceneRef, domain.FeatureAction, uuid.UUID, []byte, func(context.Context) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
+	return domain.StoredFeatureResponse{}, nil
+}
+
+type routerEnterpriseAccess struct {
+	domain.AccessService
+	workspace uuid.UUID
+	user      uuid.UUID
+}
+
+func (a routerEnterpriseAccess) ResolveWorkspaceID(context.Context, string) (uuid.UUID, error) {
+	return a.workspace, nil
+}
+func (a routerEnterpriseAccess) ResolveWorkspace(context.Context, domain.Principal, uuid.UUID) (domain.AccessDecision, error) {
+	return domain.AccessDecision{Access: domain.AccessEdit, Owner: true, ACLVersion: 1}, nil
+}
+func (a routerEnterpriseAccess) RequireOwner(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+func (a routerEnterpriseAccess) WithWorkspaceLock(ctx context.Context, _ uuid.UUID, _ uuid.UUID, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
 func (routerSceneUsecase) List(_ context.Context, workspaceID uuid.UUID, _ *uuid.UUID, _ bool) ([]domain.Scene, error) {
 	return []domain.Scene{{ID: uuid.New(), WorkspaceID: workspaceID, Title: "Board"}}, nil
 }
@@ -150,5 +183,188 @@ func TestDeletedJWTSubjectCannotReachWorkspaceCreationOrAI(t *testing.T) {
 	}
 	if called != 0 {
 		t.Fatalf("protected handler calls=%d, want 0", called)
+	}
+}
+
+func TestEnterpriseRouterMountsFeaturePolicy(t *testing.T) {
+	workspace, user := uuid.New(), uuid.New()
+	auth := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.ContextKeyUserID, user)))
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: user}
+	features := handler.NewFeatureHandler(routerFeatureService{policy: domain.DefaultWorkspaceFeaturePolicy(workspace)})
+	router := NewRouterWithAgents(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, features)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/feature-policy", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"workspaceId":"`+workspace.String()+`"`) {
+		t.Fatalf("policy route response=%s", response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsDualPrincipalCommentRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	comments := handler.NewCommentHandler(nil, nil, nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, comments, nil, nil, nil, nil, nil, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/"+uuid.NewString()+"/comments", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("comment route not mounted through dual-principal wrapper: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedVersionRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	versions := handler.NewVersionHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, versions, nil, nil, nil, nil, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/"+uuid.NewString()+"/versions", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("version route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedNotificationRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	notifications := handler.NewNotificationHandler(nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, notifications, nil, nil, nil, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("notification route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedActivityRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	activity := handler.NewActivityHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, activity, nil, nil, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/activity", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("activity route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedPresentationRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	presentations := handler.NewPresentationHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, presentations, nil, nil)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/scenes/"+uuid.NewString()+"/presentations", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("presentation route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedCollectionRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	collections := handler.NewCollectionHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, collections, nil)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/collections", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("collection route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedDomainRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	domains := handler.NewDomainHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, domains)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/domains", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("domain route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedSSORoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	sso := handler.NewSSOHandler(nil, access, "https://example.test")
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, EnterpriseExtras{SSO: sso})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/sso", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("SSO route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedRetentionRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	retention := handler.NewRetentionHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, EnterpriseExtras{Retention: retention})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/retention/policy", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("retention route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
 	}
 }

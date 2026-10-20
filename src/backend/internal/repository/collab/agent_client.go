@@ -15,7 +15,7 @@ import (
 const requestTimeout = 8 * time.Second
 const maxErrorBytes = 4096
 
-var allowedCodes = map[string]bool{"INVALID_UPDATE": true, "UNAUTHENTICATED": true, "FORBIDDEN": true, "STALE_AUTHORITY": true, "CONFLICT": true, "REQUEST_ID_REUSED": true, "RATE_LIMITED": true, "UNAVAILABLE": true, "COLLAB_DISABLED": true, "PROMOTION_REQUIRED": true, "SNAPSHOT_HISTORY_LIMIT": true, "PROJECTION_TOO_LARGE": true}
+var allowedCodes = map[string]bool{"INVALID_UPDATE": true, "INVALID_LIBRARY": true, "UNAUTHENTICATED": true, "FORBIDDEN": true, "STALE_AUTHORITY": true, "CONFLICT": true, "REQUEST_ID_REUSED": true, "RATE_LIMITED": true, "UNAVAILABLE": true, "COLLAB_DISABLED": true, "PROMOTION_REQUIRED": true, "SNAPSHOT_HISTORY_LIMIT": true, "PROJECTION_TOO_LARGE": true, "VERSION_TOO_LARGE": true, "VERSION_ASSET_UNAVAILABLE": true, "VERSION_INCOMPATIBLE": true, "FEATURE_DISABLED": true}
 
 type AgentClient struct {
 	origin string
@@ -31,7 +31,7 @@ func NewAgentClient(origin, secret string) (*AgentClient, error) {
 	return &AgentClient{strings.TrimSuffix(origin, "/"), secret, &http.Client{Timeout: requestTimeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (c *AgentClient) Call(ctx domain.Context, operation string, ref domain.SceneRef, envelope map[string]any, limit int64) (json.RawMessage, error) {
-	if operation != "commands" && operation != "projection" && operation != "activity" && operation != "export-projection" {
+	if operation != "commands" && operation != "projection" && operation != "activity" && operation != "export-projection" && operation != "versions" && operation != "version-restore" && operation != "library-insertions" {
 		return nil, domain.ErrAgentInput
 	}
 	payload, e := json.Marshal(envelope)

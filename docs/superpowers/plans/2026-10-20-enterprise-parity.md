@@ -12,14 +12,14 @@
 
 ## Global Constraints
 
-- Status: draft plan for review; no product code, migration, dependency or deployment changes in this planning task.
+- Status: approved for implementation on 2026-10-20; execute every work package and preserve the dependency order below.
 - Org means workspace; preserve UUID and alias scene routes.
 - Canvas fills `100dvh`; controls/panels float inside/on the canvas without a separate height-consuming header.
 - Preserve legacy dashboard styling and Excalidraw native scene styling.
 - Go remains authority; Node remains exclusive canonical Yjs writer; no RelayHub or second realtime socket.
 - Preserve documentId, receipts, stable element IDs/types/maps and offline queues during restore.
 - Feature metadata mutation retries bind requestId, principal and canonical bytes; decimal revision strings.
-- Defaults and limits are exactly those in the draft spec; implementation requires review of the proposed decisions.
+- Defaults and limits are exactly those in the approved spec; changes require a recorded design ruling.
 - Run shell through `rtk`; use guarded loopback `*_test` PostgreSQL; no production test database.
 - Every task includes internal/public/AI-readable docs reconciliation, regression tests and an atomic commit.
 
@@ -33,11 +33,10 @@
 
 ## Decision boundaries
 
-The user requested planning first. This package records a complete proposed
-design and execution plan; it does not promote proposed feature policy or
-retention defaults into accepted runtime contracts. Previous approval of the
-Collaboration v2 foundation does not approve enterprise migrations. Review the
-linked spec and plans together before implementation.
+The user requested planning first and then approved the complete programme with
+the instruction “implement all” on 2026-10-20. The linked spec and defaults are
+accepted runtime contracts for this implementation. Enterprise migrations still
+ship behind the staged feature flags and verification gates defined here.
 
 User already permits agent work. Recommended execution: subagent-driven by
 bounded task, with a fresh reviewer for auth, migrations, restores and retention.
@@ -74,7 +73,7 @@ retention have mandatory cross-package reviews before activation.
 | ENT-P2-02 libraries/collections | L1, L2, R2 | private collection denial, imported library IDs/assets/search/export |
 | ENT-P2-03 domain/SSO/SCIM/retention | I1, I2, I3, R1, R2 | DNS/OIDC negative cases, SCIM protocol/revoke, hold/reference/backup purge races |
 
-## Task E1: Complete integrated acceptance and security review
+## Task 1: E1 — Complete integrated acceptance and security review
 
 **Files:** Create `src/frontend/e2e/real-stack/enterprise.spec.ts`,
 `enterprise-revocation.spec.ts`, `enterprise-retention.spec.ts`,
@@ -104,7 +103,7 @@ scene, asset and agent APIs. Produces release acceptance evidence; no API.
 - [ ] Update validation matrix, reconcile ADR/API/ERD/protocol/guides and commit
   as `test(enterprise): verify integrated parity acceptance`.
 
-## Task E2: Stage migrations and VM100 release
+## Task 2: E2 — Stage migrations and VM100 release
 
 **Files:** Modify `docker-compose.prod.yml`, `src/.env.example`,
 `docs/operations/DEPLOYMENT.md`, `ENVIRONMENTS.md`, `RELEASE_CHECKLIST.md`;

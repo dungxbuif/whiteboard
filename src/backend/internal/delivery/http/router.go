@@ -110,9 +110,33 @@ func newRouter(
 	var access domain.AccessService
 	var accessHandler *handler.AccessHandler
 	var agents *handler.AgentHandler
+	var features *handler.FeatureHandler
+	var comments *handler.CommentHandler
+	var versions *handler.VersionHandler
+	var notifications *handler.NotificationHandler
+	var activity *handler.ActivityHandler
+	var presentations *handler.PresentationHandler
+	var collections *handler.CollectionHandler
+	var domains *handler.DomainHandler
+	var sso *handler.SSOHandler
+	var retention *handler.RetentionHandler
+	var scim *handler.SCIMHandler
+	var library *handler.LibraryHandler
 	if len(services) > 0 {
 		access = services[0].access
 		agents = services[0].agents
+		features = services[0].features
+		comments = services[0].comments
+		versions = services[0].versions
+		notifications = services[0].notifications
+		activity = services[0].activity
+		presentations = services[0].presentations
+		collections = services[0].collections
+		domains = services[0].domains
+		sso = services[0].sso
+		retention = services[0].retention
+		scim = services[0].scim
+		library = services[0].library
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	if sceneHandler != nil {
@@ -131,6 +155,39 @@ func newRouter(
 	// mounted on the Go API.
 
 	router.Route("/api/v1", func(r chi.Router) {
+		if sso != nil {
+			sso.Register(r, authMiddleware)
+		}
+		if retention != nil {
+			retention.Register(r, authMiddleware)
+		}
+		if scim != nil {
+			scim.Register(r, authMiddleware)
+		}
+		if library != nil {
+			library.Register(r, authMiddleware)
+		}
+		if domains != nil {
+			domains.Register(r, authMiddleware)
+		}
+		if collections != nil {
+			collections.Register(r, authMiddleware)
+		}
+		if presentations != nil {
+			presentations.Register(r, authMiddleware)
+		}
+		if activity != nil {
+			activity.Register(r, authMiddleware)
+		}
+		if notifications != nil {
+			notifications.Register(r, authMiddleware)
+		}
+		if versions != nil {
+			versions.Register(r, authMiddleware)
+		}
+		if comments != nil {
+			comments.Register(r, authMiddleware)
+		}
 		if agents != nil {
 			r.Mount("/agent", agents.Routes())
 		}
@@ -181,6 +238,10 @@ func newRouter(
 			}
 
 			r.Route("/workspaces", func(r chi.Router) {
+				if features != nil {
+					r.Get("/{id}/feature-policy", features.Get)
+					r.Patch("/{id}/feature-policy", features.Update)
+				}
 				if agents != nil {
 					r.Get("/{id}/agent-keys", agents.List)
 					r.Post("/{id}/agent-keys", agents.Create)
@@ -280,12 +341,47 @@ func NewRouterWithAccess(auth *handler.AuthHandler, workspaces *handler.Workspac
 	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitationHandler, routerServices{access: access})
 }
 
-func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler) http.Handler {
+func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, featureHandlers ...*handler.FeatureHandler) http.Handler {
 	assets.SetAccessService(access)
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents})
+	var features *handler.FeatureHandler
+	if len(featureHandlers) > 0 {
+		features = featureHandlers[0]
+	}
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features})
+}
+
+type EnterpriseExtras struct {
+	SSO       *handler.SSOHandler
+	Retention *handler.RetentionHandler
+	SCIM      *handler.SCIMHandler
+	Library   *handler.LibraryHandler
+}
+
+func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler, notifications *handler.NotificationHandler, activity *handler.ActivityHandler, presentations *handler.PresentationHandler, collections *handler.CollectionHandler, domains *handler.DomainHandler, extras ...EnterpriseExtras) http.Handler {
+	assets.SetAccessService(access)
+	services := routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions, notifications: notifications, activity: activity, presentations: presentations, collections: collections, domains: domains}
+	if len(extras) > 0 {
+		services.sso = extras[0].SSO
+		services.retention = extras[0].Retention
+		services.scim = extras[0].SCIM
+		services.library = extras[0].Library
+	}
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, services)
 }
 
 type routerServices struct {
-	access domain.AccessService
-	agents *handler.AgentHandler
+	access        domain.AccessService
+	agents        *handler.AgentHandler
+	features      *handler.FeatureHandler
+	comments      *handler.CommentHandler
+	versions      *handler.VersionHandler
+	notifications *handler.NotificationHandler
+	activity      *handler.ActivityHandler
+	presentations *handler.PresentationHandler
+	collections   *handler.CollectionHandler
+	domains       *handler.DomainHandler
+	sso           *handler.SSOHandler
+	retention     *handler.RetentionHandler
+	scim          *handler.SCIMHandler
+	library       *handler.LibraryHandler
 }

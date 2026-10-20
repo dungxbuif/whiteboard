@@ -45,7 +45,7 @@ it.each(['v2', 'legacy'])('collab %s pending PUT completion after unmount retain
     const transport = new CollabTransport({ sceneRef: ref, principalId, adapter, store: offlineStore, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://test', socket: () => socket as unknown as WireSocket });
     transports.push(transport); await transport.start(); socket.dispatchEvent(new Event('open'));
     const server = new ExcalidrawAdapter(); server.applyLocalScene(base); const bytes = Y.encodeStateAsUpdate(server.doc);
-    socket.receive({ type: 'ready', requestId: 'auth', payload: { ...ref, principalId, documentId: 'epoch', access: 'edit' } });
+    socket.receive({ type: 'ready', requestId: 'auth', payload: { ...ref, principalId, documentId: 'epoch', access: 'edit', sequence: '1' } });
     socket.receive({ type: 'sync_chunk', requestId: 'auth', payload: { documentId: 'epoch', index: 0, count: 1, totalBytes: bytes.length, data: btoa(String.fromCharCode(...bytes)) } });
     await tick();
     if (mode === 'legacy') transport.state = { ...transport.state, status: 'legacy', canEdit: false };

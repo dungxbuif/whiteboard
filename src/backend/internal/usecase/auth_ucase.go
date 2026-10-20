@@ -23,12 +23,13 @@ const googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 const dummyPasswordHash = "$2a$10$fVg.L7MsDdhllg9xhYREuuKgNfjqX4Gr.KPYRoFypvnbgTvlsz1M2"
 
 type OAuthConfig struct {
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
-	FrontendURL  string
-	UserInfoURL  string
-	Endpoint     oauth2.Endpoint
+	ClientID      string
+	ClientSecret  string
+	RedirectURL   string
+	FrontendURL   string
+	UserInfoURL   string
+	Endpoint      oauth2.Endpoint
+	SessionIssuer domain.LoginSessionIssuer
 }
 
 type authUsecase struct {
@@ -38,6 +39,7 @@ type authUsecase struct {
 	userInfoURL     string
 	httpClient      *http.Client
 	comparePassword func([]byte, []byte) error
+	sessionIssuer   domain.LoginSessionIssuer
 }
 
 func NewAuthUsecase(userRepo domain.UserRepository, jwtSecret []byte, configs ...OAuthConfig) domain.AuthUsecase {
@@ -66,6 +68,7 @@ func NewAuthUsecase(userRepo domain.UserRepository, jwtSecret []byte, configs ..
 		userInfoURL:     userInfoURL,
 		httpClient:      http.DefaultClient,
 		comparePassword: bcrypt.CompareHashAndPassword,
+		sessionIssuer:   config.SessionIssuer,
 	}
 }
 
@@ -135,7 +138,7 @@ func (u *authUsecase) OAuthCallback(ctx context.Context, code string) (string, e
 	if err := u.userRepo.Save(ctx, user); err != nil {
 		return "", fmt.Errorf("failed to save Google user: %w", err)
 	}
-	return u.issueToken(user)
+	return u.issueToken(ctx, user, domain.AuthMethodOIDC)
 }
 
 func (u *authUsecase) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
@@ -162,15 +165,28 @@ func (u *authUsecase) PasswordLogin(ctx context.Context, email, password string)
 	if err := u.userRepo.Save(ctx, user); err != nil {
 		return "", fmt.Errorf("failed to update last login: %w", err)
 	}
-	return u.issueToken(user)
+	return u.issueToken(ctx, user, domain.AuthMethodPassword)
 }
 
-func (u *authUsecase) issueToken(user *domain.User) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+func (u *authUsecase) issueToken(ctx context.Context, user *domain.User, method string) (string, error) {
+	claims := jwt.MapClaims{
 		"sub":   user.ID.String(),
 		"email": user.Email,
 		"exp":   time.Now().Add(domain.DefaultSessionDuration).Unix(),
-	})
+	}
+	if u.sessionIssuer != nil {
+		if method != domain.AuthMethodPassword {
+			return "", errors.New("legacy OAuth session issuance is disabled")
+		}
+		sid, err := u.sessionIssuer.IssuePasswordSession(ctx, user.ID)
+		if err != nil {
+			return "", fmt.Errorf("create login session: %w", err)
+		}
+		claims["sid"] = sid.String()
+		claims["auth_method"] = method
+		claims["auth_time"] = time.Now().Unix()
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := token.SignedString(u.jwtSecret)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)

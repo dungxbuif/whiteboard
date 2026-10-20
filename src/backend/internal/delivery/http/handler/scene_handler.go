@@ -52,6 +52,22 @@ func (h *SceneHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 	workspaceID, _ := middleware.WorkspaceIDFromContext(r.Context())
 	userID, _ := middleware.UserIDFromContext(r.Context())
+	if h.Access != nil {
+		principal, ok := middleware.UserPrincipalFromContext(r.Context())
+		if !ok {
+			middleware.WriteAccessError(w, r, domain.ErrAccessDenied)
+			return
+		}
+		decision, accessErr := h.Access.ResolveWorkspace(r.Context(), principal, workspaceID)
+		if accessErr != nil {
+			middleware.WriteAccessError(w, r, accessErr)
+			return
+		}
+		if decision.Access != domain.AccessEdit {
+			middleware.WriteAccessError(w, r, domain.ErrAccessDenied)
+			return
+		}
+	}
 	scene, err := h.usecase.Create(r.Context(), workspaceID, userID, request.Title, request.FolderID, request.Content)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

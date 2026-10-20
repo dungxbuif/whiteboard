@@ -23,6 +23,8 @@ import (
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	collabrepo "devtool/internal/repository/collab"
+	dnsrepo "devtool/internal/repository/dns"
+	oidcrepo "devtool/internal/repository/oidc"
 	openairepo "devtool/internal/repository/openai"
 	postgresrepo "devtool/internal/repository/postgres"
 	s3repo "devtool/internal/repository/s3"
@@ -46,6 +48,8 @@ type config struct {
 	S3Bucket               string
 	S3Region               string
 	FrontendURL            string
+	SSOEncryptionKey       string
+	SSOCallbackURL         string
 	AIAPIKey               string
 	AIBaseURL              string
 	AIModelFast            string
@@ -72,7 +76,14 @@ func main() {
 	}
 	logger.Info("database connection initialized with GORM")
 
-	accessService, err := usecase.NewAccessService(postgresrepo.NewAccessRepository(db), cfg.CasbinModelPath)
+	ssoRepo := postgresrepo.NewSSORepository(db)
+	sessionRepo := postgresrepo.NewAuthSessionRepository(db)
+	sessionService, err := usecase.NewSessionService(sessionRepo, ssoRepo, []byte(cfg.JWTSecret))
+	if err != nil {
+		logger.Error("failed to create login session authority", "error", err)
+		os.Exit(1)
+	}
+	accessService, err := usecase.NewAccessServiceWithAssurance(postgresrepo.NewAccessRepository(db), sessionService, cfg.CasbinModelPath)
 	if err != nil {
 		logger.Error("failed to create access policy", "error", err)
 		os.Exit(1)
@@ -111,7 +122,7 @@ func main() {
 		os.Exit(1)
 	}
 	invitationUsecase := usecase.NewInvitationUsecase(postgresrepo.NewInvitationRepository(db), accessService, cfg.FrontendURL)
-	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret))
+	authUsecase := usecase.NewAuthUsecase(userRepo, []byte(cfg.JWTSecret), usecase.OAuthConfig{SessionIssuer: sessionService})
 	workspaceUsecase := usecase.NewWorkspaceUsecase(workspaceRepo)
 	folderUsecase := usecase.NewFolderUsecase(folderRepo)
 	sceneUsecase := usecase.NewSceneUsecase(sceneRepo, folderRepo)
@@ -159,10 +170,17 @@ func main() {
 	assetHandler.Capabilities = capabilityHandler
 	aiHandler := handler.NewAIHandler(aiUsecase)
 	// Middlewares
-	authMiddleware := middledelivery.AuthMiddleware([]byte(cfg.JWTSecret), userRepo)
+	authMiddleware := middledelivery.AuthMiddlewareWithSessions([]byte(cfg.JWTSecret), userRepo, sessionRepo)
 
 	agents := usecase.NewAgentService(postgresrepo.NewAgentRepository(db), accessService)
 	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
+	features := usecase.NewFeatureService(postgresrepo.NewFeatureRepository(db), accessService)
+	capabilityHandler.SetFeatureService(features)
+	featureHandler := handler.NewFeatureHandler(features)
+	events := usecase.NewEventService(postgresrepo.NewEventRepository(db), accessService)
+	comments := usecase.NewCommentService(postgresrepo.NewCommentRepository(db), features, accessService, events)
+	commentHandler := handler.NewCommentHandler(comments, rooms, accessService)
+	var collabRemote domain.AgentCollabRepository
 	agentHandler.SetExportAssets(usecase.NewExportAssets(agents, sceneAssetRepo, s3Repo.(domain.ExportObjectReader)))
 	if cfg.CollabInternalURL != "" {
 		remote, e := collabrepo.NewAgentClient(cfg.CollabInternalURL, cfg.CollabInternalSecret)
@@ -170,11 +188,59 @@ func main() {
 			logger.Error("invalid collaboration bridge configuration")
 			os.Exit(1)
 		}
+		collabRemote = remote
 		agentHandler.SetBridge(usecase.NewAgentBridge(agents, rooms, capabilities, remote))
 	}
+	versions := usecase.NewVersionService(postgresrepo.NewVersionRepository(db), features, capabilities, collabRemote)
+	versions.SetAssetViewer(assetUsecase)
+	versions.SetEventService(events)
+	versionHandler := handler.NewVersionHandler(versions, accessService)
+	notifications := usecase.NewNotificationService(postgresrepo.NewNotificationRepository(db), features, accessService)
+	notificationHandler := handler.NewNotificationHandler(notifications)
+	activity := usecase.NewActivityService(postgresrepo.NewActivityRepository(db), features, accessService)
+	activityHandler := handler.NewActivityHandler(activity, accessService)
+	presentations, err := usecase.NewPresentationService(postgresrepo.NewPresentationRepository(db), features, accessService, []byte(cfg.CollabJWTSecret))
+	if err != nil {
+		logger.Error("failed to configure presentation admission", "error", err)
+		os.Exit(1)
+	}
+	if runtime, ok := collabRemote.(domain.PresentationRuntimeVerifier); ok {
+		presentations.SetRuntimeVerifier(runtime)
+	}
+	presentationHandler := handler.NewPresentationHandler(presentations, accessService)
+	capabilityHandler.SetPresentationAuthority(presentations)
+	collections := usecase.NewCollectionService(postgresrepo.NewCollectionRepository(db), features, accessService)
+	collections.SetEventService(events)
+	collectionHandler := handler.NewCollectionHandler(collections, accessService)
+	domainService := usecase.NewDomainService(postgresrepo.NewDomainRepository(db), accessService, dnsrepo.NewTXTResolver(nil, 3*time.Second))
+	domainHandler := handler.NewDomainHandler(domainService, accessService)
+	scimRepo := postgresrepo.NewSCIMRepository(db)
+	scimService := usecase.NewSCIMService(scimRepo, accessService)
+	scimHandler := handler.NewSCIMHandler(scimService, accessService, middledelivery.SCIMAuth(scimRepo))
+	libraryService := usecase.NewLibraryService(postgresrepo.NewLibraryRepository(db), features, accessService, capabilities, collabRemote)
+	if copier, ok := any(s3Repo).(domain.LibraryObjectCopier); ok {
+		libraryService.SetAssetStager(postgresrepo.NewLibraryAssetStager(db, copier, 24*time.Hour))
+	} else {
+		logger.Error("object storage does not support library asset staging")
+		os.Exit(1)
+	}
+	libraryHandler := handler.NewLibraryHandler(libraryService, accessService)
+	ssoCipher, err := oidcrepo.NewAESGCMCipher([]byte(cfg.SSOEncryptionKey))
+	if err != nil {
+		logger.Error("failed to configure SSO encryption", "error", err)
+		os.Exit(1)
+	}
+	ssoService, err := usecase.NewSSOService(ssoRepo, accessService, sessionService, oidcrepo.NewFactory(ssoCipher, 5*time.Second), ssoCipher, cfg.SSOCallbackURL)
+	if err != nil {
+		logger.Error("failed to configure workspace SSO", "error", err)
+		os.Exit(1)
+	}
+	ssoHandler := handler.NewSSOHandler(ssoService, accessService, cfg.FrontendURL)
+	retentionService := usecase.NewRetentionService(postgresrepo.NewRetentionRepository(db), accessService, features)
+	retentionHandler := handler.NewRetentionHandler(retentionService, accessService)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler, collectionHandler, domainHandler, httpdelivery.EnterpriseExtras{SSO: ssoHandler, Retention: retentionHandler, SCIM: scimHandler, Library: libraryHandler}),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
@@ -210,6 +276,8 @@ func loadConfig() (config, error) {
 		"S3_SECRET_KEY",
 		"S3_BUCKET",
 		"FRONTEND_URL",
+		"SSO_ENCRYPTION_KEY",
+		"SSO_CALLBACK_URL",
 	}
 
 	for _, key := range required {
@@ -238,6 +306,14 @@ func loadConfig() (config, error) {
 		}
 		secrets = append(secrets, value)
 	}
+	if len(os.Getenv("SSO_ENCRYPTION_KEY")) != 32 {
+		return config{}, fmt.Errorf("SSO_ENCRYPTION_KEY must contain exactly 32 bytes")
+	}
+	for _, prior := range secrets {
+		if prior == os.Getenv("SSO_ENCRYPTION_KEY") {
+			return config{}, fmt.Errorf("SSO_ENCRYPTION_KEY must be distinct")
+		}
+	}
 	authorityAddr := getEnv("AUTHORITY_LISTEN_ADDR", defaultAuthorityAddr)
 	host, port, e := net.SplitHostPort(authorityAddr)
 	ip := net.ParseIP(host)
@@ -251,6 +327,10 @@ func loadConfig() (config, error) {
 	frontend, err := url.Parse(os.Getenv("FRONTEND_URL"))
 	if err != nil || frontend.Hostname() == "" || (frontend.Scheme != "https" && frontend.Scheme != "http") || frontend.User != nil || frontend.RawQuery != "" || frontend.ForceQuery || frontend.Fragment != "" || (frontend.Path != "" && frontend.Path != "/") {
 		return config{}, fmt.Errorf("FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment")
+	}
+	callback, err := url.Parse(os.Getenv("SSO_CALLBACK_URL"))
+	if err != nil || callback.Scheme != "https" || callback.Hostname() == "" || callback.User != nil || callback.RawQuery != "" || callback.ForceQuery || callback.Fragment != "" || callback.Path != "/api/v1/sso/callback" {
+		return config{}, fmt.Errorf("SSO_CALLBACK_URL must be the exact public HTTPS /api/v1/sso/callback URL")
 	}
 	if (os.Getenv("COLLAB_INTERNAL_URL") == "") != (os.Getenv("COLLAB_INTERNAL_SECRET") == "") {
 		return config{}, fmt.Errorf("COLLAB_INTERNAL_URL and COLLAB_INTERNAL_SECRET must be configured together")
@@ -282,6 +362,8 @@ func loadConfig() (config, error) {
 		S3Bucket:               os.Getenv("S3_BUCKET"),
 		S3Region:               getEnv("S3_REGION", "auto"),
 		FrontendURL:            os.Getenv("FRONTEND_URL"),
+		SSOEncryptionKey:       os.Getenv("SSO_ENCRYPTION_KEY"),
+		SSOCallbackURL:         os.Getenv("SSO_CALLBACK_URL"),
 		AIAPIKey:               os.Getenv("AI_API_KEY"),
 		AIBaseURL:              getEnv("AI_BASE_URL", "https://api.deepseek.com/v1"),
 		AIModelFast:            getEnv("AI_MODEL_FAST", "deepseek-chat"),

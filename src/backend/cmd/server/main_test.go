@@ -29,9 +29,35 @@ func setValidConfig(t *testing.T) {
 	t.Setenv("COLLAB_JWT_SECRET", "collab-0123456789abcdef0123456789abcdef")
 	t.Setenv("AUTHORITY_SERVICE_SECRET", "service-0123456789abcdef0123456789abcdef")
 	t.Setenv("MUTATION_GRANT_SECRET", "grant-0123456789abcdef0123456789abcdef")
+	t.Setenv("SSO_ENCRYPTION_KEY", "sso-encryption-key-32-bytes-long")
+	t.Setenv("SSO_CALLBACK_URL", "https://example.test/api/v1/sso/callback")
+}
+
+func setValidSSOConfig(t *testing.T) {
+	t.Helper()
+	t.Setenv("SSO_ENCRYPTION_KEY", "sso-encryption-key-32-bytes-long")
+	t.Setenv("SSO_CALLBACK_URL", "https://example.test/api/v1/sso/callback")
+}
+
+func TestSSOConfigRequiresDistinctEncryptionKeyAndExactCallback(t *testing.T) {
+	setValidConfig(t)
+	for _, value := range []string{"", "short", strings.Repeat("x", 31), strings.Repeat("x", 33), "login-0123456789abcdef0123456789abcdef"} {
+		t.Setenv("SSO_ENCRYPTION_KEY", value)
+		if _, err := loadConfig(); err == nil {
+			t.Errorf("invalid SSO encryption key with %d bytes was accepted", len(value))
+		}
+	}
+	setValidConfig(t)
+	for _, value := range []string{"http://example.test/api/v1/sso/callback", "https://example.test/other", "https://user@example.test/api/v1/sso/callback", "https://example.test/api/v1/sso/callback?x=1"} {
+		t.Setenv("SSO_CALLBACK_URL", value)
+		if _, err := loadConfig(); err == nil {
+			t.Errorf("unsafe SSO callback accepted: %s", value)
+		}
+	}
 }
 
 func TestInvitationFrontendOriginConfig(t *testing.T) {
+	setValidSSOConfig(t)
 	t.Setenv("AUTHORITY_SERVICE_SECRET", "service-0123456789abcdef0123456789abcdef")
 	t.Setenv("MUTATION_GRANT_SECRET", "grant-0123456789abcdef0123456789abcdef")
 	t.Setenv("COLLAB_JWT_SECRET", "collab-0123456789abcdef0123456789abcdef")
@@ -54,6 +80,7 @@ func TestInvitationFrontendOriginConfig(t *testing.T) {
 }
 
 func TestRoomTokenSecretConfig(t *testing.T) {
+	setValidSSOConfig(t)
 	t.Setenv("AUTHORITY_SERVICE_SECRET", "service-0123456789abcdef0123456789abcdef")
 	t.Setenv("MUTATION_GRANT_SECRET", "grant-0123456789abcdef0123456789abcdef")
 	for _, key := range []string{"DATABASE_URL", "CASBIN_MODEL_PATH", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET"} {
@@ -74,6 +101,7 @@ func TestRoomTokenSecretConfig(t *testing.T) {
 }
 
 func TestAuthorityConfigFailClosed(t *testing.T) {
+	setValidSSOConfig(t)
 	for _, key := range []string{"DATABASE_URL", "CASBIN_MODEL_PATH", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET"} {
 		t.Setenv(key, "fixture")
 	}
@@ -88,6 +116,7 @@ func TestAuthorityConfigFailClosed(t *testing.T) {
 }
 
 func TestAuthorityListenerAndSecretIsolation(t *testing.T) {
+	setValidSSOConfig(t)
 	for _, key := range []string{"DATABASE_URL", "CASBIN_MODEL_PATH", "S3_ENDPOINT", "S3_ACCESS_KEY", "S3_SECRET_KEY", "S3_BUCKET"} {
 		t.Setenv(key, "fixture")
 	}

@@ -23,4 +23,16 @@ describe('collab adapter', () => {
     expect(a.content().elements.find(e => e.id === 'one')).toMatchObject({ x: 75, y: 44 });
     expect(a.content().elements.find(e => e.id === 'two')?.isDeleted).toBe(true);
   });
+  it('causally reapplies offline image intent after restore regardless of Yjs client tie-break',()=>{
+    const image={...rectangle('image'),type:'image' as const,fileId:'file',status:'saved' as const,scale:[1,1] as [number,number],crop:null};
+    const base=scene([image]);base.files={file:{id:'file',assetId:'00000000-0000-4000-8000-000000000001',mimeType:'image/png',created:1}};
+    for(let run=0;run<32;run++){
+      const seed=new ExcalidrawAdapter();seed.applyLocalScene(base);const offline=new ExcalidrawAdapter(),restored=new ExcalidrawAdapter();offline.applyRemote(Y.encodeStateAsUpdate(seed.doc));restored.applyRemote(Y.encodeStateAsUpdate(seed.doc));
+      const desired=offline.content();desired.elements[0].x=88;desired.elements[0].isDeleted=false;offline.applyLocalScene(desired);
+      restored.doc.clientID=0xfffffffe;const vector=Y.encodeStateVector(restored.doc);restored.doc.getMap<Y.Map<unknown>>('elements').get('image')!.set('isDeleted',true);const restoreDelta=Y.encodeStateAsUpdate(restored.doc,vector);
+      const authoritative=new ExcalidrawAdapter();authoritative.doc.clientID=1;authoritative.applyRemote(Y.encodeStateAsUpdate(seed.doc));authoritative.applyRemote(restoreDelta);const causal=[];for(let x=81;x<=88;x++){const step=structuredClone(desired);step.elements[0].x=x;causal.push(authoritative.reapplyIntent(base,step));}const server=new ExcalidrawAdapter();server.applyRemote(Y.encodeStateAsUpdate(seed.doc));server.applyRemote(restoreDelta);server.applyRemote(Y.mergeUpdates(causal));
+      expect(server.content().elements[0]).toMatchObject({x:88,isDeleted:false,fileId:'file'});expect(server.content().files.file).toBeDefined();
+      for(const adapter of [seed,offline,restored,authoritative,server])adapter.doc.destroy();
+    }
+  });
 });

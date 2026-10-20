@@ -44,7 +44,7 @@ export class RealStack {
     const requested = process.env.BASE_URL ? new URL(process.env.BASE_URL) : undefined;
     if (requested && (!['127.0.0.1','localhost'].includes(requested.hostname) || requested.protocol !== 'http:' || requested.pathname !== '/')) throw new Error('BASE_URL must be a loopback HTTP origin');
     const frontPort = requested ? Number(requested.port) : await freePort();
-    this.baseURL = requested?.origin ?? 'http://127.0.0.1:' + frontPort;
+    this.baseURL = requested?.origin ?? 'http://localhost:' + frontPort;
     this.api = 'http://127.0.0.1:' + apiPort; this.ws = 'ws://127.0.0.1:' + collabPort; this.mcp = 'http://127.0.0.1:' + mcpPort;
     Object.assign(this.env, { E1_S3_ACCESS: secret().slice(0,20), E1_S3_SECRET: secret(), E1_DB_PASSWORD: secret() });
     this.containerStarted = true; this.compose(['up', '-d', 'objectstore']);
@@ -58,6 +58,7 @@ export class RealStack {
       COLLAB_INTERNAL_URL: 'http://127.0.0.1:' + internalPort, COLLAB_PORT: String(collabPort), COLLAB_HOST:'127.0.0.1', COLLAB_INTERNAL_HOST:'127.0.0.1', COLLAB_INTERNAL_PORT:String(internalPort),
       COLLAB_ALLOWED_ORIGINS: this.baseURL, COLLAB_V2_ENABLED:'true', CASBIN_MODEL_PATH:join(root,'backend/configs/casbin_model.conf'),
       S3_ENDPOINT:this.s3,S3_ACCESS_KEY:this.env.E1_S3_ACCESS,S3_SECRET_KEY:this.env.E1_S3_SECRET,S3_BUCKET:'e1-assets',S3_REGION:'us-east-1',FRONTEND_URL:this.baseURL,
+      SSO_ENCRYPTION_KEY:secret().slice(0,32),SSO_CALLBACK_URL:'https://127.0.0.1/api/v1/sso/callback',
       WHITEBOARD_API_URL:this.api,WHITEBOARD_PUBLIC_URL:this.baseURL,MCP_AUDIT_PATH:join(this.dir,'audit.jsonl'),MCP_ALLOWED_ORIGINS:this.baseURL,PORT:String(mcpPort),MCP_BIND_HOST:'127.0.0.1',
     });
     this.run('go',['build','-o',join(this.dir,'server'),'./cmd/server'],join(root,'backend'));
@@ -67,9 +68,11 @@ export class RealStack {
     await this.startRuntime();
     this.launch(process.execPath,['mcp/dist/http.js'],root,Object.fromEntries(['PATH','HOME','TMPDIR','WHITEBOARD_API_URL','WHITEBOARD_PUBLIC_URL','MCP_AUDIT_PATH','MCP_ALLOWED_ORIGINS','PORT','MCP_BIND_HOST'].map(k=>[k,this.env[k]])));
     await until(async () => { try { return (await fetch(this.mcp+'/mcp')).status === 401; } catch { return false; } }, 20000, 'MCP HTTP');
-    this.vite = await viteServer({ root:join(root,'frontend'), configFile:join(root,'frontend/vite.config.ts'), envFile:false, server:{host:requested?.hostname ?? '127.0.0.1', port:frontPort, strictPort:true, proxy:{'/api':this.api,'/collab':{target:this.ws,ws:true},'/mcp':this.mcp}} });
+    this.vite = await viteServer({ root:join(root,'frontend'), configFile:join(root,'frontend/vite.config.ts'), envFile:false, server:{host:requested?.hostname ?? 'localhost', port:frontPort, strictPort:true, proxy:{'/api':this.api,'/collab':{target:this.ws,ws:true},'/mcp':this.mcp}} });
     await this.vite.listen();
-    this.owner = await this.account('owner'); this.outsider = await this.account('outsider');
+    this.owner = await this.account('owner');
+    await this.pool.query(`UPDATE workspace_feature_policies SET comments_enabled=true,activity_enabled=true,versions_enabled=true,libraries_enabled=true,collections_enabled=true,presentation_enabled=true,screen_share_enabled=true,enterprise_identity_enabled=true WHERE workspace_id=$1`, [this.owner.workspaceId]);
+    this.outsider = await this.account('outsider');
     this.editor = await this.invite('editor'); this.viewer = await this.invite('viewer');
   }
   async startRuntime() {

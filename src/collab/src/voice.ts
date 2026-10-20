@@ -1,21 +1,22 @@
 import {CollabError} from './auth.js';
 import {fields} from './awareness.js';
+import {MediaAdmission} from './screen-share.js';
 export const MAX_VOICE_PARTICIPANTS=10;
 const MAX_SDP_BYTES=24*1024;
 const MAX_CANDIDATE_LENGTH=4096;
 export type VoiceAdmission={admitted:boolean;connectionId:string;peers:string[];reason?:'VOICE_FULL'};
 export class Voice {
  private members=new Map<string,{room:string;muted:boolean}>();
+ constructor(private media:MediaAdmission){}
  joinVoice(room:string,connectionId:string):VoiceAdmission {
-  const peers=[...this.members].filter(([id,member])=>member.room===room&&id!==connectionId).map(([id])=>id);
-  if(!this.members.has(connectionId)&&peers.length>=MAX_VOICE_PARTICIPANTS)return {admitted:false,connectionId,peers:[],reason:'VOICE_FULL'};
+  const admission=this.media.join(room,connectionId,'voice');if(!admission.admitted)return {admitted:false,connectionId,peers:[],reason:'VOICE_FULL'};
   if(!this.members.has(connectionId))this.members.set(connectionId,{room,muted:false});
-  return {admitted:true,connectionId,peers};
+  return {admitted:true,connectionId,peers:admission.peers};
  }
- leaveVoice(connectionId:string){this.members.delete(connectionId);}
+ leaveVoice(connectionId:string){const member=this.members.get(connectionId);if(member)this.media.leave(member.room,connectionId,'voice');this.members.delete(connectionId);}
  state(connectionId:string){const member=this.members.get(connectionId);return {voiceJoined:!!member,voiceMuted:member?.muted??false};}
  mute(connectionId:string,muted:unknown){const member=this.members.get(connectionId);if(!member)throw new CollabError('VOICE_NOT_JOINED');if(typeof muted!=='boolean')throw new CollabError('VOICE_INVALID','Invalid mute state',400);member.muted=muted;}
- canSignal(room:string,from:string,to:string){return from!==to&&this.members.get(from)?.room===room&&this.members.get(to)?.room===room;}
+ canSignal(room:string,from:string,to:string){return this.media.canSignal(room,from,to,'voice');}
 }
 export function parseSignal(value:unknown) {
  const input=fields(value,['to','description','candidate'],'VOICE_INVALID');

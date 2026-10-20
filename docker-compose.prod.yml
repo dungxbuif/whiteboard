@@ -27,6 +27,8 @@ services:
       AUTHORITY_SERVICE_SECRET: ${AUTHORITY_SERVICE_SECRET:?dedicated authority secret required}
       MUTATION_GRANT_SECRET: ${MUTATION_GRANT_SECRET:?dedicated grant secret required}
       COLLAB_INTERNAL_SECRET: ${COLLAB_INTERNAL_SECRET:?dedicated command secret required}
+      SSO_ENCRYPTION_KEY: ${SSO_ENCRYPTION_KEY:?32-byte SSO encryption key required}
+      SSO_CALLBACK_URL: ${SSO_CALLBACK_URL:?exact public HTTPS OIDC callback required}
     networks:
       homelab-net: {}
       whiteboard-app: {}
@@ -40,6 +42,37 @@ services:
       - "8080"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  feature-worker:
+    container_name: whiteboard-feature-worker
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    entrypoint: ["/app/feature-worker"]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?database required}
+      FEATURE_WORKER_ID: whiteboard-feature-worker
+      FEATURE_WORKER_ADDR: 127.0.0.1:8090
+      CASBIN_MODEL_PATH: /app/configs/casbin_model.conf
+    networks:
+      - whiteboard-app
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    mem_limit: 256m
+    pids_limit: 64
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/readyz"]
       interval: 10s
       timeout: 3s
       retries: 6

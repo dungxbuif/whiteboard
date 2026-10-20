@@ -31,6 +31,10 @@ type Principal struct {
 	GrantVersion        string
 	DisplayName         string
 	CredentialExpiresAt time.Time
+	SessionID           uuid.UUID
+	AuthMethod          string
+	AuthenticatedAt     time.Time
+	RecoveryWorkspaceID uuid.UUID
 }
 
 func UserPrincipal(id uuid.UUID) Principal {

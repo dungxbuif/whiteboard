@@ -1,9 +1,9 @@
 # Enterprise parity — proposed detail design
 
-Status: draft for review, 2026-10-20. Scope direction is approved by
-ENT-P1-01–04 and ENT-P2-01–03; the new contracts and defaults below are proposals.
-Implementation approval has not been recorded. This document is the enterprise
-`DETAIL_DESIGN` artifact; no runtime change is authorized by its draft status.
+Status: approved for implementation, 2026-10-20. The user approved the complete
+programme and its stated defaults with the instruction “implement all”. This
+document is the enterprise `DETAIL_DESIGN` artifact and remains the binding
+contract for the implementation and verification work.
 
 ## Goal and trace
 

@@ -1,5 +1,33 @@
 # Collaboration protocol (v2, deployed)
 
+## Enterprise metadata invalidation
+
+The existing authenticated socket carries a cursor-only
+`feature_changed { eventCursor: string }` control after the runtime has checked
+the recipient's current authority. The cursor is a positive decimal string and
+the strict payload contains no other fields. It is an invalidation hint, so the
+browser refetches an authorized activity or feature page and also refetches
+after reconnect. No workspace event content is transported on the realtime
+channel. Schema, projection and privacy rules are defined in
+[Enterprise workspace events](enterprise-events.md).
+
+The frontend `FeatureInvalidationCoordinator` is the production consumer. A
+feature surface registers its authorized HTTP/query refetch function through
+`useAuthorizedFeatureRefetch`; the coordinator never accepts event data as a
+cache result. It tracks the highest decimal cursor only as an invalidation
+watermark. Live, repeated, stale, and out-of-order cursors all cause a refetch,
+and invalidations received during an in-flight request are coalesced into one
+follow-up request using the highest observed cursor. If no feature surface is
+mounted, the invalidation remains dirty until one registers.
+
+Every admitted socket connection, including a reconnect after a possibly lost
+control, invalidates registered queries. Window focus, restoration of a visible
+document, route navigation, and the explicit `refreshFeatures()` action do the
+same. Route and connection identities are deduplicated. Each registered loader
+must call its normal authorized API, so the HTTP response is filtered using
+current authority rather than authority implied by the socket notification.
+These paths share `/collab`; the browser opens no workspace event socket.
+
 Go owns access decisions; the custom Node service owns Yjs content. These
 contracts describe the deployed VM100 runtime; the release checklist records
 the remaining restart/TURN/denial/roles acceptance boundaries.
@@ -67,6 +95,44 @@ Runtime transactions acquire a shared transaction-level handoff advisory lock be
 Inactive scenes/workspaces are omitted from due scans and rechecked under the workspace/scene locks. A trash race is a maintenance no-op that preserves updates, receipts and document identity. Restoration makes retained work eligible again. Already-covered documents do not rewrite snapshots. Maintenance errors affect only the failed scene; scanning continues to other eligible documents.
 
 The scheduler runs one due scan and one scene job at a time. It retains at most 64 queued scene jobs and 64 five-second/count timer entries, deduplicating scan/timer/count work against queued and running scenes. Each due query returns at most64 refs with a stable workspace/scene cursor; later pages recover overflow work from PostgreSQL. Timer/count thresholds request work; storage backlog can delay execution rather than create unbounded parallel jobs. Shutdown stops intake, clears queued/timed work (retained durably), and drains the bounded in-flight tasks. Direct compactDue() handles one bounded page, continuing after individual failures before returning an AggregateError.
+
+## M2 presentation waiting-room contract (implemented locally; release pending)
+
+`presentation_auth` accepts only a signed five-minute
+`presentation-pending` credential. The connection is registered in the
+session-local waiting queue without a scene principal, room reference,
+awareness entry or durable read. It receives `presentation_waiting` for its own
+connection only. Binary frames and ordinary ephemeral controls fail before any
+scene, roster or media data is read.
+
+An editor authenticated through the ordinary room starts a session with
+`presentation_start`. Host controls recheck `presentation:host` against the Go
+private authority. `presentation_admit` carries the exact waiting connection,
+expected decimal session revision and Go-issued `presentation-audience` token.
+Node verifies token/session/principal binding and requires the token grant
+version to equal that expected revision. Only the selected pending socket
+receives `presentation_admitted {sessionId,token,expiresAt}`; the bearer is not
+sent to the host or other waiters. Initial sync, channel-1 sync-step-1 resync,
+refresh and committed fanout all resolve presentation audience authority and
+never fall back to ordinary room reads. The Go resolution path rechecks the
+active host's current scene edit authority and `presentation_enabled` flag.
+Feature invalidation, host disconnect, explicit stop or current-authority
+denial ends the ephemeral session before further protected delivery. Restart
+retains stored invite links but no active host, waiting or audience state.
+
+`@collab/contracts` exposes strict bounded parsers for the audience's own
+`presentation_waiting` payload and host `presentation_state` snapshots. Pending
+disconnects increment the session revision and publish the new state to the
+host so a stale admission cannot succeed.
+
+Private service-authenticated `POST /internal/presentations/resolve` exposes
+only active host/pending/audience decisions to Go. It uses the same isolated
+private listener, ownership fence, request limit and service secret as durable
+agent/version operations and must never be publicly proxied.
+
+The public join limiter keys requests by the direct peer IP captured before
+Chi's `RealIP` middleware may rewrite `RemoteAddr`. Forwarding headers from an
+untrusted public peer therefore cannot create extra rate-limit buckets.
 
 ## D3 agent bridge (deployed; production write/export canary pending)
 

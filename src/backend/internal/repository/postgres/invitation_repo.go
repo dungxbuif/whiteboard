@@ -90,6 +90,29 @@ func (r *InvitationRepository) Join(ctx domain.Context, i *domain.Invitation, us
 	if result.RowsAffected != 1 {
 		return m, domain.ErrInvitationInvalid
 	}
+	var managed scimUserRow
+	available, availabilityErr := scimProvenanceAvailable(db)
+	if availabilityErr != nil {
+		return m, availabilityErr
+	}
+	managedErr := gorm.ErrRecordNotFound
+	if available {
+		managedErr = db.Where("workspace_id=? AND user_id=?", i.WorkspaceID, user).First(&managed).Error
+	}
+	if managedErr == nil {
+		source := membershipSourceRow{WorkspaceID: i.WorkspaceID, UserID: user, SourceKind: domain.SCIMMembershipSourceManual, SourceID: i.ID, Role: string(i.Role), CreatedAt: now}
+		if err = db.Clauses(clause.OnConflict{DoNothing: true}).Create(&source).Error; err != nil {
+			return m, err
+		}
+		if err = db.Model(&scimUserRow{}).Where("workspace_id=? AND user_id=?", i.WorkspaceID, user).Update("retained_manual_access", true).Error; err != nil {
+			return m, err
+		}
+		if err = recomputeMembership(db, i.WorkspaceID, user, false, now); err != nil {
+			return m, err
+		}
+	} else if !errors.Is(managedErr, gorm.ErrRecordNotFound) {
+		return m, managedErr
+	}
 	err = db.First(&m, "workspace_id=? AND user_id=?", i.WorkspaceID, user).Error
 	return m, err
 }

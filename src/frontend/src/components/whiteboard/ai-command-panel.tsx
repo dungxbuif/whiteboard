@@ -9,9 +9,10 @@ import useAIStore from "@/store/ai-store";
 interface AICommandPanelProps {
   scene: SceneContent;
   onApplyDiagram: (scene: SceneContent) => void;
+  embedded?: boolean;
 }
 
-export function AICommandPanel({ scene, onApplyDiagram }: AICommandPanelProps) {
+export function AICommandPanel({ scene, onApplyDiagram, embedded = false }: AICommandPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | undefined>();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -30,7 +31,7 @@ export function AICommandPanel({ scene, onApplyDiagram }: AICommandPanelProps) {
   };
 
   return (
-    <aside className="absolute bottom-4 left-4 z-10 w-[calc(100vw-2rem)] max-w-[420px] rounded-lg border bg-card/95 p-3 shadow-lg backdrop-blur" aria-label="AI command panel">
+    <aside className={embedded ? 'w-full' : 'absolute bottom-4 left-4 z-10 w-[calc(100vw-2rem)] max-w-[420px] rounded-lg border bg-card/95 p-3 shadow-lg backdrop-blur'} aria-label="AI command panel">
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Bot size={16} aria-hidden="true" /> AI assistant</div>
       <div className="flex gap-2">
         <Input aria-label="AI prompt" onChange={(event) => setPrompt(event.target.value)} placeholder="Describe a diagram or ask about this board" value={prompt} />

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import useAuthStore from '../store/auth-store';
 import api from '../lib/api';
+import { ssoClient } from '../lib/sso-api';
 
 vi.mock('../lib/api', () => ({
   default: {
@@ -8,6 +9,7 @@ vi.mock('../lib/api', () => ({
     get: vi.fn(),
   },
 }));
+vi.mock('../lib/sso-api', () => ({ ssoClient: { begin: vi.fn(), exchange: vi.fn() } }));
 
 describe('AuthStore', () => {
   beforeEach(() => {
@@ -51,17 +53,18 @@ describe('AuthStore', () => {
     expect(state.isAuthenticated).toBe(true);
   });
 
-  it('should consume an OAuth token from the callback hash', async () => {
+  it('should consume a browser-bound one-time SSO exchange code', async () => {
     const mockUser = { id: '1', email: 'test@example.com', name: 'Test User' };
-    window.history.replaceState({}, '', '/#token=oauth-token');
+    window.history.replaceState({}, '', '/auth/sso/exchange?code=one-time&return=%2Fw%2Fdemo');
+    vi.mocked(ssoClient.exchange).mockResolvedValue({ token: 'sso-token', user: mockUser });
     (api.get as any).mockResolvedValue({ data: mockUser });
 
     await useAuthStore.getState().checkAuth();
 
     const state = useAuthStore.getState();
-    expect(state.token).toBe('oauth-token');
+    expect(state.token).toBe('sso-token');
     expect(state.user).toEqual(mockUser);
-    expect(localStorage.getItem('auth_token')).toBe('oauth-token');
-    expect(window.location.hash).toBe('');
+    expect(localStorage.getItem('auth_token')).toBe('sso-token');
+    expect(window.location.pathname).toBe('/w/demo');
   });
 });

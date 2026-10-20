@@ -64,7 +64,7 @@ func (h *RoomHandler) mint(w http.ResponseWriter, r *http.Request, p domain.Prin
 // Only this route accepts a scene-session credential. It never populates UserID.
 func (h *RoomHandler) TokenHandler(auth func(http.Handler) http.Handler) http.Handler {
 	login := auth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := middleware.UserIDFromContext(r.Context())
+		principal, ok := middleware.UserPrincipalFromContext(r.Context())
 		if !ok {
 			sharingError(w, r, domain.ErrInvalidSceneSession)
 			return
@@ -79,7 +79,7 @@ func (h *RoomHandler) TokenHandler(auth func(http.Handler) http.Handler) http.Ha
 			sharingError(w, r, e)
 			return
 		}
-		h.mint(w, r, domain.UserPrincipal(user), domain.SceneRef{WorkspaceID: workspace, SceneID: scene})
+		h.mint(w, r, principal, domain.SceneRef{WorkspaceID: workspace, SceneID: scene})
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := r.Header.Get(domain.HeaderAuthorization)

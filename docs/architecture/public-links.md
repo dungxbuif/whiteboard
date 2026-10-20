@@ -39,3 +39,29 @@ Refresh checks credential expiry again after the workspace lock is acquired;
 verified JWT expiry for downstream capability bounds. Link expiry queries use
 PostgreSQL clock_timestamp(), not transaction-start now(), so a transaction
 that waits or runs across expiry cannot keep an expired link valid.
+
+## Guest comment policy
+
+`allowComments` is independent from link `access`. A view link may comment and
+an edit link may remain comment-disabled. Both the workspace
+`commentsEnabled` policy and the link's current `allowComments=true` revision
+must hold for guest comment reads and writes. The comment route parses the
+existing scene-session token, binds the URL scene and optional workspace header
+to its exact scope, then `FeatureService` rechecks the active, unexpired link
+and current revision under the workspace lock. Revocation or a revision change
+therefore denies a mutation that was prepared from an older session before any
+comment, receipt, subscription or event commits.
+
+The request body contains only comment input; it never accepts guest identity
+or display name. Author identity and the safe display-name snapshot come from
+the verified session. Guests are not inserted into `users`, cannot subscribe
+to a private inbox, and never gain canvas edit authority from comment
+permission. Comment bodies remain in comment storage and authenticated API
+responses; realtime invalidations and workspace events contain cursor/ID
+metadata only.
+
+Guests page through long discussions with the same bounded thread contract as
+members: each response contains at most 50 messages and may return a
+`nextMessageCursor`. Every continuation request rechecks the current link
+revision and `allowComments`; a cursor is valid only for its original
+workspace, scene and thread.

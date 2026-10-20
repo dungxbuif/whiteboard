@@ -58,6 +58,12 @@ func (r *s3Repository) Delete(ctx domain.Context, bucket, key string) error {
 	return err
 }
 
+func (r *s3Repository) CopyObject(ctx domain.Context, sourceBucket, sourceKey, targetBucket, targetKey string) error {
+	copySource := url.PathEscape(sourceBucket + "/" + sourceKey)
+	_, err := r.client.CopyObject(ctx, &s3.CopyObjectInput{Bucket: aws.String(targetBucket), Key: aws.String(targetKey), CopySource: aws.String(copySource)})
+	return err
+}
+
 func (r *s3Repository) PresignUploadConstrained(ctx domain.Context, bucket, key, mime string, size int64, deadline time.Time) (string, map[string]string, error) {
 	expires := time.Until(deadline)
 	if expires < time.Second || expires > domain.AssetCapabilityLifetime {

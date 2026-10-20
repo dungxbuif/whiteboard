@@ -10,8 +10,9 @@ import (
 )
 
 type AccessService struct {
-	repo   domain.AccessRepository
-	policy *casbin.Enforcer
+	repo      domain.AccessRepository
+	policy    *casbin.Enforcer
+	assurance domain.SessionAssurance
 }
 
 const accessModel = `[request_definition]
@@ -25,6 +26,9 @@ m = r.sub != "" && r.role == p.role && r.act == p.act
 `
 
 func NewAccessService(repo domain.AccessRepository, modelPaths ...string) (*AccessService, error) {
+	return NewAccessServiceWithAssurance(repo, nil, modelPaths...)
+}
+func NewAccessServiceWithAssurance(repo domain.AccessRepository, assurance domain.SessionAssurance, modelPaths ...string) (*AccessService, error) {
 	m, e := model.NewModelFromString(accessModel)
 	if len(modelPaths) > 0 {
 		m, e = model.NewModelFromFile(modelPaths[0])
@@ -41,7 +45,28 @@ func NewAccessService(repo domain.AccessRepository, modelPaths ...string) (*Acce
 			return nil, e
 		}
 	}
-	return &AccessService{repo: repo, policy: policy}, nil
+	return &AccessService{repo: repo, policy: policy, assurance: assurance}, nil
+}
+func principalSession(ctx domain.Context, p domain.Principal) domain.Principal {
+	if id, ok := ctx.Value(domain.ContextKeySessionID).(uuid.UUID); ok {
+		p.SessionID = id
+	}
+	if method, ok := ctx.Value(domain.ContextKeyAuthMethod).(string); ok {
+		p.AuthMethod = method
+	}
+	if at, ok := ctx.Value(domain.ContextKeyAuthTime).(time.Time); ok {
+		p.AuthenticatedAt = at
+	}
+	if workspace, ok := ctx.Value(domain.ContextKeyRecoveryWorkspace).(uuid.UUID); ok {
+		p.RecoveryWorkspaceID = workspace
+	}
+	return p
+}
+func (s *AccessService) requireAssurance(ctx domain.Context, p domain.Principal, w uuid.UUID) error {
+	if s.assurance == nil || p.Kind != domain.PrincipalUser {
+		return nil
+	}
+	return s.assurance.RequireWorkspaceAssurance(ctx, principalSession(ctx, p), w)
 }
 func normalizedUser(p domain.Principal) (uuid.UUID, error) {
 	if p.Kind != domain.PrincipalUser || p.UserID == nil || *p.UserID == uuid.Nil || p.ID != p.UserID.String() {
@@ -90,6 +115,11 @@ func (s *AccessService) Resolve(ctx domain.Context, p domain.Principal, ref doma
 		return d, nil
 	}
 	if p.Kind == domain.PrincipalPublic {
+		if s.assurance != nil {
+			if e := s.assurance.RequirePublicLinkAccess(ctx, ref.WorkspaceID); e != nil {
+				return domain.AccessDecision{}, e
+			}
+		}
 		repo, ok := s.repo.(domain.PublicAccessRepository)
 		if !ok || p.GrantVersion == "" || p.UserID != nil || !strings.HasPrefix(p.ID, "guest:") || len(p.ID) <= len("guest:") {
 			return domain.AccessDecision{}, domain.ErrAccessDenied
@@ -110,6 +140,9 @@ func (s *AccessService) Resolve(ctx domain.Context, p domain.Principal, ref doma
 	if e != nil {
 		return domain.AccessDecision{}, e
 	}
+	if e = s.requireAssurance(ctx, p, ref.WorkspaceID); e != nil {
+		return domain.AccessDecision{}, e
+	}
 	state, e := s.repo.SceneState(ctx, id, ref)
 	if e != nil {
 		return domain.AccessDecision{}, e
@@ -121,6 +154,9 @@ func (s *AccessService) ResolveWorkspace(ctx domain.Context, p domain.Principal,
 	if e != nil {
 		return domain.AccessDecision{}, e
 	}
+	if e = s.requireAssurance(ctx, p, w); e != nil {
+		return domain.AccessDecision{}, e
+	}
 	state, e := s.repo.WorkspaceState(ctx, id, w)
 	if e != nil {
 		return domain.AccessDecision{}, e
@@ -128,6 +164,15 @@ func (s *AccessService) ResolveWorkspace(ctx domain.Context, p domain.Principal,
 	return s.decision(p, state)
 }
 func (s *AccessService) RequireOwner(ctx domain.Context, u, w uuid.UUID) error {
+	// RequireOwner is also used to validate a different subject's owner
+	// invariant (for example, an invitation's original inviter). Only attach
+	// request-session assurance when the subject is the current principal.
+	requestUser, hasRequestUser := ctx.Value(domain.ContextKeyUserID).(uuid.UUID)
+	if !hasRequestUser || requestUser == u {
+		if e := s.requireAssurance(ctx, domain.UserPrincipal(u), w); e != nil {
+			return e
+		}
+	}
 	state, e := s.repo.WorkspaceState(ctx, u, w)
 	if e != nil {
 		return e

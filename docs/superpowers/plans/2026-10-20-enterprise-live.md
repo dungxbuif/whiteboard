@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-Programme constraints apply; draft pending review. Depends on F1/UI1/UI2.
+Programme constraints apply; approved for implementation. Depends on F1/UI1/UI2.
 One publisher/room, ten active media connections total, 720p/15fps target,
 no recording/system audio. Audience waiting must receive no scene/assets/roster
 until admitted. Host disconnect ends session; view lock never alters edit ACL.
@@ -26,7 +26,7 @@ All new controls are overlays/native slots; drawing survives capture errors.
 - Concurrent host transfer/spotlight and stale revisions: M3 session tests.
 - Public revoke/refresh during media and mobile autoplay: M3 browser tests.
 
-## Task M1: Independent admitted screen-media lifecycle
+## Task 1: M1 — Independent admitted screen-media lifecycle
 
 **Files:** Create `src/collab/src/screen-share.ts`, `screen-share.test.ts`,
 `src/frontend/src/collab/screen-share.ts`, `screen-share.test.ts`,
@@ -42,15 +42,15 @@ without changing voice controls. `ScreenShare.join():Promise<void>`, `leave():vo
 Controls `screen_request`, `screen_admission`, `screen_stop`, `screen_signal`
 carry connection/session IDs and use current sender/recipient authority.
 
-- [ ] Write `screenIndependentOfMic`, `voiceScreenCountOnceAtTen`,
+- [x] Write `screenIndependentOfMic`, `voiceScreenCountOnceAtTen`,
   `eleventhMediaDeniedButDrawingWorks`, `lateCaptureStopsAllTracks`,
   `publisherLeaseExpires`, `signalCannotCrossRoom`: union capacity <=10, one
   publisher, reservation expires in30s, permission only after admission and
   explicit click, leave stops late tracks and revokes sender routing.
-- [ ] Run `rtk npm test --workspace ./collab -- screen-share voice` and
+- [x] Run `rtk npm test --workspace ./collab -- screen-share voice` and
   `rtk npm run test:unit --workspace ./frontend -- screen-share` in `src`;
   expect RED, then implement bounded control parsing and separate peer objects.
-- [ ] After asynchronous admission show Start sharing; invoke getDisplayMedia
+- [x] After asynchronous admission show Start sharing; invoke getDisplayMedia
   synchronously from that second trusted user click, capturing video only.
   apply 1280x720/15fps constraints, handle unsupported browser without losing
   voice/drawing, replace no microphone tracks. Track-ended/authority loss closes
@@ -59,7 +59,7 @@ carry connection/session IDs and use current sender/recipient authority.
   using `tests/packaging/enterprise-media.mjs` (E1), plus voice regression.
   Reconcile protocol/media guide and commit `feat(media): add admitted screen sharing`.
 
-## Task M2: Separate presentation admission and waiting credentials
+## Task 2: M2 — Separate presentation admission and waiting credentials
 
 **Files:** Create backend `internal/domain/presentation.go`,
 `internal/usecase/presentation_ucase.go`,
@@ -78,22 +78,22 @@ bind session+principal+scene+expiry and remain independent of ordinary links.
 Node `PresentationSessions.start/stop/admit/remove/transfer` owns current
 connection state; Go checks a signed private host/session decision before grant.
 
-- [ ] Write `TestPendingTokenCannotMintRoomOrReadAssets`,
+- [x] Write `TestPendingTokenCannotMintRoomOrReadAssets`,
   `TestPresentationLinkRevokeDoesNotRevokeMembership`,
   `waitingClientReceivesOnlyOwnStatus`, `hostDisconnectEndsSession`.
   Pending auth sends neither ready/sync_chunk nor roster and rejects binary
   data/voice/screen. Admission requires active matching session and current host.
-- [ ] Run focused Go Presentation tests and Node `presentation` tests; expect
+- [x] Run focused Go Presentation tests and Node `presentation` tests; expect
   RED. Implement grant-bound links (hashed, expiry/revision, explicit revoke),
   private session validation and `presentation_auth` distinct from room auth.
-- [ ] Serialize active session changes on existing single runtime owner; cap
+- [x] Serialize active session changes on existing single runtime owner; cap
   waiting queue at100, session invites24h, pending grants5min; attempts rate60/min/IP.
   Store links, not ephemeral participants, in Postgres. Restart invalidates sessions.
-- [ ] Run member/guest/revoke/expiry/cross-scene negative tests, migration
+- [x] Run member/guest/revoke/expiry/cross-scene negative tests, migration
   upgrade and room/asset regressions; reconcile API/ERD/token ADR and commit
   `feat(presentation): enforce audience waiting-room admission`.
 
-## Task M3: Host controls, spotlight/reactions/view lock and audience UI
+## Task 3: M3 — Host controls, spotlight/reactions/view lock and audience UI
 
 **Files:** Create frontend `src/collab/live-presentation.ts`, tests,
 `src/components/presentation/{host-controls,audience-view,waiting-room}.tsx`
@@ -108,17 +108,17 @@ actions `setFrame`, `spotlight`, `setLocked`, `admit`, `remove`, `transfer`,
 `/present/{token}` loads pending/admitted UI with refresh handling; host links
 are copied manually, never emailed automatically.
 
-- [ ] Add `staleHostRevisionRejected`, `transferOnlyToEditor`,
+- [x] Add `staleHostRevisionRejected`, `transferOnlyToEditor`,
   `spotlightClearsOnTargetLeave`, `reactionAllowlistRateAndExpiry`,
   `lockedViewportStillAllowsLeave`, `pendingAudienceNoSceneLeak`.
   Concurrent frame/host changes must have one current authoritative revision;
   reaction expiry3s/rate1s, max100 queued guests (M2), offline host ends session.
-- [ ] Run Node/frontend focused tests (RED), implement native frame/camera
+- [x] Run Node/frontend focused tests (RED), implement native frame/camera
   follow using IDs, not slide array index; removed frames produce a fallback
   message without jumping to a different frame silently. Lock changes viewport
   only; authorization remains F1/current scene policy.
 - [ ] Run real-stack two guests+host: admit/deny/remove/transfer, mobile waiting
   dialog, screen/voice permission denial, autoplay prompt, room refresh/revoke,
   keyboard Escape and controls remain floating over full canvas.
-- [ ] Reconcile presentation/media API/user/public docs and llms links; commit
+- [x] Reconcile presentation/media API/user/public docs and llms links; commit
   `feat(presentation): add live host and audience controls`.

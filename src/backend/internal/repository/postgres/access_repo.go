@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"time"
 )
 
 type accessTransactionKey struct{}
@@ -101,7 +102,48 @@ func (r *AccessRepository) ListMembers(ctx context.Context, w uuid.UUID) ([]doma
 	return members, err
 }
 func (r *AccessRepository) ChangeMember(ctx context.Context, w, user uuid.UUID, role *domain.WorkspaceRole) error {
-	q := accessDB(ctx, r.db).Model(&domain.WorkspaceMember{}).Where("workspace_id=? AND user_id=? AND role <> 'owner'", w, user)
+	db := accessDB(ctx, r.db)
+	q := db.Model(&domain.WorkspaceMember{}).Where("workspace_id=? AND user_id=? AND role <> 'owner'", w, user)
+	var managed scimUserRow
+	available, availabilityErr := scimProvenanceAvailable(db)
+	if availabilityErr != nil {
+		return availabilityErr
+	}
+	managedErr := gorm.ErrRecordNotFound
+	if available {
+		managedErr = db.Where("workspace_id=? AND user_id=?", w, user).First(&managed).Error
+	}
+	if managedErr == nil {
+		if role == nil {
+			if e := db.Where("workspace_id=? AND user_id=? AND source_kind='manual'", w, user).Delete(&membershipSourceRow{}).Error; e != nil {
+				return e
+			}
+			if e := db.Model(&scimUserRow{}).Where("workspace_id=? AND user_id=?", w, user).Update("retained_manual_access", false).Error; e != nil {
+				return e
+			}
+			var managedSources int64
+			if e := db.Model(&membershipSourceRow{}).Where("workspace_id=? AND user_id=? AND source_kind IN ('direct','adopted')", w, user).Count(&managedSources).Error; e != nil {
+				return e
+			}
+			if managed.Active && managedSources == 0 {
+				if e := db.Create(&membershipSourceRow{WorkspaceID: w, UserID: user, SourceKind: domain.SCIMMembershipSourceDirect, SourceID: managed.ID, Role: managed.DirectRole, CreatedAt: time.Now().UTC()}).Error; e != nil {
+					return e
+				}
+			}
+			return recomputeMembership(db, w, user, false, time.Now().UTC())
+		}
+		source := membershipSourceRow{WorkspaceID: w, UserID: user, SourceKind: domain.SCIMMembershipSourceManual, SourceID: user, Role: string(*role), CreatedAt: time.Now().UTC()}
+		if e := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "workspace_id"}, {Name: "user_id"}, {Name: "source_kind"}, {Name: "source_id"}}, DoUpdates: clause.AssignmentColumns([]string{"role"})}).Create(&source).Error; e != nil {
+			return e
+		}
+		if e := db.Model(&scimUserRow{}).Where("workspace_id=? AND user_id=?", w, user).Update("retained_manual_access", true).Error; e != nil {
+			return e
+		}
+		return recomputeMembership(db, w, user, false, time.Now().UTC())
+	}
+	if managedErr != nil && !errors.Is(managedErr, gorm.ErrRecordNotFound) {
+		return managedErr
+	}
 	var result *gorm.DB
 	if role == nil {
 		result = q.Delete(&domain.WorkspaceMember{})

@@ -6,13 +6,18 @@ import { offlineStore } from './offline-store';
 import { createLocalUndo } from './undo';
 import { Presence } from './presence';
 import { Voice } from './voice';
+import { ScreenShare } from './screen-share';
+import { LivePresentation } from './live-presentation';
 import useAuthStore from '@/store/auth-store';
 import { registerContentWriter, registerLegacyConflict } from './writers';
+import { bindFeatureInvalidation, FeatureInvalidationCoordinator, type FeatureRefetch } from './feature-invalidation';
 import api from '@/lib/api';
 import { publicApi } from '@/lib/public-api';
 import { renewPublicRoom, type SceneSession } from '@/lib/collaboration-api';
 import useSceneStore, { type Scene } from '@/store/scene-store';
-export type CollabPrincipal = { kind: 'user'; id: string } | { kind: 'public'; id: string; session: SceneSession; onSessionChange: (session: SceneSession) => void };
+import { presentationAPI } from '@/lib/presentation-api';
+import type { PendingPresentationGrant } from '@/lib/presentation-api';
+export type CollabPrincipal = { kind: 'user'; id: string } | { kind: 'public'; id: string; session: SceneSession; onSessionChange: (session: SceneSession) => void } | {kind:'presentation';id:string;credential:PendingPresentationGrant;onCredentialChange:(credential:PendingPresentationGrant)=>void};
 export function collabURL() {
   const configured = import.meta.env.VITE_COLLAB_URL as string | undefined;
   if (configured) return configured;
@@ -31,10 +36,13 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
           if (updateSession && result.sceneSession) { principalRef.current = { ...current, session: result.sceneSession }; current.onSessionChange(result.sceneSession); }
           return result;
         }
+        if(current.kind==='presentation')return {token:current.credential.token,expiresAt:current.credential.expiresAt};
         return (await api.post<RoomGrant>(`/scenes/${sceneRef.sceneId}/room-token`, {}, { headers: { 'X-Workspace-ID': sceneRef.workspaceId } })).data;
     };
     const transport = new CollabTransport({ sceneRef, principalId: principal.id, adapter, store: offlineStore, url: collabURL(), grant,
-      onAccessLost: () => { const current = principalRef.current; if (current.kind === 'public') { const session = { ...current.session, token: '' }; principalRef.current = { ...current, session }; current.onSessionChange(session); } },
+      onAccessLost: () => { const current = principalRef.current; if (current.kind === 'public') { const session = { ...current.session, token: '' }; principalRef.current = { ...current, session }; current.onSessionChange(session); } else if(current.kind==='presentation'){const credential={...current.credential,token:''};principalRef.current={...current,credential};current.onCredentialChange(credential);} },
+      authType:principal.kind==='presentation'?'presentation_auth':'auth',
+      onPresentationAdmitted: admitted => {const current=principalRef.current;if(current.kind==='presentation'){const credential={...current.credential,sessionId:admitted.sessionId,token:admitted.token,expiresAt:new Date(admitted.expiresAt*1000).toISOString()};principalRef.current={...current,credential};current.onCredentialChange(credential);}},
       onLegacy: async () => {
         if (principalRef.current.kind !== 'user') return false;
         const fresh = (await api.get<Scene>(`/scenes/${sceneRef.sceneId}/`, { headers: { 'X-Workspace-ID': sceneRef.workspaceId } })).data;
@@ -42,12 +50,16 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
         setLegacy(fresh); return true;
       },
     });
-    const presence = new Presence(transport, () => principalRef.current.kind === 'public' ? principalRef.current.session.displayName : useAuthStore.getState().user?.name ?? 'Participant');
-    const voice = new Voice(transport, presence, { config: async () => {
+    const features = new FeatureInvalidationCoordinator();
+    const presence = new Presence(transport, () => principalRef.current.kind === 'public' ? principalRef.current.session.displayName : principalRef.current.kind==='presentation'?principalRef.current.credential.displayName:useAuthStore.getState().user?.name ?? 'Participant');
+    const mediaConfig = async () => {
       const room = await grant(false);
       return (await publicApi.get<RTCConfiguration & { expiresAt: string }>('/realtime/config', { headers: { Authorization: `Bearer ${room.token}`, 'X-Workspace-ID': sceneRef.workspaceId } })).data;
-    } });
-    return { adapter, transport, undo, presence, voice };
+    };
+    const voice = new Voice(transport, presence, { config: mediaConfig });
+    const screenShare = new ScreenShare(transport, presence, { config: mediaConfig });
+    const livePresentation = new LivePresentation(transport, presentationAPI(sceneRef.workspaceId, sceneRef.sceneId));
+    return { adapter, transport, undo, presence, voice, screenShare, livePresentation, features };
   }, [sceneRef.workspaceId, sceneRef.sceneId, principal.id]);
   const state = useSyncExternalStore(controller.transport.subscribe, controller.transport.getSnapshot);
   const [content, setContent] = useState<SceneContent>(() => controller.adapter.content());
@@ -57,9 +69,16 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
       const content = adapter.content(); setContent(content);
       if (transport.scope && principalRef.current.kind === 'user') useSceneStore.setState(state => ({ activeScene: state.activeScene?.id === sceneRef.sceneId ? { ...state.activeScene, content, writerMode: 'v2' } : state.activeScene }));
     };
-    adapter.doc.on('update', update); controller.presence.start(); controller.voice.start(); void transport.start();
+    adapter.doc.on('update', update); controller.presence.start(); controller.voice.start(); controller.screenShare.start(); controller.livePresentation.start(); void transport.start();
+    const unbindFeatures = bindFeatureInvalidation(controller.features, transport, {
+      browser: window,
+      document,
+      isVisible: () => document.visibilityState === 'visible',
+      route: () => `${window.location.pathname}${window.location.search}`,
+      onError: error => console.error('Authorized feature refetch failed', error),
+    });
     const removeConflict = registerLegacyConflict(sceneRef.workspaceId, sceneRef.sceneId, draft => { recovery.current = draft; setLegacy(null); transport.retry(); });
-    return () => { adapter.doc.off('update', update); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
+    return () => { unbindFeatures(); adapter.doc.off('update', update); controller.livePresentation.stop(); controller.screenShare.stop(); controller.voice.stop(); controller.presence.stop(); transport.stop(); removeConflict(); };
   }, [controller, sceneRef.workspaceId, sceneRef.sceneId]);
   useEffect(() => {
     if (state.status === 'legacy') return;
@@ -72,7 +91,9 @@ function useController(sceneRef: SceneRef, principal: CollabPrincipal) {
     applyLocalScene(content: SceneContent) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); controller.undo.apply(content); },
     async applyAgentElements(elements: NativeElement[]) { if (!controller.transport.state.canEdit) throw new Error('Scene is read-only'); await controller.adapter.applyAgentElements(elements); await controller.transport.whenDurable(); },
     async exportRecovery() { return { ...await controller.transport.exportRecovery(), legacyDraft: recovery.current }; },
-    async post<T>(path: string, body: unknown): Promise<T> { const current = principalRef.current; return (await (current.kind === 'public' ? publicApi : api).post<T>(path, body, { headers: { 'X-Workspace-ID': sceneRef.workspaceId, ...(current.kind === 'public' ? { Authorization: `Bearer ${current.session.token}` } : {}) } })).data; },
+    registerFeatureRefetch(key: string, refetch: FeatureRefetch) { return controller.features.register(key, refetch); },
+    refreshFeatures() { return controller.features.manualRefresh(); },
+    async post<T>(path: string, body: unknown): Promise<T> { const current = principalRef.current; const external=current.kind!=='user';const token=current.kind==='public'?current.session.token:current.kind==='presentation'?current.credential.token:'';return (await (external ? publicApi : api).post<T>(path, body, { headers: { 'X-Workspace-ID': sceneRef.workspaceId, ...(external ? { Authorization: `Bearer ${token}` } : {}) } })).data; },
   };
 }
 type Controller = ReturnType<typeof useController>;
@@ -81,3 +102,11 @@ export function CollabProvider({ sceneRef, principal, children }: { sceneRef: Sc
   const value = useController(sceneRef, principal); return <Context.Provider value={value}>{children}</Context.Provider>;
 }
 export function useCollab() { const value = useContext(Context); if (!value) throw new Error('CollabProvider is required'); return value; }
+export function useAuthorizedFeatureRefetch(key: string, refetch: FeatureRefetch) {
+  const { features } = useCollab();
+  useEffect(() => {
+    const registration = features.register(key, refetch);
+    void registration.ready.catch(error => console.error('Authorized feature refetch failed', error));
+    return registration.unregister;
+  }, [features, key, refetch]);
+}

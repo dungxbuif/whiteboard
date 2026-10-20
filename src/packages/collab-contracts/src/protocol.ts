@@ -30,3 +30,55 @@ export function decodeFrame(bytes: Uint8Array): Frame {
   if(canonical.length!==idLength||canonical.some((byte,index)=>byte!==idBytes[index]))throw new Error('Invalid noncanonical update ID');
   return {channel:bytes[1] as Frame['channel'],updateId,payload:bytes.slice(FRAME_HEADER_BYTES+idLength)};
 }
+
+export type FeatureChanged={eventCursor:string};
+export function parseFeatureChanged(value:unknown):FeatureChanged {
+  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>key!=='eventCursor'))throw new Error('Invalid feature invalidation');
+  const cursor=(value as {eventCursor?:unknown}).eventCursor;
+  if(typeof cursor!=='string'||!/^[1-9]\d*$/.test(cursor))throw new Error('Invalid feature cursor');
+  return {eventCursor:cursor};
+}
+
+export type ScreenAdmission={admitted:boolean;connectionId:string;kind:'screen';peers:string[];publisher?:string;receiving?:boolean;sessionId?:string;reason?:'MEDIA_FULL'|'SCREEN_BUSY'};
+const screenId=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128;
+const screenSessionId=(value:unknown):value is string=>typeof value==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+export function parseScreenAdmission(value:unknown):ScreenAdmission {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['admitted','connectionId','kind','peers','publisher','receiving','sessionId','reason'].includes(key)))throw new Error('Invalid screen admission');
+ const input=value as Record<string,unknown>;
+ if(typeof input.admitted!=='boolean'||!screenId(input.connectionId)||input.kind!=='screen'||!Array.isArray(input.peers)||input.peers.length>9||input.peers.some(peer=>!screenId(peer))||new Set(input.peers).size!==input.peers.length)throw new Error('Invalid screen admission');
+ if(input.admitted){if(!screenId(input.publisher)||typeof input.receiving!=='boolean'||!screenSessionId(input.sessionId)||input.reason!==undefined)throw new Error('Invalid screen admission');}
+ else if(!['MEDIA_FULL','SCREEN_BUSY'].includes(String(input.reason))||input.publisher!==undefined||input.receiving!==undefined||input.sessionId!==undefined)throw new Error('Invalid screen admission');
+ return input as ScreenAdmission;
+}
+
+export type PresentationWaiting={sessionId:string;status:'pending';connectionId:string};
+export type PresentationAdmitted={sessionId:string;token:string;expiresAt:number};
+export type PresentationParticipant={connectionId:string;principalId:string;displayName:string};
+export type PresentationReaction={id:string;connectionId:string;emoji:'👏'|'❤️'|'👍'|'🎉'|'😂';expiresAt:number};
+export type PresentationState={sessionId:string;hostConnectionId:string;hostPrincipalId:string;revision:number;pending:PresentationParticipant[];admitted:PresentationParticipant[];frameId:string|null;spotlight:string|null;locked:boolean;reactions:PresentationReaction[]};
+const presentationConnection=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128;
+const presentationParticipant=(value:unknown):value is PresentationParticipant=>{
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['connectionId','principalId','displayName'].includes(key)))return false;
+ const input=value as Record<string,unknown>;
+ return presentationConnection(input.connectionId)&&typeof input.principalId==='string'&&input.principalId.length>0&&input.principalId.length<=256&&typeof input.displayName==='string'&&input.displayName.length>0&&input.displayName.length<=200;
+};
+export function parsePresentationWaiting(value:unknown):PresentationWaiting {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','status','connectionId'].includes(key)))throw new Error('Invalid presentation waiting status');
+ const input=value as Record<string,unknown>;
+ if(!screenSessionId(input.sessionId)||input.status!=='pending'||!presentationConnection(input.connectionId))throw new Error('Invalid presentation waiting status');
+ return input as PresentationWaiting;
+}
+export function parsePresentationAdmitted(value:unknown):PresentationAdmitted {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','token','expiresAt'].includes(key)))throw new Error('Invalid presentation admitted credential');
+ const input=value as Record<string,unknown>;
+ if(!screenSessionId(input.sessionId)||typeof input.token!=='string'||input.token.length<1||input.token.length>16384||!Number.isSafeInteger(input.expiresAt)||Number(input.expiresAt)<1)throw new Error('Invalid presentation admitted credential');
+ return input as PresentationAdmitted;
+}
+export function parsePresentationState(value:unknown):PresentationState {
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','hostConnectionId','hostPrincipalId','revision','pending','admitted','frameId','spotlight','locked','reactions'].includes(key)))throw new Error('Invalid presentation state');
+ const input=value as Record<string,unknown>,pending=input.pending,admitted=input.admitted,reactions=input.reactions;
+ if(!screenSessionId(input.sessionId)||!presentationConnection(input.hostConnectionId)||typeof input.hostPrincipalId!=='string'||!input.hostPrincipalId||!Number.isSafeInteger(input.revision)||Number(input.revision)<1||!Array.isArray(pending)||!Array.isArray(admitted)||pending.length>100||admitted.length>100||pending.some(item=>!presentationParticipant(item))||admitted.some(item=>!presentationParticipant(item))||(input.frameId!==null&&!presentationConnection(input.frameId))||(input.spotlight!==null&&!presentationConnection(input.spotlight))||typeof input.locked!=='boolean'||!Array.isArray(reactions)||reactions.length>100||reactions.some(item=>!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(key=>!['id','connectionId','emoji','expiresAt'].includes(key))||!presentationConnection((item as Record<string,unknown>).id)||!presentationConnection((item as Record<string,unknown>).connectionId)||!['👏','❤️','👍','🎉','😂'].includes(String((item as Record<string,unknown>).emoji))||!Number.isSafeInteger((item as Record<string,unknown>).expiresAt)||Number((item as Record<string,unknown>).expiresAt)<1))throw new Error('Invalid presentation state');
+ const ids=[...pending,...admitted].map(item=>(item as PresentationParticipant).connectionId);
+ if(new Set(ids).size!==ids.length)throw new Error('Invalid presentation state');
+ return input as PresentationState;
+}

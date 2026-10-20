@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@collab/contracts": "0.1.0",
+    "@collab/diagram-kit": "0.1.0",
     "jose": "6.2.12",
     "lib0": "0.2.119",
     "pg": "8.23.1",

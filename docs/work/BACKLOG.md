@@ -15,7 +15,7 @@ ai_fields:
 shared_fields:
   - queue_items
   - status
-updated: 2026-10-19
+updated: 2026-10-20
 ---
 
 # Backlog
@@ -96,7 +96,7 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | PROD-REBOOT-RECOVERY | bug | high-risk | done | Controlled VM reboot restored external networks, four healthy services, migration 13 and public health automatically through the recovery unit. | [Release note](../releases/2026-10-19-collaboration-v2.md) |
 | RELEASE-SECURITY-REVIEW | release | high-risk | done | Whole-branch correctness/auth/deployment review passed; production audit is clean and all nine development/build findings are classified. | [Dependency review](verification/collaboration-dependencies.md) |
 | PLANNING-RECONCILIATION | maintenance | normal | done | Epic/ticket/roadmap/validation/API status now distinguishes shipped local behavior, retired transports and open release gates. | [Requirements](../requirements/REQUIREMENTS.md), [validation](VALIDATION_MATRIX.md) |
-| ENTERPRISE-PARITY | phase | high-risk | draft | Full-scope proposed design and 22 execution tasks: canvas-overlay controls first, comments/guests, screen/live presentation, activity, versions, libraries/collections, domain/SSO/SCIM/retention. Implementation awaits review of the proposed contracts/defaults. | [Phase](phases/PHASE-ENTERPRISE.md), [design](../superpowers/specs/2026-10-20-enterprise-parity-design.md), [programme](../superpowers/plans/2026-10-20-enterprise-parity.md) |
+| ENTERPRISE-PARITY | phase | high-risk | in_progress | Approved full-scope design and 22 execution tasks: canvas-overlay controls first, comments/guests, screen/live presentation, activity, versions, libraries/collections, domain/SSO/SCIM/retention. Wave 0/1 foundation is active. | [Phase](phases/PHASE-ENTERPRISE.md), [design](../superpowers/specs/2026-10-20-enterprise-parity-design.md), [programme](../superpowers/plans/2026-10-20-enterprise-parity.md) |
 | HARNESS-MILESTONE | phase | normal | needs_tickets | Implement the ready Harness CLI hard gates, loop guard and security standard, or record an owner decision removing the milestone. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |
 | REQUIREMENTS-TRACE | docs | normal | done | Requirements and user stories now trace approved scope, local proof, production boundaries, enterprise parity and Harness backlog. | [Requirements](../requirements/REQUIREMENTS.md), [user stories](../requirements/USER_STORIES.md) |
 | AI-PROVIDER-UAT | release | blocked | blocked | Public-origin chat, text/image-to-diagram and to-code UAT requires a user-provided OpenAI-compatible key; keep it backend-only. | [Pause audit](verification/2026-10-19-release-pause-audit.md) |

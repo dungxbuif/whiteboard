@@ -1,5 +1,21 @@
 # E2 isolated packaging proof
 
+## Enterprise feature worker
+
+Build the backend image and run the worker lifecycle proof:
+
+```sh
+rtk docker build -f src/backend/Dockerfile -t whiteboard-enterprise-backend:local src/backend
+rtk node tests/packaging/feature-worker.mjs
+```
+
+The fixture creates a unique network and disposable PostgreSQL database, applies
+all migrations, starts the real non-root/read-only worker with only its database
+credential, assigns it a live lease, kills it, verifies a replacement cannot
+steal the lease early, and then verifies recovery after expiry. Cleanup removes
+only resources prefixed with the fixture process ID. The fixture uses no
+production database or secrets.
+
 Build from repository root using the root workspace lock:
 
 ```sh
@@ -39,6 +55,19 @@ rtk env TURN_PROOF_URL=turn:103.82.21.202:5349 node tests/packaging/turn-proof.m
 The recorded2026-10-16 local network is Mac10.10.0.10/WAN117.1.89.250; gateway
 WAN103.82.21.202. Revalidate those labels for subsequent runs. A direct-IP success
 is not proof that the configured hostname resolves or connects correctly.
+
+## Enterprise screen-media proof
+
+`enterprise-media.mjs` first sends a generated 15 fps canvas stream between two
+local pages, then repeats it between the local browser and the isolated gateway
+browser with relay-only ICE. It asserts decoded video frames, received bytes and
+relay candidates. The generated stream contains no microphone or system audio.
+Use the same loopback-only gateway CDP tunnel documented for `turn-proof.mjs`:
+
+```sh
+rtk run 'env MEDIA_LOCAL_ONLY=1 node tests/packaging/enterprise-media.mjs'
+rtk node tests/packaging/enterprise-media.mjs
+```
 
 ## B4 idle collaboration regression
 

@@ -18,6 +18,22 @@ type bodyPolicy struct {
 	workspace uuid.UUID
 }
 
+type featurePolicyAccess struct {
+	bodyPolicy
+	owner bool
+}
+
+func (p featurePolicyAccess) ResolveWorkspace(context.Context, domain.Principal, uuid.UUID) (domain.AccessDecision, error) {
+	return domain.AccessDecision{Access: domain.AccessView, Owner: p.owner, ACLVersion: 1}, nil
+}
+
+func (p featurePolicyAccess) RequireOwner(context.Context, uuid.UUID, uuid.UUID) error {
+	if !p.owner {
+		return domain.ErrAccessDenied
+	}
+	return nil
+}
+
 func (p bodyPolicy) ResolveWorkspaceID(context.Context, string) (uuid.UUID, error) {
 	return p.workspace, nil
 }
@@ -93,5 +109,46 @@ func TestAccessBodyRequiresDeadlineSupport(t *testing.T) {
 	gateway.ServeHTTP(response, request)
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("unsupported transport returned %d", response.Code)
+	}
+}
+
+func TestFeaturePolicyGETAllowsMemberAndPATCHRequiresOwner(t *testing.T) {
+	user, workspace := uuid.New(), uuid.New()
+	for _, tc := range []struct {
+		name   string
+		method string
+		owner  bool
+		want   int
+	}{
+		{name: "member reads", method: http.MethodGet, owner: false, want: http.StatusNoContent},
+		{name: "member cannot update", method: http.MethodPatch, owner: false, want: http.StatusForbidden},
+		{name: "owner updates", method: http.MethodPatch, owner: true, want: http.StatusNoContent},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				resolved, ok := WorkspaceIDFromContext(r.Context())
+				if !ok || resolved != workspace {
+					t.Fatalf("workspace context missing: %v %v", resolved, ok)
+				}
+				w.WriteHeader(http.StatusNoContent)
+			})
+			gateway := CollaborationAccessMiddleware(featurePolicyAccess{bodyPolicy: bodyPolicy{workspace: workspace}, owner: tc.owner})(next)
+			var body io.ReadCloser = http.NoBody
+			if tc.method == http.MethodPatch {
+				body = io.NopCloser(strings.NewReader(`{"requestId":"` + uuid.NewString() + `"}`))
+			}
+			request := httptest.NewRequest(tc.method, "/api/v1/workspaces/"+workspace.String()+"/feature-policy", body)
+			request = request.WithContext(context.WithValue(request.Context(), domain.ContextKeyUserID, user))
+			response := &memoryDeadlineResponse{ResponseRecorder: httptest.NewRecorder()}
+			gateway.ServeHTTP(response, request)
+			if response.Code != tc.want {
+				t.Fatalf("status %d want %d: %s", response.Code, tc.want, response.Body.String())
+			}
+			if called != (tc.want == http.StatusNoContent) {
+				t.Fatalf("handler called=%v for status %d", called, tc.want)
+			}
+		})
 	}
 }
