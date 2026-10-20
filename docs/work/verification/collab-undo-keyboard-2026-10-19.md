@@ -58,7 +58,9 @@ Focused validation passes 51 collaboration document tests and 6 frontend
 undo/scene-diff tests. The complete frontend suite passes 25 files / 94 tests
 plus the production build. The complete collaboration suite passes 15 files /
 150 tests against the guarded loopback `*_test` database. Production commit
-`76fcfd5` is deployed with a healthy frontend image. On the user-authenticated
+release source `24b1cd0` is deployed with a healthy frontend image
+`sha256:a516c748733261cba9cedef0f39381ec4747fe9c517481c4bb1e01b0d7056c5e`.
+On the user-authenticated
 production scene, a rectangle reached `Saved`, semantic Undo reached `Saved`,
 semantic Redo reached `Saved`, and a final Undo restored the original empty
 scene. A separate temporary-scene harness attempt failed before drawing because

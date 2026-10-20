@@ -47,7 +47,7 @@ The frozen Linux/amd64 images are:
 - Backend: `sha256:e0c6c51e31624401102a6bac4a555d99977748b2f9c6a321df6156e18fb0e167`.
 - Collaboration: `sha256:ef235e1c3e3aa293072785c161660f526bf112c4daaeb8fac507333f8c7f8f69`.
 - MCP: `sha256:0cd512501273886674680b5e9c14d87ee0b59802bf0399541120b07b32bd03de`.
-- Frontend: `sha256:dcd52e04c00d2761357453ed4e878c79047016948bdad3865756d65139e40a7b` (production styling follow-up `76fcfd5`).
+- Frontend: `sha256:a516c748733261cba9cedef0f39381ec4747fe9c517481c4bb1e01b0d7056c5e` (release source `24b1cd0`, including the scene palette and reconciled public docs).
 
 Four independent collaboration service secrets, each at least 32 bytes and
 distinct from the login JWT secret, are installed without recording their
