@@ -133,3 +133,12 @@ The browser's `.excalidraw` import accepts `embeddable` elements, but the collab
 
 - The browser import allowlist now excludes `embeddable`, matching the durable collaboration and v1 duplicate contracts. An explicit import regression failed before the fix and passed afterward. Iframe was already excluded. Existing legacy scenes with such elements still need the elements removed before copying. Human dashboard guides and the AI-readable API reference state the supported import behavior.
 - The duplicate handler maps asset-staging `ErrInvalidLibrary` to `422 INVALID_SCENE_ASSET` with repair guidance instead of `503 AUTHORITY_UNAVAILABLE`; a route test failed before the mapping and passed afterward. Internal and AI-readable API docs state the response. Full PostgreSQL-backed Go suite passed; no-database Go run reported 400 tests in 14 packages. Frontend unit tests passed 237 tests in 51 files and the production build passed with existing vendor annotation/chunk-size warnings. No deployment occurred.
+
+## Actionable web-embed import error (before implementation)
+
+Embeddable elements are intentionally rejected, but the import UI currently reports the generic invalid/duplicate-element error. Detect the `embeddable` type before generic element validation and tell the user to remove web embeds and retry. Keep existing iframe rejection unchanged. Assert the exact embeddable message and iframe's generic result in focused tests, then rerun the full frontend suite and production build. The public human and AI docs already explain the unsupported type; reconcile wording if the final message warrants it.
+
+## Actionable web-embed import error implementation
+
+- `parseSceneImport` now detects `embeddable` before generic element validation and reports: “Web embeds are not supported in imported scenes. Remove them from the drawing and try again.” Iframe and other unsupported types still use the generic invalid-element error. The exact-message regression failed before the fix and passed afterward.
+- Reconciled both human dashboard guides and the AI-readable API reference with the specific import guidance. Full frontend unit suite passed 237 tests in 51 files; the production build passed with existing vendor annotation/chunk-size warnings. Backend/API behavior did not change, so the prior full Go results remain applicable. No deployment occurred.

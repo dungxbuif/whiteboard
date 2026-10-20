@@ -38,6 +38,9 @@ describe("scene import", () => {
     await expect(parseSceneImport(file({ ...drawing, files: { image: { id: "image", mimeType: "image/png", dataURL: "https://untrusted.test/a.png" } } }))).rejects.toThrow(/image/);
   });
   it("rejects embeddable elements that cannot enter the durable scene contract", async () => {
-    await expect(parseSceneImport(file({ ...drawing, elements: [{ ...rectangle, type: "embeddable", link: "https://example.com" }] }))).rejects.toThrow(/element/);
+    await expect(parseSceneImport(file({ ...drawing, elements: [{ ...rectangle, type: "embeddable", link: "https://example.com" }] })))
+      .rejects.toThrow(/^Web embeds are not supported in imported scenes\. Remove them from the drawing and try again\.$/);
+    await expect(parseSceneImport(file({ ...drawing, elements: [{ ...rectangle, type: "iframe", link: "https://example.com" }] })))
+      .rejects.toThrow(/^Scene contains an invalid or duplicate element\.$/);
   });
 });

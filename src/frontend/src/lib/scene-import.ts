@@ -41,6 +41,9 @@ export async function parseSceneImport(file: File): Promise<SceneContent> {
   if (!isRecord(data) || data.type !== "excalidraw" || data.version !== 2 || !Array.isArray(data.elements)) throw new Error(INVALID_FILE);
   const ids = new Set<string>();
   for (const element of data.elements) {
+    if (isRecord(element) && element.type === "embeddable") {
+      throw new Error("Web embeds are not supported in imported scenes. Remove them from the drawing and try again.");
+    }
     if (!isRecord(element) || typeof element.id !== "string" || !element.id || ids.has(element.id) || !ELEMENT_TYPES.has(String(element.type)) ||
       !["x", "y", "width", "height"].every(key => typeof element[key] === "number" && Number.isFinite(element[key])) ||
       (element.width as number) < 0 || (element.height as number) < 0 || !validOptionalFields(element)) throw new Error("Scene contains an invalid or duplicate element.");

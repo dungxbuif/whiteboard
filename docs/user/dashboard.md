@@ -60,7 +60,7 @@ Theme and navigation preferences are local to this browser. The account menu exp
 2. Select **Import scenes**, then choose a version 2 `.excalidraw` JSON file.
 3. The drawing opens after the server creates the scene. Use the normal canvas tools to edit it.
 
-The maximum file size is 25 MiB. Embedded PNG, JPEG, GIF and WebP images are accepted; SVG images, remote image URLs, web embeds and iframe elements are rejected. Remove unsupported embeds before importing or duplicating an older scene. Invalid geometry, malformed bindings, duplicate IDs and invalid legacy font fields show an error before any scene is created. Selection, collaborators and other session-only state are not imported.
+The maximum file size is 25 MiB. Embedded PNG, JPEG, GIF and WebP images are accepted; SVG images, remote image URLs, web embeds and iframe elements are rejected. The importer tells you to remove web embeds and try again; remove unsupported embeds before duplicating an older scene. Invalid geometry, malformed bindings, duplicate IDs and invalid legacy font fields show an error before any scene is created. Selection, collaborators and other session-only state are not imported.
 
 An import uses the existing scene-create API and the current signed-in workspace. Browser checks help detect malformed files; server authorization remains responsible for access control.
 

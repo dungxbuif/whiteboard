@@ -16,7 +16,9 @@ action in the dashboard is not authorization.
 
 Browser `.excalidraw` imports reject `embeddable` and `iframe` elements because
 they are outside the durable scene contract. Remove them before importing or
-duplicating a legacy scene.
+duplicating a legacy scene. An imported `embeddable` receives a specific
+remove-and-retry message; iframe and other unsupported element types retain the
+generic invalid-element error.
 
 The projection includes acknowledged collaboration updates after the last
 scene-row compaction. The ordinary projection is for bounded authenticated v2

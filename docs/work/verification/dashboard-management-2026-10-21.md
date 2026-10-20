@@ -59,6 +59,9 @@ scenes after successful move/duplicate responses when the reload fails.
 The import regression rejects embeddable elements that the durable scene
 contract cannot copy. A duplicate route regression maps a missing source
 asset to `422 INVALID_SCENE_ASSET` instead of an authority outage.
+The import test now checks the exact web-embed removal message and confirms
+iframe continues to use the generic invalid-element message. Frontend unit
+tests and build passed after this UX change; backend code was unchanged.
 
 ## Release boundary
 
