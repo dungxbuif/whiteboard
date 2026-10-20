@@ -8,7 +8,7 @@ Workspace domain capture is an owner-controlled, two-step trust boundary. It doe
 
 The state machine is `pending -> verified -> captured -> revoked`:
 
-- `pending` has a SHA-256 digest of a 32-byte random challenge and a 24-hour expiry. The raw challenge is returned once and is never persisted or logged.
+- `pending` has a SHA-256 digest of a 32-byte random challenge and a 24-hour expiry. The raw challenge is never logged. It is persisted only inside an authenticated-encrypted mutation receipt so a lost create response can be replayed without rotating DNS proof.
 - `verified` means an exact TXT record was observed at `_whiteboard-verification.<domain>` before expiry.
 - `captured` records a separate, authenticated owner acceptance. Capture repeats the exact TXT lookup and requires the original challenge to remain unexpired, so DNS proof must still be current at acceptance time. DNS evidence alone cannot activate identity behavior.
 - `revoked` disables the capture while preserving the unique claim and audit state.
@@ -31,6 +31,8 @@ Authenticated owner endpoints are:
 - `GET /api/v1/identity/domains/discover?domain=example.com` (public; captured workspace hint only)
 
 Mutation bodies carry a UUID `requestId`. Create also carries `domain`. Responses use `Cache-Control: no-store`; the raw TXT value appears only in the successful create response.
+
+Each mutation stores a durable receipt in the same database transaction as its state change. The receipt binds the workspace-scoped `requestId` to the authenticated principal, action, and canonical payload hash, plus the exact HTTP response. An exact retry returns the stored response and does not repeat DNS, rotate a challenge, or apply another transition. Reusing an ID with a different principal, action, or body fails with `409 REQUEST_ID_REUSED`. Receipt response bodies use AES-GCM with additional authenticated data covering all binding fields; `DOMAIN_RECEIPT_KEY`, or `JWT_SECRET` as the deployment fallback, supplies the key material. Startup wiring may construct the repository without a key, but mutations fail closed until key material is available.
 
 Discovery returns only the normalized domain and workspace route hint for a captured domain. It never returns users, memberships, email addresses, or an unverified claim.
 

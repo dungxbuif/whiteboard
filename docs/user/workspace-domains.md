@@ -13,3 +13,5 @@ The application checks only `_whiteboard-verification.<your-domain>`. A parent d
 Domain proof does not link people by email, merge accounts, change memberships, or move scenes and files. A current workspace owner must separately accept the capture while authenticated. Use **Revoke** to disable a captured domain.
 
 If verification or capture fails, confirm that the complete TXT value remains on the exact generated name. A failed capture leaves the domain verified so you can restore DNS and retry before expiry. DNS caches can delay visibility. Create a new challenge when the current one has expired. An expired pending claim can be claimed by another workspace; verified and captured claims remain protected.
+
+The settings screen safely retries a request that timed out without a response. It reuses the same request ID, so a challenge already committed by the server is returned again with the same TXT value. A definite server response or changing the requested domain ends that retry attempt and the next action uses a new request ID.

@@ -1,11 +1,17 @@
 package domain
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 )
+
+type StoredDomainResponse struct {
+	Status int
+	Body   json.RawMessage
+}
 
 type DomainStatus string
 
@@ -57,7 +63,7 @@ type DomainDiscovery struct {
 }
 
 type DomainRepository interface {
-	ClaimRequest(Context, uuid.UUID, uuid.UUID, string, string) error
+	WithMutation(Context, Principal, uuid.UUID, uuid.UUID, string, string, func(Context) (StoredDomainResponse, error)) (StoredDomainResponse, error)
 	Create(Context, WorkspaceDomain) (WorkspaceDomain, error)
 	Get(Context, uuid.UUID, uuid.UUID) (WorkspaceDomain, error)
 	List(Context, uuid.UUID) ([]WorkspaceDomain, error)

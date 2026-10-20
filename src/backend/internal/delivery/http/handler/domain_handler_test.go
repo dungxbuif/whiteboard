@@ -12,11 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
-type domainUsecaseStub struct{ calls int }
+type domainUsecaseStub struct {
+	calls      int
+	requestIDs []uuid.UUID
+}
 
-func (s *domainUsecaseStub) Begin(domain.Context, domain.Principal, uuid.UUID, string, uuid.UUID) (domain.DomainChallenge, error) {
+func (s *domainUsecaseStub) Begin(_ domain.Context, _ domain.Principal, workspaceID uuid.UUID, value string, requestID uuid.UUID) (domain.DomainChallenge, error) {
 	s.calls++
-	return domain.DomainChallenge{}, nil
+	s.requestIDs = append(s.requestIDs, requestID)
+	return domain.DomainChallenge{WorkspaceDomain: domain.WorkspaceDomain{ID: uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), WorkspaceID: workspaceID, Domain: value, Status: domain.DomainPending}, DNSName: "_whiteboard-verification." + value, TXTValue: "whiteboard-verification=stable"}, nil
 }
 func (s *domainUsecaseStub) Verify(domain.Context, domain.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (domain.WorkspaceDomain, error) {
 	s.calls++
@@ -84,5 +88,28 @@ func TestDomainHandlerRejectsOversizedBody(t *testing.T) {
 	domainTestRouter(uc, uuid.New(), uuid.New()).ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest || uc.calls != 0 {
 		t.Fatalf("status=%d calls=%d", response.Code, uc.calls)
+	}
+}
+
+func TestDomainHandlerForwardsSameRequestIDOnLostResponseRetry(t *testing.T) {
+	workspace, user, requestID := uuid.New(), uuid.New(), uuid.New()
+	uc := &domainUsecaseStub{}
+	router := domainTestRouter(uc, workspace, user)
+	body := `{"domain":"example.com","requestId":"` + requestID.String() + `"}`
+	responses := make([]string, 0, 2)
+	for range 2 {
+		request := httptest.NewRequest(http.MethodPost, "/workspaces/w/domains", strings.NewReader(body))
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		responses = append(responses, response.Body.String())
+	}
+	if uc.calls != 2 || len(uc.requestIDs) != 2 || uc.requestIDs[0] != requestID || uc.requestIDs[1] != requestID {
+		t.Fatalf("calls=%d requestIDs=%v", uc.calls, uc.requestIDs)
+	}
+	if responses[0] != responses[1] || !strings.Contains(responses[0], "whiteboard-verification=stable") {
+		t.Fatalf("responses=%q", responses)
 	}
 }

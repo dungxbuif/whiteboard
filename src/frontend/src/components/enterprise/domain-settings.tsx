@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,10 +6,13 @@ import { domainClient, type DomainChallenge, type DomainClient, type WorkspaceDo
 
 export function DomainSettings({workspaceId,api=domainClient}:{workspaceId:string;api?:DomainClient}){
   const [domains,setDomains]=useState<WorkspaceDomain[]>([]);const [draft,setDraft]=useState('');const [challenge,setChallenge]=useState<DomainChallenge|null>(null);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
+  const pending=useRef(new Map<string,{payload:string;requestId:string}>());
   useEffect(()=>{let active=true;api.list(workspaceId).then(values=>{if(active)setDomains(values)}).catch(()=>{if(active)setError('Could not load workspace domains.')});return()=>{active=false}},[api,workspaceId]);
   const replace=(value:WorkspaceDomain)=>setDomains(items=>items.map(item=>item.id===value.id?value:item));
-  async function begin(){setBusy(true);setError('');try{const value=await api.begin(workspaceId,draft);setChallenge(value);setDomains(items=>[...items,value]);setDraft('')}catch{setError('Could not create this exact domain claim. It may already belong to another workspace.')}finally{setBusy(false)}}
-  async function act(item:WorkspaceDomain,action:'verify'|'capture'|'revoke'){setBusy(true);setError('');try{if(action==='verify')replace(await api.verify(workspaceId,item.id));if(action==='capture')replace((await api.capture(workspaceId,item.id)).domain);if(action==='revoke')replace(await api.revoke(workspaceId,item.id))}catch{setError(action==='verify'?'DNS verification failed. Publish the exact TXT record and retry.':'Could not update domain capture. Reload and retry.')}finally{setBusy(false)}}
+  const mutationId=(key:string,payload:string)=>{const existing=pending.current.get(key);if(existing?.payload===payload)return existing.requestId;const value={payload,requestId:crypto.randomUUID()};pending.current.set(key,value);return value.requestId};
+  const uncertain=(cause:unknown)=>Boolean(cause&&typeof cause==='object'&&'request' in cause&&!('response' in cause));
+  async function begin(){const key='begin',payload=draft,requestId=mutationId(key,payload);setBusy(true);setError('');try{const value=await api.begin(workspaceId,payload,requestId);pending.current.delete(key);setChallenge(value);setDomains(items=>[...items,value]);setDraft('')}catch(cause){if(!uncertain(cause))pending.current.delete(key);setError('Could not create this exact domain claim. It may already belong to another workspace.')}finally{setBusy(false)}}
+  async function act(item:WorkspaceDomain,action:'verify'|'capture'|'revoke'){const key=`${action}:${item.id}`,requestId=mutationId(key,item.id);setBusy(true);setError('');try{if(action==='verify')replace(await api.verify(workspaceId,item.id,requestId));if(action==='capture')replace((await api.capture(workspaceId,item.id,requestId)).domain);if(action==='revoke')replace(await api.revoke(workspaceId,item.id,requestId));pending.current.delete(key)}catch(cause){if(!uncertain(cause))pending.current.delete(key);setError(action==='verify'?'DNS verification failed. Publish the exact TXT record and retry.':'Could not update domain capture. Reload and retry.')}finally{setBusy(false)}}
   return <Card><CardHeader><CardTitle>Workspace domains</CardTitle><CardDescription>Prove control with an exact DNS TXT record, keep it published through capture, then explicitly accept the domain for workspace sign-in. Capture checks DNS again and never moves users, memberships, scenes, or files.</CardDescription></CardHeader><CardContent className="space-y-6">
     {error&&<p role="alert" className="text-sm text-destructive">{error}</p>}
     <div className="flex flex-wrap gap-2"><Input aria-label="Domain" placeholder="example.com" value={draft} onChange={event=>setDraft(event.target.value)}/><Button disabled={busy||!draft.trim()} onClick={()=>void begin()}>Add domain</Button></div>

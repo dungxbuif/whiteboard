@@ -12,6 +12,8 @@ Owners manage exact verified domains under `/api/v1/workspaces/{workspace}/domai
 
 The response includes `dnsName`, `txtValue`, and `challengeExpiresAt`. Publish the value exactly at the returned name within 24 hours. The challenge contains 32 random bytes and is returned only once.
 
+Keep the same `requestId` when retrying after a network timeout or other uncertain transport result. The server stores the successful mutation and response atomically, so an exact retry returns the same response, including the original TXT challenge. Generate a new ID only for a new intent or after receiving a definitive response. Reusing an ID with another principal, action, or canonical body returns `409 REQUEST_ID_REUSED`.
+
 ## Verify and capture
 
 Send `{"requestId":"UUID"}` to:

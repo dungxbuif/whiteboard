@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"devtool/internal/domain"
+	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +15,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+var domainTestReceiptKey = []byte("domain-receipt-test-key-32-bytes")
 
 func domainRepositoryWorkspace(t *testing.T, db *gorm.DB, label string) (uuid.UUID, uuid.UUID) {
 	t.Helper()
@@ -43,7 +47,7 @@ func TestDomainRepositoryExpiredPendingClaimReclaimedAtomically(t *testing.T) {
 	owner2, workspace2 := domainRepositoryWorkspace(t, db, "Second")
 	owner3, workspace3 := domainRepositoryWorkspace(t, db, "Third")
 	now := time.Now().UTC().Add(-48 * time.Hour)
-	repo := NewDomainRepository(db)
+	repo := NewDomainRepository(db, domainTestReceiptKey)
 	access := NewAccessRepository(db)
 	active, err := createDomainLocked(t, access, repo, owner1, pendingDomain(workspace1, "active.example", time.Now().UTC()))
 	if err != nil {
@@ -102,7 +106,7 @@ func TestDomainRepositoryExpiredClaimRaceHasOneWinner(t *testing.T) {
 	owner1, workspace1 := domainRepositoryWorkspace(t, db, "Original")
 	owner2, workspace2 := domainRepositoryWorkspace(t, db, "Two")
 	owner3, workspace3 := domainRepositoryWorkspace(t, db, "Three")
-	repo := NewDomainRepository(db)
+	repo := NewDomainRepository(db, domainTestReceiptKey)
 	access := NewAccessRepository(db)
 	_, err := createDomainLocked(t, access, repo, owner1, pendingDomain(workspace1, "race.example", time.Now().UTC().Add(-48*time.Hour)))
 	if err != nil {
@@ -122,7 +126,7 @@ func TestDomainRepositoryExpiredClaimRaceHasOneWinner(t *testing.T) {
 			defer wait.Done()
 			<-start
 			candidate := pendingDomain(item.workspace, "race.example", time.Now().UTC())
-			_, e := createDomainLocked(t, NewAccessRepository(item.db), NewDomainRepository(item.db), item.owner, candidate)
+			_, e := createDomainLocked(t, NewAccessRepository(item.db), NewDomainRepository(item.db, domainTestReceiptKey), item.owner, candidate)
 			results <- e
 		}(item)
 	}
@@ -148,6 +152,61 @@ func TestDomainRepositoryExpiredClaimRaceHasOneWinner(t *testing.T) {
 	}
 }
 
+func TestDomainRepositoryDurableEncryptedReceiptBinding(t *testing.T) {
+	db := accessTestDB(t, 24)
+	owner, workspace := domainRepositoryWorkspace(t, db, "Receipt")
+	access := NewAccessRepository(db)
+	repo := NewDomainRepository(db, domainTestReceiptKey)
+	principal := domain.UserPrincipal(owner)
+	requestID := uuid.New()
+	body := json.RawMessage(`{"txtValue":"whiteboard-verification=lost-response"}`)
+	hashA, hashB := strings.Repeat("a", 64), strings.Repeat("b", 64)
+	var first, second domain.StoredDomainResponse
+	err := access.WithWorkspaceLock(context.Background(), workspace, owner, func(ctx domain.Context) error {
+		var e error
+		first, e = repo.WithMutation(ctx, principal, workspace, requestID, "begin", hashA, func(domain.Context) (domain.StoredDomainResponse, error) {
+			return domain.StoredDomainResponse{Status: 201, Body: body}, nil
+		})
+		return e
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo = NewDomainRepository(db, domainTestReceiptKey) // simulate a new process after the first response was lost
+	err = access.WithWorkspaceLock(context.Background(), workspace, owner, func(ctx domain.Context) error {
+		var e error
+		second, e = repo.WithMutation(ctx, principal, workspace, requestID, "begin", hashA, func(domain.Context) (domain.StoredDomainResponse, error) {
+			return domain.StoredDomainResponse{}, errors.New("callback must not run")
+		})
+		return e
+	})
+	if err != nil || string(second.Body) != string(first.Body) {
+		t.Fatalf("replay=%s err=%v", second.Body, err)
+	}
+	cases := map[string]struct {
+		p    domain.Principal
+		a, h string
+	}{"principal": {domain.UserPrincipal(uuid.New()), "begin", hashA}, "action": {principal, "verify", hashA}, "payload": {principal, "begin", hashB}}
+	for name, item := range cases {
+		t.Run(name, func(t *testing.T) {
+			e := access.WithWorkspaceLock(context.Background(), workspace, owner, func(ctx domain.Context) error {
+				_, inner := repo.WithMutation(ctx, item.p, workspace, requestID, item.a, item.h, func(domain.Context) (domain.StoredDomainResponse, error) { return domain.StoredDomainResponse{}, nil })
+				return inner
+			})
+			if !errors.Is(e, domain.ErrRequestIDReused) {
+				t.Fatalf("error=%v", e)
+			}
+		})
+	}
+	var stored struct{ ResponseCiphertext []byte }
+	if err = db.Raw("SELECT response_ciphertext FROM workspace_domain_requests WHERE workspace_id=? AND request_id=?", workspace, requestID).Scan(&stored).Error; err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(stored.ResponseCiphertext, []byte("lost-response")) {
+		t.Fatal("plaintext challenge stored in receipt")
+	}
+}
+
 func TestWorkspaceDomainMigrationUpDown(t *testing.T) {
 	db := accessTestDB(t, 23)
 	up, err := os.ReadFile("../../../migrations/000024_workspace_domains.up.sql")
@@ -159,6 +218,11 @@ func TestWorkspaceDomainMigrationUpDown(t *testing.T) {
 	}
 	if !db.Migrator().HasTable("workspace_domains") || !db.Migrator().HasTable("workspace_domain_requests") {
 		t.Fatal("domain tables missing")
+	}
+	for _, column := range []string{"principal_kind", "principal_id", "response_status", "response_nonce", "response_ciphertext"} {
+		if !db.Migrator().HasColumn("workspace_domain_requests", column) {
+			t.Fatalf("workspace_domain_requests.%s missing", column)
+		}
 	}
 	down, err := os.ReadFile("../../../migrations/000024_workspace_domains.down.sql")
 	if err != nil {

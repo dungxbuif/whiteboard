@@ -14,18 +14,33 @@ import (
 type domainRepoStub struct {
 	values   map[uuid.UUID]domain.WorkspaceDomain
 	byName   map[string]uuid.UUID
-	requests map[uuid.UUID]struct{}
+	requests map[uuid.UUID]struct {
+		principal, action, payload string
+		response                   domain.StoredDomainResponse
+	}
 }
 
 func newDomainRepoStub() *domainRepoStub {
-	return &domainRepoStub{values: map[uuid.UUID]domain.WorkspaceDomain{}, byName: map[string]uuid.UUID{}, requests: map[uuid.UUID]struct{}{}}
+	return &domainRepoStub{values: map[uuid.UUID]domain.WorkspaceDomain{}, byName: map[string]uuid.UUID{}, requests: map[uuid.UUID]struct {
+		principal, action, payload string
+		response                   domain.StoredDomainResponse
+	}{}}
 }
-func (r *domainRepoStub) ClaimRequest(_ domain.Context, _ uuid.UUID, id uuid.UUID, _, _ string) error {
-	if _, ok := r.requests[id]; ok {
-		return domain.ErrRequestIDReused
+func (r *domainRepoStub) WithMutation(ctx domain.Context, p domain.Principal, _ uuid.UUID, id uuid.UUID, action, payload string, fn func(domain.Context) (domain.StoredDomainResponse, error)) (domain.StoredDomainResponse, error) {
+	if existing, ok := r.requests[id]; ok {
+		if existing.principal != p.ID || existing.action != action || existing.payload != payload {
+			return domain.StoredDomainResponse{}, domain.ErrRequestIDReused
+		}
+		return existing.response, nil
 	}
-	r.requests[id] = struct{}{}
-	return nil
+	response, err := fn(ctx)
+	if err == nil {
+		r.requests[id] = struct {
+			principal, action, payload string
+			response                   domain.StoredDomainResponse
+		}{p.ID, action, payload, response}
+	}
+	return response, err
 }
 func (r *domainRepoStub) Create(_ domain.Context, v domain.WorkspaceDomain) (domain.WorkspaceDomain, error) {
 	if id, ok := r.byName[v.Domain]; ok {
@@ -145,7 +160,8 @@ func TestDomainExactIDNAChallenge(t *testing.T) {
 	if challenge.DNSName != "_whiteboard-verification.xn--bcher-kva.example" {
 		t.Fatalf("dns name=%q", challenge.DNSName)
 	}
-	if challenge.TXTValue == "" || len(challenge.ChallengeHash) != sha256.Size {
+	storedChallenge, _ := repo.Get(context.Background(), workspace, challenge.ID)
+	if challenge.TXTValue == "" || len(storedChallenge.ChallengeHash) != sha256.Size {
 		t.Fatal("missing one-time challenge or digest")
 	}
 	if got := challenge.ChallengeExpiresAt.Sub(now); got != 24*time.Hour {
@@ -357,7 +373,7 @@ func TestDomainRequiresOwner(t *testing.T) {
 	}
 }
 
-func TestDomainRequestReplayConflictsWithoutRotatingChallenge(t *testing.T) {
+func TestDomainBeginLostResponseRetryReturnsSameChallenge(t *testing.T) {
 	owner, workspace, requestID := uuid.New(), uuid.New(), uuid.New()
 	repo := newDomainRepoStub()
 	service := NewDomainService(repo, accessStub{owner: owner}, &resolverStub{records: map[string][]string{}})
@@ -365,12 +381,37 @@ func TestDomainRequestReplayConflictsWithoutRotatingChallenge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", requestID); !errors.Is(err, domain.ErrRequestIDReused) {
-		t.Fatalf("replay=%v", err)
+	replayed, err := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "EXAMPLE.COM.", requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replayed.ID != first.ID || replayed.TXTValue != first.TXTValue {
+		t.Fatalf("first=%+v replay=%+v", first, replayed)
 	}
 	stored, _ := repo.Get(context.Background(), workspace, first.ID)
 	if stored.Revision != first.Revision {
 		t.Fatalf("challenge rotated revision=%d", stored.Revision)
+	}
+}
+
+func TestDomainRequestIDRejectsDifferentBodyActionAndPrincipal(t *testing.T) {
+	owner, workspace, requestID := uuid.New(), uuid.New(), uuid.New()
+	repo := newDomainRepoStub()
+	service := NewDomainService(repo, accessStub{owner: owner}, &resolverStub{records: map[string][]string{}})
+	challenge, err := service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "example.com", requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Begin(context.Background(), domain.UserPrincipal(owner), workspace, "other.example", requestID); !errors.Is(err, domain.ErrRequestIDReused) {
+		t.Fatalf("body=%v", err)
+	}
+	if _, err = service.Verify(context.Background(), domain.UserPrincipal(owner), workspace, challenge.ID, requestID); !errors.Is(err, domain.ErrRequestIDReused) {
+		t.Fatalf("action=%v", err)
+	}
+	other := uuid.New()
+	service.access = accessStub{owner: other}
+	if _, err = service.Begin(context.Background(), domain.UserPrincipal(other), workspace, "example.com", requestID); !errors.Is(err, domain.ErrRequestIDReused) {
+		t.Fatalf("principal=%v", err)
 	}
 }
 

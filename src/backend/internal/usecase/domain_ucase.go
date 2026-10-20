@@ -8,6 +8,7 @@ import (
 	"devtool/internal/domain"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"net"
 	"strings"
@@ -79,6 +80,10 @@ func domainPayloadHash(action, value string) string {
 	sum := sha256.Sum256([]byte(action + "\x00" + value))
 	return hex.EncodeToString(sum[:])
 }
+func storedDomainResponse(status int, value any) (domain.StoredDomainResponse, error) {
+	body, err := json.Marshal(value)
+	return domain.StoredDomainResponse{Status: status, Body: body}, err
+}
 
 func (s *DomainService) requireCurrentProof(ctx domain.Context, current domain.WorkspaceDomain) error {
 	if !s.now().UTC().Before(current.ChallengeExpiresAt) {
@@ -119,30 +124,36 @@ func (s *DomainService) Begin(ctx context.Context, principal domain.Principal, w
 	if err != nil {
 		return domain.DomainChallenge{}, err
 	}
-	secret := make([]byte, 32)
-	if _, err = io.ReadFull(s.random, secret); err != nil {
-		return domain.DomainChallenge{}, err
-	}
-	txt := "whiteboard-verification=" + base64.RawURLEncoding.EncodeToString(secret)
-	digest := sha256.Sum256([]byte(txt))
-	now := s.now().UTC()
-	valueRow := domain.WorkspaceDomain{ID: uuid.New(), WorkspaceID: workspaceID, Domain: normalized, Status: domain.DomainPending, ChallengeHash: digest[:], ChallengeExpiresAt: now.Add(domainChallengeLifetime), Revision: 1, CreatedAt: now, UpdatedAt: now}
-	var created domain.WorkspaceDomain
+	var response domain.StoredDomainResponse
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
 		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
 			return ownerErr
 		}
-		if claimErr := s.repo.ClaimRequest(tx, workspaceID, requestID, "begin", domainPayloadHash("begin", normalized)); claimErr != nil {
-			return claimErr
-		}
-		var createErr error
-		created, createErr = s.repo.Create(tx, valueRow)
-		return createErr
+		var mutationErr error
+		response, mutationErr = s.repo.WithMutation(tx, principal, workspaceID, requestID, "begin", domainPayloadHash("begin", normalized), func(tx domain.Context) (domain.StoredDomainResponse, error) {
+			secret := make([]byte, 32)
+			if _, e := io.ReadFull(s.random, secret); e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			txt := "whiteboard-verification=" + base64.RawURLEncoding.EncodeToString(secret)
+			digest := sha256.Sum256([]byte(txt))
+			now := s.now().UTC()
+			created, e := s.repo.Create(tx, domain.WorkspaceDomain{ID: uuid.New(), WorkspaceID: workspaceID, Domain: normalized, Status: domain.DomainPending, ChallengeHash: digest[:], ChallengeExpiresAt: now.Add(domainChallengeLifetime), Revision: 1, CreatedAt: now, UpdatedAt: now})
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			return storedDomainResponse(201, domain.DomainChallenge{WorkspaceDomain: created, DNSName: domainDNSName(normalized), TXTValue: txt})
+		})
+		return mutationErr
 	})
 	if err != nil {
 		return domain.DomainChallenge{}, err
 	}
-	return domain.DomainChallenge{WorkspaceDomain: created, DNSName: domainDNSName(normalized), TXTValue: txt}, nil
+	var challenge domain.DomainChallenge
+	if err = json.Unmarshal(response.Body, &challenge); err != nil {
+		return domain.DomainChallenge{}, err
+	}
+	return challenge, nil
 }
 
 func (s *DomainService) Verify(ctx context.Context, principal domain.Principal, workspaceID, id, requestID uuid.UUID) (domain.WorkspaceDomain, error) {
@@ -153,27 +164,36 @@ func (s *DomainService) Verify(ctx context.Context, principal domain.Principal, 
 	if id == uuid.Nil || requestID == uuid.Nil {
 		return domain.WorkspaceDomain{}, domain.ErrInvalidDomain
 	}
-	var verified domain.WorkspaceDomain
+	var response domain.StoredDomainResponse
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
 		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
 			return ownerErr
 		}
-		if e := s.repo.ClaimRequest(tx, workspaceID, requestID, "verify", domainPayloadHash("verify", id.String())); e != nil {
-			return e
-		}
-		current, e := s.repo.Get(tx, workspaceID, id)
-		if e != nil {
-			return e
-		}
-		if current.Status != domain.DomainPending {
-			return domain.ErrDomainChallengeExpired
-		}
-		if e = s.requireCurrentProof(tx, current); e != nil {
-			return e
-		}
-		verified, e = s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainVerified, s.now().UTC())
-		return e
+		var mutationErr error
+		response, mutationErr = s.repo.WithMutation(tx, principal, workspaceID, requestID, "verify", domainPayloadHash("verify", id.String()), func(tx domain.Context) (domain.StoredDomainResponse, error) {
+			current, e := s.repo.Get(tx, workspaceID, id)
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			if current.Status != domain.DomainPending {
+				return domain.StoredDomainResponse{}, domain.ErrDomainChallengeExpired
+			}
+			if e = s.requireCurrentProof(tx, current); e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			verified, e := s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainVerified, s.now().UTC())
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			return storedDomainResponse(200, verified)
+		})
+		return mutationErr
 	})
+	if err != nil {
+		return domain.WorkspaceDomain{}, err
+	}
+	var verified domain.WorkspaceDomain
+	err = json.Unmarshal(response.Body, &verified)
 	return verified, err
 }
 
@@ -185,28 +205,37 @@ func (s *DomainService) Capture(ctx context.Context, principal domain.Principal,
 	if id == uuid.Nil || requestID == uuid.Nil {
 		return domain.MembershipResult{}, domain.ErrInvalidDomain
 	}
-	var captured domain.WorkspaceDomain
+	var response domain.StoredDomainResponse
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
 		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
 			return ownerErr
 		}
-		if e := s.repo.ClaimRequest(tx, workspaceID, requestID, "capture", domainPayloadHash("capture", id.String())); e != nil {
-			return e
-		}
-		current, e := s.repo.Get(tx, workspaceID, id)
-		if e != nil {
-			return e
-		}
-		if current.Status != domain.DomainVerified {
-			return domain.ErrDomainNotVerified
-		}
-		if e = s.requireCurrentProof(tx, current); e != nil {
-			return e
-		}
-		captured, e = s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainCaptured, s.now().UTC())
-		return e
+		var mutationErr error
+		response, mutationErr = s.repo.WithMutation(tx, principal, workspaceID, requestID, "capture", domainPayloadHash("capture", id.String()), func(tx domain.Context) (domain.StoredDomainResponse, error) {
+			current, e := s.repo.Get(tx, workspaceID, id)
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			if current.Status != domain.DomainVerified {
+				return domain.StoredDomainResponse{}, domain.ErrDomainNotVerified
+			}
+			if e = s.requireCurrentProof(tx, current); e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			captured, e := s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainCaptured, s.now().UTC())
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			return storedDomainResponse(200, domain.MembershipResult{Domain: captured, DataMoved: false})
+		})
+		return mutationErr
 	})
-	return domain.MembershipResult{Domain: captured, DataMoved: false}, err
+	if err != nil {
+		return domain.MembershipResult{}, err
+	}
+	var captured domain.MembershipResult
+	err = json.Unmarshal(response.Body, &captured)
+	return captured, err
 }
 
 func (s *DomainService) Revoke(ctx context.Context, principal domain.Principal, workspaceID, id, requestID uuid.UUID) (domain.WorkspaceDomain, error) {
@@ -217,27 +246,36 @@ func (s *DomainService) Revoke(ctx context.Context, principal domain.Principal, 
 	if id == uuid.Nil || requestID == uuid.Nil {
 		return domain.WorkspaceDomain{}, domain.ErrInvalidDomain
 	}
-	var revoked domain.WorkspaceDomain
+	var response domain.StoredDomainResponse
 	err = s.access.WithWorkspaceLock(ctx, workspaceID, owner, func(tx domain.Context) error {
 		if ownerErr := s.access.RequireOwner(tx, owner, workspaceID); ownerErr != nil {
 			return ownerErr
 		}
-		if e := s.repo.ClaimRequest(tx, workspaceID, requestID, "revoke", domainPayloadHash("revoke", id.String())); e != nil {
-			return e
-		}
-		current, e := s.repo.Get(tx, workspaceID, id)
-		if e != nil {
-			return e
-		}
-		if current.Status == domain.DomainPending {
-			return domain.ErrDomainNotVerified
-		}
-		if current.Status == domain.DomainRevoked {
-			return domain.ErrRevisionConflict
-		}
-		revoked, e = s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainRevoked, s.now().UTC())
-		return e
+		var mutationErr error
+		response, mutationErr = s.repo.WithMutation(tx, principal, workspaceID, requestID, "revoke", domainPayloadHash("revoke", id.String()), func(tx domain.Context) (domain.StoredDomainResponse, error) {
+			current, e := s.repo.Get(tx, workspaceID, id)
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			if current.Status == domain.DomainPending {
+				return domain.StoredDomainResponse{}, domain.ErrDomainNotVerified
+			}
+			if current.Status == domain.DomainRevoked {
+				return domain.StoredDomainResponse{}, domain.ErrRevisionConflict
+			}
+			revoked, e := s.repo.Transition(tx, workspaceID, id, current.Revision, domain.DomainRevoked, s.now().UTC())
+			if e != nil {
+				return domain.StoredDomainResponse{}, e
+			}
+			return storedDomainResponse(200, revoked)
+		})
+		return mutationErr
 	})
+	if err != nil {
+		return domain.WorkspaceDomain{}, err
+	}
+	var revoked domain.WorkspaceDomain
+	err = json.Unmarshal(response.Body, &revoked)
 	return revoked, err
 }
 

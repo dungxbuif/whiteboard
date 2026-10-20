@@ -1,8 +1,16 @@
 package postgres
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/sha256"
 	"devtool/internal/domain"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,9 +19,33 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-type DomainRepository struct{ db *gorm.DB }
+type DomainRepository struct {
+	db        *gorm.DB
+	aead      cipher.AEAD
+	cipherErr error
+}
 
-func NewDomainRepository(db *gorm.DB) *DomainRepository { return &DomainRepository{db: db} }
+func NewDomainRepository(db *gorm.DB, key ...[]byte) *DomainRepository {
+	material := []byte(os.Getenv("DOMAIN_RECEIPT_KEY"))
+	if len(material) == 0 {
+		material = []byte(os.Getenv("JWT_SECRET"))
+	}
+	if len(key) > 0 {
+		material = key[0]
+	}
+	r := &DomainRepository{db: db}
+	if len(material) == 0 {
+		r.cipherErr = errors.New("domain receipt encryption key unavailable")
+		return r
+	}
+	sum := sha256.Sum256(append([]byte("workspace-domain-receipts\x00"), material...))
+	block, err := aes.NewCipher(sum[:])
+	if err == nil {
+		r.aead, err = cipher.NewGCM(block)
+	}
+	r.cipherErr = err
+	return r
+}
 
 type workspaceDomainRow struct {
 	ID                 uuid.UUID
@@ -32,11 +64,16 @@ type workspaceDomainRow struct {
 func (workspaceDomainRow) TableName() string { return "workspace_domains" }
 
 type workspaceDomainRequestRow struct {
-	WorkspaceID uuid.UUID
-	RequestID   uuid.UUID
-	Action      string
-	PayloadHash string
-	CreatedAt   time.Time
+	WorkspaceID        uuid.UUID
+	RequestID          uuid.UUID
+	Action             string
+	PrincipalKind      string
+	PrincipalID        string
+	PayloadHash        string
+	ResponseStatus     int
+	ResponseNonce      []byte
+	ResponseCiphertext []byte
+	CreatedAt          time.Time
 }
 
 func (workspaceDomainRequestRow) TableName() string { return "workspace_domain_requests" }
@@ -53,27 +90,54 @@ func domainWriteError(err error) error {
 	return accessError(err)
 }
 
-func (r *DomainRepository) ClaimRequest(ctx domain.Context, workspaceID, requestID uuid.UUID, action, payloadHash string) error {
+func domainReceiptAAD(workspaceID, requestID uuid.UUID, principal domain.Principal, action, payloadHash string) []byte {
+	return []byte(fmt.Sprintf("%s|%s|%s|%s|%s|%s", workspaceID, requestID, principal.Kind, principal.ID, action, payloadHash))
+}
+
+func (r *DomainRepository) WithMutation(ctx domain.Context, principal domain.Principal, workspaceID, requestID uuid.UUID, action, payloadHash string, fn func(domain.Context) (domain.StoredDomainResponse, error)) (domain.StoredDomainResponse, error) {
 	db, err := requireCollectionTransaction(ctx, workspaceID)
 	if err != nil {
-		return err
+		return domain.StoredDomainResponse{}, err
+	}
+	if r.cipherErr != nil {
+		return domain.StoredDomainResponse{}, r.cipherErr
 	}
 	var existing workspaceDomainRequestRow
 	lookup := db.Where("workspace_id=? AND request_id=?", workspaceID, requestID).First(&existing)
 	if lookup.Error == nil {
-		return domain.ErrRequestIDReused
+		if existing.Action != action || existing.PrincipalKind != string(principal.Kind) || existing.PrincipalID != principal.ID || existing.PayloadHash != payloadHash {
+			return domain.StoredDomainResponse{}, domain.ErrRequestIDReused
+		}
+		body, openErr := r.aead.Open(nil, existing.ResponseNonce, existing.ResponseCiphertext, domainReceiptAAD(workspaceID, requestID, principal, action, payloadHash))
+		if openErr != nil || !json.Valid(body) {
+			return domain.StoredDomainResponse{}, errors.New("invalid domain receipt")
+		}
+		return domain.StoredDomainResponse{Status: existing.ResponseStatus, Body: body}, nil
 	}
 	if !errors.Is(lookup.Error, gorm.ErrRecordNotFound) {
-		return lookup.Error
+		return domain.StoredDomainResponse{}, lookup.Error
 	}
-	err = db.Create(&workspaceDomainRequestRow{WorkspaceID: workspaceID, RequestID: requestID, Action: action, PayloadHash: payloadHash, CreatedAt: time.Now().UTC()}).Error
+	response, err := fn(ctx)
 	if err != nil {
+		return domain.StoredDomainResponse{}, err
+	}
+	if response.Status < 100 || response.Status > 599 || !json.Valid(response.Body) {
+		return domain.StoredDomainResponse{}, errors.New("invalid domain response")
+	}
+	nonce := make([]byte, r.aead.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return domain.StoredDomainResponse{}, err
+	}
+	ciphertext := r.aead.Seal(nil, nonce, response.Body, domainReceiptAAD(workspaceID, requestID, principal, action, payloadHash))
+	row := workspaceDomainRequestRow{WorkspaceID: workspaceID, RequestID: requestID, Action: action, PrincipalKind: string(principal.Kind), PrincipalID: principal.ID, PayloadHash: payloadHash, ResponseStatus: response.Status, ResponseNonce: nonce, ResponseCiphertext: ciphertext, CreatedAt: time.Now().UTC()}
+	if err = db.Create(&row).Error; err != nil {
 		var pg *pgconn.PgError
 		if errors.As(err, &pg) && pg.Code == "23505" {
-			return domain.ErrRequestIDReused
+			return domain.StoredDomainResponse{}, domain.ErrRequestIDReused
 		}
+		return domain.StoredDomainResponse{}, err
 	}
-	return err
+	return response, nil
 }
 
 func (r *DomainRepository) Create(ctx domain.Context, value domain.WorkspaceDomain) (domain.WorkspaceDomain, error) {

@@ -23,7 +23,12 @@ CREATE TABLE workspace_domain_requests (
     workspace_id uuid NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     request_id uuid NOT NULL,
     action text NOT NULL CHECK (action IN ('begin','verify','capture','revoke')),
+    principal_kind text NOT NULL,
+    principal_id text NOT NULL,
     payload_hash char(64) NOT NULL CHECK (payload_hash ~ '^[0-9a-f]{64}$'),
+    response_status integer NOT NULL CHECK (response_status BETWEEN 100 AND 599),
+    response_nonce bytea NOT NULL CHECK (octet_length(response_nonce) = 12),
+    response_ciphertext bytea NOT NULL,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     PRIMARY KEY (workspace_id,request_id)
 );

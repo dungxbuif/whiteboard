@@ -12,11 +12,14 @@ Document secret names only. Do not store secret values.
 
 - `DATABASE_URL`
 - `JWT_SECRET`
+- `DOMAIN_RECEIPT_KEY` (recommended dedicated stable key for encrypted workspace-domain mutation receipts; falls back to `JWT_SECRET`)
 - `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_REGION`
 - `FRONTEND_URL`
 - Password users are provisioned with the backend `userctl` CLI; no Google OAuth credentials are required.
 - `AI_API_KEY`, `AI_BASE_URL`, `AI_MODEL_FAST`, `AI_MODEL_REASONING`
 - `TURN_URL`, `TURN_USERNAME`, `TURN_PASSWORD`, `TURN_AUTH_SECRET`, `TURN_REALM`, `TURN_MIN_PORT`, `TURN_MAX_PORT`
+
+Keep `DOMAIN_RECEIPT_KEY` stable across backend replicas and restarts. Rotating it makes existing encrypted domain receipts unreadable, so coordinate rotation with expiry or removal of old receipts; never log the key or decrypted challenge response.
 
 ## A4 private mutation authority (deployed; final production denial checks pending)
 
