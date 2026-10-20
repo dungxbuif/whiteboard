@@ -24,10 +24,17 @@ type VersionService struct {
 	remote   domain.AgentCollabRepository
 	assets   domain.ScopedAssetViewer
 	events   versionEventService
+	scenes   domain.SceneRepository
+	folders  domain.FolderRepository
+	stager   domain.SceneAssetCopyStager
+	access   domain.AccessService
 }
 
 func (s *VersionService) SetAssetViewer(assets domain.ScopedAssetViewer) { s.assets = assets }
 func (s *VersionService) SetEventService(events versionEventService)     { s.events = events }
+func (s *VersionService) SetDuplicateDependencies(scenes domain.SceneRepository, folders domain.FolderRepository, stager domain.SceneAssetCopyStager, access domain.AccessService) {
+	s.scenes, s.folders, s.stager, s.access = scenes, folders, stager, access
+}
 
 type versionEventService interface {
 	AppendEvent(domain.Context, domain.EventInput) (domain.WorkspaceEvent, error)
@@ -35,6 +42,81 @@ type versionEventService interface {
 
 func NewVersionService(repo domain.SceneVersionRepository, features domain.FeatureService, caps domain.CapabilityService, remote domain.AgentCollabRepository) *VersionService {
 	return &VersionService{repo: repo, features: features, caps: caps, remote: remote}
+}
+
+// Duplicate creates a separate v1 scene from the latest durable collaboration
+// materialization, then stages scene-scoped assets and rewrites their references.
+func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, title string, folderID *uuid.UUID) (*domain.Scene, error) {
+	if principal.Kind != domain.PrincipalUser || principal.UserID == nil || s.scenes == nil || s.access == nil || s.stager == nil || s.caps == nil {
+		return nil, domain.ErrAccessDenied
+	}
+	title = strings.TrimSpace(title)
+	if title == "" || utf8.RuneCountInString(title) > 200 {
+		return nil, domain.ErrInvalidVersionInput
+	}
+	decision, err := s.access.Resolve(ctx, principal, ref)
+	if err != nil {
+		return nil, err
+	}
+	if decision.Access != domain.AccessEdit && decision.Access != domain.AccessManage {
+		return nil, domain.ErrAccessDenied
+	}
+	workspaceDecision, err := s.access.ResolveWorkspace(ctx, principal, ref.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	if workspaceDecision.Access != domain.AccessEdit && workspaceDecision.Access != domain.AccessManage {
+		return nil, domain.ErrAccessDenied
+	}
+	if folderID != nil {
+		if s.folders == nil {
+			return nil, domain.ErrInaccessible
+		}
+		if _, err = s.folders.FindByID(ctx, ref.WorkspaceID, *folderID); err != nil {
+			return nil, domain.ErrInaccessible
+		}
+	}
+	source, err := s.scenes.FindByID(ctx, ref.WorkspaceID, ref.SceneID)
+	if err != nil {
+		return nil, err
+	}
+	content := source.Content
+	if source.WriterMode == "v2" {
+		if s.remote == nil {
+			return nil, &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}
+		}
+		empty := sha256.Sum256(nil)
+		grant, grantErr := s.caps.AuthorizeCommand(ctx, principal, domain.SceneMutation{WorkspaceID: ref.WorkspaceID.String(), SceneID: ref.SceneID.String(), Action: domain.ActionSceneExport, RequestID: uuid.NewString(), PayloadHash: hex.EncodeToString(empty[:])})
+		if grantErr != nil {
+			return nil, grantErr
+		}
+		raw, remoteErr := s.remote.Call(ctx, "export-projection", ref, map[string]any{"grant": grant.Token, "workspaceId": ref.WorkspaceID.String(), "sceneId": ref.SceneID.String()}, 26<<20)
+		if remoteErr != nil {
+			return nil, remoteErr
+		}
+		var projection struct {
+			Content json.RawMessage `json:"content"`
+		}
+		if json.Unmarshal(raw, &projection) != nil || len(projection.Content) == 0 {
+			return nil, domain.ErrInvalidVersionInput
+		}
+		content = projection.Content
+	}
+	copy := &domain.Scene{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, FolderID: folderID, Title: title, Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), ContentVersion: 1, CreatedBy: principal.UserID, UpdatedBy: principal.UserID, WriterMode: "v1"}
+	if err = s.scenes.Create(ctx, copy); err != nil {
+		return nil, err
+	}
+	result, err := s.stager.StageSceneCopy(ctx, principal, ref, domain.SceneRef{WorkspaceID: ref.WorkspaceID, SceneID: copy.ID}, uuid.New(), content)
+	if err == nil {
+		copy.Content = result
+		copy.ContentPatch = true
+		err = s.scenes.Update(ctx, copy)
+	}
+	if err != nil {
+		_ = s.scenes.HardDelete(ctx, ref.WorkspaceID, copy.ID)
+		return nil, err
+	}
+	return s.scenes.FindByID(ctx, ref.WorkspaceID, copy.ID)
 }
 
 // CurrentProjection reads the durable collaboration document, including updates

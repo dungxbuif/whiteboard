@@ -70,6 +70,65 @@ type versionRemoteStub struct {
 	operation string
 	envelope  map[string]any
 	response  json.RawMessage
+	limit     int64
+}
+
+type duplicateSceneRepoStub struct {
+	domain.SceneRepository
+	source  *domain.Scene
+	created *domain.Scene
+}
+
+func (s *duplicateSceneRepoStub) FindByID(_ domain.Context, _ uuid.UUID, id uuid.UUID) (*domain.Scene, error) {
+	if s.created != nil && s.created.ID == id {
+		return s.created, nil
+	}
+	return s.source, nil
+}
+func (s *duplicateSceneRepoStub) Create(_ domain.Context, scene *domain.Scene) error {
+	s.created = scene
+	return nil
+}
+func (s *duplicateSceneRepoStub) Update(_ domain.Context, scene *domain.Scene) error {
+	s.created = scene
+	return nil
+}
+func (s *duplicateSceneRepoStub) HardDelete(_ domain.Context, _ uuid.UUID, _ uuid.UUID) error {
+	return nil
+}
+
+type duplicateAccessStub struct{ domain.AccessService }
+
+func (duplicateAccessStub) Resolve(_ domain.Context, _ domain.Principal, _ domain.SceneRef) (domain.AccessDecision, error) {
+	return domain.AccessDecision{Access: domain.AccessEdit}, nil
+}
+func (duplicateAccessStub) ResolveWorkspace(_ domain.Context, _ domain.Principal, _ uuid.UUID) (domain.AccessDecision, error) {
+	return domain.AccessDecision{Access: domain.AccessEdit}, nil
+}
+
+type duplicateAssetStagerStub struct{ called bool }
+
+func (s *duplicateAssetStagerStub) StageSceneCopy(_ domain.Context, _ domain.Principal, _, _ domain.SceneRef, _ uuid.UUID, content json.RawMessage) (json.RawMessage, error) {
+	s.called = true
+	return content, nil
+}
+
+func TestDuplicateExportsLargeDurableContentBeforeCreatingScene(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	user := uuid.New()
+	large := strings.Repeat("x", 300*1024)
+	content := json.RawMessage(`{"elements":[],"appState":{"memo":"` + large + `"},"files":{}}`)
+	projection, _ := json.Marshal(map[string]any{"content": content, "sequence": "2"})
+	source := &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, Title: "Source", WriterMode: "v2", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}
+	scenes := &duplicateSceneRepoStub{source: source}
+	remote := &versionRemoteStub{response: projection}
+	assets := &duplicateAssetStagerStub{}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, remote)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	copy, err := service.Duplicate(context.Background(), domain.UserPrincipal(user), ref, "Copy", nil)
+	if err != nil || copy == nil || remote.operation != "export-projection" || remote.limit <= 256*1024 || !assets.called || len(copy.Content) <= 256*1024 {
+		t.Fatalf("copy=%v err=%v operation=%s limit=%d staged=%v", copy, err, remote.operation, remote.limit, assets.called)
+	}
 }
 
 func TestCurrentProjectionReadsUncompactedDurableContent(t *testing.T) {
@@ -83,8 +142,8 @@ func TestCurrentProjectionReadsUncompactedDurableContent(t *testing.T) {
 	}
 }
 
-func (s *versionRemoteStub) Call(_ domain.Context, operation string, _ domain.SceneRef, envelope map[string]any, _ int64) (json.RawMessage, error) {
-	s.operation, s.envelope = operation, envelope
+func (s *versionRemoteStub) Call(_ domain.Context, operation string, _ domain.SceneRef, envelope map[string]any, limit int64) (json.RawMessage, error) {
+	s.operation, s.envelope, s.limit = operation, envelope, limit
 	return s.response, nil
 }
 

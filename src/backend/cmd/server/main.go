@@ -219,7 +219,9 @@ func main() {
 	scimHandler := handler.NewSCIMHandler(scimService, accessService, middledelivery.SCIMAuth(scimRepo))
 	libraryService := usecase.NewLibraryService(postgresrepo.NewLibraryRepository(db), features, accessService, capabilities, collabRemote)
 	if copier, ok := any(s3Repo).(domain.LibraryObjectCopier); ok {
-		libraryService.SetAssetStager(postgresrepo.NewLibraryAssetStager(db, copier, 24*time.Hour))
+		stager := postgresrepo.NewLibraryAssetStager(db, copier, 24*time.Hour)
+		libraryService.SetAssetStager(stager)
+		versions.SetDuplicateDependencies(sceneRepo, folderRepo, stager, accessService)
 	} else {
 		logger.Error("object storage does not support library asset staging")
 		os.Exit(1)

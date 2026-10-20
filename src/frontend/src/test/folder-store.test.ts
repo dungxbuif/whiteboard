@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import api from "../lib/api";
 import useFolderStore, { buildFolderTree, getFolderPath, type Folder } from "../store/folder-store";
+import useWorkspaceStore from "../store/workspace-store";
 
 vi.mock("../lib/api", () => ({
   default: {
@@ -34,6 +35,7 @@ const child: Folder = {
 
 describe("folder store", () => {
   beforeEach(() => {
+    useWorkspaceStore.setState({ activeWorkspaceId: null });
     useFolderStore.getState().reset();
     vi.clearAllMocks();
   });
@@ -106,5 +108,35 @@ describe("folder store", () => {
     expect(useFolderStore.getState().folders[0].path).toBe("/other/root/");
     expect(useFolderStore.getState().folders[1].path).toBe("/other/root/child/");
     expect(useFolderStore.getState().folders[1].depth).toBe(2);
+  });
+
+  it("ignores an in-flight folder update after switching workspaces", async () => {
+    let resolvePatch!: (value: { data: undefined }) => void;
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace" });
+    useFolderStore.setState({ folders: [root] });
+    vi.mocked(api.patch).mockReturnValue(new Promise((resolve) => { resolvePatch = resolve; }));
+    const pending = useFolderStore.getState().renameFolder("workspace", "root", "Renamed");
+    useWorkspaceStore.setState({ activeWorkspaceId: "other-workspace" });
+    useFolderStore.getState().reset();
+    const other = { ...root, id: "other", workspaceId: "other-workspace" };
+    useFolderStore.setState({ folders: [other] });
+    resolvePatch({ data: undefined });
+    await pending;
+    expect(useFolderStore.getState().folders).toEqual([other]);
+    expect(api.get).not.toHaveBeenCalled();
+  });
+
+  it("ignores an old folder refresh after switching workspaces", async () => {
+    let resolveGet!: (value: { data: Folder[] }) => void;
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace" });
+    vi.mocked(api.get).mockReturnValue(new Promise((resolve) => { resolveGet = resolve; }));
+    const pending = useFolderStore.getState().fetchFolders("workspace");
+    useWorkspaceStore.setState({ activeWorkspaceId: "other-workspace" });
+    useFolderStore.getState().reset();
+    const other = { ...root, id: "other", workspaceId: "other-workspace" };
+    useFolderStore.setState({ folders: [other] });
+    resolveGet({ data: [root] });
+    await pending;
+    expect(useFolderStore.getState().folders).toEqual([other]);
   });
 });

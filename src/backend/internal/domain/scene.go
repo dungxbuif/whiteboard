@@ -37,6 +37,11 @@ type SceneRepository interface {
 	SoftDelete(ctx Context, workspaceID uuid.UUID, id uuid.UUID) error
 	Restore(ctx Context, workspaceID uuid.UUID, id uuid.UUID) error
 	SetStar(ctx Context, workspaceID uuid.UUID, id uuid.UUID, isStarred bool) error
+	HardDelete(ctx Context, workspaceID, id uuid.UUID) error
+}
+
+type SceneAssetCopyStager interface {
+	StageSceneCopy(Context, Principal, SceneRef, SceneRef, uuid.UUID, json.RawMessage) (json.RawMessage, error)
 }
 
 type SceneUsecase interface {

@@ -21,6 +21,24 @@ type versionServiceHandlerStub struct {
 	err       error
 }
 
+func (s *versionServiceHandlerStub) Duplicate(_ domain.Context, p domain.Principal, _ domain.SceneRef, title string, folderID *uuid.UUID) (*domain.Scene, error) {
+	s.called, s.principal = "duplicate", p
+	return &domain.Scene{ID: uuid.New(), Title: title, FolderID: folderID}, s.err
+}
+
+func TestVersionHandlerDuplicateUsesAuthenticatedRoute(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	service := &versionServiceHandlerStub{}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodPost, "/scenes/scene/duplicate", strings.NewReader(`{"title":"Copy","folderId":null}`))
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated || service.called != "duplicate" || !strings.Contains(response.Body.String(), `"title":"Copy"`) {
+		t.Fatalf("status=%d called=%s body=%s", response.Code, service.called, response.Body.String())
+	}
+}
+
 func TestVersionHandlerPropagatesLoginCredentialExpiry(t *testing.T) {
 	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
 	expires := time.Now().Add(15 * time.Minute).Truncate(time.Second)

@@ -32,6 +32,10 @@ func (r *SceneRepository) Create(ctx context.Context, scene *domain.Scene) error
 	return nil
 }
 
+func (r *SceneRepository) HardDelete(ctx context.Context, workspaceID, id uuid.UUID) error {
+	return accessDB(ctx, r.db).Unscoped().Where("workspace_id=? AND id=?", workspaceID, id).Delete(&domain.Scene{}).Error
+}
+
 func (r *SceneRepository) FindByID(ctx context.Context, workspaceID uuid.UUID, id uuid.UUID) (*domain.Scene, error) {
 	var scene domain.Scene
 	if err := accessDB(ctx, r.db).First(&scene, "workspace_id = ? AND id = ?", workspaceID, id).Error; err != nil {

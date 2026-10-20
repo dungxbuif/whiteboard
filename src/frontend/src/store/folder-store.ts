@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import api from "@/lib/api";
+import useWorkspaceStore from "@/store/workspace-store";
 
 export interface Folder {
   id: string;
@@ -34,6 +35,11 @@ interface FolderState {
 }
 
 const workspaceHeaders = (workspaceId: string) => ({ "X-Workspace-ID": workspaceId });
+let folderGeneration = 0;
+const workspaceIsCurrent = (workspaceId: string) => {
+  const active = useWorkspaceStore.getState().activeWorkspaceId;
+  return active === null || active === workspaceId;
+};
 
 function applyCommittedFolderChange(folders: Folder[], folderId: string, changes: { name?: string; newParentId?: string | null }): Folder[] {
   const target = folders.find((folder) => folder.id === folderId);
@@ -98,14 +104,15 @@ const useFolderStore = create<FolderState>((set) => ({
   isLoading: false,
 
   fetchFolders: async (workspaceId) => {
+    const generation = ++folderGeneration;
     set({ isLoading: true });
     try {
       const response = await api.get<Folder[]>("/folders?all=true", {
         headers: workspaceHeaders(workspaceId),
       });
-      set({ folders: response.data, isLoading: false });
+      if (generation === folderGeneration && workspaceIsCurrent(workspaceId)) set({ folders: response.data, isLoading: false });
     } catch (error) {
-      set({ folders: [], isLoading: false });
+      if (generation === folderGeneration && workspaceIsCurrent(workspaceId)) set({ folders: [], isLoading: false });
       throw error;
     }
   },
@@ -121,15 +128,17 @@ const useFolderStore = create<FolderState>((set) => ({
   },
 
   moveFolder: async (workspaceId, folderId, newParentId) => {
+    const generation = folderGeneration;
     await api.patch(
       `/folders/${folderId}/move`,
       { newParentId },
       { headers: workspaceHeaders(workspaceId) },
     );
+    if (generation !== folderGeneration || !workspaceIsCurrent(workspaceId)) return;
     set((state) => ({ folders: applyCommittedFolderChange(state.folders, folderId, { newParentId }) }));
     const committedFolders = useFolderStore.getState().folders;
     try { await useFolderStore.getState().fetchFolders(workspaceId); }
-    catch { set({ folders: committedFolders, isLoading: false }); }
+    catch { if (generation + 1 === folderGeneration && workspaceIsCurrent(workspaceId)) set({ folders: committedFolders, isLoading: false }); }
   },
 
   renameFolder: async (workspaceId, folderId, name) => {
@@ -137,11 +146,13 @@ const useFolderStore = create<FolderState>((set) => ({
   },
 
   updateFolder: async (workspaceId, folderId, changes) => {
+    const generation = folderGeneration;
     await api.patch(`/folders/${folderId}`, changes, { headers: workspaceHeaders(workspaceId) });
+    if (generation !== folderGeneration || !workspaceIsCurrent(workspaceId)) return;
     set((state) => ({ folders: applyCommittedFolderChange(state.folders, folderId, changes) }));
     const committedFolders = useFolderStore.getState().folders;
     try { await useFolderStore.getState().fetchFolders(workspaceId); }
-    catch { set({ folders: committedFolders, isLoading: false }); }
+    catch { if (generation + 1 === folderGeneration && workspaceIsCurrent(workspaceId)) set({ folders: committedFolders, isLoading: false }); }
   },
 
   setFolderStar: async (workspaceId, folderId) => {
@@ -155,7 +166,7 @@ const useFolderStore = create<FolderState>((set) => ({
   },
 
   setCurrentFolderId: (currentFolderId) => set({ currentFolderId }),
-  reset: () => set({ folders: [], currentFolderId: null, isLoading: false }),
+  reset: () => { folderGeneration += 1; set({ folders: [], currentFolderId: null, isLoading: false }); },
 }));
 
 export default useFolderStore;

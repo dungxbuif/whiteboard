@@ -48,6 +48,7 @@ func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Han
 	})
 	r.Group(func(r chi.Router) {
 		r.Use(auth)
+		r.Post("/scenes/{id}/duplicate", h.Duplicate)
 		r.Get("/scenes/{id}/versions", h.List)
 		r.Post("/scenes/{id}/versions", h.Create)
 		r.Get("/scenes/{id}/versions/{versionId}", h.Get)
@@ -55,6 +56,28 @@ func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Han
 		r.Post("/scenes/{id}/versions/{versionId}/restore", h.Restore)
 		r.Patch("/scenes/{id}/versions/{versionId}", h.SetMetadata)
 	})
+}
+
+func (h *VersionHandler) Duplicate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	principal, ref, err := h.identity(r)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	var body struct {
+		Title    string     `json:"title"`
+		FolderID *uuid.UUID `json:"folderId"`
+	}
+	if !decodeVersion(w, r, &body) {
+		return
+	}
+	scene, err := h.versions.Duplicate(r.Context(), principal, ref, body.Title, body.FolderID)
+	if err != nil {
+		writeVersionError(w, r, err)
+		return
+	}
+	writeJSONResponse(w, http.StatusCreated, scene)
 }
 
 func (h *VersionHandler) CurrentProjection(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import api from "@/lib/api";
 import { writeCollaborativeContent, legacyConflict } from "@/collab/writers";
 import useFolderStore from "@/store/folder-store";
+import useWorkspaceStore from "@/store/workspace-store";
 
 export const SCENE_SAVE_DEBOUNCE_MS = 750;
 export const EMPTY_SCENE_CONTENT = {
@@ -86,6 +87,10 @@ let openGeneration = 0;
 let listGeneration = 0;
 
 const workspaceHeaders = (workspaceId: string) => ({ "X-Workspace-ID": workspaceId });
+const workspaceIsCurrent = (workspaceId: string) => {
+  const active = useWorkspaceStore.getState().activeWorkspaceId;
+  return active === null || active === workspaceId;
+};
 
 function updateScene(items: Scene[], updated: Scene) {
   return items.map((scene) => (scene.id === updated.id ? updated : scene));
@@ -143,10 +148,10 @@ const useSceneStore = create<SceneState>((set, get) => {
           headers: workspaceHeaders(workspaceId),
           params: folderId ? { folderId } : undefined,
         });
-        if (generation !== listGeneration) return;
+        if (generation !== listGeneration || !workspaceIsCurrent(workspaceId)) return;
         set({ scenes: response.data, isLoading: false });
       } catch (error) {
-        if (generation !== listGeneration) return;
+        if (generation !== listGeneration || !workspaceIsCurrent(workspaceId)) return;
         set({ scenes: [], isLoading: false, error: "Scenes could not be loaded." });
         throw error;
       }
@@ -217,7 +222,9 @@ const useSceneStore = create<SceneState>((set, get) => {
     },
 
     moveScene: async (workspaceId, sceneId, folderId, currentFolderId) => {
+      const generation = listGeneration;
       const response = await api.patch<Scene>(`/scenes/${sceneId}/`, { folderId }, { headers: workspaceHeaders(workspaceId) });
+      if (generation !== listGeneration || !workspaceIsCurrent(workspaceId)) return;
       set((state) => ({
         scenes: updateScene(state.scenes, response.data),
         activeScene: state.activeScene?.id === sceneId ? response.data : state.activeScene,
@@ -226,21 +233,21 @@ const useSceneStore = create<SceneState>((set, get) => {
         ? get().scenes
         : get().scenes.filter((scene) => scene.folderId === currentFolderId);
       try { await get().fetchScenes(workspaceId, currentFolderId); }
-      catch { set({ scenes: committedScenes, isLoading: false, error: null }); }
+      catch { if (generation + 1 === listGeneration && workspaceIsCurrent(workspaceId)) set({ scenes: committedScenes, isLoading: false, error: null }); }
     },
 
     duplicateScene: async (workspaceId, sceneId, title, folderId) => {
-      const source = await api.get<Scene>(`/scenes/${sceneId}/`, { headers: workspaceHeaders(workspaceId) });
-      const content = source.data.writerMode === "v2"
-        ? (await api.get<{ content: SceneContent }>(`/scenes/${sceneId}/projection`, { headers: workspaceHeaders(workspaceId) })).data.content
-        : source.data.content;
-      const duplicate = await get().createScene(workspaceId, folderId, title, content);
+      const generation = listGeneration;
+      const response = await api.post<Scene>(`/scenes/${sceneId}/duplicate`, { title, folderId }, { headers: workspaceHeaders(workspaceId) });
+      const duplicate = response.data;
+      if (generation !== listGeneration || !workspaceIsCurrent(workspaceId)) return duplicate;
       const currentFolderId = useFolderStore.getState().currentFolderId;
+      set((state) => ({ scenes: currentFolderId && currentFolderId !== folderId ? state.scenes : [duplicate, ...state.scenes], activeScene: duplicate }));
       const committedScenes = currentFolderId && currentFolderId !== folderId
         ? get().scenes.filter((item) => item.id !== duplicate.id)
         : get().scenes;
       try { await get().fetchScenes(workspaceId, currentFolderId); }
-      catch { set({ scenes: committedScenes, isLoading: false, error: null }); }
+      catch { if (generation + 1 === listGeneration && workspaceIsCurrent(workspaceId)) set({ scenes: committedScenes, isLoading: false, error: null }); }
       return duplicate;
     },
 

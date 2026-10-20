@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"devtool/internal/domain"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -43,6 +44,100 @@ func (libraryStageRow) TableName() string { return "library_asset_stages" }
 func libraryTargetFile(requestID uuid.UUID, fileID string) string {
 	sum := sha256.Sum256([]byte(requestID.String() + ":file:" + fileID))
 	return "l_" + hex.EncodeToString(sum[:])[:30]
+}
+
+// StageSceneCopy copies every persisted scene asset and updates the Excalidraw
+// file and image references to point at the copied, scene-owned assets.
+func (s *LibraryAssetStager) StageSceneCopy(ctx domain.Context, principal domain.Principal, source, target domain.SceneRef, requestID uuid.UUID, content json.RawMessage) (json.RawMessage, error) {
+	if s == nil || s.db == nil || source.WorkspaceID != target.WorkspaceID || !json.Valid(content) {
+		return nil, domain.ErrInvalidLibrary
+	}
+	var document map[string]json.RawMessage
+	if err := json.Unmarshal(content, &document); err != nil {
+		return nil, err
+	}
+	var files map[string]json.RawMessage
+	if err := json.Unmarshal(document["files"], &files); err != nil {
+		return nil, domain.ErrInvalidLibrary
+	}
+	pins := make([]domain.LibraryAssetPin, 0, len(files))
+	for fileID, raw := range files {
+		var file struct {
+			AssetID string `json:"assetId"`
+		}
+		if err := json.Unmarshal(raw, &file); err != nil {
+			return nil, domain.ErrInvalidLibrary
+		}
+		var assetID uuid.UUID
+		if file.AssetID != "" {
+			var err error
+			assetID, err = uuid.Parse(file.AssetID)
+			if err != nil {
+				return nil, domain.ErrInvalidLibrary
+			}
+		} else {
+			var sourceAsset domain.SceneAsset
+			err := s.db.WithContext(ctx).Where("workspace_id=? AND scene_id=? AND file_id=? AND deleted_at IS NULL", source.WorkspaceID, source.SceneID, fileID).First(&sourceAsset).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			} // inline, unscoped legacy file
+			if err != nil {
+				return nil, err
+			}
+			assetID = sourceAsset.ID
+		}
+		pins = append(pins, domain.LibraryAssetPin{SourceSceneID: source.SceneID, AssetID: assetID, FileID: fileID})
+	}
+	staged, err := s.Stage(ctx, principal, target, requestID, pins)
+	if err != nil {
+		return nil, err
+	}
+	fileIDs := make(map[string]string, len(staged))
+	for oldID, assetID := range staged {
+		newID := libraryTargetFile(requestID, oldID)
+		var file map[string]json.RawMessage
+		if err := json.Unmarshal(files[oldID], &file); err != nil {
+			return nil, domain.ErrInvalidLibrary
+		}
+		file["id"], _ = json.Marshal(newID)
+		file["assetId"], _ = json.Marshal(assetID.String())
+		encoded, err := json.Marshal(file)
+		if err != nil {
+			return nil, err
+		}
+		delete(files, oldID)
+		files[newID] = encoded
+		fileIDs[oldID] = newID
+	}
+	var elements []json.RawMessage
+	if err := json.Unmarshal(document["elements"], &elements); err != nil {
+		return nil, domain.ErrInvalidLibrary
+	}
+	for i, raw := range elements {
+		var element map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &element); err != nil {
+			return nil, domain.ErrInvalidLibrary
+		}
+		var oldID string
+		if json.Unmarshal(element["fileId"], &oldID) == nil {
+			if newID, ok := fileIDs[oldID]; ok {
+				element["fileId"], _ = json.Marshal(newID)
+				elements[i], err = json.Marshal(element)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	document["files"], err = json.Marshal(files)
+	if err != nil {
+		return nil, err
+	}
+	document["elements"], err = json.Marshal(elements)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(document)
 }
 func (s *LibraryAssetStager) Stage(ctx domain.Context, principal domain.Principal, target domain.SceneRef, requestID uuid.UUID, pins []domain.LibraryAssetPin) (map[string]uuid.UUID, error) {
 	if s == nil || s.db == nil || s.objects == nil || requestID == uuid.Nil {

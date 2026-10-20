@@ -80,6 +80,7 @@ export function SceneActions({ scene }: { scene: Scene }) {
     <SceneDuplicateDialog title={scene.title} folderId={scene.folderId} folders={folders} open={duplicateOpen} onOpenChange={setDuplicateOpen} onDuplicate={async (title, folderId) => {
       if (!activeWorkspaceId) return;
       const copy = await duplicateScene(activeWorkspaceId, scene.id, title, folderId);
+      if (useWorkspaceStore.getState().activeWorkspaceId !== activeWorkspaceId) return;
       navigate(`${workspaceDashboardPath(activeWorkspace)}/scenes/${encodeURIComponent(copy.publicId || copy.id)}`);
     }} />
     <ShareDialog onOpenChange={setShareOpen} open={shareOpen} scene={scene} />
