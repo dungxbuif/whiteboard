@@ -37,4 +37,7 @@ describe("scene import", () => {
   it("rejects external image URLs", async () => {
     await expect(parseSceneImport(file({ ...drawing, files: { image: { id: "image", mimeType: "image/png", dataURL: "https://untrusted.test/a.png" } } }))).rejects.toThrow(/image/);
   });
+  it("rejects embeddable elements that cannot enter the durable scene contract", async () => {
+    await expect(parseSceneImport(file({ ...drawing, elements: [{ ...rectangle, type: "embeddable", link: "https://example.com" }] }))).rejects.toThrow(/element/);
+  });
 });

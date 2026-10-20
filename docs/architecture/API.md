@@ -128,6 +128,8 @@ types and bounds against the collaboration scene contract before scene creation
 and again after asset staging. This includes nested `customData` safety with
 the collaboration contract's 32-level limit counted from the scene root,
 strict `boundElements` and binding shapes, and freedraw pressure bounds.
+The browser `.excalidraw` import excludes `embeddable` and `iframe` elements,
+which the collaboration and v1 duplicate contracts do not persist or copy.
 Invalid element values, null required file
 metadata, or an image
 reference missing from `files` also rejects the copy. Referenced scene assets
@@ -156,6 +158,8 @@ to remove the marker while pending copies exist.
 A cleanup failure returns `500 DUPLICATE_CLEANUP_FAILED` and logs
 the hidden scene ID, phase and request ID without exposing storage details to
 the caller.
+An unavailable or mismatched source scene-owned image asset returns
+`422 INVALID_SCENE_ASSET` with repair guidance; it is not an authority outage.
 Session and collaborator state is not copied. Browser `POST /api/v1/scenes`
 with `{title,folderId,content}` remains for new scenes and imports, not duplication. These
 metadata and content mutations are available only with current edit access;

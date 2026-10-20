@@ -14,6 +14,10 @@ action in the dashboard is not authorization.
 | `POST /scenes/{id}/duplicate` | Login user with scene edit access and workspace owner/editor membership | `{ "title": "Copy name", "folderId": null }` (folder UUID or `null`) | `201` new scene with copied content and images |
 | `POST /scenes` | Workspace creation access | `{ "title": "New scene", "folderId": null, "content": { ... } }` | `201` new scene or import; not a duplication route |
 
+Browser `.excalidraw` imports reject `embeddable` and `iframe` elements because
+they are outside the durable scene contract. Remove them before importing or
+duplicating a legacy scene.
+
 The projection includes acknowledged collaboration updates after the last
 scene-row compaction. The ordinary projection is for bounded authenticated v2
 reads; it has a 500-element/256 KiB limit. Use the duplicate endpoint for a
@@ -30,8 +34,10 @@ asset, a thumbnail in place of a file asset, a mismatched image MIME, malformed
 durable scene fields (including unsafe nested metadata, bindings, or pressure
 values), or a broken image-to-file reference makes the copy fail instead of
 producing a broken image. Nested metadata follows the collaboration scene's
-32-level limit counted from the scene root. If cleanup fails after an unsuccessful
-copy, the API returns `500 DUPLICATE_CLEANUP_FAILED`;
+32-level limit counted from the scene root. Missing or mismatched source
+scene-owned image assets return `422 INVALID_SCENE_ASSET` with repair guidance.
+If cleanup fails after an unsuccessful copy, the API returns
+`500 DUPLICATE_CLEANUP_FAILED`;
 the partial scene stays hidden for operator recovery. If the server cannot
 verify whether publication committed, it preserves the copy and returns
 `503 DUPLICATE_STATE_UNCERTAIN`; reload before retrying to avoid another copy.

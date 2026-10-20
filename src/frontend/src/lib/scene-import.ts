@@ -1,7 +1,7 @@
 import { syncPresentationOrder, type SceneContent } from "@/store/scene-store";
 
 export const MAX_SCENE_IMPORT_BYTES = 25 * 1024 * 1024;
-const ELEMENT_TYPES = new Set(["rectangle", "diamond", "ellipse", "text", "line", "arrow", "freedraw", "image", "frame", "magicframe", "embeddable"]);
+const ELEMENT_TYPES = new Set(["rectangle", "diamond", "ellipse", "text", "line", "arrow", "freedraw", "image", "frame", "magicframe"]);
 const INVALID_FILE = "Choose a valid Excalidraw scene file.";
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const isNumber = (value: unknown) => typeof value === "number" && Number.isFinite(value);

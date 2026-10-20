@@ -66,6 +66,19 @@ func TestVersionHandlerDuplicateUncertainStateHasDistinctCode(t *testing.T) {
 	}
 }
 
+func TestVersionHandlerDuplicateMissingAssetIsRepairable(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	service := &versionServiceHandlerStub{err: domain.ErrInvalidLibrary}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodPost, "/scenes/scene/duplicate", strings.NewReader(`{"title":"Copy","folderId":null}`))
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), `"code":"INVALID_SCENE_ASSET"`) || strings.Contains(response.Body.String(), "AUTHORITY_UNAVAILABLE") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestVersionHandlerPropagatesLoginCredentialExpiry(t *testing.T) {
 	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
 	expires := time.Now().Add(15 * time.Minute).Truncate(time.Second)

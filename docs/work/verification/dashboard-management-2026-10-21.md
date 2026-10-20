@@ -13,8 +13,8 @@ All commands ran in the dashboard-management-parity worktree on 2026-10-21.
 
 | Command | Location | Result |
 | --- | --- | --- |
-| `rtk go test ./...` | `src/backend` | pass: 399 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after destination-folder publication guard |
-| `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 236 tests in 51 files |
+| `rtk go test ./...` | `src/backend` | pass: 400 tests in 14 packages without the PostgreSQL integration gate; full suite also passed with `ACCESS_TEST_DATABASE_URL` against a dedicated local database after repairable asset-error mapping |
+| `rtk npm run test:unit --workspace ./frontend` | `src` | pass: 237 tests in 51 files |
 | `rtk npm run build --workspace ./frontend` | `src` | pass: TypeScript and Vite production build; existing vendor annotation and chunk-size warnings |
 | `rtk npx playwright test e2e/dashboard-style.spec.ts e2e/dashboard.spec.ts --workers=1 --reporter=line` | `src/frontend` | pass: 18 browser tests |
 | `rtk git diff --check` | repository root | pass |
@@ -56,6 +56,9 @@ copy when the folder was trashed or moved before publication. Deferred frontend
 tests protect a new workspace's folder list from late star/trash completions in
 the old workspace. Scene fallback tests keep the root list limited to root
 scenes after successful move/duplicate responses when the reload fails.
+The import regression rejects embeddable elements that the durable scene
+contract cannot copy. A duplicate route regression maps a missing source
+asset to `422 INVALID_SCENE_ASSET` instead of an authority outage.
 
 ## Release boundary
 

@@ -152,6 +152,8 @@ func writeVersionError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, domain.ErrFeatureDisabled):
 		code, message, status = "FEATURE_DISABLED", "Version history is disabled", http.StatusForbidden
 	case errors.Is(err, domain.ErrInvalidVersionInput):
+	case errors.Is(err, domain.ErrInvalidLibrary):
+		code, message, status = "INVALID_SCENE_ASSET", "Scene images are unavailable; repair or remove missing images and retry", http.StatusUnprocessableEntity
 	default:
 		middleware.WriteAccessError(w, r, err)
 		return
