@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"devtool/internal/domain"
 
@@ -11,6 +12,25 @@ import (
 
 type workspaceUsecase struct {
 	repo domain.WorkspaceRepository
+}
+
+func (u *workspaceUsecase) UpdateName(ctx context.Context, userID, workspaceID uuid.UUID, name string) (*domain.Workspace, error) {
+	name = strings.TrimSpace(name)
+	if len([]rune(name)) < 3 || len([]rune(name)) > 100 {
+		return nil, domain.ErrInvalidWorkspaceName
+	}
+	workspace, err := u.repo.FindByID(ctx, workspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("find workspace: %w", err)
+	}
+	if workspace.OwnerID != userID {
+		return nil, domain.ErrAccessDenied
+	}
+	if err := u.repo.UpdateName(ctx, workspaceID, name); err != nil {
+		return nil, fmt.Errorf("update workspace name: %w", err)
+	}
+	workspace.Name = name
+	return workspace, nil
 }
 
 func NewWorkspaceUsecase(repo domain.WorkspaceRepository) domain.WorkspaceUsecase {

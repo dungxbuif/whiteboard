@@ -76,7 +76,7 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 		newDepth = 0
 	} else {
 		if *newParentID == folder.ID {
-			return fmt.Errorf("cannot move folder to itself")
+			return fmt.Errorf("%w: cannot move folder to itself", domain.ErrInvalidFolderUpdate)
 		}
 
 		parent, err := u.repo.FindByID(ctx, workspaceID, *newParentID)
@@ -85,11 +85,11 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 		}
 
 		if strings.Contains(parent.Path, domain.FolderPathSeparator+strippedID+domain.FolderPathSeparator) {
-			return fmt.Errorf("cannot move folder to its own descendant")
+			return fmt.Errorf("%w: cannot move folder to its own descendant", domain.ErrInvalidFolderUpdate)
 		}
 
 		if parent.Depth >= domain.MaxFolderDepth-1 {
-			return fmt.Errorf("target parent depth exceeds limit (%d)", domain.MaxFolderDepth)
+			return fmt.Errorf("%w: target parent depth exceeds limit (%d)", domain.ErrInvalidFolderUpdate, domain.MaxFolderDepth)
 		}
 
 		newPath = parent.Path + strippedID + domain.FolderPathSeparator
@@ -101,7 +101,7 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 		return fmt.Errorf("failed to inspect folder subtree: %w", err)
 	}
 	if newDepth+(maxDepth-oldDepth) >= domain.MaxFolderDepth {
-		return fmt.Errorf("moving folder would exceed maximum depth (%d)", domain.MaxFolderDepth)
+		return fmt.Errorf("%w: moving folder would exceed maximum depth (%d)", domain.ErrInvalidFolderUpdate, domain.MaxFolderDepth)
 	}
 
 	folder.ParentID = newParentID
@@ -113,6 +113,35 @@ func (u *folderUsecase) Move(ctx context.Context, workspaceID uuid.UUID, folderI
 	}
 
 	return u.repo.UpdatePathRecursive(ctx, workspaceID, oldPath, newPath, newDepth-oldDepth)
+}
+
+func (u *folderUsecase) Update(ctx context.Context, workspaceID, folderID uuid.UUID, name *string, newParentID **uuid.UUID) error {
+	if name == nil && newParentID == nil {
+		return domain.ErrInvalidFolderUpdate
+	}
+	var trimmed string
+	if name != nil {
+		trimmed = strings.TrimSpace(*name)
+		if len([]rune(trimmed)) < 1 || len([]rune(trimmed)) > 100 {
+			return domain.ErrInvalidFolderUpdate
+		}
+	}
+	if newParentID != nil {
+		if err := u.Move(ctx, workspaceID, folderID, *newParentID); err != nil {
+			return err
+		}
+	}
+	if name != nil {
+		folder, err := u.repo.FindByID(ctx, workspaceID, folderID)
+		if err != nil {
+			return fmt.Errorf("folder not found: %w", err)
+		}
+		folder.Name = trimmed
+		if err := u.repo.Save(ctx, folder); err != nil {
+			return fmt.Errorf("failed to update folder name: %w", err)
+		}
+	}
+	return nil
 }
 
 func (u *folderUsecase) Delete(ctx context.Context, workspaceID uuid.UUID, folderID uuid.UUID) error {

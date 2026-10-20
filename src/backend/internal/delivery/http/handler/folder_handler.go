@@ -1,13 +1,17 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strings"
 
 	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 
 	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
@@ -15,6 +19,57 @@ import (
 type FolderHandler struct {
 	usecase  domain.FolderUsecase
 	validate *validator.Validate
+}
+
+type UpdateFolderRequest struct {
+	Name        *string         `json:"name"`
+	NewParentID json.RawMessage `json:"newParentId"`
+}
+
+func (h *FolderHandler) Update(w http.ResponseWriter, r *http.Request) {
+	workspaceID, _ := middleware.WorkspaceIDFromContext(r.Context())
+	folderID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writeJSONResponse(w, http.StatusBadRequest, map[string]string{"code": "INVALID_INPUT", "message": "Invalid folder ID", "requestId": chimiddleware.GetReqID(r.Context())})
+		return
+	}
+	var req UpdateFolderRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSONResponse(w, http.StatusBadRequest, map[string]string{"code": "INVALID_INPUT", "message": "Invalid request body", "requestId": chimiddleware.GetReqID(r.Context())})
+		return
+	}
+	var parent **uuid.UUID
+	if req.NewParentID != nil {
+		var parsed *uuid.UUID
+		if !bytes.Equal(bytes.TrimSpace(req.NewParentID), []byte("null")) {
+			var id uuid.UUID
+			if err := json.Unmarshal(req.NewParentID, &id); err != nil || id == uuid.Nil {
+				writeJSONResponse(w, http.StatusBadRequest, map[string]string{"code": "INVALID_INPUT", "message": "Invalid newParentId", "requestId": chimiddleware.GetReqID(r.Context())})
+				return
+			}
+			parsed = &id
+		}
+		parent = &parsed
+	}
+	if req.Name != nil {
+		trimmed := strings.TrimSpace(*req.Name)
+		if err := h.validate.Struct(struct {
+			Name string `validate:"required,min=1,max=100"`
+		}{trimmed}); err != nil {
+			writeJSONResponse(w, http.StatusBadRequest, map[string]string{"code": "INVALID_INPUT", "message": "Folder name must be 1–100 characters", "requestId": chimiddleware.GetReqID(r.Context())})
+			return
+		}
+		req.Name = &trimmed
+	}
+	if err := h.usecase.Update(r.Context(), workspaceID, folderID, req.Name, parent); err != nil {
+		if errors.Is(err, domain.ErrInvalidFolderUpdate) {
+			writeJSONResponse(w, http.StatusBadRequest, map[string]string{"code": "INVALID_INPUT", "message": err.Error(), "requestId": chimiddleware.GetReqID(r.Context())})
+			return
+		}
+		writeJSONResponse(w, http.StatusInternalServerError, map[string]string{"code": "INTERNAL_ERROR", "message": "Unable to update folder", "requestId": chimiddleware.GetReqID(r.Context())})
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func NewFolderHandler(usecase domain.FolderUsecase) *FolderHandler {

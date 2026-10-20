@@ -19,6 +19,28 @@ import (
 
 type routerFolderUsecase struct {
 	domain.FolderUsecase
+	updated *bool
+}
+
+func (u routerFolderUsecase) Update(context.Context, uuid.UUID, uuid.UUID, *string, **uuid.UUID) error {
+	if u.updated != nil {
+		*u.updated = true
+	}
+	return nil
+}
+
+type routerWorkspaceUsecase struct {
+	domain.WorkspaceUsecase
+	updated *bool
+}
+type routerDeadlineResponse struct{ *httptest.ResponseRecorder }
+
+func (*routerDeadlineResponse) SetReadDeadline(time.Time) error { return nil }
+func (u routerWorkspaceUsecase) UpdateName(_ context.Context, user, workspace uuid.UUID, name string) (*domain.Workspace, error) {
+	if u.updated != nil {
+		*u.updated = true
+	}
+	return &domain.Workspace{ID: workspace, OwnerID: user, Name: name}, nil
 }
 
 type routerSceneUsecase struct {
@@ -45,6 +67,7 @@ type routerEnterpriseAccess struct {
 	domain.AccessService
 	workspace uuid.UUID
 	user      uuid.UUID
+	denyOwner bool
 }
 
 func (a routerEnterpriseAccess) ResolveWorkspaceID(context.Context, string) (uuid.UUID, error) {
@@ -53,7 +76,15 @@ func (a routerEnterpriseAccess) ResolveWorkspaceID(context.Context, string) (uui
 func (a routerEnterpriseAccess) ResolveWorkspace(context.Context, domain.Principal, uuid.UUID) (domain.AccessDecision, error) {
 	return domain.AccessDecision{Access: domain.AccessEdit, Owner: true, ACLVersion: 1}, nil
 }
-func (a routerEnterpriseAccess) RequireOwner(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+func (a routerEnterpriseAccess) RequireOwner(context.Context, uuid.UUID, uuid.UUID) error {
+	if a.denyOwner {
+		return domain.ErrAccessDenied
+	}
+	return nil
+}
+func (a routerEnterpriseAccess) RequireFolderEdit(context.Context, domain.Principal, uuid.UUID, uuid.UUID) error {
+	return nil
+}
 func (a routerEnterpriseAccess) WithWorkspaceLock(ctx context.Context, _ uuid.UUID, _ uuid.UUID, fn func(context.Context) error) error {
 	return fn(ctx)
 }
@@ -114,6 +145,36 @@ func TestFolderRoutesInjectWorkspaceID(t *testing.T) {
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+}
+
+func TestDashboardMetadataPatchRoutes(t *testing.T) {
+	workspace, user, folder := uuid.New(), uuid.New(), uuid.New()
+	auth := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.ContextKeyUserID, user)))
+		})
+	}
+	for _, deny := range []bool{false, true} {
+		workspaceCalled, folderCalled := false, false
+		router := NewRouterWithAccess(nil, handler.NewWorkspaceHandler(routerWorkspaceUsecase{updated: &workspaceCalled}), handler.NewFolderHandler(routerFolderUsecase{updated: &folderCalled}), nil, handler.NewAssetHandler(nil), auth, routerEnterpriseAccess{workspace: workspace, user: user, denyOwner: deny}, nil, nil, nil, nil, nil, nil)
+		req := httptest.NewRequest(http.MethodPatch, "/api/v1/workspaces/workspace-alias", strings.NewReader(`{"name":"Updated"}`))
+		rr := &routerDeadlineResponse{httptest.NewRecorder()}
+		router.ServeHTTP(rr, req)
+		if deny {
+			if rr.Code != http.StatusForbidden || workspaceCalled {
+				t.Fatalf("denied status=%d called=%v body=%s", rr.Code, workspaceCalled, rr.Body.String())
+			}
+		} else if rr.Code != http.StatusOK || !workspaceCalled {
+			t.Fatalf("workspace status=%d called=%v body=%s", rr.Code, workspaceCalled, rr.Body.String())
+		}
+		req = httptest.NewRequest(http.MethodPatch, "/api/v1/folders/"+folder.String(), strings.NewReader(`{"name":"Renamed"}`))
+		req.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+		rr = &routerDeadlineResponse{httptest.NewRecorder()}
+		router.ServeHTTP(rr, req)
+		if rr.Code != http.StatusNoContent || !folderCalled {
+			t.Fatalf("folder status=%d called=%v body=%s", rr.Code, folderCalled, rr.Body.String())
+		}
 	}
 }
 

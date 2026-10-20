@@ -1,11 +1,14 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+var ErrInvalidFolderUpdate = errors.New("invalid folder update")
 
 type Folder struct {
 	ID          uuid.UUID      `json:"id" gorm:"type:uuid;primaryKey;default:gen_random_uuid()"`
@@ -35,6 +38,7 @@ type FolderRepository interface {
 type FolderUsecase interface {
 	Create(ctx Context, workspaceID uuid.UUID, userID uuid.UUID, name string, parentID *uuid.UUID) (*Folder, error)
 	Move(ctx Context, workspaceID uuid.UUID, folderID uuid.UUID, newParentID *uuid.UUID) error
+	Update(ctx Context, workspaceID uuid.UUID, folderID uuid.UUID, name *string, newParentID **uuid.UUID) error
 	Delete(ctx Context, workspaceID uuid.UUID, folderID uuid.UUID) error
 	Restore(ctx Context, workspaceID uuid.UUID, folderID uuid.UUID) error
 	ListAll(ctx Context, workspaceID uuid.UUID) ([]Folder, error)

@@ -6,15 +6,27 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"devtool/internal/domain"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 type mockWorkspaceUsecase struct {
 	domain.WorkspaceUsecase
+	updateErr   error
+	updatedName string
+}
+
+func (m *mockWorkspaceUsecase) UpdateName(_ context.Context, userID, workspaceID uuid.UUID, name string) (*domain.Workspace, error) {
+	m.updatedName = name
+	if m.updateErr != nil {
+		return nil, m.updateErr
+	}
+	return &domain.Workspace{ID: workspaceID, OwnerID: userID, Name: name}, nil
 }
 
 func (m *mockWorkspaceUsecase) Create(ctx context.Context, userID uuid.UUID, name string) (*domain.Workspace, error) {
@@ -74,5 +86,41 @@ func TestWorkspaceHandler_List(t *testing.T) {
 	json.Unmarshal(rr.Body.Bytes(), &res)
 	if len(res) != 1 {
 		t.Errorf("expected 1 workspace, got %d", len(res))
+	}
+}
+
+func TestWorkspaceHandler_Update(t *testing.T) {
+	userID, workspaceID := uuid.New(), uuid.New()
+	ucase := &mockWorkspaceUsecase{}
+	router := chi.NewRouter()
+	router.Patch("/{id}", NewWorkspaceHandler(ucase).Update)
+	for _, tc := range []struct {
+		name, body string
+		want       int
+	}{
+		{"valid", `{"name":"  New workspace  "}`, http.StatusOK},
+		{"blank", `{"name":"   "}`, http.StatusBadRequest},
+		{"short", `{"name":"ab"}`, http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPatch, "/"+workspaceID.String(), strings.NewReader(tc.body))
+			req = req.WithContext(context.WithValue(req.Context(), domain.ContextKeyUserID, userID))
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+			if rr.Code != tc.want {
+				t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+			}
+		})
+	}
+	if ucase.updatedName != "New workspace" {
+		t.Fatalf("name=%q", ucase.updatedName)
+	}
+	ucase.updateErr = domain.ErrAccessDenied
+	req := httptest.NewRequest(http.MethodPatch, "/"+workspaceID.String(), strings.NewReader(`{"name":"Denied"}`))
+	req = req.WithContext(context.WithValue(req.Context(), domain.ContextKeyUserID, userID))
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
 	}
 }

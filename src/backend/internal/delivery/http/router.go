@@ -254,6 +254,7 @@ func newRouter(
 				}
 				r.Get("/", workspaceHandler.List)
 				r.Post("/", workspaceHandler.Create)
+				r.Patch("/{id}", workspaceHandler.Update)
 				if accessHandler != nil {
 					r.Get("/{id}/members", accessHandler.Members)
 					r.Patch("/{id}/members/{userId}", accessHandler.Member)
@@ -269,6 +270,7 @@ func newRouter(
 				r.Get("/", folderHandler.List)
 				r.Post("/", folderHandler.Create)
 				r.Route("/{id}", func(r chi.Router) {
+					r.Patch("/", folderHandler.Update)
 					r.Patch("/move", folderHandler.Move)
 					r.Post("/restore", folderHandler.Restore)
 					r.Post("/star", folderHandler.ToggleStar)

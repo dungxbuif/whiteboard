@@ -122,9 +122,10 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 			}
 			resource := parts[2]
 			scoped := resource == "scenes" || resource == "folders" || resource == "assets" || resource == "search"
+			workspaceRename := resource == "workspaces" && len(parts) == 4 && r.Method == http.MethodPatch
 			management := resource == "workspaces" && len(parts) > 4 && (parts[4] == "members" || parts[4] == "invitations")
 			featurePolicy := resource == "workspaces" && len(parts) > 4 && parts[4] == "feature-policy"
-			if !scoped && !management && !featurePolicy {
+			if !scoped && !management && !featurePolicy && !workspaceRename {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -137,7 +138,7 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 				return
 			}
 			raw := r.Header.Get(domain.HeaderWorkspaceID)
-			if management || featurePolicy {
+			if management || featurePolicy || workspaceRename {
 				raw = parts[3]
 			}
 			workspace, e := access.ResolveWorkspaceID(r.Context(), raw)
@@ -153,7 +154,7 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 					return e
 				}
 				read := r.Method == http.MethodGet || r.Method == http.MethodHead || resource == "assets" && len(parts) > 3 && parts[3] == "presign-view"
-				ownerOnly := management || featurePolicy && !read || r.URL.Query().Get("trash") == "true" || r.URL.Query().Get("view") == domain.SearchViewTrash
+				ownerOnly := workspaceRename || management || featurePolicy && !read || r.URL.Query().Get("trash") == "true" || r.URL.Query().Get("view") == domain.SearchViewTrash
 				if len(parts) > 4 && (parts[4] == "members" || parts[4] == "share" || parts[4] == "share-links" || parts[4] == "restore") {
 					ownerOnly = true
 				}

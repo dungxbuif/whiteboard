@@ -146,3 +146,32 @@ func TestFolderUsecase_Restore(t *testing.T) {
 		t.Fatalf("expected restored folder %s, got %s", folderID, repo.restoredFolderID)
 	}
 }
+
+func TestFolderUsecase_UpdateNameAndParent(t *testing.T) {
+	workspaceID, folderID, parentID := uuid.New(), uuid.New(), uuid.New()
+	repo := &mockFolderRepo{folders: map[uuid.UUID]*domain.Folder{
+		folderID: {ID: folderID, WorkspaceID: workspaceID, Name: "Old", Path: "/folder/"},
+		parentID: {ID: parentID, WorkspaceID: workspaceID, Path: "/parent/"},
+	}}
+	name := "  New  "
+	parent := &parentID
+	if err := NewFolderUsecase(repo).Update(context.Background(), workspaceID, folderID, &name, &parent); err != nil {
+		t.Fatal(err)
+	}
+	if repo.saved.Name != "New" || repo.saved.ParentID == nil || *repo.saved.ParentID != parentID {
+		t.Fatalf("folder=%+v", repo.saved)
+	}
+	self := &folderID
+	if err := NewFolderUsecase(repo).Update(context.Background(), workspaceID, folderID, nil, &self); err == nil {
+		t.Fatal("self move succeeded")
+	}
+	if repo.saved.Name != "New" {
+		t.Fatal("invalid move changed folder name")
+	}
+	childID := uuid.New()
+	repo.folders[childID] = &domain.Folder{ID: childID, WorkspaceID: workspaceID, Path: repo.saved.Path + "child/"}
+	child := &childID
+	if err := NewFolderUsecase(repo).Update(context.Background(), workspaceID, folderID, nil, &child); err == nil {
+		t.Fatal("descendant move succeeded")
+	}
+}

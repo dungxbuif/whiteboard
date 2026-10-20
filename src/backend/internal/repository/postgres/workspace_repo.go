@@ -42,6 +42,17 @@ func (r *WorkspaceRepository) Save(ctx context.Context, w *domain.Workspace) err
 	return nil
 }
 
+func (r *WorkspaceRepository) UpdateName(ctx context.Context, workspaceID uuid.UUID, name string) error {
+	result := accessDB(ctx, r.db).Model(&domain.Workspace{}).Where("id = ?", workspaceID).Update("name", name)
+	if result.Error != nil {
+		return fmt.Errorf("failed to update workspace name: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return domain.ErrInaccessible
+	}
+	return nil
+}
+
 func (r *WorkspaceRepository) ListForUser(ctx context.Context, userID uuid.UUID) ([]domain.Workspace, error) {
 	var workspaces []domain.Workspace
 	if err := accessDB(ctx, r.db).Select("workspaces.*, (SELECT m.role FROM workspace_members m WHERE m.workspace_id=workspaces.id AND m.user_id=?) AS role", userID).Where("EXISTS (SELECT 1 FROM workspace_members m JOIN users u ON u.id=m.user_id AND u.deleted_at IS NULL WHERE m.workspace_id = workspaces.id AND m.user_id = ?)", userID).Find(&workspaces).Error; err != nil {

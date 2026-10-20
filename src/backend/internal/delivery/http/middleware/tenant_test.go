@@ -24,6 +24,7 @@ func (workspaceAccessRepo) ListForUser(context.Context, uuid.UUID) ([]domain.Wor
 }
 
 func (workspaceAccessRepo) Save(context.Context, *domain.Workspace) error { return nil }
+func (workspaceAccessRepo) UpdateName(context.Context, uuid.UUID, string) error { return nil }
 
 func TestTenantMiddleware(t *testing.T) {
 	validUUID := uuid.New()

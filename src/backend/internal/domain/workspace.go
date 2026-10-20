@@ -1,11 +1,14 @@
 package domain
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
+
+var ErrInvalidWorkspaceName = errors.New("invalid workspace name")
 
 type WorkspaceRole string
 
@@ -39,9 +42,11 @@ type WorkspaceRepository interface {
 	FindByID(ctx Context, id uuid.UUID) (*Workspace, error)
 	ListForUser(ctx Context, userID uuid.UUID) ([]Workspace, error)
 	Save(ctx Context, workspace *Workspace) error
+	UpdateName(ctx Context, workspaceID uuid.UUID, name string) error
 }
 
 type WorkspaceUsecase interface {
 	Create(ctx Context, userID uuid.UUID, name string) (*Workspace, error)
 	ListByUser(ctx Context, userID uuid.UUID) ([]Workspace, error)
+	UpdateName(ctx Context, userID uuid.UUID, workspaceID uuid.UUID, name string) (*Workspace, error)
 }
