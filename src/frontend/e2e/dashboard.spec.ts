@@ -431,7 +431,11 @@ test.describe('Dashboard E2E Flows', () => {
     await page.goto('/p/share-token');
 
     await expect(page.getByRole('heading', { name: 'Shared roadmap' })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Public Excalidraw canvas' })).toBeVisible();
+    const publicCanvas = page.getByRole('region', { name: 'Public Excalidraw canvas' });
+    await expect(publicCanvas.locator('.excalidraw')).toBeVisible();
+    await expect(publicCanvas.locator('canvas').first()).toBeVisible();
+    await expect(publicCanvas.getByTitle('Rectangle — R or 2', { exact: true })).toHaveCount(0);
+    await expect(publicCanvas.getByRole('button', { name: 'Open AI assistant' })).toHaveCount(0);
   });
 
   test('should create a public link from scene actions', async ({ page }) => {
