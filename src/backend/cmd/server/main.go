@@ -23,6 +23,7 @@ import (
 	middledelivery "devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	collabrepo "devtool/internal/repository/collab"
+	dnsrepo "devtool/internal/repository/dns"
 	openairepo "devtool/internal/repository/openai"
 	postgresrepo "devtool/internal/repository/postgres"
 	s3repo "devtool/internal/repository/s3"
@@ -201,9 +202,11 @@ func main() {
 	collections := usecase.NewCollectionService(postgresrepo.NewCollectionRepository(db), features, accessService)
 	collections.SetEventService(events)
 	collectionHandler := handler.NewCollectionHandler(collections, accessService)
+	domainService := usecase.NewDomainService(postgresrepo.NewDomainRepository(db), accessService, dnsrepo.NewTXTResolver(nil, 3*time.Second))
+	domainHandler := handler.NewDomainHandler(domainService, accessService)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler, collectionHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler, collectionHandler, domainHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
