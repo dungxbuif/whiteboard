@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CollectionList } from './collection-list';
@@ -42,14 +42,63 @@ describe('legacy collections', () => {
     expect(list).toHaveBeenCalledTimes(2);
   });
 
+  it('clears disabled policy when a different workspace has a transient failure', async () => {
+    const list = vi.fn()
+      .mockRejectedValueOnce({ response: { status: 403, data: { code: 'FEATURE_DISABLED' } } })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ items: [workspaceCollection] });
+    const api = client({ list });
+    const view = render(<CollectionList api={api} canManage workspaceId="workspace-1" workspaceSlug="one" />);
+    expect(await screen.findByText('Collections are unavailable for this workspace')).toBeInTheDocument();
+    view.rerender(<CollectionList api={api} canManage workspaceId="workspace-2" workspaceSlug="two" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Collections could not be loaded.');
+    expect(screen.queryByText('Collections are unavailable for this workspace')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'New collection' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry collections' }));
+    expect(await screen.findByRole('link', { name: /Launch boards/ })).toHaveAttribute('href', '/w/two/collections/collection-1');
+    expect(list).toHaveBeenNthCalledWith(2, 'workspace-2', '');
+  });
+
+  it('switches to the non-error policy state if creation is disabled', async () => {
+    const api = client({ create: vi.fn().mockRejectedValue({ response: { status: 403, data: { code: 'FEATURE_DISABLED' } } }) });
+    render(<CollectionList api={api} canManage workspaceId="workspace-1" workspaceSlug="one" />);
+    expect(await screen.findByRole('link', { name: /Launch boards/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'New collection' }));
+    fireEvent.change(screen.getByLabelText('Collection name'), { target: { value: 'Plans' } });
+    fireEvent.submit(screen.getByRole('form', { name: 'Create collection' }));
+    expect(await screen.findByText('Collections are unavailable for this workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New collection' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Launch boards/ })).not.toBeInTheDocument();
+  });
+
+  it('ignores a late disabled response from the previous workspace', async () => {
+    let rejectOld!: (reason: unknown) => void;
+    const oldRequest = new Promise<never>((_, reject) => { rejectOld = reject; });
+    const list = vi.fn((workspaceId: string) => workspaceId === 'workspace-1'
+      ? oldRequest
+      : Promise.resolve({ items: [workspaceCollection] }));
+    const api = client({ list });
+    const view = render(<CollectionList api={api} canManage workspaceId="workspace-1" workspaceSlug="one" />);
+    view.rerender(<CollectionList api={api} canManage workspaceId="workspace-2" workspaceSlug="two" />);
+    expect(await screen.findByRole('link', { name: /Launch boards/ })).toHaveAttribute('href', '/w/two/collections/collection-1');
+    await act(async () => { rejectOld({ response: { status: 403, data: { code: 'FEATURE_DISABLED' } } }); });
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Collections are unavailable for this workspace')).not.toBeInTheDocument();
+  });
+
   it.each([
     { response: { status: 403, data: { code: 'ACCESS_DENIED' } } },
     { response: { status: 503, data: { code: 'FEATURE_DISABLED' } } },
   ])('keeps non-policy failures retryable', async cause => {
-    render(<CollectionList api={client({ list: vi.fn().mockRejectedValue(cause) })} canManage workspaceId="workspace-1" workspaceSlug="workspace-alias" />);
+    const list = vi.fn().mockRejectedValueOnce(cause).mockResolvedValue({ items: [workspaceCollection] });
+    render(<CollectionList api={client({ list })} canManage workspaceId="workspace-1" workspaceSlug="workspace-alias" />);
     expect(await screen.findByRole('alert')).toHaveTextContent('Collections could not be loaded.');
     expect(screen.getByRole('button', { name: 'Retry collections' })).toBeInTheDocument();
     expect(screen.queryByText('Collections are unavailable for this workspace')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry collections' }));
+    expect(await screen.findByRole('link', { name: /Launch boards/ })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('renders a reloadable legacy-style sidebar link and creates with keyboard submit', async () => {

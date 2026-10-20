@@ -1,5 +1,5 @@
 import { FolderHeart, LockKeyhole, Plus } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CollectionDialog } from './collection-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,24 +26,32 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState('');
   const [nextCursor, setNextCursor] = useState('');
+  const requestVersion = useRef(0);
   const load = useCallback(async (cursor = '') => {
+    const version = ++requestVersion.current;
     setLoading(true);
+    setError('');
+    setDisabled(false);
+    if (!cursor) {
+      setItems([]);
+      setNextCursor('');
+    }
     try {
-      setError('');
       const page = await api.list(workspaceId, cursor);
-      setDisabled(false);
+      if (version !== requestVersion.current) return;
       setItems(current => cursor ? [...current, ...page.items] : page.items);
       setNextCursor(page.nextCursor ?? '');
     }
     catch (cause) {
+      if (version !== requestVersion.current) return;
       if (featureDisabled(cause)) {
         setDisabled(true);
         setItems([]);
         setNextCursor('');
       } else setError('Collections could not be loaded.');
-    } finally { setLoading(false); }
+    } finally { if (version === requestVersion.current) setLoading(false); }
   }, [api, workspaceId]);
-  useEffect(() => { void load(''); }, [load]);
+  useEffect(() => { void load(''); return () => { requestVersion.current += 1; }; }, [load]);
   return <section aria-labelledby="collection-sidebar-heading" className="mt-4 grid gap-1 border-t pt-4">
     <div className="flex items-center justify-between px-2">
       <p className="text-xs text-muted-foreground" id="collection-sidebar-heading">Collections</p>
@@ -60,7 +68,7 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
         <span className="min-w-0 flex-1 truncate">{item.name}</span><span className="text-xs text-muted-foreground">{item.sceneCount}</span>
       </a>;
     })}
-    {!items.length && !error && !disabled ? <p className="px-2 py-1 text-xs text-muted-foreground">No collections yet.</p> : null}
+    {!items.length && !error && !disabled && !loading ? <p className="px-2 py-1 text-xs text-muted-foreground">No collections yet.</p> : null}
     {nextCursor && !filter.trim() ? <Button className="justify-start" onClick={() => void load(nextCursor)} size="sm" type="button" variant="ghost">Load more collections</Button> : null}
     <CollectionDialog open={open} title="Create collection" pending={pending} onOpenChange={value => { setOpen(value); if (!value) api.cancelPending(); }} onSubmit={async draft => { setPending(true); try { await api.create(workspaceId, draft); setOpen(false); await load(''); } catch (cause) { if (featureDisabled(cause)) { setError(''); setDisabled(true); setOpen(false); setItems([]); setNextCursor(''); } else setError('Collection could not be created.'); } finally { setPending(false); } }} />
   </section>;

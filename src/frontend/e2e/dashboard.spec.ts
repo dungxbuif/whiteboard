@@ -61,6 +61,8 @@ test.describe('Dashboard E2E Flows', () => {
   test.beforeEach(async ({ page }) => {
     await legacyCollabFixture(page);
     mockScenes = [];
+    let currentWorkspaces = [...mockWorkspaces];
+    let currentFolders = [...mockFolders];
     await page.route('**/api/v1/auth/login', async (route) => {
       await route.fulfill({ json: { token: 'playwright-token' } });
     });
@@ -70,14 +72,22 @@ test.describe('Dashboard E2E Flows', () => {
     await page.route('**/api/v1/workspaces/*/collections**', route => route.fulfill({ json: { items: [] } }));
     await page.route('**/api/v1/notifications**', route => route.fulfill({ json: { items: [] } }));
     await page.route('**/api/v1/workspaces', async (route) => {
-      await route.fulfill({ json: mockWorkspaces });
+      await route.fulfill({ json: currentWorkspaces });
+    });
+    await page.route('**/api/v1/workspaces/*', async (route) => {
+      if (route.request().method() === 'PATCH') {
+        const name = (route.request().postDataJSON() as { name: string }).name;
+        currentWorkspaces = currentWorkspaces.map(workspace => ({ ...workspace, name }));
+        return route.fulfill({ json: currentWorkspaces[0] });
+      }
+      await route.fallback();
     });
     await page.route('**/api/v1/folders**', async (route) => {
       if (route.request().method() === 'POST') {
         const body = route.request().postDataJSON() as { name: string; parentId: string | null };
         await route.fulfill({
           json: {
-            ...mockFolders[0],
+            ...currentFolders[0],
             id: 'folder-created',
             name: body.name,
             parentId: body.parentId,
@@ -85,7 +95,17 @@ test.describe('Dashboard E2E Flows', () => {
         });
         return;
       }
-      await route.fulfill({ json: mockFolders });
+      if (route.request().method() === 'PATCH') {
+        const folderId = new URL(route.request().url()).pathname.match(/\/folders\/([^/]+)/)?.[1];
+        const changes = route.request().postDataJSON() as { name?: string; newParentId?: string | null };
+        currentFolders = currentFolders.map(folder => folder.id === folderId ? {
+          ...folder,
+          ...(changes.name !== undefined ? { name: changes.name } : {}),
+          ...(changes.newParentId !== undefined ? { parentId: changes.newParentId } : {}),
+        } : folder);
+        return route.fulfill({ json: currentFolders.find(folder => folder.id === folderId) });
+      }
+      await route.fulfill({ json: currentFolders });
     });
     await page.route('**/api/v1/scenes**', async (route) => {
       const request = route.request();
@@ -113,13 +133,13 @@ test.describe('Dashboard E2E Flows', () => {
       }
       if (request.method() === 'POST' && url.pathname.endsWith('/scenes/')) {
         const created = {
-          id: 'scene-created',
+          id: mockScenes.length ? 'scene-copy' : 'scene-created',
           access: 'edit', writerMode: 'v1',
           owner: true,
           workspaceId: mockWorkspaces[0].id,
           folderId: (body?.folderId as string | null) ?? null,
           title: body?.title as string,
-          content: emptySceneContent,
+          content: (body?.content as typeof emptySceneContent) ?? emptySceneContent,
           contentVersion: 1,
           isStarred: false,
           createdAt: '2026-06-12T00:00:00Z',
@@ -174,6 +194,13 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByText('Workspace', { exact: true })).toBeVisible();
   }
 
+  async function leaveNativeCanvas(page: import('@playwright/test').Page) {
+    await page.locator('.excalidraw button').first().click();
+    await page.getByText('Back to dashboard', { exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  }
+
   test('should restore session and display user context', async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on('console', (message) => {
@@ -201,24 +228,61 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('menuitem', { name: 'Test Workspace' })).toBeVisible();
   });
 
-  test('keeps workspace, folder, and scene management in the legacy dashboard menus', async ({ page }) => {
+  test('submits workspace rename and folder rename/move from the legacy sidebar', async ({ page }) => {
     await login(page);
     await page.getByRole('combobox').click();
     await page.getByRole('menuitem', { name: 'Rename workspace' }).click();
-    await expect(page.getByRole('dialog', { name: 'Rename workspace' })).toBeVisible();
-    await page.keyboard.press('Escape');
+    const rename = page.getByRole('dialog', { name: 'Rename workspace' });
+    await rename.getByLabel('Workspace name').fill('Studio renamed');
+    const workspacePatch = page.waitForRequest(request => request.method() === 'PATCH' && /\/workspaces\/[^/]+$/.test(new URL(request.url()).pathname));
+    await rename.getByRole('button', { name: 'Save' }).click();
+    expect((await workspacePatch).postDataJSON()).toEqual({ name: 'Studio renamed' });
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Studio renamed');
+    await expect(page.getByRole('combobox')).toContainText('Studio renamed');
 
     await page.getByRole('button', { name: 'Actions for Product Boards' }).click();
     await page.getByRole('menuitem', { name: 'Rename or move' }).click();
-    await expect(page.getByRole('dialog', { name: 'Manage folder' })).toBeVisible();
-    await page.keyboard.press('Escape');
+    const manage = page.getByRole('dialog', { name: 'Manage folder' });
+    await manage.getByLabel('Folder name').fill('Product Studio');
+    const folderPatch = page.waitForRequest(request => request.method() === 'PATCH' && /\/folders\/folder-product$/.test(new URL(request.url()).pathname));
+    await manage.getByRole('button', { name: 'Save changes' }).click();
+    expect((await folderPatch).postDataJSON()).toEqual({ name: 'Product Studio' });
+    await expect(page.getByRole('button', { name: 'Product Studio', exact: true }).first()).toBeVisible();
 
+    await page.getByRole('button', { name: 'Product Studio', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Actions for Research' }).click();
+    await page.getByRole('menuitem', { name: 'Rename or move' }).click();
+    const move = page.getByRole('dialog', { name: 'Manage folder' });
+    await move.getByLabel('Move to').selectOption('');
+    const movePatch = page.waitForRequest(request => request.method() === 'PATCH' && /\/folders\/folder-research$/.test(new URL(request.url()).pathname));
+    await move.getByRole('button', { name: 'Save changes' }).click();
+    expect((await movePatch).postDataJSON()).toEqual({ newParentId: null });
+    await expect(page.getByRole('button', { name: 'Research', exact: true }).first()).toBeVisible();
+  });
+
+  test('submits scene duplicate and move, then exits the native canvas', async ({ page }) => {
+    await login(page);
     await page.getByRole('button', { name: 'New scene' }).click();
     await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toBeVisible();
-    await page.goto('/');
+    await leaveNativeCanvas(page);
     await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
-    await expect(page.getByRole('menuitem', { name: 'Move', exact: true })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'Duplicate', exact: true })).toBeVisible();
+    await page.getByRole('menuitem', { name: 'Duplicate', exact: true }).click();
+    const duplicate = page.getByRole('dialog', { name: 'Duplicate scene' });
+    await duplicate.getByLabel('Copy name').fill('Scene copy');
+    await duplicate.getByLabel('Copy to').selectOption('folder-product');
+    const createCopy = page.waitForRequest(request => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/scenes/'));
+    await duplicate.getByRole('button', { name: 'Duplicate' }).click();
+    expect((await createCopy).postDataJSON()).toEqual({ title: 'Scene copy', folderId: 'folder-product', content: { ...emptySceneContent, presentationOrder: [] } });
+    await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toBeVisible();
+    await leaveNativeCanvas(page);
+
+    await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
+    await page.getByRole('menuitem', { name: 'Move', exact: true }).click();
+    const move = page.getByRole('dialog', { name: 'Move scene' });
+    await move.getByLabel('Move to').selectOption('folder-product');
+    const moveRequest = page.waitForRequest(request => request.method() === 'PATCH' && /\/scenes\/scene-created\/?$/.test(new URL(request.url()).pathname));
+    await move.getByRole('button', { name: 'Move', exact: true }).click();
+    expect((await moveRequest).postDataJSON()).toEqual({ folderId: 'folder-product' });
   });
 
   test('should handle empty workspace state gracefully', async ({ page }) => {
