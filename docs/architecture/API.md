@@ -109,6 +109,8 @@ invitation registration allows 20 per IP and 5 per invitation token; public
 scene-session exchange and public snapshot POST share limits of 60 per IP and
 15 per public token. The limiter never stores raw account or token identifiers.
 Distributed/reverse-proxy limiting remains an independent deployment concern.
+Implementation and regression evidence for credential attempt limits is in the
+[authentication hardening verification](../work/verification/auth-hardening-2026-10-19.md).
 
 Dashboard management uses the existing scene PATCH `{folderId}` and POST
 `/api/v1/scenes` `{title,folderId,content}` contracts. A duplicate of a promoted
@@ -121,8 +123,8 @@ invalid names/targets as `400 INVALID_INPUT`, and workspace PATCH rejects an
 invalid name the same way. Access failures use current scoped 403/404 handling.
 The dashboard treats `403 FEATURE_DISABLED` from Collections as a stable policy
 state; other collection failures show Retry.
-Implementation and regression evidence is recorded in the
-[authentication hardening verification](../work/verification/auth-hardening-2026-10-19.md).
+Dashboard management implementation and local regression evidence is in the
+[dashboard management verification](../work/verification/dashboard-management-2026-10-21.md).
 
 AI requests are limited to a 2 MiB JSON body and prompts are limited to 12,000 bytes. `AI_API_KEY` is read only by the backend.
 TURN credentials are minted for a one-hour lifetime and must never be logged or

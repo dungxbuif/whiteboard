@@ -1,6 +1,7 @@
 # Dashboard
 
-Status: implemented and deployed on VM100. Public desktop, mobile, keyboard, deep-link and access-role checks pass.
+The prior dashboard baseline is deployed on VM100. Its public desktop, mobile,
+keyboard, deep-link and access-role checks pass.
 
 The management controls below are implemented and verified locally; their
 production rollout remains pending.
