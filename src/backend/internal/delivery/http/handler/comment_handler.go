@@ -100,6 +100,11 @@ func (h *CommentHandler) principalHandler(auth func(http.Handler) http.Handler, 
 
 func (h *CommentHandler) Routes(auth func(http.Handler) http.Handler) http.Handler {
 	router := chi.NewRouter()
+	h.Register(router, auth)
+	return router
+}
+
+func (h *CommentHandler) Register(router chi.Router, auth func(http.Handler) http.Handler) {
 	router.Method(http.MethodGet, "/scenes/{id}/comments", h.principalHandler(auth, http.HandlerFunc(h.List)))
 	router.Method(http.MethodPost, "/scenes/{id}/comments", h.principalHandler(auth, http.HandlerFunc(h.Create)))
 	router.Method(http.MethodGet, "/scenes/{id}/comments/{threadId}", h.principalHandler(auth, http.HandlerFunc(h.Get)))
@@ -107,7 +112,6 @@ func (h *CommentHandler) Routes(auth func(http.Handler) http.Handler) http.Handl
 	router.Method(http.MethodPatch, "/scenes/{id}/comments/{threadId}/messages/{messageId}", h.principalHandler(auth, http.HandlerFunc(h.UpdateMessage)))
 	router.Method(http.MethodDelete, "/scenes/{id}/comments/{threadId}/messages/{messageId}", h.principalHandler(auth, http.HandlerFunc(h.DeleteMessage)))
 	router.Method(http.MethodPatch, "/scenes/{id}/comments/{threadId}", h.principalHandler(auth, http.HandlerFunc(h.UpdateThread)))
-	return router
 }
 
 type createCommentRequest struct {

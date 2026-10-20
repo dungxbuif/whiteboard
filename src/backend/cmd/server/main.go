@@ -165,6 +165,9 @@ func main() {
 	agentHandler := handler.NewAgentHandler(agents, rooms, accessService)
 	features := usecase.NewFeatureService(postgresrepo.NewFeatureRepository(db), accessService)
 	featureHandler := handler.NewFeatureHandler(features)
+	events := usecase.NewEventService(postgresrepo.NewEventRepository(db), accessService)
+	comments := usecase.NewCommentService(postgresrepo.NewCommentRepository(db), features, accessService, events)
+	commentHandler := handler.NewCommentHandler(comments, rooms, accessService)
 	agentHandler.SetExportAssets(usecase.NewExportAssets(agents, sceneAssetRepo, s3Repo.(domain.ExportObjectReader)))
 	if cfg.CollabInternalURL != "" {
 		remote, e := collabrepo.NewAgentClient(cfg.CollabInternalURL, cfg.CollabInternalSecret)
@@ -176,7 +179,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithAgents(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
