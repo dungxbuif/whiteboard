@@ -148,3 +148,45 @@ func TestStopBetweenLoopCheckAndClaimPreventsNewLease(t *testing.T) {
 		t.Fatalf("worker began %d claims after stop", claims)
 	}
 }
+
+func TestStopWaitsForAdmittedClaimDecision(t *testing.T) {
+	gate := newWorkerStopGate()
+	claimStarted := make(chan struct{})
+	releaseClaim := make(chan struct{})
+	claimDone := make(chan struct{})
+	go func() {
+		defer close(claimDone)
+		allowed, err := gate.Claim(func() error {
+			close(claimStarted)
+			<-releaseClaim
+			return nil
+		})
+		if err != nil || !allowed {
+			t.Errorf("admitted claim result allowed=%v err=%v", allowed, err)
+		}
+	}()
+
+	<-claimStarted
+	stopDone := make(chan struct{})
+	go func() {
+		gate.Stop()
+		close(stopDone)
+	}()
+	select {
+	case <-stopDone:
+		t.Fatal("stop returned before the admitted claim decision completed")
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	close(releaseClaim)
+	select {
+	case <-claimDone:
+	case <-time.After(time.Second):
+		t.Fatal("admitted claim did not finish")
+	}
+	select {
+	case <-stopDone:
+	case <-time.After(time.Second):
+		t.Fatal("stop did not close after the claim decision")
+	}
+}

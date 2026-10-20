@@ -62,11 +62,10 @@ func (g *workerStopGate) Claim(claim func() error) (bool, error) {
 		g.beforeClaim()
 	}
 	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.stopped {
-		g.mu.Unlock()
 		return false, nil
 	}
-	g.mu.Unlock()
 	return true, claim()
 }
 
