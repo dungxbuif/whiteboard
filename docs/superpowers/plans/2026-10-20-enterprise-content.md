@@ -129,17 +129,17 @@ Go `LibraryService.Import/Publish/List/GetRevision/Export/Insert` with owner-onl
 writes, membership reads and target edit checks. `Insert(ref,itemId,revision,
 expectedSequence,requestId)` returns native element IDs and a durable receipt.
 
-- [ ] Add `libraryRemapsEveryReference`, `libraryRejectsUnsupportedOrOversize`,
+- [x] Add `libraryRemapsEveryReference`, `libraryRejectsUnsupportedOrOversize`,
   `TestLibraryForeignAssetDenied`, `TestLibraryAssetPinRace`,
   `libraryInsertUndoAndExport`: fresh element/group/file IDs, valid arrow/text/frame
   links, native library v2 import/export, no credential-bearing scene reference.
-- [ ] Run compiler/Go/frontend focused tests (RED), implement strict imported
+- [x] Run compiler/Go/frontend focused tests (RED), implement strict imported
   JSON/native/raster validation; store immutable library revisions and asset pins.
   Scope target asset metadata before a single expected-sequence writer insertion;
   stage copies idempotently and clean unused staged objects via R2 after grace.
-- [ ] Integrate native onLibraryChange/updateLibrary APIs as an authorized view
+- [x] Integrate native onLibraryChange/updateLibrary APIs as an authorized view
   of workspace items; do not publish local personal library automatically. Use
   existing panel coordinator for management/search and `/w/{workspace}/libraries`.
-- [ ] Run native image import -> insert -> reload -> version capture -> export,
+- [x] Run native image import -> insert -> reload -> version capture -> export,
   cross-workspace denial and source/target revoke tests; reconcile library/user/
   public docs and commit `feat(libraries): reuse native diagram bundles safely`.

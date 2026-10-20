@@ -118,16 +118,16 @@ startIndex,itemsPerPage,Resources}` and spec SCIM error/ETag models.
 user/agent/login keys cannot authenticate SCIM routes. `MembershipSource` binds
 connection+externalId/group and distinguishes manual grants.
 
-- [ ] Add `TestSCIMDiscoveryPagingAndFilters`, `TestSCIMPatchAddReplaceRemove`,
+- [x] Add `TestSCIMDiscoveryPagingAndFilters`, `TestSCIMPatchAddReplaceRemove`,
   `TestSCIMIfMatchAndRetry`, `TestSCIMDisableRevokesOnlyManagedWorkspace`,
   `TestSCIMProtectsOwnerAndManualGrant`, `TestSCIMGroupNeverCreatesOwner`:
   startIndex1/count<=100, supported equality filters, invalid paths SCIM400,
   wrong ETag412, bulk false, token scope cross-workspace denial.
-- [ ] Run scoped SCIM tests (RED). Implement RFC7643/7644 JSON resources,
+- [x] Run scoped SCIM tests (RED). Implement RFC7643/7644 JSON resources,
   PUT/PATCH/DELETE, stable UUID mapping/unique externalId, soft-deprovision and
   atomic membership+session revoke+ACL bump+event. Effective managed role is
   strongest active mapped group editor/viewer; no group grants owner.
-- [ ] Preserve independently manual memberships unless owner explicitly adopts
+- [x] Preserve independently manual memberships unless owner explicitly adopts
   them into SCIM management. Show retained manual access in deprovision results;
   never falsely report all access removed. Removed SCIM-only membership fails
   new requests and existing room refresh/media immediately via ACL invalidation.

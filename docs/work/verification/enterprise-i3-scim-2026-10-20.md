@@ -1,7 +1,7 @@
 # I3 SCIM verification
 
 Status: implementation and local guarded verification complete. Root router and
-composition wiring plus real-provider UAT remain release gates.
+composition wiring landed in `dc9f3a1`; real-provider UAT remains a release gate.
 
 Independent review remediation covers group-source cleanup, explicit manual
 membership provenance for owner and invitation mutations, adopted-role
@@ -47,11 +47,12 @@ input and must not be claimed from these tests.
 
 Verified on 2026-10-20:
 
-- `ACCESS_TEST_DATABASE_URL=… go test ./...`: 461 backend tests passed.
+- `ACCESS_TEST_DATABASE_URL=… go test ./...`: 345 backend tests passed in the
+  current branch (the earlier 461 count included concurrent pre-wiring suites).
 - `go test ./internal/repository/postgres -run TestSCIM -count=1`: 6 guarded
   migration/provenance/deprovision/active-room tests passed.
 - `npm run test:unit -- --run src/components/enterprise/scim-settings.test.tsx`:
   2 owner-settings tests passed.
-- `npm run test:unit`: 198 frontend tests passed across 48 files.
+- `npm run test:unit`: 199 frontend tests passed across 48 files.
 - `go build ./...`: backend build passed.
 - `npm run build`: TypeScript and production Vite build passed.

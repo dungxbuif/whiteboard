@@ -1,7 +1,7 @@
 # L2 native library verification
 
-Status: implementation complete in the L2-owned modules. Production router,
-constructor and shared canvas/sidebar wiring remain for the integration owner.
+Status: implementation and root integration complete in `dc9f3a1`. Production
+provider/storage and public browser UAT remain release gates.
 
 Required proof:
 
@@ -16,11 +16,11 @@ Required proof:
 
 Focused evidence on 2026-10-20:
 
-- full Go suite: 344 passed across 14 packages;
+- full Go suite: 345 passed across 14 packages;
 - full diagram-kit suite: 43 passed;
-- full collaboration runtime suite: 208 passed, including durable library
-  insertion/replay against guarded PostgreSQL;
-- full frontend unit suite: 198 passed;
+- full collaboration runtime suite: 210 passed with the guarded loopback
+  database (including recovery and durable library insertion/replay);
+- full frontend unit suite: 199 passed;
 - focused Go library use-case tests: 5 passed;
 - Go handler boundary test: 1 passed;
 - guarded PostgreSQL migration and asset-stage race tests: passed against a

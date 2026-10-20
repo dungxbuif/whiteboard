@@ -110,10 +110,9 @@ presentation-auth rejection, link transfer-race/non-host, and transfer-target
 rejection regressions. The real-stack spec records the equivalent browser flows;
 execution still requires the guarded disposable database environment.
 
-The fresh focused and build gates pass. A repository-wide Go run reached all
-packages but currently fails two concurrent I3 SCIM handler tests; the M3
-usecase and runtime-client packages pass independently. These SCIM failures do
-not touch the M3 paths and remain outside this commit.
+The fresh focused and build gates pass. The final queue-authority and
+start-timeout fixes are committed in `2beb5c0`; M3 remains gated only on the
+shared E1 browser/real-stack acceptance run and external two-network proof.
 
 ## Final authority and start-timeout closure gate
 
