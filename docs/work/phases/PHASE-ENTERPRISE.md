@@ -21,10 +21,13 @@ control header consuming viewport height.
 ## Current stage
 
 The detail design and 22 bounded execution tasks were approved for implementation
-on 2026-10-20. Foundation, canvas UI, durable comments and immutable V1
-checkpoints have passed their focused implementation reviews; later engagement,
-media, content, identity, retention and release tasks remain active. The already
-approved v2 baseline is reused rather than relabeled as enterprise parity.
+on 2026-10-20. Local implementation and guarded real-stack acceptance are now
+complete for the enterprise slices listed below: the aggregate browser gate is
+8/8, the backend/frontend/collaboration suites and production build pass, and
+canvas controls pass at desktop and mobile sizes. Production release is still
+pending the E2 VM100 rollout, real provider/object-storage UAT and two-network
+media evidence. The already approved v2 baseline is reused rather than relabeled
+as enterprise parity.
 
 ## Trace
 
@@ -55,12 +58,12 @@ when each reviewed boundary ships, avoiding invented accepted decisions.
 | Full-viewport canvas controls | UI1–UI2 | Existing editor | complete |
 | Feature authority/events/jobs | F1–F3 | Existing ACL/audit | complete |
 | Comments/guest comments/inbox/activity | C1–C3 | F1–F3/UI1–UI2 | complete |
-| Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | in_progress |
-| Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | in_progress |
-| Collections/native libraries | L1–L2 | F1–F3/UI1–UI2 | draft |
-| Domain/SSO/SCIM | I1–I3 | F1–F3 | draft |
-| Retention/referenced storage | R1–R2 | F1–F3/C/V/L models | draft |
-| Integrated acceptance/release | E1–E2 | Every implementation slice | draft |
+| Screen/live presentation/audience | M1–M3 | F1/UI1–UI2 | complete locally; production media UAT pending |
+| Version capture/diff/restore | V1–V2 | F1–F3/UI1–UI2 | complete locally |
+| Collections/native libraries | L1–L2 | F1–F3/UI1–UI2 | complete locally |
+| Domain/SSO/SCIM | I1–I3 | F1–F3 | complete locally; real provider UAT pending |
+| Retention/referenced storage | R1–R2 | F1–F3/C/V/L models | complete locally; production backup/policy rollout pending |
+| Integrated acceptance/release | E1–E2 | Every implementation slice | E1 local 8/8; E2 pending VM100 rollout |
 
 UI can ship before feature schema work. Comments and media may run in parallel
 after prerequisites; router/App/protocol integration and migration allocation
