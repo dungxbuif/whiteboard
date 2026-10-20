@@ -186,6 +186,7 @@ type duplicateAssetStagerStub struct {
 	called, cleaned, cleanupContextCanceled bool
 	stageErr, cleanupErr                    error
 	onStage                                 func()
+	result                                  json.RawMessage
 }
 
 func TestDuplicateRejectsRevocationAfterStagingBeforePublish(t *testing.T) {
@@ -284,10 +285,50 @@ func TestDuplicateV1RejectsIncompleteFileDescriptor(t *testing.T) {
 	}
 }
 
+func TestDuplicateV1RejectsMalformedDurableFieldTypes(t *testing.T) {
+	asset := uuid.NewString()
+	valid := `{"elements":[` + validDuplicateImageElement + `],"appState":{"theme":"dark"},"files":{"file":{"id":"file","mimeType":"image/png","created":1,"assetId":"` + asset + `"}}}`
+	for _, tc := range []struct{ name, content string }{
+		{name: "x string", content: strings.Replace(valid, `"x":0`, `"x":"zero"`, 1)},
+		{name: "group IDs string", content: strings.Replace(valid, `"groupIds":[]`, `"groupIds":"group"`, 1)},
+		{name: "created null", content: strings.Replace(valid, `"created":1`, `"created":null`, 1)},
+		{name: "unsafe link", content: strings.Replace(valid, `"link":null`, `"link":"//evil.example"`, 1)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(tc.content)}}
+			service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+			service.SetDuplicateDependencies(scenes, nil, &duplicateAssetStagerStub{}, duplicateAccessStub{})
+			_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+			if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.created != nil {
+				t.Fatalf("malformed scene was copied: err=%v created=%v", err, scenes.created != nil)
+			}
+		})
+	}
+}
+
+func TestDuplicateV1RejectsStagedFileWithoutAssetID(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	asset := uuid.NewString()
+	valid := json.RawMessage(`{"elements":[` + validDuplicateImageElement + `],"appState":{},"files":{"file":{"id":"file","mimeType":"image/png","created":1,"assetId":"` + asset + `"}}}`)
+	staged := json.RawMessage(strings.Replace(string(valid), `,"assetId":"`+asset+`"`, "", 1))
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: valid}}
+	assets := &duplicateAssetStagerStub{result: staged}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if !errors.Is(err, domain.ErrInvalidVersionInput) || scenes.published || !scenes.deleted || !assets.cleaned {
+		t.Fatalf("staged file without new asset escaped: err=%v published=%v deleted=%v cleaned=%v", err, scenes.published, scenes.deleted, assets.cleaned)
+	}
+}
+
 func (s *duplicateAssetStagerStub) StageSceneCopy(_ domain.Context, _ domain.Principal, _, _ domain.SceneRef, _ uuid.UUID, content json.RawMessage) (json.RawMessage, error) {
 	s.called = true
 	if s.onStage != nil {
 		s.onStage()
+	}
+	if s.result != nil {
+		return s.result, s.stageErr
 	}
 	return content, s.stageErr
 }

@@ -123,7 +123,10 @@ export path supports scenes above the ordinary read projection's 500-element/
 the promotion contract: only durable app state and scene-owned file metadata
 are retained; renderer/session fields and inline file bytes are dropped. A
 legacy file without a matching active scene-scoped `excalidraw_file` asset and
-matching MIME cannot be copied. Invalid durable element shape or an image
+matching MIME cannot be copied. The v1 copy validator checks durable field
+types and bounds against the collaboration scene contract before scene creation
+and again after asset staging. Invalid element values, null required file
+metadata, or an image
 reference missing from `files` also rejects the copy. Referenced scene assets
 are copied to new object keys and scene-scoped rows, with file IDs and image
 references rewritten. The scene remains hidden until content and assets are

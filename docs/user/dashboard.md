@@ -31,7 +31,8 @@ can be duplicated without using the smaller scene-preview limit. Your edit
 access is checked again before the copy becomes visible. Legacy copies keep
 durable canvas settings and supported scene-owned images, while leaving out
 selection and other session state. Images stored only as inline legacy data
-or with broken image references need repair before copying. A failed copy does not leave a partial scene in the
+or with broken image references or malformed saved fields need repair before
+copying. A failed copy does not leave a partial scene in the
 dashboard or Trash. It does not copy collaborators or
 other session state. Viewers do not see these edit actions. If a list reload
 fails after a successful move or copy, the completed change remains visible and

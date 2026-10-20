@@ -229,6 +229,21 @@ func canonicalLegacyDuplicateContent(raw json.RawMessage) (json.RawMessage, erro
 }
 
 func validateLegacyDuplicateContent(raw json.RawMessage, requireAssetID bool) error {
+	var top map[string]json.RawMessage
+	if json.Unmarshal(raw, &top) != nil || top == nil {
+		return domain.ErrInvalidVersionInput
+	}
+	for key := range top {
+		if key != "elements" && key != "appState" && key != "files" && key != "presentationOrder" {
+			return domain.ErrInvalidVersionInput
+		}
+	}
+	if order, ok := top["presentationOrder"]; ok {
+		var entries []string
+		if json.Unmarshal(order, &entries) != nil || entries == nil {
+			return domain.ErrInvalidVersionInput
+		}
+	}
 	var content struct {
 		Elements          []json.RawMessage          `json:"elements"`
 		AppState          map[string]json.RawMessage `json:"appState"`
@@ -239,49 +254,14 @@ func validateLegacyDuplicateContent(raw json.RawMessage, requireAssetID bool) er
 		return domain.ErrInvalidVersionInput
 	}
 	for key, value := range content.AppState {
-		switch key {
-		case "theme":
-			var theme string
-			if json.Unmarshal(value, &theme) != nil || (theme != "light" && theme != "dark") {
-				return domain.ErrInvalidVersionInput
-			}
-		case "gridModeEnabled":
-			var enabled bool
-			if json.Unmarshal(value, &enabled) != nil {
-				return domain.ErrInvalidVersionInput
-			}
-		case "viewBackgroundColor":
-			var color string
-			if json.Unmarshal(value, &color) != nil || color == "" {
-				return domain.ErrInvalidVersionInput
-			}
-		case "gridSize", "gridStep":
-			if key == "gridSize" && bytes.Equal(value, []byte("null")) {
-				continue
-			}
-			var size float64
-			if json.Unmarshal(value, &size) != nil || size <= 0 {
-				return domain.ErrInvalidVersionInput
-			}
-		default:
+		if !validDuplicateAppStateField(key, value) {
 			return domain.ErrInvalidVersionInput
 		}
 	}
 	files := make(map[string]libraryFileJSON, len(content.Files))
 	for id, encoded := range content.Files {
-		var fields map[string]json.RawMessage
-		var file libraryFileJSON
-		if json.Unmarshal(encoded, &fields) != nil || fields == nil || fields["created"] == nil || json.Unmarshal(encoded, &file) != nil || file.ID != id || file.Created < 0 || !slices.Contains([]string{"image/png", "image/jpeg", "image/svg+xml", "image/gif", "image/webp", "image/avif"}, file.MimeType) {
-			return domain.ErrInvalidVersionInput
-		}
-		if file.LastRetrieved != nil && *file.LastRetrieved < 0 || file.Version != nil && *file.Version < 0 {
-			return domain.ErrInvalidVersionInput
-		}
-		if file.AssetID != "" {
-			if _, err := uuid.Parse(file.AssetID); err != nil {
-				return domain.ErrInvalidVersionInput
-			}
-		} else if requireAssetID {
+		file, valid := validDuplicateFileDescriptor(id, encoded, requireAssetID)
+		if !valid {
 			return domain.ErrInvalidVersionInput
 		}
 		files[id] = file
@@ -290,15 +270,7 @@ func validateLegacyDuplicateContent(raw json.RawMessage, requireAssetID bool) er
 		return domain.ErrInvalidVersionInput
 	}
 	for _, encoded := range content.Elements {
-		var element struct {
-			Type   string `json:"type"`
-			Status string `json:"status"`
-			Scale  []int  `json:"scale"`
-		}
-		if json.Unmarshal(encoded, &element) != nil {
-			return domain.ErrInvalidVersionInput
-		}
-		if element.Type == "image" && (!slices.Contains([]string{"pending", "saved", "error"}, element.Status) || len(element.Scale) != 2 || !slices.Contains([]int{-1, 1}, element.Scale[0]) || !slices.Contains([]int{-1, 1}, element.Scale[1])) {
+		if !validDuplicateNativeElement(encoded) {
 			return domain.ErrInvalidVersionInput
 		}
 	}
