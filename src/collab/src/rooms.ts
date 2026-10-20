@@ -11,6 +11,7 @@ import {CollabError,authorizeSync,requestID,type Principal,type Decision} from '
 import {MAX_SNAPSHOT_BYTES,SnapshotHistoryLimitError} from './document.js';
 import type {Persistence,SceneState} from './persistence.js';
 import {RateLimit} from './rate-limit.js';
+import {requireScreenFeature} from './screen-authority.js';
 
 export const HEARTBEAT_INTERVAL_MS=25_000;
 const EPHEMERAL_CONTROLS=['presence','follow','viewport','voice_join','voice_leave','voice_mute','voice_signal','screen_request','screen_stop','screen_signal'];
@@ -151,11 +152,12 @@ export class Rooms {
   if(type==='screen_request'){
    const request=fields(payload,['sessionId'],'SCREEN_INVALID');
    if(request.sessionId!==undefined){
-    const input=parseScreenStop(request);if(!this.media.activate(room,session.connectionId,input.sessionId))throw new CollabError('SCREEN_TARGET','Screen reservation is unavailable',400);
+    const input=parseScreenStop(request);await this.requireScreenPublisher(session,ref,room,id);if(!this.media.activate(room,session.connectionId,input.sessionId))throw new CollabError('SCREEN_TARGET','Screen reservation is unavailable',400);
     const admission=this.media.join(room,session.connectionId,'screen');await this.control(session,'screen_admission',id,admission);await this.roster(ref,id);return;
    }
    const publisher=this.media.publisher(room);
    if(!publisher&&(session.principal?.principalType!=='user'||session.access!=='edit'))throw new CollabError('SCREEN_FORBIDDEN','Only signed-in editors can share a screen');
+   if(!publisher||publisher===session.connectionId)await this.requireScreenPublisher(session,ref,room,id);
    const admission=this.media.join(room,session.connectionId,'screen');await this.control(session,'screen_admission',id,admission);
    if(!admission.admitted)return;
    if(admission.receiving&&admission.publisher){const owner=this.matching(ref).find(value=>value.connectionId===admission.publisher);if(owner&&await this.recipient(owner))await this.control(owner,'screen_admission','server',admission);}
@@ -163,15 +165,25 @@ export class Rooms {
   }
   if(type==='screen_stop'){
    const input=parseScreenStop(payload),current=this.media.screen(room);if(!current||current.sessionId!==input.sessionId)throw new CollabError('SCREEN_TARGET','Screen session is unavailable',400);
+   if(current.publisher===session.connectionId)await this.requireScreenPublisher(session,ref,room,id);
    const ended=this.media.leave(room,session.connectionId,'screen');
    if(ended)await this.broadcast(ref,'screen_stop','server',{sessionId:ended.sessionId,publisher:ended.publisher});
    else {const publisher=this.matching(ref).find(value=>value.connectionId===current.publisher);if(publisher&&await this.recipient(publisher))await this.control(publisher,'screen_stop','server',{sessionId:current.sessionId,connectionId:session.connectionId});}
    await this.roster(ref,id);return;
   }
   const signal=parseScreenSignal(payload),target=this.matching(ref).find(value=>value.connectionId===signal.to);
+  if(this.media.publisher(room)===session.connectionId)await this.requireScreenPublisher(session,ref,room,id);
   if(!target||!this.media.canSignal(room,session.connectionId,signal.to,'screen',signal.sessionId)||!await this.recipient(target))throw new CollabError('SCREEN_TARGET','Screen peer is not available',400);
   if(session.invalid||target.invalid||!this.media.canSignal(room,session.connectionId,signal.to,'screen',signal.sessionId))throw new CollabError('SCREEN_TARGET','Screen peer is not available',400);
   await this.control(target,'screen_signal',id,{...signal,from:session.connectionId});
+ }
+ private async requireScreenPublisher(session:Session,ref:SceneRef,room:string,id:string){
+  try{await requireScreenFeature(this.store.authority,session.principal!.roomToken,ref);}
+  catch(error){
+   const current=this.media.screen(room);if(current?.publisher===session.connectionId){const ended=this.media.endScreen(room,current.sessionId);if(ended){await this.broadcast(ref,'screen_stop','server',{sessionId:ended.sessionId,publisher:ended.publisher,reason:'FEATURE_REVOKED'});await this.roster(ref,id);}}
+   if(error instanceof CollabError&&error.code==='UNAVAILABLE')throw new CollabError('SCREEN_AUTHORITY_UNAVAILABLE','Screen authority unavailable; keep drawing and retry',503,true);
+   throw new CollabError('SCREEN_FORBIDDEN','Screen sharing is disabled or no longer permitted',403);
+  }
  }
  private screenExpired(session:ScreenSession){
   if(this.closing)return;const owner=[...this.sessions].find(value=>value.ref&&roomKey(value.ref)===session.room);if(!owner?.ref)return;const ref=owner.ref;

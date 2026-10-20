@@ -51,3 +51,18 @@ it('publisher authority loss ends screen media before routing',async()=>{
  fixture.hooks.access='view';const signal=publisher.send('screen_signal',{to:viewer.connectionId,sessionId:admission.payload.sessionId,description:{type:'offer',sdp:'v=0'}});
  expect((await publisher.wait('error',signal)).payload.code).toBe('SCREEN_FORBIDDEN');expect((await publisher.wait('screen_stop')).payload.sessionId).toBe(admission.payload.sessionId);expect(viewer.messages.some(message=>message.type==='screen_signal')).toBe(false);
 });
+
+it('default-disabled screen policy denies publisher reservation without stopping drawing',async()=>{
+ fixture=await roomFixture();fixture.hooks.featureEnabled=false;const publisher=await fixture.connect('publisher');const request=publisher.send('screen_request');
+ expect((await publisher.wait('error',request)).payload.code).toBe('SCREEN_FORBIDDEN');expect(publisher.messages.some(message=>message.type==='screen_admission'&&message.requestId===request)).toBe(false);
+ publisher.socket.send(encodeFrame({channel:3,updateId:'drawing-survives-feature-denial',payload:new Uint8Array([0,0])}));expect((await publisher.wait('ack','drawing-survives-feature-denial')).payload.sequence).toBe('1');
+ expect(fixture.hooks.featureChecks).toEqual(['screen:publish']);
+});
+
+it('enabled-to-disabled policy stops publisher before subsequent signal routing',async()=>{
+ fixture=await roomFixture();const publisher=await fixture.connect('publisher'),viewer=await fixture.connect('viewer');
+ const admission=await publisher.wait('screen_admission',publisher.send('screen_request'));await publisher.wait('screen_admission',publisher.send('screen_request',{sessionId:admission.payload.sessionId}));await viewer.wait('screen_admission',viewer.send('screen_request'));
+ fixture.hooks.featureEnabled=false;const signal=publisher.send('screen_signal',{to:viewer.connectionId,sessionId:admission.payload.sessionId,description:{type:'offer',sdp:'v=0'}});
+ expect((await publisher.wait('error',signal)).payload.code).toBe('SCREEN_FORBIDDEN');expect((await viewer.wait('screen_stop')).payload).toMatchObject({sessionId:admission.payload.sessionId,reason:'FEATURE_REVOKED'});expect(viewer.messages.some(message=>message.type==='screen_signal')).toBe(false);
+ expect(fixture.hooks.featureChecks).toEqual(['screen:publish','screen:publish','screen:publish']);
+});

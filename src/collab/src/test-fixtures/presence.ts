@@ -7,9 +7,9 @@ import { CollabError } from '../auth.js';
 import type { Persistence } from '../persistence.js';
 export type Message = {type:string;requestId:string;payload:any};
 export async function roomFixture(options: {heartbeatIntervalMs?:number} = {}) {
- const hooks:{beforeRead?:(principalId:string)=>Promise<void>;access?:string}={}; const source = new EventEmitter(); const writes: unknown[]=[]; const denied=new Set<string>();
+ const hooks:{beforeRead?:(principalId:string)=>Promise<void>;access?:string;featureEnabled:boolean;featureChecks:string[]}={featureEnabled:true,featureChecks:[]}; const source = new EventEmitter(); const writes: unknown[]=[]; const denied=new Set<string>();
  const store=Object.assign(source, {
-  authority:{verifyRoom:async(token:string)=>JSON.parse(token)},
+  authority:{verifyRoom:async(token:string)=>JSON.parse(token),requireFeature:async(_token:string,_ref:unknown,action:string)=>{hooks.featureChecks.push(action);if(!hooks.featureEnabled)throw new CollabError('FORBIDDEN');}},
   read:async(_ref:unknown,principal:{principalId:string})=>{await hooks.beforeRead?.(principal.principalId);if(denied.has(principal.principalId))throw new CollabError('FORBIDDEN');return {doc:new Y.Doc(),documentId:'document',sequence:'0',stateVector:'AA==',access:hooks.access??'edit'};},
   appendUpdate:async(_ref:unknown,_principal:unknown,id:string,update:Uint8Array)=>{writes.push(update);return {requestId:id,sequence:String(writes.length),stateVector:'AA=='};}
  });

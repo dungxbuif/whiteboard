@@ -65,7 +65,7 @@ relay candidates. The generated stream contains no microphone or system audio.
 Use the same loopback-only gateway CDP tunnel documented for `turn-proof.mjs`:
 
 ```sh
-rtk env MEDIA_LOCAL_ONLY=1 node tests/packaging/enterprise-media.mjs
+rtk run 'env MEDIA_LOCAL_ONLY=1 node tests/packaging/enterprise-media.mjs'
 rtk node tests/packaging/enterprise-media.mjs
 ```
 

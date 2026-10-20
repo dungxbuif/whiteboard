@@ -14,3 +14,8 @@ IDs. `screen_stop`, authority loss, disconnect, picker cancellation, late
 capture completion, or track end closes peers and stops tracks. Capacity is ten
 distinct media connections across voice and screen, counted once per
 connection, with one screen publisher per room.
+
+The workspace `screenShareEnabled` policy is disabled by default. Go evaluates
+the current `screen:publish` decision through the private authority before
+reservation, activation and every publisher control. Disabling the feature ends
+the active share before further signaling; drawing remains available.

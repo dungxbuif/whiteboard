@@ -28,6 +28,7 @@ type CapabilityHandler struct {
 	rooms         RoomTokenVerifier
 	access        domain.AccessService
 	assets        domain.AssetUsecase
+	features      domain.FeatureService
 	serviceSecret []byte
 	turnURL       string
 	turnSecret    []byte
@@ -61,7 +62,49 @@ func (h *CapabilityHandler) AuthorityHandler() http.Handler {
 		}
 		middleware.InvitationBodyMiddleware(http.HandlerFunc(h.decision)).ServeHTTP(w, r)
 	}))
+	mux.Handle("POST /internal/authority/features", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw := r.Header.Get(domain.HeaderAuthorization)
+		expected := domain.BearerPrefix + string(h.serviceSecret)
+		if subtle.ConstantTimeCompare([]byte(raw), []byte(expected)) != 1 {
+			sharingError(w, r, domain.ErrInvalidSceneSession)
+			return
+		}
+		middleware.InvitationBodyMiddleware(http.HandlerFunc(h.featureDecision)).ServeHTTP(w, r)
+	}))
 	return mux
+}
+
+func (h *CapabilityHandler) SetFeatureService(features domain.FeatureService) { h.features = features }
+
+func (h *CapabilityHandler) featureDecision(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		RoomToken   string `json:"roomToken" validate:"required,max=8192"`
+		WorkspaceID string `json:"workspaceId" validate:"required,uuid"`
+		SceneID     string `json:"sceneId" validate:"required,uuid"`
+		Action      string `json:"action" validate:"required,oneof=screen:publish"`
+	}
+	if !decodeSharing(w, r, &in) {
+		return
+	}
+	identity, err := h.rooms.VerifyRoomToken(in.RoomToken)
+	if err != nil {
+		capabilityError(w, r, err)
+		return
+	}
+	if in.WorkspaceID != identity.SceneRef.WorkspaceID.String() || in.SceneID != identity.SceneRef.SceneID.String() {
+		capabilityError(w, r, domain.ErrAccessDenied)
+		return
+	}
+	if h.features == nil {
+		writeFeatureError(w, r, errors.New("feature authority unavailable"))
+		return
+	}
+	if err = h.features.Require(r.Context(), identity.Principal, identity.SceneRef, domain.FeatureScreenPublish); err != nil {
+		writeFeatureError(w, r, err)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusNoContent)
 }
 func (h *CapabilityHandler) decision(w http.ResponseWriter, r *http.Request) {
 	var in struct {

@@ -116,6 +116,14 @@ func TestCommentDoesNotGrantEdit(t *testing.T) {
 	}
 }
 
+func TestScreenShareDefaultsDisabled(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	service := NewFeatureService(featureRepositoryStub{policy: domain.DefaultWorkspaceFeaturePolicy(ref.WorkspaceID)}, featureAccessStub{decision: domain.AccessDecision{Access: domain.AccessEdit}})
+	if err := service.Require(context.Background(), domain.UserPrincipal(uuid.New()), ref, domain.FeatureScreenPublish); !errors.Is(err, domain.ErrFeatureDisabled) {
+		t.Fatalf("default screen policy admitted publisher: %v", err)
+	}
+}
+
 func TestFeatureActionPolicyMatrix(t *testing.T) {
 	policy, err := newFeatureActionPolicy()
 	if err != nil {
