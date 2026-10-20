@@ -28,15 +28,16 @@ changing its link. Duplicating asks for a copy name and destination, creates a
 new scene, then opens the copy. The copy includes the latest saved drawing,
 including acknowledged collaboration edits and uploaded images. A large drawing
 can be duplicated without using the smaller scene-preview limit. Your edit
-access is checked again before the copy becomes visible. Legacy copies keep
-durable canvas settings and supported scene-owned images, while leaving out
-selection and other session state. Images stored only as inline legacy data
+access is checked again before the copy becomes visible. If the destination
+folder moves or is trashed while copying, choose its current location and try
+again. Legacy copies keep durable canvas settings and supported scene-owned
+images while leaving out selection and other session state. Images stored only as inline legacy data
 or with broken image references or malformed saved fields need repair before
-copying. A failed copy does not leave a partial scene in the
-dashboard or Trash. It does not copy collaborators or
-other session state. Viewers do not see these edit actions. If a list reload
-fails after a successful move or copy, the completed change remains visible and
-a later reload reconciles the list.
+copying. A failed copy does not leave a partial scene in the dashboard or
+Trash. It does not copy collaborators or other session state. Viewers do not see
+these edit actions. If a list reload
+fails after a successful move or copy, the current folder still shows only its
+scenes; a later reload reconciles the list.
 
 When the workspace collections feature is enabled, the sidebar also lists
 workspace collections and your private collections in the same dashboard

@@ -69,13 +69,19 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 	if workspaceDecision.Access != domain.AccessEdit && workspaceDecision.Access != domain.AccessManage {
 		return nil, domain.ErrAccessDenied
 	}
+	var destinationPath string
 	if folderID != nil {
 		if s.folders == nil {
 			return nil, domain.ErrInaccessible
 		}
-		if _, err = s.folders.FindByID(ctx, ref.WorkspaceID, *folderID); err != nil {
+		folder, folderErr := s.folders.FindByID(ctx, ref.WorkspaceID, *folderID)
+		if folderErr != nil || folder == nil {
 			return nil, domain.ErrInaccessible
 		}
+		if folder.DeletedAt.Valid {
+			return nil, domain.ErrInaccessible
+		}
+		destinationPath = folder.Path
 	}
 	source, err := s.scenes.FindByID(ctx, ref.WorkspaceID, ref.SceneID)
 	if err != nil {
@@ -140,6 +146,12 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 			}
 			if workspaceDecision.Access != domain.AccessEdit && workspaceDecision.Access != domain.AccessManage {
 				return domain.ErrAccessDenied
+			}
+			if folderID != nil {
+				folder, folderErr := s.folders.FindByID(locked, ref.WorkspaceID, *folderID)
+				if folderErr != nil || folder == nil || folder.DeletedAt.Valid || folder.Path != destinationPath {
+					return domain.ErrInaccessible
+				}
 			}
 			return s.scenes.PublishDuplicate(locked, copy)
 		})

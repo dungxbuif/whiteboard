@@ -140,8 +140,10 @@ records remain for recovery instead of appearing as a partial copy. Migration
 recursive folder Restore exclude them until the publish update clears the marker
 and `deleted_at` atomically.
 The server rechecks current scene and workspace edit access under the workspace
-lock just before publication. A grant revoked during export or asset staging
-prevents publication and triggers hidden-copy compensation.
+lock just before publication. It also re-reads a selected destination folder
+and requires its active path to match the path selected before staging. A grant
+revoked or folder trashed/moved during export or asset staging prevents
+publication and triggers hidden-copy compensation.
 Compensation first claims a pending row with `duplicate_cleanup_started`;
 publication refuses claimed rows, while hard deletion refuses published rows.
 After an ambiguous publish error, the server independently reads this state and

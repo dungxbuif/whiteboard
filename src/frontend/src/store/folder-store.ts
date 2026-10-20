@@ -157,12 +157,16 @@ const useFolderStore = create<FolderState>((set) => ({
   },
 
   setFolderStar: async (workspaceId, folderId) => {
+    const generation = folderGeneration;
     await api.post(`/folders/${folderId}/star`, undefined, { headers: workspaceHeaders(workspaceId) });
+    if (generation !== folderGeneration || !workspaceIsCurrent(workspaceId)) return;
     await useFolderStore.getState().fetchFolders(workspaceId);
   },
 
   trashFolder: async (workspaceId, folderId) => {
+    const generation = folderGeneration;
     await api.delete(`/folders/${folderId}/`, { headers: workspaceHeaders(workspaceId) });
+    if (generation !== folderGeneration || !workspaceIsCurrent(workspaceId)) return;
     await useFolderStore.getState().fetchFolders(workspaceId);
   },
 

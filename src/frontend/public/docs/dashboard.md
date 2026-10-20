@@ -24,13 +24,14 @@ to a folder or **Duplicate** it with a new name and destination. The copy opens
 as a new scene with the latest durable drawing, including acknowledged
 collaboration edits and uploaded images. Large scenes can be copied; a failed
 copy does not appear as a partial scene in the dashboard or Trash. Edit access
-is checked again before the copy becomes visible. Legacy copies keep durable
-canvas settings and supported scene-owned images; inline-only legacy images
-or broken image references or malformed saved fields need repair before
-copying. The copy excludes
-collaborator and session state. Viewers do not
-see these edit controls. A successful move or copy remains visible if its
-follow-up list reload fails; a later reload can refresh the list.
+is checked again before the copy becomes visible. If the selected destination
+folder is moved or trashed while a copy is in progress, the copy fails; choose
+its current location and try again. Legacy copies keep durable canvas settings
+and supported scene-owned images; inline-only legacy images, broken image
+references, or malformed saved fields need repair before copying. The copy
+excludes collaborator and session state. Viewers do not
+see these edit controls. If the follow-up list reload fails, the current folder
+still shows only the scenes that belong there; a later reload refreshes the list.
 
 When enabled by workspace policy, Collections appears beside folder navigation.
 Workspace and creator-private containers use canonical reloadable routes and

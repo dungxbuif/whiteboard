@@ -21,15 +21,17 @@ copy: the server reads the larger bounded export projection, copies scene-owned
 image objects and rows, and rewrites image references. It keeps the new scene
 hidden and out of Trash/search/Restore until the copy completes. If your edit
 access is revoked during the copy, the server rechecks scene and workspace
-rights before publication and removes the hidden copy. For legacy scenes, the
-copy retains durable canvas settings and scene-owned image files while dropping
-renderer/session fields and inline file bytes. An image without a scene-owned
+rights before publication and removes the hidden copy. The server also rechecks
+a selected destination folder. If it was trashed or moved during the copy,
+publication fails with a scoped `404 NOT_FOUND` and removes the hidden copy.
+For legacy scenes, the copy retains durable canvas settings and scene-owned
+image files while dropping renderer/session fields and inline file bytes. An image without a scene-owned
 asset, a thumbnail in place of a file asset, a mismatched image MIME, malformed
 durable scene fields (including unsafe nested metadata, bindings, or pressure
 values), or a broken image-to-file reference makes the copy fail instead of
 producing a broken image. Nested metadata follows the collaboration scene's
-32-level limit counted from the scene root. If cleanup
-fails after an unsuccessful copy, the API returns `500 DUPLICATE_CLEANUP_FAILED`;
+32-level limit counted from the scene root. If cleanup fails after an unsuccessful
+copy, the API returns `500 DUPLICATE_CLEANUP_FAILED`;
 the partial scene stays hidden for operator recovery. If the server cannot
 verify whether publication committed, it preserves the copy and returns
 `503 DUPLICATE_STATE_UNCERTAIN`; reload before retrying to avoid another copy.

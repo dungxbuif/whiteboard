@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import api from "../lib/api";
+import useFolderStore from "../store/folder-store";
 import useSceneStore, { SCENE_SAVE_DEBOUNCE_MS, syncPresentationOrder, type Scene, type SceneContent } from "../store/scene-store";
 import useWorkspaceStore from "../store/workspace-store";
 
@@ -29,6 +30,7 @@ const scene: Scene = {
 describe("scene store", () => {
   beforeEach(() => {
     useWorkspaceStore.setState({ activeWorkspaceId: null });
+    useFolderStore.getState().reset();
     useSceneStore.getState().reset();
     vi.clearAllMocks();
   });
@@ -167,12 +169,23 @@ describe("scene store", () => {
     expect(useSceneStore.getState().scenes).toEqual([]);
   });
 
-  it("keeps a moved scene in all files when refresh fails after PATCH", async () => {
+  it("removes a scene moved out of the root when refresh fails after PATCH", async () => {
     useSceneStore.setState({ scenes: [scene] });
     vi.mocked(api.patch).mockResolvedValue({ data: { ...scene, folderId: "folder-2" } });
     vi.mocked(api.get).mockRejectedValue(new Error("refresh failed"));
     await useSceneStore.getState().moveScene("workspace-1", scene.id, "folder-2", null);
-    expect(useSceneStore.getState().scenes[0].folderId).toBe("folder-2");
+    expect(useSceneStore.getState().scenes).toEqual([]);
+  });
+
+  it("does not retain a duplicate in the root when its destination is a folder and refresh fails", async () => {
+    const duplicate = { ...scene, id: "scene-2", folderId: "folder-2" };
+    useFolderStore.getState().setCurrentFolderId(null);
+    useSceneStore.setState({ scenes: [scene] });
+    vi.mocked(api.post).mockResolvedValue({ data: duplicate });
+    vi.mocked(api.get).mockRejectedValue(new Error("refresh failed"));
+    await expect(useSceneStore.getState().duplicateScene("workspace-1", scene.id, "Copy", "folder-2")).resolves.toEqual(duplicate);
+    expect(useSceneStore.getState().scenes).toEqual([scene]);
+    expect(useSceneStore.getState().activeScene).toEqual(duplicate);
   });
 
   it("ignores a move response after switching workspaces", async () => {

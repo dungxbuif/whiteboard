@@ -164,6 +164,27 @@ type revocableDuplicateAccessStub struct {
 	revokeScene, revokeWorkspace, locked bool
 }
 
+type duplicateFolderRepoStub struct {
+	domain.FolderRepository
+	folder  domain.Folder
+	deleted bool
+	lookups int
+	access  *revocableDuplicateAccessStub
+	locked  bool
+}
+
+func (s *duplicateFolderRepoStub) FindByID(_ domain.Context, workspaceID, id uuid.UUID) (*domain.Folder, error) {
+	s.lookups++
+	if s.access != nil && s.access.locked {
+		s.locked = true
+	}
+	if s.deleted || s.folder.WorkspaceID != workspaceID || s.folder.ID != id {
+		return nil, domain.ErrInaccessible
+	}
+	folder := s.folder
+	return &folder, nil
+}
+
 func (s *revocableDuplicateAccessStub) Resolve(_ domain.Context, _ domain.Principal, _ domain.SceneRef) (domain.AccessDecision, error) {
 	if s.revokeScene {
 		return domain.AccessDecision{Access: domain.AccessView}, nil
@@ -218,6 +239,48 @@ func TestDuplicateRejectsRevocationAfterStagingBeforePublish(t *testing.T) {
 			err := <-result
 			if !errors.Is(err, domain.ErrAccessDenied) || scenes.published || !assets.cleaned || !scenes.deleted {
 				t.Fatalf("revocation escaped publish gate: err=%v published=%v cleaned=%v deleted=%v", err, scenes.published, assets.cleaned, scenes.deleted)
+			}
+		})
+	}
+}
+
+func TestDuplicateRechecksDestinationFolderDuringStaging(t *testing.T) {
+	for _, change := range []string{"unchanged", "trashed", "moved"} {
+		t.Run(change, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			folderID := uuid.New()
+			scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}}
+			access := &revocableDuplicateAccessStub{}
+			folders := &duplicateFolderRepoStub{folder: domain.Folder{ID: folderID, WorkspaceID: ref.WorkspaceID, Path: "/original/"}, access: access}
+			staging := make(chan struct{})
+			continueStage := make(chan struct{})
+			assets := &duplicateAssetStagerStub{onStage: func() {
+				close(staging)
+				<-continueStage
+			}}
+			service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+			service.SetDuplicateDependencies(scenes, folders, assets, access)
+			result := make(chan error, 1)
+			go func() {
+				_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", &folderID)
+				result <- err
+			}()
+			<-staging
+			if change == "trashed" {
+				folders.deleted = true
+			} else if change == "moved" {
+				folders.folder.Path = "/moved/"
+			}
+			close(continueStage)
+			err := <-result
+			if change == "unchanged" {
+				if err != nil || !scenes.published || scenes.deleted || folders.lookups != 2 || !folders.locked {
+					t.Fatalf("valid destination rejected: err=%v published=%v deleted=%v lookups=%d locked=%v", err, scenes.published, scenes.deleted, folders.lookups, folders.locked)
+				}
+				return
+			}
+			if !errors.Is(err, domain.ErrInaccessible) || scenes.published || !scenes.deleted || !assets.cleaned || folders.lookups != 2 || !folders.locked {
+				t.Fatalf("changed destination published: err=%v published=%v deleted=%v cleaned=%v lookups=%d locked=%v", err, scenes.published, scenes.deleted, assets.cleaned, folders.lookups, folders.locked)
 			}
 		})
 	}

@@ -229,12 +229,10 @@ const useSceneStore = create<SceneState>((set, get) => {
       const response = await api.patch<Scene>(`/scenes/${sceneId}/`, { folderId }, { headers: workspaceHeaders(workspaceId) });
       if (generation !== listGeneration || !workspaceIsCurrent(workspaceId)) return;
       set((state) => ({
-        scenes: updateScene(state.scenes, response.data),
+        scenes: updateScene(state.scenes, response.data).filter((scene) => scene.folderId === currentFolderId),
         activeScene: state.activeScene?.id === sceneId ? response.data : state.activeScene,
       }));
-      const committedScenes = currentFolderId === null
-        ? get().scenes
-        : get().scenes.filter((scene) => scene.folderId === currentFolderId);
+      const committedScenes = get().scenes;
       try { await get().fetchScenes(workspaceId, currentFolderId); }
       catch { if (generation + 1 === listGeneration && workspaceIsCurrent(workspaceId)) set({ scenes: committedScenes, isLoading: false, error: null }); }
     },
@@ -245,10 +243,8 @@ const useSceneStore = create<SceneState>((set, get) => {
       const duplicate = response.data;
       if (generation !== listGeneration || !workspaceIsCurrent(workspaceId)) return duplicate;
       const currentFolderId = useFolderStore.getState().currentFolderId;
-      set((state) => ({ scenes: currentFolderId && currentFolderId !== folderId ? state.scenes : [duplicate, ...state.scenes], activeScene: duplicate }));
-      const committedScenes = currentFolderId && currentFolderId !== folderId
-        ? get().scenes.filter((item) => item.id !== duplicate.id)
-        : get().scenes;
+      set((state) => ({ scenes: currentFolderId === duplicate.folderId ? [duplicate, ...state.scenes] : state.scenes, activeScene: duplicate }));
+      const committedScenes = get().scenes;
       try { await get().fetchScenes(workspaceId, currentFolderId); }
       catch { if (generation + 1 === listGeneration && workspaceIsCurrent(workspaceId)) set({ scenes: committedScenes, isLoading: false, error: null }); }
       return duplicate;

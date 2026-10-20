@@ -9,6 +9,7 @@ vi.mock("../lib/api", () => ({
     get: vi.fn(),
     post: vi.fn(),
     patch: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -152,5 +153,31 @@ describe("folder store", () => {
     resolvePost({ data: child });
     await pending;
     expect(useFolderStore.getState().folders).toEqual([other]);
+  });
+
+  it.each(["star", "trash"])("does not let an old %s completion discard the new workspace fetch", async (action) => {
+    let resolveMutation!: (value: { data: undefined }) => void;
+    let resolveGet!: (value: { data: Folder[] }) => void;
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace" });
+    useFolderStore.setState({ folders: [root] });
+    const mutation = new Promise<{ data: undefined }>((resolve) => { resolveMutation = resolve; });
+    if (action === "star") vi.mocked(api.post).mockReturnValue(mutation);
+    else vi.mocked(api.delete).mockReturnValue(mutation);
+    vi.mocked(api.get).mockReturnValue(new Promise((resolve) => { resolveGet = resolve; }));
+
+    const pendingMutation = action === "star"
+      ? useFolderStore.getState().setFolderStar("workspace", "root")
+      : useFolderStore.getState().trashFolder("workspace", "root");
+    useWorkspaceStore.setState({ activeWorkspaceId: "other-workspace" });
+    useFolderStore.getState().reset();
+    const pendingFetch = useFolderStore.getState().fetchFolders("other-workspace");
+    resolveMutation({ data: undefined });
+    resolveGet({ data: [{ ...root, id: "other", workspaceId: "other-workspace" }] });
+    await Promise.all([pendingMutation, pendingFetch]);
+
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(api.get).toHaveBeenCalledWith("/folders?all=true", { headers: { "X-Workspace-ID": "other-workspace" } });
+    expect(useFolderStore.getState().folders.map((folder) => folder.id)).toEqual(["other"]);
+    expect(useFolderStore.getState().isLoading).toBe(false);
   });
 });
