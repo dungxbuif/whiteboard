@@ -1,0 +1,13 @@
+import '@testing-library/jest-dom/vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { DomainSettings } from './domain-settings';
+import type { DomainClient, WorkspaceDomain } from '@/lib/domain-api';
+
+const row=(status:WorkspaceDomain['status']):WorkspaceDomain=>({id:'domain-1',workspaceId:'workspace-1',domain:'example.com',status,challengeExpiresAt:'2026-10-21T00:00:00Z',revision:1,createdAt:'2026-10-20T00:00:00Z',updatedAt:'2026-10-20T00:00:00Z'});
+function client(seed:WorkspaceDomain[]=[]):DomainClient{return{list:vi.fn().mockResolvedValue(seed),begin:vi.fn().mockResolvedValue({...row('pending'),dnsName:'_whiteboard-verification.example.com',txtValue:'whiteboard-verification=secret'}),verify:vi.fn().mockResolvedValue(row('verified')),capture:vi.fn().mockResolvedValue({domain:row('captured'),dataMoved:false}),revoke:vi.fn().mockResolvedValue(row('revoked'))}}
+
+describe('DomainSettings',()=>{
+  it('shows the one-time exact DNS challenge and identity safety copy',async()=>{const api=client();render(<DomainSettings api={api} workspaceId="workspace-1"/>);fireEvent.change(screen.getByLabelText('Domain'),{target:{value:'example.com'}});fireEvent.click(screen.getByRole('button',{name:'Add domain'}));expect(await screen.findByText('_whiteboard-verification.example.com')).toBeInTheDocument();expect(screen.getByText('whiteboard-verification=secret')).toBeInTheDocument();expect(screen.getByText(/never links or merges/i)).toBeInTheDocument()});
+  it('requires explicit capture after verification',async()=>{const api=client([row('verified')]);render(<DomainSettings api={api} workspaceId="workspace-1"/>);fireEvent.click(await screen.findByRole('button',{name:'Accept and capture'}));await waitFor(()=>expect(api.capture).toHaveBeenCalledWith('workspace-1','domain-1'));expect(await screen.findByText('captured')).toBeInTheDocument()});
+});

@@ -9,6 +9,7 @@ import { PublicView } from '@/components/public-view';
 import { InviteAccept } from '@/components/collaboration/invite-accept';
 import { MemberList } from '@/components/collaboration/member-list';
 import { AgentSettings } from '@/components/collaboration/agent-settings';
+import { DomainSettings } from '@/components/enterprise/domain-settings';
 import { ActivityPanel } from '@/components/activity/activity-panel';
 import { CollectionView } from '@/components/collections/collection-view';
 import { ExcalidrawWrapper } from '@/components/whiteboard/excalidraw-wrapper';
@@ -30,7 +31,7 @@ function App() {
   const dashboardRoute = pathname.match(/^\/w\/([^/]+)\/?$/);
   const activityRoute = pathname.match(/^\/w\/([^/]+)\/activity\/?$/);
   const collectionRoute = pathname.match(/^\/w\/([^/]+)\/collections\/([^/]+)\/?$/);
-  const settingsRoute = pathname.match(/^\/w\/([^/]+)\/settings\/(members|agents)\/?$/);
+  const settingsRoute = pathname.match(/^\/w\/([^/]+)\/settings\/(members|agents|identity)\/?$/);
   const routeWorkspace = sceneRoute?.[1] ?? collectionRoute?.[1] ?? settingsRoute?.[1] ?? activityRoute?.[1] ?? dashboardRoute?.[1];
   const routeScene = sceneRoute?.[2];
   const routeCollection = collectionRoute?.[2];
@@ -73,6 +74,6 @@ function App() {
     if (!activeScene || !workspace || activeScene.workspaceId !== workspace.id || (activeScene.id !== routeScene && activeScene.publicId !== routeScene)) return <main className="grid min-h-screen place-items-center">Loading scene...</main>;
     return <ExcalidrawWrapper initialThreadId={routeThread} key={activeScene.id} />;
   }
-  return <DashboardShell>{collectionRoute ? !ready || !workspace || !routeCollection ? <p>Loading workspace...</p> : <CollectionView availableScenes={searchResults.filter(item => item.type === 'scene').map(item => ({ id: item.id, title: item.name }))} canManage={workspace.role === 'owner' || workspace.role === 'editor'} collectionId={routeCollection} key={routeCollection} workspaceId={workspace.id} workspaceSlug={workspace.publicId || workspace.id} /> : activityRoute ? !ready || !workspace ? <p>Loading workspace...</p> : <section aria-labelledby="activity-heading" className="grid gap-4"><div><h1 className="text-2xl font-semibold" id="activity-heading">Activity</h1><p className="text-sm text-muted-foreground">Recent changes visible to you in this workspace.</p></div><ActivityPanel key={workspace.id} workspaceId={workspace.id} /></section> : settingsRoute ? !ready ? <p>Loading workspace...</p> : workspace?.role !== 'owner' ? <p role="alert">Only workspace owners can manage settings.</p> : settingsRoute[2] === 'members' ? <MemberList key={workspace.id} workspaceId={workspace.id} scenes={scenes} /> : <AgentSettings key={workspace.id} workspaceId={workspace.id} isOwner scenes={scenes} /> : <><DashboardHeader />{searchView !== 'all' || searchQuery.trim() ? <SearchResults /> : <><FolderList /><SceneList /></>}</>}</DashboardShell>;
+  return <DashboardShell>{collectionRoute ? !ready || !workspace || !routeCollection ? <p>Loading workspace...</p> : <CollectionView availableScenes={searchResults.filter(item => item.type === 'scene').map(item => ({ id: item.id, title: item.name }))} canManage={workspace.role === 'owner' || workspace.role === 'editor'} collectionId={routeCollection} key={routeCollection} workspaceId={workspace.id} workspaceSlug={workspace.publicId || workspace.id} /> : activityRoute ? !ready || !workspace ? <p>Loading workspace...</p> : <section aria-labelledby="activity-heading" className="grid gap-4"><div><h1 className="text-2xl font-semibold" id="activity-heading">Activity</h1><p className="text-sm text-muted-foreground">Recent changes visible to you in this workspace.</p></div><ActivityPanel key={workspace.id} workspaceId={workspace.id} /></section> : settingsRoute ? !ready ? <p>Loading workspace...</p> : workspace?.role !== 'owner' ? <p role="alert">Only workspace owners can manage settings.</p> : settingsRoute[2] === 'members' ? <MemberList key={workspace.id} workspaceId={workspace.id} scenes={scenes} /> : settingsRoute[2] === 'identity' ? <DomainSettings key={workspace.id} workspaceId={workspace.id} /> : <AgentSettings key={workspace.id} workspaceId={workspace.id} isOwner scenes={scenes} /> : <><DashboardHeader />{searchView !== 'all' || searchQuery.trim() ? <SearchResults /> : <><FolderList /><SceneList /></>}</>}</DashboardShell>;
 }
 export default App;
