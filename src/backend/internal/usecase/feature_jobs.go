@@ -51,6 +51,17 @@ func NewFeatureJobs(repo domain.FeatureJobRepository, workerID string, handlers 
 }
 
 func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (domain.JobBatchResult, error) {
+	return s.runOnce(ctx, now, limit, func(claim func() error) (bool, error) { return true, claim() })
+}
+
+func (s *FeatureJobs) RunOnceWithClaimGate(ctx context.Context, now time.Time, limit int, claimGate func(func() error) (bool, error)) (domain.JobBatchResult, error) {
+	if claimGate == nil {
+		return domain.JobBatchResult{}, errors.New("feature job claim gate is required")
+	}
+	return s.runOnce(ctx, now, limit, claimGate)
+}
+
+func (s *FeatureJobs) runOnce(ctx context.Context, now time.Time, limit int, claimGate func(func() error) (bool, error)) (domain.JobBatchResult, error) {
 	if limit <= 0 || limit > domain.FeatureJobBatchLimit {
 		limit = domain.FeatureJobBatchLimit
 	}
@@ -63,9 +74,17 @@ func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (do
 		if processed > 0 {
 			claimNow = s.now()
 		}
-		claimed, err := s.repo.Claim(ctx, claimNow, 1, s.workerID, domain.FeatureJobLeaseDuration)
+		var claimed []domain.FeatureJob
+		allowed, err := claimGate(func() error {
+			var claimErr error
+			claimed, claimErr = s.repo.Claim(ctx, claimNow, 1, s.workerID, domain.FeatureJobLeaseDuration)
+			return claimErr
+		})
 		if err != nil {
 			return result, err
+		}
+		if !allowed {
+			break
 		}
 		if len(claimed) == 0 {
 			break

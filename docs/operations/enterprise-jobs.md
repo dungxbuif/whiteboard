@@ -27,6 +27,9 @@ writer.
   operation retains its bounded operation context; the handler yields before the
   reserved bookkeeping window, and the process allows up to 30 seconds for the
   handler plus completion/retry write to drain.
+- Stop and claim admission share one serialized gate. Shutdown closes that gate
+  before starting the drain timer, so a loop already preparing its next poll
+  cannot begin a new database lease after shutdown admission.
 
 ## Operations
 

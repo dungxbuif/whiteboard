@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -27,6 +28,46 @@ type config struct {
 	DatabaseURL string
 	WorkerID    string
 	Addr        string
+}
+
+type workerStopGate struct {
+	mu          sync.Mutex
+	stopped     bool
+	done        chan struct{}
+	beforeClaim func()
+}
+
+func newWorkerStopGate() *workerStopGate { return &workerStopGate{done: make(chan struct{})} }
+
+func (g *workerStopGate) Stop() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.stopped {
+		return
+	}
+	g.stopped = true
+	close(g.done)
+}
+
+func (g *workerStopGate) Stopped() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.stopped
+}
+
+func (g *workerStopGate) Done() <-chan struct{} { return g.done }
+
+func (g *workerStopGate) Claim(claim func() error) (bool, error) {
+	if g.beforeClaim != nil {
+		g.beforeClaim()
+	}
+	g.mu.Lock()
+	if g.stopped {
+		g.mu.Unlock()
+		return false, nil
+	}
+	g.mu.Unlock()
+	return true, claim()
 }
 
 func loadConfig() (config, error) {
@@ -61,8 +102,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(signals)
+	gate := newWorkerStopGate()
 	var ready atomic.Bool
 	server := newHealthServer(cfg.Addr, &ready)
 	serverErrors := make(chan error, 1)
@@ -75,15 +118,15 @@ func main() {
 	workerDone := make(chan struct{})
 	go func() {
 		defer close(workerDone)
-		runWorker(ctx, jobs, &ready, logger)
+		runWorker(gate, jobs, &ready, logger)
 	}()
 
 	select {
-	case <-ctx.Done():
+	case <-signals:
 	case err := <-serverErrors:
 		logger.Error("feature worker health server stopped", "error", err)
-		stop()
 	}
+	gate.Stop()
 	ready.Store(false)
 	drainCtx, cancel := context.WithTimeout(context.Background(), workerDrainTimeout)
 	defer cancel()
@@ -96,16 +139,17 @@ func main() {
 	}
 }
 
-func runWorker(ctx context.Context, jobs *usecase.FeatureJobs, ready *atomic.Bool, logger *slog.Logger) {
+func runWorker(gate *workerStopGate, jobs *usecase.FeatureJobs, ready *atomic.Bool, logger *slog.Logger) {
 	ticker := time.NewTicker(workerPollInterval)
 	defer ticker.Stop()
 	for {
-		if ctx.Err() != nil {
+		if gate.Stopped() {
 			return
 		}
-		// A stop signal prevents the next claim. The active bounded operation keeps a
-		// live context so its handler and completion/retry write can drain safely.
-		result, err := jobs.RunOnce(context.WithoutCancel(ctx), time.Now().UTC(), 1)
+		result, err := jobs.RunOnceWithClaimGate(context.Background(), time.Now().UTC(), 1, gate.Claim)
+		if gate.Stopped() && result.Claimed == 0 {
+			return
+		}
 		if err != nil {
 			ready.Store(false)
 			logger.Error("feature job batch failed", "error", err)
@@ -117,7 +161,7 @@ func runWorker(ctx context.Context, jobs *usecase.FeatureJobs, ready *atomic.Boo
 			}
 		}
 		select {
-		case <-ctx.Done():
+		case <-gate.Done():
 			return
 		case <-ticker.C:
 		}

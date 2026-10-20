@@ -19,11 +19,13 @@ type drainRepo struct {
 	mu        sync.Mutex
 	job       *domain.FeatureJob
 	completed chan struct{}
+	claims    int
 }
 
 func (r *drainRepo) Claim(_ context.Context, _ time.Time, _ int, workerID string, _ time.Duration) ([]domain.FeatureJob, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.claims++
 	if r.job == nil {
 		return nil, nil
 	}
@@ -81,15 +83,15 @@ func TestShutdownDrainsActiveWorkAndPersistsOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	stopCtx, stop := context.WithCancel(context.Background())
+	gate := newWorkerStopGate()
 	done := make(chan struct{})
 	var ready atomic.Bool
 	go func() {
 		defer close(done)
-		runWorker(stopCtx, jobs, &ready, slog.New(slog.NewTextHandler(io.Discard, nil)))
+		runWorker(gate, jobs, &ready, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	}()
 	<-started
-	stop()
+	gate.Stop()
 	select {
 	case canceled := <-contextCanceled:
 		if canceled {
@@ -107,5 +109,42 @@ func TestShutdownDrainsActiveWorkAndPersistsOutcome(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("worker did not stop after active work drained")
+	}
+}
+
+func TestStopBetweenLoopCheckAndClaimPreventsNewLease(t *testing.T) {
+	repo := &drainRepo{job: &domain.FeatureJob{ID: uuid.New(), Kind: "work", Attempts: 1}, completed: make(chan struct{})}
+	jobs, err := usecase.NewFeatureJobs(repo, "worker-a", map[string]usecase.FeatureJobHandler{
+		"work": func(context.Context, domain.FeatureJob) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeClaim := make(chan struct{})
+	releaseClaim := make(chan struct{})
+	gate := newWorkerStopGate()
+	gate.beforeClaim = func() {
+		close(beforeClaim)
+		<-releaseClaim
+	}
+	done := make(chan struct{})
+	var ready atomic.Bool
+	go func() {
+		defer close(done)
+		runWorker(gate, jobs, &ready, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	}()
+	<-beforeClaim
+	gate.Stop()
+	close(releaseClaim)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("stopped worker did not leave claim gate")
+	}
+	repo.mu.Lock()
+	claims := repo.claims
+	repo.mu.Unlock()
+	if claims != 0 {
+		t.Fatalf("worker began %d claims after stop", claims)
 	}
 }
