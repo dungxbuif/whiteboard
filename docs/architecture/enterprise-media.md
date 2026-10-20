@@ -10,9 +10,10 @@ seconds before capture starts. Current scene authority is checked again before
 admission and before every peer signal.
 
 Publishing also requires the workspace `screen:publish` feature decision. The
-collaboration runtime asks the private Go authority with the current room token
-before publisher reservation, post-capture activation, stop and every publisher
-signal. Go verifies the room identity and current FeatureService policy; screen
+collaboration runtime asks the private Go authority with the current publisher
+room token before publisher reservation, post-capture activation, any receiver
+join, either direction of signaling, and either side stopping. Go verifies the
+room identity and current FeatureService policy; screen
 sharing is disabled by default. A denial or unavailable decision fails closed,
 ends an existing screen session before any signal can be routed, and leaves the
 drawing connection available.

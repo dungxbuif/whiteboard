@@ -1,5 +1,6 @@
 import {afterEach,expect,it,vi} from 'vitest';
 import {encodeFrame} from '@collab/contracts';
+import {CollabError} from './auth.js';
 import {MediaAdmission} from './screen-share.js';
 import {roomFixture} from './test-fixtures/presence.js';
 
@@ -64,5 +65,28 @@ it('enabled-to-disabled policy stops publisher before subsequent signal routing'
  const admission=await publisher.wait('screen_admission',publisher.send('screen_request'));await publisher.wait('screen_admission',publisher.send('screen_request',{sessionId:admission.payload.sessionId}));await viewer.wait('screen_admission',viewer.send('screen_request'));
  fixture.hooks.featureEnabled=false;const signal=publisher.send('screen_signal',{to:viewer.connectionId,sessionId:admission.payload.sessionId,description:{type:'offer',sdp:'v=0'}});
  expect((await publisher.wait('error',signal)).payload.code).toBe('SCREEN_FORBIDDEN');expect((await viewer.wait('screen_stop')).payload).toMatchObject({sessionId:admission.payload.sessionId,reason:'FEATURE_REVOKED'});expect(viewer.messages.some(message=>message.type==='screen_signal')).toBe(false);
- expect(fixture.hooks.featureChecks).toEqual(['screen:publish','screen:publish','screen:publish']);
+ expect(fixture.hooks.featureChecks).toEqual(['screen:publish','screen:publish','screen:publish','screen:publish']);
+});
+
+it('receiver join rechecks the active publisher policy before admission',async()=>{
+ fixture=await roomFixture();const publisher=await fixture.connect('publisher'),viewer=await fixture.connect('viewer');
+ const admission=await publisher.wait('screen_admission',publisher.send('screen_request'));await publisher.wait('screen_admission',publisher.send('screen_request',{sessionId:admission.payload.sessionId}));const publisherAdmissions=publisher.messages.filter(message=>message.type==='screen_admission').length;
+ fixture.hooks.featureEnabled=false;const request=viewer.send('screen_request');expect((await viewer.wait('error',request)).payload.code).toBe('SCREEN_FORBIDDEN');expect((await viewer.wait('screen_stop')).payload).toMatchObject({sessionId:admission.payload.sessionId,reason:'FEATURE_REVOKED'});expect(publisher.messages.filter(message=>message.type==='screen_admission')).toHaveLength(publisherAdmissions);
+ expect(fixture.hooks.featurePrincipals.at(-1)).toBe(publisher.principalId);
+ viewer.socket.send(encodeFrame({channel:3,updateId:'drawing-after-receiver-denial',payload:new Uint8Array([0,0])}));expect((await viewer.wait('ack','drawing-after-receiver-denial')).payload.sequence).toBe('1');expect((await viewer.wait('voice_admission',viewer.send('voice_join'))).payload.admitted).toBe(true);
+});
+
+it('receiver signal fails closed when active publisher authority is unavailable',async()=>{
+ fixture=await roomFixture();const publisher=await fixture.connect('publisher'),viewer=await fixture.connect('viewer');
+ const admission=await publisher.wait('screen_admission',publisher.send('screen_request'));await publisher.wait('screen_admission',publisher.send('screen_request',{sessionId:admission.payload.sessionId}));await viewer.wait('screen_admission',viewer.send('screen_request'));
+ fixture.hooks.featureError=new CollabError('UNAVAILABLE','authority unavailable',503,true);const signal=viewer.send('screen_signal',{to:publisher.connectionId,sessionId:admission.payload.sessionId,candidate:{candidate:'candidate'}});
+ expect((await viewer.wait('error',signal)).payload).toMatchObject({code:'SCREEN_AUTHORITY_UNAVAILABLE',retryable:true});expect((await publisher.wait('screen_stop')).payload).toMatchObject({sessionId:admission.payload.sessionId,reason:'FEATURE_REVOKED'});expect(publisher.messages.some(message=>message.type==='screen_signal')).toBe(false);
+ expect(fixture.hooks.featurePrincipals.at(-1)).toBe(publisher.principalId);
+});
+
+it('receiver stop rechecks publisher policy before forwarding stop control',async()=>{
+ fixture=await roomFixture();const publisher=await fixture.connect('publisher'),viewer=await fixture.connect('viewer');
+ const admission=await publisher.wait('screen_admission',publisher.send('screen_request'));await publisher.wait('screen_admission',publisher.send('screen_request',{sessionId:admission.payload.sessionId}));await viewer.wait('screen_admission',viewer.send('screen_request'));
+ fixture.hooks.featureEnabled=false;const request=viewer.send('screen_stop',{sessionId:admission.payload.sessionId});expect((await viewer.wait('error',request)).payload.code).toBe('SCREEN_FORBIDDEN');expect((await publisher.wait('screen_stop')).payload).toMatchObject({sessionId:admission.payload.sessionId,reason:'FEATURE_REVOKED'});expect(publisher.messages.some(message=>message.type==='screen_stop'&&message.payload.connectionId===viewer.connectionId)).toBe(false);
+ expect(fixture.hooks.featurePrincipals.at(-1)).toBe(publisher.principalId);
 });

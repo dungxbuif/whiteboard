@@ -16,4 +16,5 @@ full room leaves the whiteboard available.
 
 Workspace owners must enable **Screen sharing** in enterprise feature settings.
 If the feature is disabled while someone is sharing, the current share stops;
-the whiteboard remains connected and usable.
+the next receiver join, signal, or stop request revokes it before media controls
+are relayed. The whiteboard and voice remain connected and usable.

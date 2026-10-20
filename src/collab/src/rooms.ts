@@ -157,7 +157,7 @@ export class Rooms {
    }
    const publisher=this.media.publisher(room);
    if(!publisher&&(session.principal?.principalType!=='user'||session.access!=='edit'))throw new CollabError('SCREEN_FORBIDDEN','Only signed-in editors can share a screen');
-   if(!publisher||publisher===session.connectionId)await this.requireScreenPublisher(session,ref,room,id);
+   if(!publisher)await this.requireScreenPublisher(session,ref,room,id);else await this.requireActiveScreenPublisher(ref,room,id);
    const admission=this.media.join(room,session.connectionId,'screen');await this.control(session,'screen_admission',id,admission);
    if(!admission.admitted)return;
    if(admission.receiving&&admission.publisher){const owner=this.matching(ref).find(value=>value.connectionId===admission.publisher);if(owner&&await this.recipient(owner))await this.control(owner,'screen_admission','server',admission);}
@@ -165,17 +165,23 @@ export class Rooms {
   }
   if(type==='screen_stop'){
    const input=parseScreenStop(payload),current=this.media.screen(room);if(!current||current.sessionId!==input.sessionId)throw new CollabError('SCREEN_TARGET','Screen session is unavailable',400);
-   if(current.publisher===session.connectionId)await this.requireScreenPublisher(session,ref,room,id);
+   await this.requireActiveScreenPublisher(ref,room,id);
    const ended=this.media.leave(room,session.connectionId,'screen');
    if(ended)await this.broadcast(ref,'screen_stop','server',{sessionId:ended.sessionId,publisher:ended.publisher});
    else {const publisher=this.matching(ref).find(value=>value.connectionId===current.publisher);if(publisher&&await this.recipient(publisher))await this.control(publisher,'screen_stop','server',{sessionId:current.sessionId,connectionId:session.connectionId});}
    await this.roster(ref,id);return;
   }
   const signal=parseScreenSignal(payload),target=this.matching(ref).find(value=>value.connectionId===signal.to);
-  if(this.media.publisher(room)===session.connectionId)await this.requireScreenPublisher(session,ref,room,id);
+  await this.requireActiveScreenPublisher(ref,room,id);
   if(!target||!this.media.canSignal(room,session.connectionId,signal.to,'screen',signal.sessionId)||!await this.recipient(target))throw new CollabError('SCREEN_TARGET','Screen peer is not available',400);
   if(session.invalid||target.invalid||!this.media.canSignal(room,session.connectionId,signal.to,'screen',signal.sessionId))throw new CollabError('SCREEN_TARGET','Screen peer is not available',400);
   await this.control(target,'screen_signal',id,{...signal,from:session.connectionId});
+ }
+ private async requireActiveScreenPublisher(ref:SceneRef,room:string,id:string){
+  const current=this.media.screen(room);if(!current)throw new CollabError('SCREEN_TARGET','Screen session is unavailable',400);
+  const publisher=this.matching(ref).find(value=>value.connectionId===current.publisher);if(!publisher)throw new CollabError('SCREEN_TARGET','Screen publisher is unavailable',400);
+  await this.requireScreenPublisher(publisher,ref,room,id);
+  const refreshed=this.media.screen(room);if(!refreshed||refreshed.sessionId!==current.sessionId||refreshed.publisher!==publisher.connectionId)throw new CollabError('SCREEN_TARGET','Screen session changed during authority check',400);
  }
  private async requireScreenPublisher(session:Session,ref:SceneRef,room:string,id:string){
   try{await requireScreenFeature(this.store.authority,session.principal!.roomToken,ref);}
