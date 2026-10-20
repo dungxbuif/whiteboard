@@ -6,12 +6,14 @@ test.use({ reducedMotion: "reduce" });
 const workspace = { id: "workspace-style", name: "Design studio", ownerId: "user-style", role: "owner", createdAt: "2026-10-16T00:00:00Z" };
 const scene = { id: "scene-style", workspaceId: workspace.id, folderId: null, title: "System architecture", access: "edit", writerMode: "v1", owner: true, content: { elements: [], appState: {}, files: {} }, contentVersion: 1, isStarred: true, createdAt: "2026-10-16T00:00:00Z", updatedAt: "2026-10-16T00:00:00Z" };
 
-async function setup(page: Page, options: { longName?: boolean; empty?: boolean } = {}) {
+async function setup(page: Page, options: { longName?: boolean; empty?: boolean; collectionsDisabled?: boolean } = {}) {
   let currentScene = scene;
   await page.addInitScript(() => localStorage.setItem("auth_token", "style-test"));
   await page.route("**/api/v1/users/me", route => route.fulfill({ json: { id: "user-style", email: "designer@example.com", name: "Designer" } }));
   await page.route("**/api/v1/workspaces", route => route.fulfill({ json: [{ ...workspace, name: options.longName ? "A very long workspace name for architecture and distributed systems" : workspace.name }] }));
   await page.route("**/api/v1/folders**", route => route.fulfill({ json: [] }));
+  await page.route("**/api/v1/workspaces/*/collections**", route => route.fulfill(options.collectionsDisabled ? { status: 403, json: { code: "FEATURE_DISABLED" } } : { json: { items: [] } }));
+  await page.route("**/api/v1/notifications**", route => route.fulfill({ json: { items: [] } }));
   await page.route("**/api/v1/scenes**", route => {
     if (route.request().url().endsWith("/room-token")) return route.fulfill({ json: { token: "fixture-room-token", expiresAt: new Date(Date.now() + 600000).toISOString() } });
     if (route.request().method() === "POST") {
@@ -23,6 +25,24 @@ async function setup(page: Page, options: { longName?: boolean; empty?: boolean 
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 }
+
+test("disabled collections keep the legacy sidebar presentation on desktop and mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await setup(page, { collectionsDisabled: true });
+  const nav = page.getByRole("navigation", { name: "Workspace navigation", exact: true });
+  await expect(nav.getByText("Collections are unavailable for this workspace")).toBeVisible();
+  await expect(nav.getByRole("button", { name: "New collection" })).toHaveCount(0);
+  await expect(nav.getByRole("alert")).toHaveCount(0);
+  await expect(nav).toHaveCSS("background-color", "rgb(250, 250, 250)");
+  const header = page.locator("main.dashboard-theme > div > div").first();
+  await expect(header).toHaveCSS("height", "56px");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  const drawer = page.getByRole("dialog", { name: "Workspace navigation" });
+  await expect(drawer.getByText("Collections are unavailable for this workspace")).toBeVisible();
+  await expect(drawer.getByRole("button", { name: "New collection" })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 
 test("legacy desktop shell, collapse and original light/dark portal colors", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 960 });

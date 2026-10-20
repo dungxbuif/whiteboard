@@ -23,6 +23,35 @@ function client(overrides: Partial<CollectionClient> = {}): CollectionClient {
 }
 
 describe('legacy collections', () => {
+  it('explains a disabled collection policy without an error or creation action', async () => {
+    const api = client({ list: vi.fn().mockRejectedValue({ response: { status: 403, data: { code: 'FEATURE_DISABLED' } } }) });
+    render(<CollectionList api={api} canManage workspaceId="workspace-1" workspaceSlug="workspace-alias" />);
+    expect(await screen.findByText('Collections are unavailable for this workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New collection' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry collections' })).not.toBeInTheDocument();
+  });
+
+  it('offers retry after a transient load failure and recovers on reload', async () => {
+    const list = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue({ items: [workspaceCollection] });
+    render(<CollectionList api={client({ list })} canManage workspaceId="workspace-1" workspaceSlug="workspace-alias" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Collections could not be loaded.');
+    fireEvent.click(screen.getByRole('button', { name: 'Retry collections' }));
+    expect(await screen.findByRole('link', { name: /Launch boards/ })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    { response: { status: 403, data: { code: 'ACCESS_DENIED' } } },
+    { response: { status: 503, data: { code: 'FEATURE_DISABLED' } } },
+  ])('keeps non-policy failures retryable', async cause => {
+    render(<CollectionList api={client({ list: vi.fn().mockRejectedValue(cause) })} canManage workspaceId="workspace-1" workspaceSlug="workspace-alias" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Collections could not be loaded.');
+    expect(screen.getByRole('button', { name: 'Retry collections' })).toBeInTheDocument();
+    expect(screen.queryByText('Collections are unavailable for this workspace')).not.toBeInTheDocument();
+  });
+
   it('renders a reloadable legacy-style sidebar link and creates with keyboard submit', async () => {
     const api = client();
     render(<CollectionList api={api} canManage workspaceId="workspace-1" workspaceSlug="workspace-alias" />);

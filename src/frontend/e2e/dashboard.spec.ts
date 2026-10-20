@@ -67,6 +67,8 @@ test.describe('Dashboard E2E Flows', () => {
     await page.route('**/api/v1/users/me', async (route) => {
       await route.fulfill({ json: mockUser });
     });
+    await page.route('**/api/v1/workspaces/*/collections**', route => route.fulfill({ json: { items: [] } }));
+    await page.route('**/api/v1/notifications**', route => route.fulfill({ json: { items: [] } }));
     await page.route('**/api/v1/workspaces', async (route) => {
       await route.fulfill({ json: mockWorkspaces });
     });
@@ -199,6 +201,26 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('menuitem', { name: 'Test Workspace' })).toBeVisible();
   });
 
+  test('keeps workspace, folder, and scene management in the legacy dashboard menus', async ({ page }) => {
+    await login(page);
+    await page.getByRole('combobox').click();
+    await page.getByRole('menuitem', { name: 'Rename workspace' }).click();
+    await expect(page.getByRole('dialog', { name: 'Rename workspace' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: 'Actions for Product Boards' }).click();
+    await page.getByRole('menuitem', { name: 'Rename or move' }).click();
+    await expect(page.getByRole('dialog', { name: 'Manage folder' })).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.getByRole('button', { name: 'New scene' }).click();
+    await expect(page.getByRole('region', { name: 'Excalidraw canvas' })).toBeVisible();
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Move', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Duplicate', exact: true })).toBeVisible();
+  });
+
   test('should handle empty workspace state gracefully', async ({ page }) => {
     await page.route('**/api/v1/workspaces', async (route) => {
       await route.fulfill({ json: [] });
@@ -267,7 +289,7 @@ test.describe('Dashboard E2E Flows', () => {
     await page.waitForTimeout(900);
     expect(contentSaveCount).toBe(1);
 
-    await page.getByRole('button', { name: 'Back to dashboard' }).click();
+    await page.goto('/');
     await expect(page.getByRole('region', { name: 'Scenes' })).toContainText('Untitled scene');
 
     await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
@@ -328,7 +350,7 @@ test.describe('Dashboard E2E Flows', () => {
   test('should create a public link from scene actions', async ({ page }) => {
     await login(page);
     await page.getByRole('button', { name: 'New scene' }).click();
-    await page.getByRole('button', { name: 'Back to dashboard' }).click();
+    await page.goto('/');
     await page.getByRole('button', { name: 'Actions for Untitled scene' }).click();
     await page.getByRole('menuitem', { name: 'Share', exact: true }).click();
     await expect(page.getByRole('dialog')).toContainText('Share Untitled scene');
@@ -381,7 +403,7 @@ test.describe('Dashboard E2E Flows', () => {
     await expect(page.getByRole('heading', { name: 'Password required' })).toBeVisible();
     await page.getByPlaceholder('Share password').fill('correct horse');
     await page.getByRole('button', { name: 'Open shared scene' }).click();
-    await expect(page.getByText('Protected scene')).toBeVisible();
+    await expect(page.getByTestId('scene-title-island')).toHaveText('Protected scene');
     await expect(page.getByText('Read-only')).toBeVisible();
   });
 });
