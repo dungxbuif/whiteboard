@@ -150,6 +150,42 @@ Errors use `{code,message,requestId}`: 400 INVALID_INPUT, 401 SHARE_PASSWORD_REQ
 
 Migration 000008 preserves active/inactive legacy view links and bcrypt hashes. Legacy PUT share updates synchronize only their mapped link; new links store SHA-256 digests only. Down migration refuses multiple links and any new/edit/expiring grant that the legacy table cannot represent. See [public-link authority and migration](public-links.md) and [deployment](../operations/DEPLOYMENT.md). Browser controls and live collab-runtime behavior remain C2/B integration; no v2 deployment is claimed.
 
+## Enterprise C1 comment contract
+
+Comment metadata is served by the Go API and is never stored in Yjs scene
+content. Login callers provide `X-Workspace-ID`; public callers provide the
+existing scene-session bearer. Both forms resolve the URL scene inside the
+credential scope and recheck current feature/access authority for every read
+and mutation.
+
+| Method and path | Request / query | Success |
+| --- | --- | --- |
+| GET `/api/v1/scenes/{id}/comments` | `cursor=<thread UUID>&limit=1..50` (default 50) | 200 `{items,nextCursor}` |
+| POST `/api/v1/scenes/{id}/comments` | `{requestId,anchor:{elementId?,x,y},body}` | 201 thread |
+| GET `/api/v1/scenes/{id}/comments/{threadId}` | none | 200 thread |
+| POST `/api/v1/scenes/{id}/comments/{threadId}/replies` | `{requestId,body}` | 201 message |
+| PATCH `/api/v1/scenes/{id}/comments/{threadId}/messages/{messageId}` | `{requestId,expectedRevision,body}` | 200 message |
+| DELETE `/api/v1/scenes/{id}/comments/{threadId}/messages/{messageId}` | strict JSON `{requestId,expectedRevision}` | 204 |
+| PATCH `/api/v1/scenes/{id}/comments/{threadId}` | `{requestId,expectedRevision,resolved?,subscribed?}` | 200 thread |
+
+Bodies are plain UTF-8 text containing 1–4,000 Unicode code points and are
+rendered as text by clients. Revisions are positive canonical decimal strings.
+Request IDs are UUIDs bound to principal, workspace, scene, action and exact
+payload; an exact retry returns the stored result while changed reuse returns
+`409 REQUEST_ID_REUSED`. Stale revisions return `409 REVISION_CONFLICT`.
+Foreign thread/message IDs return 404 without revealing another tenant or
+scene. Responses expose safe author display names and `mine`, never accept an
+author/display name in mutation bodies, and never expose stored principal IDs.
+
+Authors may edit or redact their own messages. Workspace owners may redact any
+message; authenticated owners/editors may resolve or reopen threads. Redaction
+keeps the message and revision with an empty body plus `deletedAt`. Authenticated
+authors are subscribed on creation/reply; guests have no workspace inbox.
+Writes are capped at 30 committed mutations per principal and scene per minute.
+Mutation, subscription, idempotency receipt, cursor-only event/outbox row and
+comment data share the workspace-lock transaction. Events contain only IDs,
+revision, status and request ID, never the body.
+
 ## A4 mutation and scene assets (deployed; production storage canary passed)
 
 Private Go mutation decisions and public scene assets follow the [authority contract](mutation-authority.md). The private listener authenticates a service credential plus a scoped room token; it is absent from public API routing. Scene-session upload/view routes use current access and bounded object-store URLs; public view sessions cannot upload. [Human guide](../user/scene-assets.md) and [agent reference](../../src/frontend/public/docs/scene-assets.md) describe the same contract. Verification includes PostgreSQL revoke races, scene isolation, expiry and authority failure.

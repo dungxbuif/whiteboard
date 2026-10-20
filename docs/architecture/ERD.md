@@ -25,6 +25,9 @@ shared_fields: [status, trace]
 | scenes | Scene content and metadata | Workspace | UUID key, nullable unique public_id; workspace_id/id unique pair. |
 | scene_member_overrides | Per-scene content role | Owner management | scene_id/user_id primary key; editor/viewer only. |
 | acl_audit_events | Durable permission metadata | Access authority | Sequence, workspace, optional scene/actor/subject, event type and ACL version; no raw credentials. |
+| comment_threads | Scene-scoped anchored discussion | Comment service | Composite workspace/scene/id key, creator principal snapshot, optional element ID plus fallback x/y, open/resolved revision. |
+| comments | Durable plain-text message or redaction marker | Comment service | Composite tenant/thread/message key, author principal snapshot, body, revision and edit/delete timestamps. |
+| comment_subscriptions | Authenticated user's thread subscription | Comment service | Composite thread/user key; guests never receive private subscriptions. |
 
 ## Relationships
 
@@ -34,6 +37,9 @@ shared_fields: [status, trace]
 | scene_member_overrides | scenes | Composite foreign key | workspace_id/scene_id enforces scene tenancy. |
 | scene_member_overrides | workspace_members | Composite foreign key | workspace_id/user_id requires current membership. |
 | acl_audit_events | workspaces | Many-to-one | Cascades on physical workspace removal. |
+| comment_threads | scenes | Composite many-to-one | `(workspace_id,scene_id)` prevents cross-tenant anchors. |
+| comments | comment_threads | Composite many-to-one | `(workspace_id,scene_id,thread_id)` prevents foreign-thread writes. |
+| comment_subscriptions | comment_threads, users | Composite many-to-one | Thread scope and real user identity are both enforced by foreign keys. |
 
 ## Constraints
 
@@ -82,6 +88,7 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000011 / `workspace_invitations` | Seven-day email-bound single-use invitation metadata/hash, consumption and revocation timestamps |
 | 000012 / `scene_assets` | Scene-scoped immutable file identity and user/guest uploader metadata; transient signed capabilities are not stored as authority |
 | 000013 / `agent_operation_audit` | Go-authoritative operation outcome, key/principal/scope/correlation, latency and failure class; no raw token or scene contents |
+| 000017 / `comment_threads`, `comments`, `comment_subscriptions` | Scene-scoped anchored discussions, revisioned plain-text/redaction messages and authenticated-user subscriptions; feature receipts and workspace events remain the transaction/idempotency layers |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 
