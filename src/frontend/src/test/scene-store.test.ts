@@ -161,11 +161,19 @@ describe("scene store", () => {
     expect(useSceneStore.getState().activeScene?.id).toBe("scene-2");
   });
 
-  it("keeps a moved scene visible when the list refresh fails after PATCH", async () => {
+  it("removes a moved scene from its old folder when refresh fails after PATCH", async () => {
     useSceneStore.setState({ scenes: [scene] });
     vi.mocked(api.patch).mockResolvedValue({ data: { ...scene, folderId: "folder-2" } });
     vi.mocked(api.get).mockRejectedValue(new Error("refresh failed"));
-    await expect(useSceneStore.getState().moveScene("workspace-1", scene.id, "folder-2", null)).resolves.toBeUndefined();
+    await expect(useSceneStore.getState().moveScene("workspace-1", scene.id, "folder-2", "folder-1")).resolves.toBeUndefined();
+    expect(useSceneStore.getState().scenes).toEqual([]);
+  });
+
+  it("keeps a moved scene in all files when refresh fails after PATCH", async () => {
+    useSceneStore.setState({ scenes: [scene] });
+    vi.mocked(api.patch).mockResolvedValue({ data: { ...scene, folderId: "folder-2" } });
+    vi.mocked(api.get).mockRejectedValue(new Error("refresh failed"));
+    await useSceneStore.getState().moveScene("workspace-1", scene.id, "folder-2", null);
     expect(useSceneStore.getState().scenes[0].folderId).toBe("folder-2");
   });
 });

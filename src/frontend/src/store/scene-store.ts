@@ -222,7 +222,9 @@ const useSceneStore = create<SceneState>((set, get) => {
         scenes: updateScene(state.scenes, response.data),
         activeScene: state.activeScene?.id === sceneId ? response.data : state.activeScene,
       }));
-      const committedScenes = get().scenes;
+      const committedScenes = currentFolderId === null
+        ? get().scenes
+        : get().scenes.filter((scene) => scene.folderId === currentFolderId);
       try { await get().fetchScenes(workspaceId, currentFolderId); }
       catch { set({ scenes: committedScenes, isLoading: false, error: null }); }
     },

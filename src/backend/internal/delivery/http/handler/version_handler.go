@@ -49,6 +49,7 @@ func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Han
 }
 
 func (h *VersionHandler) CurrentProjection(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	principal, ref, err := h.identity(r)
 	if err != nil {
 		writeVersionError(w, r, err)

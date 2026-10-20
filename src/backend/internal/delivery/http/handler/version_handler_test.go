@@ -62,7 +62,7 @@ func TestVersionHandlerServesCurrentDurableProjection(t *testing.T) {
 	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
 	response := httptest.NewRecorder()
 	routes.ServeHTTP(response, request)
-	if response.Code != http.StatusOK || service.called != "projection" || !strings.Contains(response.Body.String(), `"id":"recent"`) {
+	if response.Code != http.StatusOK || response.Header().Get("Cache-Control") != "no-store" || service.called != "projection" || !strings.Contains(response.Body.String(), `"id":"recent"`) {
 		t.Fatalf("status=%d called=%s body=%s", response.Code, service.called, response.Body.String())
 	}
 }
