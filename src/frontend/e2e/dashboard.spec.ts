@@ -420,6 +420,16 @@ test.describe('Dashboard E2E Flows', () => {
   });
 
   test('should render a public shared scene on the native canvas', async ({ page }) => {
+    await page.routeWebSocket('**/collab', socket => {
+      socket.onMessage(message => {
+        const control = JSON.parse(String(message)) as { type?: string; requestId?: string };
+        if (control.type !== 'auth') return;
+        socket.send(JSON.stringify({ type: 'ready', requestId: control.requestId, payload: {
+          workspaceId: mockWorkspaces[0].id, sceneId: 'scene-created', principalId: 'guest:test',
+          documentId: 'public-view-document', sequence: '0', access: 'view', connectionId: 'viewer-1',
+        } }));
+      });
+    });
     await page.route('**/api/v1/public/scenes/share-token', async (route) => {
       await route.fulfill({
         json: {
@@ -434,6 +444,7 @@ test.describe('Dashboard E2E Flows', () => {
     const publicCanvas = page.getByRole('region', { name: 'Public Excalidraw canvas' });
     await expect(publicCanvas.locator('.excalidraw')).toBeVisible();
     await expect(publicCanvas.locator('canvas').first()).toBeVisible();
+    await expect(publicCanvas.getByRole('status')).toHaveText('Read-only');
     await expect(publicCanvas.getByTitle('Rectangle — R or 2', { exact: true })).toHaveCount(0);
     await expect(publicCanvas.getByRole('button', { name: 'Open AI assistant' })).toHaveCount(0);
   });
