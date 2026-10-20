@@ -18,6 +18,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Libraries](docs/libraries.md): native v2 workspace library limits, immutable revisions, safe insertion, export endpoints and authorization invariants.
 - [Workspace OIDC SSO](docs/workspace-sso.md): issuer/subject identity, authenticated linking, session assurance, enforcement and recovery constraints.
 - [Retention](docs/retention.md): owner preview, seven-day scheduling, holds, metadata limits and protected collaboration history.
+- [SCIM provisioning](docs/workspace-scim.md): workspace-scoped SCIM 2.0 discovery, user/group lifecycle, one-time token rotation, provenance and owner protection.
 
 - [Scene assets](docs/scene-assets.md): locally verified release-candidate scoped upload/view, size/MIME limits, expiry and required headers.
 

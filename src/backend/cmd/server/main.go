@@ -214,6 +214,17 @@ func main() {
 	collectionHandler := handler.NewCollectionHandler(collections, accessService)
 	domainService := usecase.NewDomainService(postgresrepo.NewDomainRepository(db), accessService, dnsrepo.NewTXTResolver(nil, 3*time.Second))
 	domainHandler := handler.NewDomainHandler(domainService, accessService)
+	scimRepo := postgresrepo.NewSCIMRepository(db)
+	scimService := usecase.NewSCIMService(scimRepo, accessService)
+	scimHandler := handler.NewSCIMHandler(scimService, accessService, middledelivery.SCIMAuth(scimRepo))
+	libraryService := usecase.NewLibraryService(postgresrepo.NewLibraryRepository(db), features, accessService, capabilities, collabRemote)
+	if copier, ok := any(s3Repo).(domain.LibraryObjectCopier); ok {
+		libraryService.SetAssetStager(postgresrepo.NewLibraryAssetStager(db, copier, 24*time.Hour))
+	} else {
+		logger.Error("object storage does not support library asset staging")
+		os.Exit(1)
+	}
+	libraryHandler := handler.NewLibraryHandler(libraryService, accessService)
 	ssoCipher, err := oidcrepo.NewAESGCMCipher([]byte(cfg.SSOEncryptionKey))
 	if err != nil {
 		logger.Error("failed to configure SSO encryption", "error", err)
@@ -229,7 +240,7 @@ func main() {
 	retentionHandler := handler.NewRetentionHandler(retentionService, accessService)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler, collectionHandler, domainHandler, httpdelivery.EnterpriseExtras{SSO: ssoHandler, Retention: retentionHandler}),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler, collectionHandler, domainHandler, httpdelivery.EnterpriseExtras{SSO: ssoHandler, Retention: retentionHandler, SCIM: scimHandler, Library: libraryHandler}),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 

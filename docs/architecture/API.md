@@ -43,6 +43,12 @@ from the remaining operational canaries.
 | `POST /api/v1/ai/to-code` | HTTP | JWT | active | Converts a scene JSON payload into previewable React/HTML code. |
 | `GET /api/v1/realtime/config` | HTTP | Scoped scene session or room token | active | Rechecks current scene access and returns external TURN URL(s) plus short-lived credentials; a login JWT alone is denied. |
 | `/collab/` | Custom WebSocket | Room token in first `auth` control | active | One admitted socket carries durable Yjs updates, roster, cursor/selection, follow viewport and WebRTC signaling. Credentials never appear in the URL. `/socket.io/` is retired. |
+| `GET /api/v1/scim/v2/ServiceProviderConfig`, `/ResourceTypes`, `/Schemas` | SCIM 2.0 | Dedicated `Bearer scim_…` token | active | Discovery endpoints for workspace provisioning. Tokens are workspace-scoped and never accepted as login JWTs. |
+| `GET, POST /api/v1/scim/v2/Users`, `PATCH, PUT, DELETE /api/v1/scim/v2/Users/{id}` | SCIM 2.0 | Dedicated SCIM token | active | Provision viewers/editors, preserve manual provenance, reject owner adoption, and serialize changes with workspace locks. |
+| `GET, POST /api/v1/scim/v2/Groups`, `PATCH, PUT, DELETE /api/v1/scim/v2/Groups/{id}` | SCIM 2.0 | Dedicated SCIM token | active | Group membership materializes managed membership sources; owner rows are protected. |
+| `GET, POST /api/v1/workspaces/{id}/scim/token`, `DELETE .../scim/token` | HTTP | JWT + workspace owner | active | Rotate/revoke a token; the raw token is returned once. |
+| `GET /api/v1/workspaces/{id}/libraries`, `POST .../libraries/import`, `PUT .../libraries/{libraryId}` | HTTP | JWT + workspace edit/manage | active | Import and publish immutable native `.excalidrawlib` revisions with bounded payloads. |
+| `GET .../libraries/{libraryId}/revisions/{revision}/export`, `POST /api/v1/workspaces/{id}/scenes/{sceneId}/library-insertions` | HTTP | JWT + workspace/scene access | active | Export a revision or insert it into an authorized scene with sequence/idempotency checks. |
 
 ## Collection contract
 
