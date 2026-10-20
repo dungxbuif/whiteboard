@@ -102,6 +102,11 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 			return nil, domain.ErrInvalidVersionInput
 		}
 		content = projection.Content
+	} else {
+		content, err = canonicalLegacyDuplicateContent(content)
+		if err != nil {
+			return nil, err
+		}
 	}
 	copy := &domain.Scene{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, FolderID: folderID, Title: title, Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), ContentVersion: 1, CreatedBy: principal.UserID, UpdatedBy: principal.UserID, WriterMode: "v1", PendingDuplicate: true}
 	copy.DeletedAt.Time, copy.DeletedAt.Valid = time.Now(), true // invisible until staging commits
@@ -116,7 +121,23 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 	}
 	if err == nil {
 		copy.Content = result
-		err = s.scenes.PublishDuplicate(ctx, copy)
+		err = s.access.WithWorkspaceLock(ctx, ref.WorkspaceID, *principal.UserID, func(locked domain.Context) error {
+			sceneDecision, accessErr := s.access.Resolve(locked, principal, ref)
+			if accessErr != nil {
+				return accessErr
+			}
+			if sceneDecision.Access != domain.AccessEdit && sceneDecision.Access != domain.AccessManage {
+				return domain.ErrAccessDenied
+			}
+			workspaceDecision, accessErr := s.access.ResolveWorkspace(locked, principal, ref.WorkspaceID)
+			if accessErr != nil {
+				return accessErr
+			}
+			if workspaceDecision.Access != domain.AccessEdit && workspaceDecision.Access != domain.AccessManage {
+				return domain.ErrAccessDenied
+			}
+			return s.scenes.PublishDuplicate(locked, copy)
+		})
 	}
 	if err != nil {
 		return s.reconcileDuplicateFailure(target, requestID, err)
@@ -125,6 +146,78 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 	copy.PendingDuplicate = false
 	copy.ContentVersion++
 	return copy, nil
+}
+
+// Legacy promotion retains durable scene data while dropping renderer-local
+// app state and inline asset bytes. Apply the same shape before copying v1.
+func canonicalLegacyDuplicateContent(raw json.RawMessage) (json.RawMessage, error) {
+	var original map[string]json.RawMessage
+	if json.Unmarshal(raw, &original) != nil || original == nil {
+		return nil, domain.ErrInvalidVersionInput
+	}
+	for key := range original {
+		if key != "elements" && key != "appState" && key != "files" && key != "presentationOrder" {
+			return nil, domain.ErrInvalidVersionInput
+		}
+	}
+	elements := json.RawMessage(`[]`)
+	if value, ok := original["elements"]; ok {
+		var list []json.RawMessage
+		if json.Unmarshal(value, &list) != nil || list == nil {
+			return nil, domain.ErrInvalidVersionInput
+		}
+		elements = value
+	}
+	appState := map[string]json.RawMessage{}
+	if value, ok := original["appState"]; ok {
+		var legacy map[string]json.RawMessage
+		if json.Unmarshal(value, &legacy) != nil || legacy == nil {
+			return nil, domain.ErrInvalidVersionInput
+		}
+		for _, key := range []string{"viewBackgroundColor", "gridSize", "gridStep", "gridModeEnabled", "theme"} {
+			if field, ok := legacy[key]; ok {
+				appState[key] = field
+			}
+		}
+	}
+	files := map[string]map[string]json.RawMessage{}
+	if value, ok := original["files"]; ok {
+		var legacy map[string]json.RawMessage
+		if json.Unmarshal(value, &legacy) != nil || legacy == nil {
+			return nil, domain.ErrInvalidVersionInput
+		}
+		for id, encoded := range legacy {
+			var descriptor map[string]json.RawMessage
+			if json.Unmarshal(encoded, &descriptor) != nil || descriptor == nil {
+				return nil, domain.ErrInvalidVersionInput
+			}
+			var declaredID string
+			if json.Unmarshal(descriptor["id"], &declaredID) != nil || declaredID != id {
+				return nil, domain.ErrInvalidVersionInput
+			}
+			clean := map[string]json.RawMessage{}
+			for key, field := range descriptor {
+				switch key {
+				case "id", "mimeType", "created", "assetId", "lastRetrieved", "version":
+					clean[key] = field
+				case "dataURL":
+					// Inline renderer cache is never copied.
+				default:
+					return nil, domain.ErrInvalidVersionInput
+				}
+			}
+			files[id] = clean
+		}
+	}
+	canonical := map[string]any{"elements": elements, "appState": appState, "files": files}
+	if order, ok := original["presentationOrder"]; ok {
+		canonical["presentationOrder"] = order
+	}
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return nil, domain.ErrInvalidVersionInput
+	}
+	return encoded, nil
 }
 
 // The publish write may have committed before its connection returned an

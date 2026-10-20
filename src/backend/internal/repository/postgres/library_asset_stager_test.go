@@ -91,6 +91,20 @@ func TestSceneCopyStagesImageAndRewritesReferences(t *testing.T) {
 	}
 }
 
+func TestSceneCopyRejectsInlineFileWithoutSceneAsset(t *testing.T) {
+	db := accessTestDB(t, 999)
+	owner, _, workspace := accessFixture(t, db)
+	source, target := uuid.New(), uuid.New()
+	for index, scene := range []uuid.UUID{source, target} {
+		mustExec(t, db, `INSERT INTO scenes(id,workspace_id,title,content,created_by) VALUES(?,?,?,?::jsonb,?)`, scene, workspace, "Inline "+string(rune('A'+index)), `{"elements":[],"appState":{},"files":{}}`, owner)
+	}
+	content := json.RawMessage(`{"elements":[{"id":"image","type":"image","fileId":"file"}],"appState":{},"files":{"file":{"id":"file","mimeType":"image/png","dataURL":"data:image/png;base64,AAAA"}}}`)
+	stager := NewLibraryAssetStager(db, &libraryCopyStub{}, time.Hour)
+	if _, err := stager.StageSceneCopy(context.Background(), domain.UserPrincipal(owner), domain.SceneRef{WorkspaceID: workspace, SceneID: source}, domain.SceneRef{WorkspaceID: workspace, SceneID: target}, uuid.New(), content); !errors.Is(err, domain.ErrInvalidLibrary) {
+		t.Fatalf("copy must reject image without scene-scoped asset: %v", err)
+	}
+}
+
 func TestLibraryAssetPinRaceStagesOneIdempotentTarget(t *testing.T) {
 	db := accessTestDB(t, 999)
 	owner, _, workspace := accessFixture(t, db)

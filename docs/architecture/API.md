@@ -119,7 +119,10 @@ and workspace owner/editor membership; it returns `201` with the new scene.
 The server reads a v2 scene through a signed collaboration export projection,
 including acknowledged edits not yet compacted into the scene row. This bounded
 export path supports scenes above the ordinary read projection's 500-element/
-256 KiB limit. A legacy scene uses its stored content. Referenced scene assets
+256 KiB limit. A legacy scene uses its stored content after normalizing it to
+the promotion contract: only durable app state and scene-owned file metadata
+are retained; renderer/session fields and inline file bytes are dropped. A
+legacy file without a scene-scoped asset cannot be copied. Referenced scene assets
 are copied to new object keys and scene-scoped rows, with file IDs and image
 references rewritten. The scene remains hidden until content and assets are
 complete; failed copies use an independent cleanup context to remove staged
@@ -128,6 +131,9 @@ records remain for recovery instead of appearing as a partial copy. Migration
 `000029` marks these rows `pending_duplicate`; Trash, search, scene Restore and
 recursive folder Restore exclude them until the publish update clears the marker
 and `deleted_at` atomically.
+The server rechecks current scene and workspace edit access under the workspace
+lock just before publication. A grant revoked during export or asset staging
+prevents publication and triggers hidden-copy compensation.
 Compensation first claims a pending row with `duplicate_cleanup_started`;
 publication refuses claimed rows, while hard deletion refuses published rows.
 After an ambiguous publish error, the server independently reads this state and

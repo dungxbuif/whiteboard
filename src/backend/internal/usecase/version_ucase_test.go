@@ -155,11 +155,100 @@ func (duplicateAccessStub) Resolve(_ domain.Context, _ domain.Principal, _ domai
 func (duplicateAccessStub) ResolveWorkspace(_ domain.Context, _ domain.Principal, _ uuid.UUID) (domain.AccessDecision, error) {
 	return domain.AccessDecision{Access: domain.AccessEdit}, nil
 }
+func (duplicateAccessStub) WithWorkspaceLock(ctx domain.Context, _ uuid.UUID, _ uuid.UUID, fn func(domain.Context) error) error {
+	return fn(ctx)
+}
+
+type revocableDuplicateAccessStub struct {
+	duplicateAccessStub
+	revokeScene, revokeWorkspace, locked bool
+}
+
+func (s *revocableDuplicateAccessStub) Resolve(_ domain.Context, _ domain.Principal, _ domain.SceneRef) (domain.AccessDecision, error) {
+	if s.revokeScene {
+		return domain.AccessDecision{Access: domain.AccessView}, nil
+	}
+	return domain.AccessDecision{Access: domain.AccessEdit}, nil
+}
+func (s *revocableDuplicateAccessStub) ResolveWorkspace(_ domain.Context, _ domain.Principal, _ uuid.UUID) (domain.AccessDecision, error) {
+	if s.revokeWorkspace {
+		return domain.AccessDecision{Access: domain.AccessView}, nil
+	}
+	return domain.AccessDecision{Access: domain.AccessEdit}, nil
+}
+func (s *revocableDuplicateAccessStub) WithWorkspaceLock(ctx domain.Context, _ uuid.UUID, _ uuid.UUID, fn func(domain.Context) error) error {
+	s.locked = true
+	defer func() { s.locked = false }()
+	return fn(ctx)
+}
 
 type duplicateAssetStagerStub struct {
 	called, cleaned, cleanupContextCanceled bool
 	stageErr, cleanupErr                    error
 	onStage                                 func()
+}
+
+func TestDuplicateRejectsRevocationAfterStagingBeforePublish(t *testing.T) {
+	for _, revoked := range []string{"scene", "workspace"} {
+		t.Run(revoked, func(t *testing.T) {
+			ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+			scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}}
+			access := &revocableDuplicateAccessStub{}
+			staging := make(chan struct{})
+			continueStage := make(chan struct{})
+			assets := &duplicateAssetStagerStub{onStage: func() {
+				close(staging)
+				<-continueStage
+			}}
+			service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+			service.SetDuplicateDependencies(scenes, nil, assets, access)
+			result := make(chan error, 1)
+			go func() {
+				_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+				result <- err
+			}()
+			<-staging
+			if revoked == "scene" {
+				access.revokeScene = true
+			} else {
+				access.revokeWorkspace = true
+			}
+			close(continueStage)
+			err := <-result
+			if !errors.Is(err, domain.ErrAccessDenied) || scenes.published || !assets.cleaned || !scenes.deleted {
+				t.Fatalf("revocation escaped publish gate: err=%v published=%v cleaned=%v deleted=%v", err, scenes.published, assets.cleaned, scenes.deleted)
+			}
+		})
+	}
+}
+
+func TestDuplicateV1ContentDropsRendererStateAndInlineFiles(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	asset := uuid.NewString()
+	legacy := json.RawMessage(`{"elements":[{"id":"image","type":"image","fileId":"file"}],"appState":{"theme":"dark","gridSize":20,"openSidebar":"library","collaborators":{"user":{}}},"files":{"file":{"id":"file","mimeType":"image/png","created":1,"assetId":"` + asset + `","dataURL":"data:image/png;base64,secret","lastRetrieved":2}},"presentationOrder":["image"]}`)
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: legacy}}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, &duplicateAssetStagerStub{}, duplicateAccessStub{})
+	copy, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var content struct {
+		Elements          []map[string]any          `json:"elements"`
+		AppState          map[string]any            `json:"appState"`
+		Files             map[string]map[string]any `json:"files"`
+		PresentationOrder []string                  `json:"presentationOrder"`
+	}
+	if err := json.Unmarshal(copy.Content, &content); err != nil {
+		t.Fatal(err)
+	}
+	if len(content.Elements) != 1 || content.Elements[0]["fileId"] != "file" || content.AppState["theme"] != "dark" || content.AppState["gridSize"] != float64(20) || len(content.AppState) != 2 || len(content.PresentationOrder) != 1 {
+		t.Fatalf("durable scene fields changed: %s", copy.Content)
+	}
+	file := content.Files["file"]
+	if file["assetId"] != asset || file["mimeType"] != "image/png" || file["lastRetrieved"] != float64(2) || file["dataURL"] != nil {
+		t.Fatalf("inline or scene asset fields wrong: %s", copy.Content)
+	}
 }
 
 func (s *duplicateAssetStagerStub) StageSceneCopy(_ domain.Context, _ domain.Principal, _, _ domain.SceneRef, _ uuid.UUID, content json.RawMessage) (json.RawMessage, error) {

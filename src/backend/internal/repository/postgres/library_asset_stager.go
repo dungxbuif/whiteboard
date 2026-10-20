@@ -79,8 +79,8 @@ func (s *LibraryAssetStager) StageSceneCopy(ctx domain.Context, principal domain
 			var sourceAsset domain.SceneAsset
 			err := s.db.WithContext(ctx).Where("workspace_id=? AND scene_id=? AND file_id=? AND deleted_at IS NULL", source.WorkspaceID, source.SceneID, fileID).First(&sourceAsset).Error
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				continue
-			} // inline, unscoped legacy file
+				return nil, domain.ErrInvalidLibrary // inline or unscoped legacy file cannot be copied safely
+			}
 			if err != nil {
 				return nil, err
 			}
