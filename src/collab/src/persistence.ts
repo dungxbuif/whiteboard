@@ -9,13 +9,17 @@ import {parseMutation,commandUpdate} from './commands.js';
 import {promoteLegacy} from './promotion.js';
 import {RateLimit} from './rate-limit.js';
 import {RuntimeOwnership,type OwnerLease} from './ownership.js';
+import {MAX_VERSION_BYTES,canonicalSceneBytes,canonicalVersionPayload,referencedAssetIDs,type CaptureVersionInput,type VersionSummary} from './versions.js';
 export type SceneState={doc:Y.Doc;content:SceneContent;documentId:string;sequence:string;stateVector:string;access:'view'|'edit'};
 type Row={document_id:string;sequence:string;snapshot_sequence:string;snapshot:Buffer;snapshot_at:Date;legacy_content:unknown;legacy_content_version:string};
+function versionSummary(row:Record<string,unknown>):VersionSummary{
+ return {id:String(row.id),documentId:String(row.document_id),sequence:String(row.source_sequence),hash:String(row.content_hash),...(row.label===null||row.label===undefined?{}:{label:String(row.label)}),pinned:Boolean(row.pinned),kind:row.kind as 'manual'|'automatic',metadataRevision:String(row.metadata_revision),createdAt:(row.created_at as Date).toISOString(),updatedAt:(row.updated_at as Date).toISOString(),creator:{kind:row.creator_kind as 'user'|'system',id:String(row.creator_id)}};
+}
 export class Persistence extends EventEmitter {
  private rates=new RateLimit();
  private ownership:RuntimeOwnership|undefined;
  bindRuntimeOwnership(ownership:RuntimeOwnership){this.ownership=ownership;}
- constructor(public pool:Pool,public authority:Authority,private options:{promoteV2:boolean;updatesPerMinute?:number}={promoteV2:false}){super();}
+ constructor(public pool:Pool,public authority:Authority,private options:{promoteV2:boolean;updatesPerMinute?:number;now?:()=>number}={promoteV2:false}){super();}
  private async transaction<T>(ref:SceneRef,decision:Decision|undefined,fn:(client:PoolClient)=>Promise<T>,skipInactive=false):Promise<T>{
   const ownership=this.ownership;ownership?.assert();
   const client=await this.pool.connect();let failure=false;let lease:OwnerLease|undefined;
@@ -93,6 +97,62 @@ export class Persistence extends EventEmitter {
   bytes=bytes.slice();const mutation=parseMutation(bytes),ref={workspaceId:mutation.workspaceId,sceneId:mutation.sceneId};
   const decision=await this.authority.verifyDecision(grant,{...ref,action:'scene:command',requestId:mutation.requestId,payloadHash:hash(bytes),expectedSequence:mutation.expectedSequence});
   return this.append(ref,decision,bytes,doc=>commandUpdate(doc,mutation));
+ }
+ async captureVersion(ref:SceneRef,grant:string,input:CaptureVersionInput):Promise<VersionSummary>{
+  requestID(input.requestId);
+  if(!revision(input.expectedSequence)||typeof input.pinned!=='boolean'||input.label!==undefined&&(typeof input.label!=='string'||input.label.trim()!==input.label||input.label.length<1||input.label.length>255))throw new CollabError('INVALID_UPDATE','Invalid version input',400);
+  const payload=canonicalVersionPayload(input),payloadHash=hash(payload);
+  const decision=await this.authority.verifyDecision(grant,{...ref,action:'version:create',requestId:input.requestId,payloadHash,expectedSequence:input.expectedSequence});
+  if(decision.access!=='edit'||decision.principalType!=='user')throw new CollabError('FORBIDDEN');
+  return this.transaction(ref,decision,async client=>{
+   const previous=(await client.query('SELECT id,document_id,source_sequence::text,content_hash,label,pinned,kind,creator_kind,creator_id,metadata_revision::text,created_at,updated_at,payload_hash FROM scene_versions WHERE scene_id=$1 AND request_id=$2',[ref.sceneId,input.requestId])).rows[0];
+   if(previous){
+    if(previous.payload_hash!==payloadHash||previous.creator_kind!==decision.principalType||previous.creator_id!==decision.principalId)throw new CollabError('REQUEST_ID_REUSED','Request ID already binds another version',409);
+    return versionSummary(previous);
+   }
+   const {row,doc}=await this.load(client,ref);
+   try{
+    if(row.sequence!==input.expectedSequence)throw new CollabError('CONFLICT','Expected sequence differs from current sequence',409);
+    const content=materializeScene(doc),contentBytes=canonicalSceneBytes(content);
+    if(contentBytes.byteLength>MAX_VERSION_BYTES)throw new CollabError('VERSION_TOO_LARGE','Version exceeds 25 MiB',413);
+    const assetIDs=referencedAssetIDs(content);
+    if(assetIDs.length){
+     const assets=await client.query('SELECT id FROM scene_assets WHERE workspace_id=$1 AND scene_id=$2 AND id=ANY($3::uuid[]) AND deleted_at IS NULL FOR SHARE',[ref.workspaceId,ref.sceneId,assetIDs]);
+     if(assets.rowCount!==assetIDs.length)throw new CollabError('VERSION_ASSET_UNAVAILABLE','A referenced image is unavailable',409);
+    }
+    const id=randomUUID(),created=(await client.query(`INSERT INTO scene_versions(id,workspace_id,scene_id,document_id,source_sequence,content,content_bytes,content_hash,byte_size,label,pinned,kind,creator_kind,creator_id,request_id,payload_hash)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'manual',$12,$13,$14,$15)
+     RETURNING id,document_id,source_sequence::text,content_hash,label,pinned,kind,creator_kind,creator_id,metadata_revision::text,created_at,updated_at`,[id,ref.workspaceId,ref.sceneId,row.document_id,row.sequence,JSON.stringify(content),Buffer.from(contentBytes),hash(contentBytes),contentBytes.byteLength,input.label??null,input.pinned,decision.principalType,decision.principalId,input.requestId,payloadHash])).rows[0];
+    for(const assetID of assetIDs)await client.query('INSERT INTO version_assets(version_id,workspace_id,scene_id,asset_id) VALUES($1,$2,$3,$4)',[id,ref.workspaceId,ref.sceneId,assetID]);
+    const event=(await client.query("INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key) VALUES($1,$2,$3,$4,'version.created',$5,$6,'scene_version',$5) RETURNING id",[ref.workspaceId,ref.sceneId,decision.principalType,decision.principalId,id,JSON.stringify({versionId:id,sequence:row.sequence,kind:'manual',pinned:input.pinned})])).rows[0];
+    await client.query('INSERT INTO workspace_event_outbox(event_id,workspace_id,scene_id) VALUES($1,$2,$3)',[event.id,ref.workspaceId,ref.sceneId]);
+    return versionSummary(created);
+   }finally{doc.destroy();}
+  });
+ }
+ async captureAutomaticVersion(ref:SceneRef):Promise<VersionSummary|undefined>{
+  return this.transaction(ref,undefined,async client=>{
+   const {row,doc}=await this.load(client,ref);
+   try{
+    const previous=(await client.query("SELECT source_sequence::text,created_at FROM scene_versions WHERE scene_id=$1 AND kind='automatic' ORDER BY created_at DESC,id DESC LIMIT 1",[ref.sceneId])).rows[0];
+    if(previous&&(previous.source_sequence===row.sequence||new Date(previous.created_at).getTime()>(this.options.now?.()??Date.now())-60_000))return undefined;
+    const content=materializeScene(doc),contentBytes=canonicalSceneBytes(content);
+    if(contentBytes.byteLength>MAX_VERSION_BYTES)throw new CollabError('VERSION_TOO_LARGE','Version exceeds 25 MiB',413);
+    const assetIDs=referencedAssetIDs(content);
+    if(assetIDs.length){
+     const assets=await client.query('SELECT id FROM scene_assets WHERE workspace_id=$1 AND scene_id=$2 AND id=ANY($3::uuid[]) AND deleted_at IS NULL FOR SHARE',[ref.workspaceId,ref.sceneId,assetIDs]);
+     if(assets.rowCount!==assetIDs.length)throw new CollabError('VERSION_ASSET_UNAVAILABLE','A referenced image is unavailable',409);
+    }
+    const id=randomUUID(),requestId='automatic:'+randomUUID(),payloadHash=hash(new TextEncoder().encode(JSON.stringify({requestId,sequence:row.sequence})));
+    const created=(await client.query(`INSERT INTO scene_versions(id,workspace_id,scene_id,document_id,source_sequence,content,content_bytes,content_hash,byte_size,pinned,kind,creator_kind,creator_id,request_id,payload_hash)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,false,'automatic','system','collab-checkpointer',$10,$11)
+     RETURNING id,document_id,source_sequence::text,content_hash,label,pinned,kind,creator_kind,creator_id,metadata_revision::text,created_at,updated_at`,[id,ref.workspaceId,ref.sceneId,row.document_id,row.sequence,JSON.stringify(content),Buffer.from(contentBytes),hash(contentBytes),contentBytes.byteLength,requestId,payloadHash])).rows[0];
+    for(const assetID of assetIDs)await client.query('INSERT INTO version_assets(version_id,workspace_id,scene_id,asset_id) VALUES($1,$2,$3,$4)',[id,ref.workspaceId,ref.sceneId,assetID]);
+    const event=(await client.query("INSERT INTO workspace_events(workspace_id,scene_id,actor_kind,actor_id,kind,subject_id,safe_metadata,source,source_key) VALUES($1,$2,'system','collab-checkpointer','version.created',$3,$4,'scene_version',$3) RETURNING id",[ref.workspaceId,ref.sceneId,id,JSON.stringify({versionId:id,sequence:row.sequence,kind:'automatic',pinned:false})])).rows[0];
+    await client.query('INSERT INTO workspace_event_outbox(event_id,workspace_id,scene_id) VALUES($1,$2,$3)',[event.id,ref.workspaceId,ref.sceneId]);
+    return versionSummary(created);
+   }finally{doc.destroy();}
+  },true);
  }
  private async append(ref:SceneRef,decision:Decision,original:Uint8Array,makeUpdate:(doc:Y.Doc)=>Uint8Array):Promise<MutationReceipt>{
   if(decision.access!=='edit')throw new CollabError('FORBIDDEN');

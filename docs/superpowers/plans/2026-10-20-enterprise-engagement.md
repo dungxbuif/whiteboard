@@ -41,18 +41,18 @@ pairs for threads/messages/subscriptions; modify router/main.
 requestId and edits include expectedRevision. Anchor is `{elementId?:string,x:number,y:number}`.
 Produces the six comment routes in the spec; DELETE uses a strict JSON body.
 
-- [ ] Write `TestGuestViewCommentWithoutEdit`, `TestThreadScopeAndOwnerModeration`,
+- [x] Write `TestGuestViewCommentWithoutEdit`, `TestThreadScopeAndOwnerModeration`,
   `TestCommentUnicodeLimit`, `TestCommentRevokeRace`, `TestCommentIdempotency`:
   false guest policy403, foreign IDs404, body4001 rejected, changed edit409,
   transaction rollback leaves no message/event/notification.
-- [ ] Run `rtk go test ./internal/usecase ./internal/repository/postgres
+- [x] Run `rtk go test ./internal/usecase ./internal/repository/postgres
   ./internal/delivery/http/handler -run Comment -count=1` against guarded DB;
   expect RED. Implement handlers/services/repository using F1 locked writes,
   composite FKs and F2 events; no author identity accepted from request body.
-- [ ] Verify authors edit/delete own messages, owner redaction, editor resolve,
+- [x] Verify authors edit/delete own messages, owner redaction, editor resolve,
   revoked principal denial and member/guest page visibility; run migrations on
   fresh DB and migration13 upgrade.
-- [ ] Reconcile API/ERD/public-link policy and commit
+- [x] Reconcile API/ERD/public-link policy and commit
   `feat(comments): persist authorized anchored discussions`.
 
 ## Task 2: C2 — Canvas threads, moderation and notification inbox

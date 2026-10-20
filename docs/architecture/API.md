@@ -281,3 +281,27 @@ Go signs exact mutation bytes through A4, then invokes the private Node writer w
 MCP adds native diagram catalog/schema resources, `generate_diagram`, `patch_elements`, `delete_elements`, `get_scene_activity` and `export_scene` alongside discovery/create tools. Nineteen typed diagram presets and the restricted native Mermaid subset emit editable elements; unsupported syntax returns a typed alternative. See the [catalog](../user/diagram-catalog.md) and [complete tool guide](../user/agents.md) for schemas/examples.
 
 `POST /mcp/exports` supports the remote stdio export flow. `GET /mcp/artifacts/{id}` requires the same bearer principal and current independent export scope; the URL alone grants nothing. JSON/SVG/PNG artifacts have a captured decimal revision, five-minute expiry and bounded in-memory cache. Restart/expiry requires re-export. Both endpoints retain Origin checks and audit handling. Public scene/artifact links derive from explicit `WHITEBOARD_PUBLIC_URL`, never an internal API origin. See [renderer operations](../operations/mcp.md) for limits, fonts, process boundaries and release checks.
+
+## V1 immutable scene versions (implemented; router wiring pending)
+
+Authenticated members use the Go API; public scene-session guests are denied
+history. Responses use decimal-string sequences and metadata revisions.
+
+| Method | Endpoint | Contract |
+| --- | --- | --- |
+| GET | `/api/v1/scenes/{id}/versions?cursor&limit` | `version:read`; newest first, limit 1–50, UUID cursor |
+| POST | `/api/v1/scenes/{id}/versions` | `version:create`; `{requestId,expectedSequence,label?,pinned}`; immutable summary or 409 stale sequence |
+| GET | `/api/v1/scenes/{id}/versions/{versionId}` | `version:read`; immutable canonical content and metadata |
+| PATCH | `/api/v1/scenes/{id}/versions/{versionId}` | `version:create`; `{requestId,expectedRevision,label?,pinned?}`; label/pin only |
+
+Go checks F1 policy and current scene authority, signs the canonical create
+payload, then calls private Node `POST /internal/scenes/{sceneId}/versions`.
+Node verifies the binding under the writer transaction and atomically stores
+the exact document ID, sequence, content/hash, same-scene asset pins, safe event
+and outbox row. Content is limited to 25 MiB. Identical retries return the
+original version; changed retries are rejected.
+
+The owner-fenced checkpointer waits five dirty minutes and captures at most once
+per scene per minute. R1 owns the 100 automatic-version retention policy;
+manual and pinned versions are preserved. See [ADR 0014](../decisions/0014-version-writer-ownership.md),
+[human guide](../user/version-history.md), and [agent reference](../../src/frontend/public/docs/version-history.md).

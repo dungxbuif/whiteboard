@@ -11,8 +11,8 @@ updated: 2026-10-20
 ## Current Focus
 
 - **Active Phase:** Enterprise parity implementation — [phase](work/phases/PHASE-ENTERPRISE.md).
-- **Active Work:** The approved 22-task programme is executing in dependency order. Wave 0/1 is reviewed complete: full-viewport floating canvas controls, feature policy/idempotency, events/outbox, browser invalidation refetch and the bounded feature worker. C1 comments and M1 screen media are now in progress.
-- **Next Work:** Complete and review C1/M1, then continue comments/activity and live-presentation packages. No enterprise runtime change has shipped yet.
+- **Active Work:** The approved 22-task programme is executing in dependency order. Wave 0/1 and C1 durable comments are reviewed complete. M1 screen authority and V1 immutable checkpoints are in progress.
+- **Next Work:** Complete and review M1/V1, then continue notifications/activity and live-presentation packages. No enterprise runtime change has shipped yet.
 - **Released baseline:** VM100 frontend source `24b1cd0`; evidence-only follow-up `1d2af8a` is on master. Current [release evidence](releases/2026-10-19-collaboration-v2.md) records public canaries, production image and proof boundaries.
 
 ## Project
