@@ -10,7 +10,8 @@
     --card-foreground: 132 18% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 132 18% 11%;
-    --primary: 158 52% 30%;
+    /* Excalidraw indigo primary: #6965DB. Dashboard overrides this token. */
+    --primary: 242 63% 63%;
     --primary-foreground: 0 0% 100%;
     --secondary: 94 28% 90%;
     --secondary-foreground: 132 18% 17%;
@@ -22,7 +23,7 @@
     --destructive-foreground: 0 0% 100%;
     --border: 100 13% 82%;
     --input: 100 13% 82%;
-    --ring: 158 52% 30%;
+    --ring: 242 63% 63%;
     --radius: 0.5rem;
   }
 
