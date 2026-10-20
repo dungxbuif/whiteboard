@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { encodeRecoveryBytes, encodeRecoveryBlob } from './recovery';
-import { decodeFrame, encodeFrame, MAX_FRAME_BYTES, parseFeatureChanged, type SceneContent, type SceneRef } from '@collab/contracts';
+import { decodeFrame, encodeFrame, MAX_FRAME_BYTES, parseFeatureChanged, parsePresentationAdmitted, type SceneContent, type SceneRef } from '@collab/contracts';
 import { ExcalidrawAdapter, REMOTE_ORIGIN, REPLAY_ORIGIN } from './excalidraw-adapter';
 import { type OfflineStore, type PendingScope, scopeKey } from './offline-store';
 export type RoomGrant = { token: string; expiresAt: string };
@@ -8,7 +8,7 @@ export type WireSocket = Pick<WebSocket, 'readyState' | 'send' | 'close' | 'addE
 export type CollabStatus = 'connecting' | 'synced' | 'pending' | 'offline' | 'readonly' | 'revoked' | 'degraded' | 'legacy';
 export type TransportState = { status: CollabStatus; canEdit: boolean; pending: number; recovery: boolean; error?: string; connectionId?: string; sequence?: string };
 export type Control = { type: string; requestId: string; payload: Record<string, unknown> };
-export type TransportOptions = { sceneRef: SceneRef; principalId: string; adapter: ExcalidrawAdapter; store: OfflineStore; grant: () => Promise<RoomGrant>; url: string; socket?: (url: string) => WireSocket; onAccessLost?: () => void; onLegacy?: (code: string) => Promise<boolean> };
+export type TransportOptions = { sceneRef: SceneRef; principalId: string; adapter: ExcalidrawAdapter; store: OfflineStore; grant: () => Promise<RoomGrant>; url: string; authType?:'auth'|'presentation_auth'; socket?: (url: string) => WireSocket; onAccessLost?: () => void; onLegacy?: (code: string) => Promise<boolean>; onPresentationAdmitted?:(grant:{sessionId:string;token:string;expiresAt:number})=>void };
 const MAX_HISTORY_BYTES = 64 * 1024 * 1024;
 const SEND_INTERVAL_MS = 600;
 const REFRESH_EARLY_MS = 60000;
@@ -74,7 +74,7 @@ export class CollabTransport {
       if (!Number.isFinite(Date.parse(grant.expiresAt))) throw new Error('Invalid room expiry');
       const socket = (this.options.socket ?? (url => new WebSocket(url)))(this.options.url);
       this.socket = socket; socket.binaryType = 'arraybuffer';
-      socket.addEventListener('open', () => { if (this.current(generation)) { socket.send(JSON.stringify({ type: 'auth', requestId: crypto.randomUUID(), payload: { token: grant.token } })); this.scheduleRefresh(grant, generation); } });
+      socket.addEventListener('open', () => { if (this.current(generation)) { socket.send(JSON.stringify({ type: this.options.authType??'auth', requestId: crypto.randomUUID(), payload: { token: grant.token } })); if(this.options.authType!=='presentation_auth')this.scheduleRefresh(grant, generation); } });
       socket.addEventListener('message', event => {
         this.chain = this.chain.then(async () => { if (this.current(generation)) await this.receive((event as MessageEvent).data, generation); }).catch(error => { if (this.current(generation)) this.fail(error); });
       });
@@ -182,6 +182,7 @@ export class CollabTransport {
     }
     if (control.type === 'resync_required') { this.access = 'view'; this.synced = false; this.set({ canEdit: false, connectionId: undefined, status: 'connecting' }); return; }
     if (control.type === 'feature_changed') { control.payload = parseFeatureChanged(p); this.controls.forEach(listener => listener(control)); return; }
+    if (control.type === 'presentation_admitted') { const admitted=parsePresentationAdmitted(p);this.options.onPresentationAdmitted?.(admitted);control.payload=admitted;this.controls.forEach(listener=>listener(control));return; }
     this.controls.forEach(listener => listener(control));
   }
   private localUpdate = (update: Uint8Array, origin: unknown) => {
@@ -232,7 +233,7 @@ export class CollabTransport {
     if(delay>0)this.awarenessTimer=setTimeout(send,delay);else send();
   }
   sendControl(type: string, payload: Record<string, unknown>): string | undefined {
-    if (!this.synced || this.socket?.readyState !== 1) return;
+    if ((!this.synced && type !== 'presentation_leave') || this.socket?.readyState !== 1) return;
     const now = Date.now(); for (const [id, time] of this.ephemeralRequests) if (now - time > 30000) this.ephemeralRequests.delete(id);
     while (this.ephemeralRequests.size >= 256) this.ephemeralRequests.delete(this.ephemeralRequests.keys().next().value!);
     const requestId = crypto.randomUUID(); this.ephemeralRequests.set(requestId, now);

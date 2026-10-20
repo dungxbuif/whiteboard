@@ -54,7 +54,8 @@ export function parseScreenAdmission(value:unknown):ScreenAdmission {
 export type PresentationWaiting={sessionId:string;status:'pending';connectionId:string};
 export type PresentationAdmitted={sessionId:string;token:string;expiresAt:number};
 export type PresentationParticipant={connectionId:string;principalId:string;displayName:string};
-export type PresentationState={sessionId:string;hostConnectionId:string;hostPrincipalId:string;revision:number;pending:PresentationParticipant[];admitted:PresentationParticipant[]};
+export type PresentationReaction={id:string;connectionId:string;emoji:'👏'|'❤️'|'👍'|'🎉'|'😂';expiresAt:number};
+export type PresentationState={sessionId:string;hostConnectionId:string;hostPrincipalId:string;revision:number;pending:PresentationParticipant[];admitted:PresentationParticipant[];frameId:string|null;spotlight:string|null;locked:boolean;reactions:PresentationReaction[]};
 const presentationConnection=(value:unknown):value is string=>typeof value==='string'&&value.length>0&&value.length<=128;
 const presentationParticipant=(value:unknown):value is PresentationParticipant=>{
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['connectionId','principalId','displayName'].includes(key)))return false;
@@ -74,9 +75,9 @@ export function parsePresentationAdmitted(value:unknown):PresentationAdmitted {
  return input as PresentationAdmitted;
 }
 export function parsePresentationState(value:unknown):PresentationState {
- if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','hostConnectionId','hostPrincipalId','revision','pending','admitted'].includes(key)))throw new Error('Invalid presentation state');
- const input=value as Record<string,unknown>,pending=input.pending,admitted=input.admitted;
- if(!screenSessionId(input.sessionId)||!presentationConnection(input.hostConnectionId)||typeof input.hostPrincipalId!=='string'||!input.hostPrincipalId||!Number.isSafeInteger(input.revision)||Number(input.revision)<1||!Array.isArray(pending)||!Array.isArray(admitted)||pending.length>100||admitted.length>100||pending.some(item=>!presentationParticipant(item))||admitted.some(item=>!presentationParticipant(item)))throw new Error('Invalid presentation state');
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(key=>!['sessionId','hostConnectionId','hostPrincipalId','revision','pending','admitted','frameId','spotlight','locked','reactions'].includes(key)))throw new Error('Invalid presentation state');
+ const input=value as Record<string,unknown>,pending=input.pending,admitted=input.admitted,reactions=input.reactions;
+ if(!screenSessionId(input.sessionId)||!presentationConnection(input.hostConnectionId)||typeof input.hostPrincipalId!=='string'||!input.hostPrincipalId||!Number.isSafeInteger(input.revision)||Number(input.revision)<1||!Array.isArray(pending)||!Array.isArray(admitted)||pending.length>100||admitted.length>100||pending.some(item=>!presentationParticipant(item))||admitted.some(item=>!presentationParticipant(item))||(input.frameId!==null&&!presentationConnection(input.frameId))||(input.spotlight!==null&&!presentationConnection(input.spotlight))||typeof input.locked!=='boolean'||!Array.isArray(reactions)||reactions.length>100||reactions.some(item=>!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).some(key=>!['id','connectionId','emoji','expiresAt'].includes(key))||!presentationConnection((item as Record<string,unknown>).id)||!presentationConnection((item as Record<string,unknown>).connectionId)||!['👏','❤️','👍','🎉','😂'].includes(String((item as Record<string,unknown>).emoji))||!Number.isSafeInteger((item as Record<string,unknown>).expiresAt)||Number((item as Record<string,unknown>).expiresAt)<1))throw new Error('Invalid presentation state');
  const ids=[...pending,...admitted].map(item=>(item as PresentationParticipant).connectionId);
  if(new Set(ids).size!==ids.length)throw new Error('Invalid presentation state');
  return input as PresentationState;

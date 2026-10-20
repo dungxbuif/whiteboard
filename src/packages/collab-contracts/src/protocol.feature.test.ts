@@ -25,7 +25,10 @@ describe('presentation protocol',()=>{
  });
  it('parses bounded host state and rejects duplicate participants',()=>{
   const participant={connectionId:'guest',principalId:'presentation:guest',displayName:'Guest'};
-  expect(parsePresentationState({sessionId,hostConnectionId:'host',hostPrincipalId:'00000000-0000-4000-8000-000000000002',revision:1,pending:[participant],admitted:[]})).toMatchObject({sessionId,revision:1});
-  expect(()=>parsePresentationState({sessionId,hostConnectionId:'host',hostPrincipalId:'user',revision:1,pending:[participant,participant],admitted:[]})).toThrow(/presentation state/i);
+  const state={sessionId,hostConnectionId:'host',hostPrincipalId:'00000000-0000-4000-8000-000000000002',revision:1,pending:[participant],admitted:[],frameId:null,spotlight:null,locked:false,reactions:[]};
+  expect(parsePresentationState(state)).toMatchObject({sessionId,revision:1,locked:false});
+  expect(parsePresentationState({...state,frameId:'frame-a',spotlight:'host',locked:true,reactions:[{id:'reaction',connectionId:'host',emoji:'👏',expiresAt:4000}]})).toMatchObject({frameId:'frame-a',spotlight:'host',locked:true});
+  expect(()=>parsePresentationState({...state,pending:[participant,participant]})).toThrow(/presentation state/i);
+  expect(()=>parsePresentationState({...state,reactions:[{id:'reaction',connectionId:'host',emoji:'💣',expiresAt:4000}]})).toThrow(/presentation state/i);
  });
 });

@@ -53,6 +53,13 @@ it('collab awareness strips native pointer tool metadata before protocol transmi
   expect(JSON.parse(new TextDecoder().decode(frame.payload))).toEqual({ cursor: { x: 1, y: 2 } }); transport.stop();
 });
 
+it('uses presentation_auth for waiting clients and surfaces only the admitted credential',async()=>{
+ const store=new OfflineStore(crypto.randomUUID()),socket=new Socket(),admitted:unknown[]=[];
+ const transport=new CollabTransport({sceneRef:scope,principalId:'presentation:guest',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'pending-token',expiresAt:new Date(Date.now()+300000).toISOString()}),url:'ws://local',authType:'presentation_auth',onPresentationAdmitted:value=>admitted.push(value),socket:()=>socket as unknown as WireSocket});
+ await transport.start();socket.dispatchEvent(new Event('open'));await tick();expect(JSON.parse(socket.sent.find((value):value is string=>typeof value==='string')!)).toMatchObject({type:'presentation_auth',payload:{token:'pending-token'}});
+ socket.receive({type:'presentation_admitted',requestId:'admit',payload:{sessionId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',token:'audience-token',expiresAt:Math.floor(Date.now()/1000)+600}});await tick();expect(admitted).toHaveLength(1);expect(socket.sent.filter(value=>typeof value==='string')).toHaveLength(1);transport.stop();
+});
+
 it('forwards cursor-only feature invalidations without disturbing document admission', async () => {
   const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
   const socket = new Socket(); const transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter: new ExcalidrawAdapter(), store, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://local', socket: () => socket as unknown as WireSocket });

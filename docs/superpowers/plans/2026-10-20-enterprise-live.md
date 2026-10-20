@@ -108,17 +108,17 @@ actions `setFrame`, `spotlight`, `setLocked`, `admit`, `remove`, `transfer`,
 `/present/{token}` loads pending/admitted UI with refresh handling; host links
 are copied manually, never emailed automatically.
 
-- [ ] Add `staleHostRevisionRejected`, `transferOnlyToEditor`,
+- [x] Add `staleHostRevisionRejected`, `transferOnlyToEditor`,
   `spotlightClearsOnTargetLeave`, `reactionAllowlistRateAndExpiry`,
   `lockedViewportStillAllowsLeave`, `pendingAudienceNoSceneLeak`.
   Concurrent frame/host changes must have one current authoritative revision;
   reaction expiry3s/rate1s, max100 queued guests (M2), offline host ends session.
-- [ ] Run Node/frontend focused tests (RED), implement native frame/camera
+- [x] Run Node/frontend focused tests (RED), implement native frame/camera
   follow using IDs, not slide array index; removed frames produce a fallback
   message without jumping to a different frame silently. Lock changes viewport
   only; authorization remains F1/current scene policy.
 - [ ] Run real-stack two guests+host: admit/deny/remove/transfer, mobile waiting
   dialog, screen/voice permission denial, autoplay prompt, room refresh/revoke,
   keyboard Escape and controls remain floating over full canvas.
-- [ ] Reconcile presentation/media API/user/public docs and llms links; commit
+- [x] Reconcile presentation/media API/user/public docs and llms links; commit
   `feat(presentation): add live host and audience controls`.

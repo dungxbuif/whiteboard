@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { Activity, Bot, History, MessageCircle } from 'lucide-react';
 import '@excalidraw/excalidraw/index.css';
 import type { AssetReference, NativeElement, SceneContent } from '@collab/contracts';
@@ -28,11 +28,17 @@ import { ActivityPanel } from '@/components/activity/activity-panel';
 import type { CommentThread } from '@/lib/comment-api';
 import useWorkspaceStore from '@/store/workspace-store';
 import { HistoryPanel } from '@/components/history/history-panel';
+import { HostControls } from '@/components/presentation/host-controls';
+import { AudienceView } from '@/components/presentation/audience-view';
 
 type CanvasFile = { id: string; dataURL?: string; mimeType: string; created: number; assetId?: string };
 const appKeys = ['viewBackgroundColor', 'gridSize', 'gridStep', 'gridModeEnabled', 'theme'] as const;
 const json = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
 const signature = (content: SceneContent) => JSON.stringify(content);
+const idleLivePresentation = { status: 'idle' as const, revision: 0, frameId: null, spotlight: null, locked: false, reactions: [], pending: [], admitted: [] };
+const emptyPresence = { participants: [], cursors: {}, following: null };
+const emptyLiveStore = { subscribe: () => () => {}, getSnapshot: () => idleLivePresentation };
+const emptyPresenceStore = { subscribe: () => () => {}, getSnapshot: () => emptyPresence };
 function canonical(elements: readonly unknown[], appState: Record<string, unknown>, files: Record<string, AssetReference>, presentationOrder: string[]): SceneContent {
   return json({ elements: [...elements] as NativeElement[], appState: Object.fromEntries(appKeys.filter(key => appState[key] !== undefined).map(key => [key, appState[key]])), files, presentationOrder });
 }
@@ -69,10 +75,15 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
   const lifetime = useRef(0);
   const rendering = useRef(false), uploading = useRef(false), mounted = useRef(true);
   const { isPresenting, activeSlideIndex, enter, exit, setActiveSlide } = usePresentationStore();
+  const livePresentation = collab.livePresentation || emptyLiveStore;
+  const presence = collab.presence || emptyPresenceStore;
+  const liveState = useSyncExternalStore(livePresentation.subscribe, livePresentation.getSnapshot);
+  const presenceState = useSyncExternalStore(presence.subscribe, presence.getSnapshot);
   const panels = useScenePanels();
   const workspaceRole = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === sceneRef.workspaceId)?.role);
   useEffect(() => { if (initialThreadId) panels.open('comments'); }, [initialThreadId, panels.open]);
   const canEdit = state.canEdit || (state.status === 'legacy' && legacy?.access === 'edit');
+  const isPresentationGuest = collab.principal.current.kind === 'presentation';
   const renderedContent = legacy && state.status === 'legacy' ? (activeScene?.id === sceneRef.sceneId ? activeScene.content : legacy.content) as SceneContent : !transport.scope && initialContent ? initialContent : content;
   const slideIds = syncPresentationOrder(renderedContent.elements, renderedContent.presentationOrder ?? []);
   const legacyScope = { ...sceneRef, principalId: collab.principal.current.id, documentId: 'legacy-v1' };
@@ -96,7 +107,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
     let current = true;
     const missing = Object.keys(renderedContent.files).filter(id => !files.current[id]?.dataURL);
     if (missing.length) {
-      const guest = collab.principal.current.kind === 'public';
+      const guest = collab.principal.current.kind !== 'user';
       void collab.post<{ urls: Record<string, { viewUrl: string; mimeType: string }> }>(guest ? `/public/scenes/${sceneRef.sceneId}/assets/presign-view` : '/assets/presign-view', guest ? { fileIds: missing } : { sceneId: sceneRef.sceneId, fileIds: missing }).then(result => {
         if (!current) return;
         for (const id of missing) if (result.urls[id]) files.current[id] = { ...renderedContent.files[id], dataURL: result.urls[id].viewUrl };
@@ -143,7 +154,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
       if (!await currentDraft()) return;
       for (const item of rows) {
         if (!allowed()) return;
-        const guest = current.principal.current.kind === 'public';
+        const guest = current.principal.current.kind !== 'user';
         const reference = await uploadBlob(item, assets => current.post<{ urls: Record<string, UploadGrant> }>(guest ? `/public/scenes/${sceneRef.sceneId}/assets/presign-upload` : '/assets/presign-upload', guest ? { assets } : { sceneId: sceneRef.sceneId, assets }), fetch, allowed);
         if (!await currentDraft()) return;
         refs.current[item.id] = reference;
@@ -210,6 +221,11 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
     setActiveSlide(activeSlideIndex, slideIds.length);
     if (isPresenting && api) { const frame = renderedContent.elements.find(e => e.id === slideIds[activeSlideIndex]); if (frame) api.scrollToContent(frame as never, { fitToViewport: true, viewportZoomFactor: 0.8, animate: true, duration: 300 }); }
   }, [isPresenting, activeSlideIndex, JSON.stringify(slideIds), api]);
+  useEffect(() => {
+    if (liveState.status !== 'host' || !isPresenting) return;
+    const frameId = slideIds[activeSlideIndex] ?? null;
+    if (frameId !== liveState.frameId) collab.livePresentation?.setFrame(frameId);
+  }, [liveState.status, liveState.revision, liveState.frameId, isPresenting, activeSlideIndex, JSON.stringify(slideIds), collab.livePresentation]);
   async function onChange(elements: readonly unknown[], appState: Record<string, unknown>, incomingFiles: Record<string, CanvasFile>) {
     const owner = lifetime.current;
     const stillCurrent = () => mounted.current && lifetime.current === owner && currentRef.current.transport === transport && transport.isActive();
@@ -298,8 +314,8 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
         onPointerUpdate={(value: { pointer: { x: number; y: number } }) => transport.sendAwareness({ cursor: value.pointer })}
         renderTopRightUI={() => <SceneControlCluster>
           {state.status !== 'legacy' ? <CollaborationToolbar /> : null}
-          <Button className="min-h-11" onClick={togglePresentation} type="button">{isPresenting ? 'Exit presentation' : 'Present'}</Button>
-          {!isPresenting ? <Button aria-label="Open comments" className="min-h-11" onClick={(event) => panels.open('comments', event.currentTarget)} size="icon" type="button" variant="outline"><MessageCircle aria-hidden="true" size={16} /></Button> : null}
+          {!isPresentationGuest ? <Button className="min-h-11" onClick={togglePresentation} type="button">{isPresenting ? 'Exit presentation' : 'Present'}</Button> : null}
+          {!isPresenting && !isPresentationGuest ? <Button aria-label="Open comments" className="min-h-11" onClick={(event) => panels.open('comments', event.currentTarget)} size="icon" type="button" variant="outline"><MessageCircle aria-hidden="true" size={16} /></Button> : null}
           {!isPresenting && collab.principal.current.kind === 'user' ? <Button aria-label="Open activity" className="min-h-11" onClick={(event) => panels.open('activity', event.currentTarget)} size="icon" type="button" variant="outline"><Activity aria-hidden="true" size={16} /></Button> : null}
           {!isPresenting && collab.principal.current.kind === 'user' && state.status !== 'legacy' ? <Button aria-label="Open history" className="min-h-11" onClick={(event) => panels.open('history', event.currentTarget)} size="icon" type="button" variant="outline"><History aria-hidden="true" size={16} /></Button> : null}
           {!isPresenting && canEdit ? <Button aria-label="Open AI assistant" className="min-h-11" onClick={(event) => panels.open('ai', event.currentTarget)} size="icon" type="button" variant="outline"><Bot aria-hidden="true" size={16} /></Button> : null}
@@ -312,11 +328,13 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
           {state.status === 'revoked' && onRejoin ? <MainMenu.Item onSelect={() => { void exportRecovery().then(onRejoin); }}>Export recovery and rejoin</MainMenu.Item> : null}
         </MainMenu> : null}
       </Excalidraw> : <p className="p-4">Loading whiteboard...</p>}
-      <SceneControls canRedo={state.canEdit && undo.canRedo()} canUndo={state.canEdit && undo.canUndo()} onExportRecovery={exportRecovery} onPresent={togglePresentation} onRedo={() => undo.redo()} onRetry={retry} onUndo={() => undo.undo()} status={{ text: statusText, severity: statusSeverity }} title={title} />
-      {commentThreads.map((thread, index) => <CommentAnchor anchor={thread.anchor} api={api as never} key={thread.id} label={String(index + 1)} onOpen={() => panels.open('comments')} />)}
+      <SceneControls canRedo={state.canEdit && undo.canRedo()} canUndo={state.canEdit && undo.canUndo()} onExportRecovery={exportRecovery} onPresent={isPresentationGuest ? undefined : togglePresentation} onRedo={() => undo.redo()} onRetry={retry} onUndo={() => undo.undo()} status={{ text: statusText, severity: statusSeverity }} title={title} />
+      {!isPresentationGuest ? commentThreads.map((thread, index) => <CommentAnchor anchor={thread.anchor} api={api as never} key={thread.id} label={String(index + 1)} onOpen={() => panels.open('comments')} />) : null}
       {isPresenting && <><SlideNavigator activeIndex={activeSlideIndex} onMove={(index, direction) => { if (!canEdit) return; const next = [...slideIds], swap = index + direction; [next[index], next[swap]] = [next[swap], next[index]]; if (state.status === 'legacy') useSceneStore.getState().updatePresentationOrder(sceneRef.workspaceId, sceneRef.sceneId, next); else adapter.reorderPresentation(next); setActiveSlide(swap, next.length); }} onSelect={index => setActiveSlide(index, slideIds.length)} slideIds={slideIds} /><PresentationControls activeIndex={activeSlideIndex} onExit={exit} onNext={() => setActiveSlide(activeSlideIndex + 1, slideIds.length)} onPrevious={() => setActiveSlide(activeSlideIndex - 1, slideIds.length)} slideCount={slideIds.length} /></>}
+      {collab.livePresentation && collab.principal.current.kind === 'user' && state.status !== 'legacy' && canEdit ? <HostControls editors={presenceState.participants.filter(person => person.principalType === 'user' && person.access === 'edit').map(person => ({ connectionId: person.connectionId, displayName: person.displayName }))} live={collab.livePresentation} /> : null}
+      {collab.livePresentation && liveState.status === 'audience' ? <AudienceView elements={renderedContent.elements} live={collab.livePresentation} onFocusFrame={frame => api?.scrollToContent(frame as never,{fitToViewport:true,viewportZoomFactor:0.8,animate:true,duration:300})} /> : null}
       <ScenePanel id="ai" title="AI assistant"><AICommandPanel embedded scene={renderedContent} onApplyDiagram={applyDiagram} /></ScenePanel>
-      <ScenePanel id="comments" title="Comments"><CommentPanel anchor={commentAnchor} initialThreadId={initialThreadId} onThreadsChange={setCommentThreads} principal={collab.principal.current.kind === 'public' ? { kind: 'public', id: collab.principal.current.id, token: collab.principal.current.session.token } : { kind: 'user', id: collab.principal.current.id, owner: workspaceRole === 'owner', canResolve: canEdit }} registerRefetch={collab.registerFeatureRefetch} sceneRef={sceneRef} /></ScenePanel>
+      {!isPresentationGuest ? <ScenePanel id="comments" title="Comments"><CommentPanel anchor={commentAnchor} initialThreadId={initialThreadId} onThreadsChange={setCommentThreads} principal={collab.principal.current.kind === 'public' ? { kind: 'public', id: collab.principal.current.id, token: collab.principal.current.session.token } : { kind: 'user', id: collab.principal.current.id, owner: workspaceRole === 'owner', canResolve: canEdit }} registerRefetch={collab.registerFeatureRefetch} sceneRef={sceneRef} /></ScenePanel> : null}
       {collab.principal.current.kind === 'user' ? <ScenePanel id="activity" title="Activity"><ActivityPanel registerRefetch={collab.registerFeatureRefetch} sceneId={sceneRef.sceneId} workspaceId={sceneRef.workspaceId} /></ScenePanel> : null}
       {collab.principal.current.kind === 'user' && state.status !== 'legacy' ? <ScenePanel id="history" title="Version history"><HistoryPanel canRestore={canEdit} currentSequence={state.sequence ?? '0'} onRestored={result => { transport.noteCommittedSequence(result.sequence); undo.clear(); api?.history.clear(); void collab.refreshFeatures(); }} registerRefetch={collab.registerFeatureRefetch} sceneRef={sceneRef} /></ScenePanel> : null}
     </section>

@@ -12,6 +12,7 @@ import { AgentSettings } from '@/components/collaboration/agent-settings';
 import { DomainSettings } from '@/components/enterprise/domain-settings';
 import { ActivityPanel } from '@/components/activity/activity-panel';
 import { CollectionView } from '@/components/collections/collection-view';
+import { PresentationView } from '@/components/presentation/presentation-view';
 import { ExcalidrawWrapper } from '@/components/whiteboard/excalidraw-wrapper';
 import { useLocation, navigate } from '@/lib/router';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ function App() {
   const pathname = location.pathname;
   const routeThread = new URLSearchParams(location.search).get('thread') ?? undefined;
   const publicToken = pathname.match(/^\/p\/([^/]+)\/?$/)?.[1] ?? null;
+  const presentationToken = pathname.match(/^\/present\/([^/]+)\/?$/)?.[1] ?? null;
   const inviteToken = pathname.match(/^\/invite\/([^/]+)\/?$/)?.[1] ?? null;
   const sceneRoute = pathname.match(/^\/w\/([^/]+)\/scenes\/([^/]+)\/?$/);
   const dashboardRoute = pathname.match(/^\/w\/([^/]+)\/?$/);
@@ -43,29 +45,30 @@ function App() {
   const { view: searchView, query: searchQuery, results: searchResults, search, reset: resetSearch } = useSearchStore();
   const [ready, setReady] = useState(false); const [routeError, setRouteError] = useState('');
 
-  useEffect(() => { if (!publicToken) void checkAuth(); }, [checkAuth, publicToken]);
+  useEffect(() => { if (!publicToken&&!presentationToken) void checkAuth(); }, [checkAuth, publicToken,presentationToken]);
   useEffect(() => {
     let current = true; setReady(false);
-    if (isAuthenticated && !publicToken) void fetchWorkspaces().finally(() => { if (current) setReady(true); });
+    if (isAuthenticated && !publicToken&&!presentationToken) void fetchWorkspaces().finally(() => { if (current) setReady(true); });
     return () => { current = false; };
-  }, [fetchWorkspaces, isAuthenticated, publicToken]);
+  }, [fetchWorkspaces, isAuthenticated, publicToken,presentationToken]);
   useEffect(() => {
     resetFolders(); resetScenes(); resetSearch();
-    if (activeWorkspaceId && isAuthenticated && !publicToken) void fetchFolders(activeWorkspaceId).catch(() => undefined);
-  }, [activeWorkspaceId, fetchFolders, resetFolders, resetScenes, resetSearch, isAuthenticated, publicToken]);
+    if (activeWorkspaceId && isAuthenticated && !publicToken && !presentationToken) void fetchFolders(activeWorkspaceId).catch(() => undefined);
+  }, [activeWorkspaceId, fetchFolders, resetFolders, resetScenes, resetSearch, isAuthenticated, publicToken, presentationToken]);
   useEffect(() => {
     let current = true; setRouteError(''); cancelSceneOpen();
-    if (!ready || !isAuthenticated || publicToken || inviteToken || !routeWorkspace) return;
+    if (!ready || !isAuthenticated || publicToken || presentationToken || inviteToken || !routeWorkspace) return;
     if (!workspace) { setRouteError('You do not have access to this workspace.'); return; }
     if (activeWorkspaceId !== workspace.id) { setActiveWorkspaceId(workspace.id); return; }
     if (routeScene) void openSceneById(workspace.id, routeScene).catch(() => { if (current) setRouteError('This scene is unavailable or you do not have access to it.'); });
     return () => { current = false; };
-  }, [pathname, ready, isAuthenticated, publicToken, inviteToken, workspace?.id, activeWorkspaceId, routeWorkspace, routeScene, setActiveWorkspaceId, cancelSceneOpen, openSceneById]);
-  useEffect(() => { if (activeWorkspaceId && isAuthenticated && !publicToken) void fetchScenes(activeWorkspaceId, currentFolderId).catch(() => undefined); }, [activeWorkspaceId, currentFolderId, fetchScenes, isAuthenticated, publicToken, pathname]);
+  }, [pathname, ready, isAuthenticated, publicToken, presentationToken, inviteToken, workspace?.id, activeWorkspaceId, routeWorkspace, routeScene, setActiveWorkspaceId, cancelSceneOpen, openSceneById]);
+  useEffect(() => { if (activeWorkspaceId && isAuthenticated && !publicToken && !presentationToken) void fetchScenes(activeWorkspaceId, currentFolderId).catch(() => undefined); }, [activeWorkspaceId, currentFolderId, fetchScenes, isAuthenticated, publicToken, presentationToken, pathname]);
   useEffect(() => { if (activeWorkspaceId && searchView !== 'all') void search(activeWorkspaceId, undefined, searchView).catch(() => undefined); }, [activeWorkspaceId, search, searchView]);
   useEffect(() => { if (activeWorkspaceId && routeCollection) void search(activeWorkspaceId, '', 'all').catch(() => undefined); }, [activeWorkspaceId, search, routeCollection]);
 
   if (publicToken) return <PublicView key={publicToken} token={publicToken} />;
+  if (presentationToken) return <PresentationView key={presentationToken} token={presentationToken}/>;
   if (isLoading) return <main className="grid min-h-screen place-items-center">Loading...</main>;
   if (inviteToken) return <InviteAccept key={inviteToken} token={inviteToken} />;
   if (!isAuthenticated) return <PasswordLogin />;

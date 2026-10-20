@@ -31,7 +31,7 @@ export interface SceneControlsProps {
   onBack?: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onPresent: () => void;
+  onPresent?: () => void;
   onExportRecovery: () => void;
   onRetry: () => void;
   children?: ReactNode;
@@ -112,7 +112,7 @@ export function SceneControls({
           </summary>
           <div className="absolute bottom-full right-0 mb-2 grid min-w-56 gap-1 rounded-lg border bg-popover p-1 text-popover-foreground shadow-lg">
             {onBack ? <Button className="justify-start" onClick={onBack} variant="ghost"><ArrowLeft aria-hidden="true" size={16} />Back to dashboard</Button> : null}
-            <Button className="justify-start" onClick={onPresent} variant="ghost"><Presentation aria-hidden="true" size={16} />Present</Button>
+            {onPresent ? <Button className="justify-start" onClick={onPresent} variant="ghost"><Presentation aria-hidden="true" size={16} />Present</Button> : null}
             <Button className="justify-start" disabled={!canUndo} onClick={onUndo} variant="ghost"><Undo2 aria-hidden="true" size={16} />Undo my edit</Button>
             <Button className="justify-start" disabled={!canRedo} onClick={onRedo} variant="ghost"><Redo2 aria-hidden="true" size={16} />Redo my edit</Button>
             {needsRecovery ? <Button className="justify-start" onClick={onExportRecovery} variant="ghost"><Download aria-hidden="true" size={16} />Export recovery</Button> : null}

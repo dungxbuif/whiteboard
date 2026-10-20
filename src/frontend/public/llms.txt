@@ -8,6 +8,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 
 - [Browser collaboration](docs/browser-collaboration.md): locally verified release-candidate admission, offline recovery, scoped queues, images and local undo.
 - [Screen sharing](docs/live-media.md): admitted video-only screen media, union capacity, signaling and cleanup contract.
+- [Live presentations](docs/live-presentation.md): waiting-room isolation, existing-socket controls, revision rules, audience reactions and viewport lock.
 - [Workspace invitations](docs/collaboration.md): locally verified release-candidate invitation API, roles, registration, credential-attempt 429/Retry-After handling and replacement-scene recovery limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
 - [Version history](docs/version-history.md): immutable checkpoint API, authorization, retry semantics and limits.

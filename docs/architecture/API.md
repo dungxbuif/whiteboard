@@ -403,6 +403,33 @@ so renewal cannot outlive revocation. Recovery tokens additionally bind
 workspace while SSO is enforced. Link callback and exchange recheck their source
 session and current connection under the workspace lock.
 
+## M3 live presentation control plane (implemented locally; release verification pending)
+
+Live presentation control traffic extends the single `/collab/` WebSocket.
+Pending browsers authenticate with `presentation_auth`; admission upgrades that
+same connection to a view-only audience grant before `ready` and scene sync.
+The runtime never sends scene, roster, media or asset data to a pending socket.
+
+`presentation_state` is the authoritative snapshot. Its integer `revision`
+serializes frame ID, spotlight, viewport lock, participant removal/admission and
+host transfer. Every durable host control carries the current revision as a
+decimal string. A transfer target is re-authorized as a connected signed-in
+editor immediately before the revision changes. Reactions are the only
+unrevisioned presentation control: their fixed allowlist, per-connection
+one-second limit and server-issued three-second expiry keep them ephemeral.
+
+Audience state always strips the host's pending queue. Host disconnect or
+current-authority loss ends the in-memory session; participant departure clears
+a matching spotlight. The browser follows native frame IDs and treats a deleted
+frame as an explicit missing target. View lock operates only on the camera and
+never changes F1 scene authority.
+
+The public `/present/{token}` route performs HTTP join and then opens the normal
+collaboration transport with `presentation_auth`. Admission returns a private
+audience token only to that socket. Credential loss unmounts the canvas and
+requires a fresh waiting-room join. See the [user guide](../user/live-presentation.md)
+and [machine-readable protocol reference](../../src/frontend/public/docs/live-presentation.md).
+
 ## R1 workspace retention (implemented locally; wiring pending, production activation disabled)
 
 Owner-authenticated routes expose the current policy, a persisted dry-run
