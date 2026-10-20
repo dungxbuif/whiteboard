@@ -15,11 +15,12 @@ import (
 type collectionUsecaseStub struct {
 	workspaceID uuid.UUID
 	created     domain.CollectionCreateInput
+	createErr   error
 }
 
 func (s *collectionUsecaseStub) Create(_ domain.Context, _ domain.Principal, workspaceID uuid.UUID, input domain.CollectionCreateInput) (domain.Collection, error) {
 	s.workspaceID, s.created = workspaceID, input
-	return domain.Collection{ID: uuid.New(), Name: input.Name, Visibility: input.Visibility, Revision: 1}, nil
+	return domain.Collection{ID: uuid.New(), Name: input.Name, Visibility: input.Visibility, Revision: 1}, s.createErr
 }
 func (*collectionUsecaseStub) Update(domain.Context, domain.Principal, uuid.UUID, uuid.UUID, domain.CollectionUpdateInput) (domain.Collection, error) {
 	return domain.Collection{}, nil
@@ -117,6 +118,23 @@ func TestCollectionHandlerRejectsMalformedLimit(t *testing.T) {
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"INVALID_INPUT"`) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestCollectionHandlerMapsNameConflict(t *testing.T) {
+	workspaceID, userID := uuid.New(), uuid.New()
+	h := NewCollectionHandler(&collectionUsecaseStub{createErr: domain.ErrCollectionNameConflict}, collectionHandlerAccessStub{workspaceID: workspaceID})
+	router := chi.NewRouter()
+	h.Register(router, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), domain.ContextKeyUserID, userID)))
+		})
+	})
+	request := httptest.NewRequest(http.MethodPost, "/workspaces/x/collections", strings.NewReader(`{"requestId":"`+uuid.NewString()+`","name":"Launch","visibility":"workspace"}`))
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"code":"COLLECTION_NAME_CONFLICT"`) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }

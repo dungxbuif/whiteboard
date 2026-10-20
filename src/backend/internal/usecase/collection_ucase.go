@@ -94,7 +94,24 @@ func (s *CollectionService) appendEvent(ctx domain.Context, principal domain.Pri
 	return err
 }
 
-func (s *CollectionService) mutate(ctx domain.Context, principal domain.Principal, workspaceID, requestID uuid.UUID, payload any, fn func(domain.Context, uuid.UUID, domain.AccessDecision) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
+type collectionReceiptValidator func(domain.Context, uuid.UUID, domain.AccessDecision, domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error)
+
+func (s *CollectionService) currentStoredCollection(ctx domain.Context, workspaceID, userID uuid.UUID, stored domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error) {
+	previous, err := decodeCollection(stored)
+	if err != nil {
+		return domain.StoredFeatureResponse{}, err
+	}
+	current, err := s.repo.Get(ctx, workspaceID, previous.ID, userID, false)
+	if err != nil {
+		return domain.StoredFeatureResponse{}, err
+	}
+	if current.WorkspaceID != workspaceID || current.Visibility == domain.CollectionPrivate && current.CreatorID != userID {
+		return domain.StoredFeatureResponse{}, domain.ErrInaccessible
+	}
+	return storedCollection(current)
+}
+
+func (s *CollectionService) mutate(ctx domain.Context, principal domain.Principal, workspaceID, requestID uuid.UUID, operation domain.CollectionOperation, payload any, fn func(domain.Context, uuid.UUID, domain.AccessDecision) (domain.StoredFeatureResponse, error), validate collectionReceiptValidator) (domain.StoredFeatureResponse, error) {
 	if requestID == uuid.Nil {
 		return domain.StoredFeatureResponse{}, domain.ErrInvalidCollection
 	}
@@ -113,9 +130,12 @@ func (s *CollectionService) mutate(ctx domain.Context, principal domain.Principa
 			return authorizeErr
 		}
 		var mutationErr error
-		result, mutationErr = s.repo.WithMutation(txCtx, principal, workspaceID, requestID, encoded, func(callCtx domain.Context) (domain.StoredFeatureResponse, error) {
+		result, mutationErr = s.repo.WithMutation(txCtx, principal, workspaceID, requestID, operation, encoded, func(callCtx domain.Context) (domain.StoredFeatureResponse, error) {
 			return fn(callCtx, userID, decision)
 		})
+		if mutationErr == nil && validate != nil {
+			result, mutationErr = validate(txCtx, userID, decision, result)
+		}
 		return mutationErr
 	})
 	return result, err
@@ -125,7 +145,7 @@ func (s *CollectionService) Create(ctx domain.Context, principal domain.Principa
 	if !validCollectionName(input.Name) || !validCollectionVisibility(input.Visibility) {
 		return domain.Collection{}, domain.ErrInvalidCollection
 	}
-	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, input, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision) (domain.StoredFeatureResponse, error) {
+	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, domain.CollectionCreate, input, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision) (domain.StoredFeatureResponse, error) {
 		created, createErr := s.repo.Create(txCtx, domain.Collection{ID: uuid.New(), WorkspaceID: workspaceID, CreatorID: userID, Name: input.Name, Visibility: input.Visibility, Revision: 1, Scenes: []domain.CollectionScene{}})
 		if createErr == nil {
 			createErr = s.appendEvent(txCtx, principal, workspaceID, created.ID, input.RequestID, "collection.created", created.Revision)
@@ -134,6 +154,8 @@ func (s *CollectionService) Create(ctx domain.Context, principal domain.Principa
 			return domain.StoredFeatureResponse{}, createErr
 		}
 		return storedCollection(created)
+	}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision, stored domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error) {
+		return s.currentStoredCollection(txCtx, workspaceID, userID, stored)
 	})
 	if err != nil {
 		return domain.Collection{}, err
@@ -145,7 +167,7 @@ func (s *CollectionService) Update(ctx domain.Context, principal domain.Principa
 	if collectionID == uuid.Nil || input.ExpectedRevision < 1 || !validCollectionName(input.Name) || !validCollectionVisibility(input.Visibility) {
 		return domain.Collection{}, domain.ErrInvalidCollection
 	}
-	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, struct {
+	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, domain.CollectionUpdate, struct {
 		ID    uuid.UUID
 		Input domain.CollectionUpdateInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, decision domain.AccessDecision) (domain.StoredFeatureResponse, error) {
@@ -165,6 +187,8 @@ func (s *CollectionService) Update(ctx domain.Context, principal domain.Principa
 		}
 		_ = decision
 		return storedCollection(updated)
+	}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision, stored domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error) {
+		return s.currentStoredCollection(txCtx, workspaceID, userID, stored)
 	})
 	if err != nil {
 		return domain.Collection{}, err
@@ -176,7 +200,7 @@ func (s *CollectionService) Delete(ctx domain.Context, principal domain.Principa
 	if collectionID == uuid.Nil || input.ExpectedRevision < 1 {
 		return domain.ErrInvalidCollection
 	}
-	_, err := s.mutate(ctx, principal, workspaceID, input.RequestID, struct {
+	_, err := s.mutate(ctx, principal, workspaceID, input.RequestID, domain.CollectionDelete, struct {
 		ID    uuid.UUID
 		Input domain.CollectionRevisionInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, decision domain.AccessDecision) (domain.StoredFeatureResponse, error) {
@@ -187,7 +211,7 @@ func (s *CollectionService) Delete(ctx domain.Context, principal domain.Principa
 			return domain.StoredFeatureResponse{}, eventErr
 		}
 		return domain.StoredFeatureResponse{Status: 204, Body: json.RawMessage(`{"deleted":true}`)}, nil
-	})
+	}, nil)
 	return err
 }
 
@@ -252,7 +276,7 @@ func (s *CollectionService) AddScene(ctx domain.Context, principal domain.Princi
 	if _, err := s.access.Resolve(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: input.SceneID}); err != nil {
 		return domain.Collection{}, err
 	}
-	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, struct {
+	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, domain.CollectionAddScene, struct {
 		ID    uuid.UUID
 		Input domain.CollectionSceneInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision) (domain.StoredFeatureResponse, error) {
@@ -270,6 +294,11 @@ func (s *CollectionService) AddScene(ctx domain.Context, principal domain.Princi
 			return domain.StoredFeatureResponse{}, addErr
 		}
 		return storedCollection(updated)
+	}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision, stored domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error) {
+		if _, accessErr := s.access.Resolve(txCtx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: input.SceneID}); accessErr != nil {
+			return domain.StoredFeatureResponse{}, accessErr
+		}
+		return s.currentStoredCollection(txCtx, workspaceID, userID, stored)
 	})
 	if err != nil {
 		return domain.Collection{}, err
@@ -284,7 +313,7 @@ func (s *CollectionService) RemoveScene(ctx domain.Context, principal domain.Pri
 	if _, err := s.access.Resolve(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: input.SceneID}); err != nil {
 		return domain.Collection{}, err
 	}
-	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, struct {
+	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, domain.CollectionRemoveScene, struct {
 		ID    uuid.UUID
 		Input domain.CollectionSceneInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision) (domain.StoredFeatureResponse, error) {
@@ -302,6 +331,11 @@ func (s *CollectionService) RemoveScene(ctx domain.Context, principal domain.Pri
 			return domain.StoredFeatureResponse{}, removeErr
 		}
 		return storedCollection(updated)
+	}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision, stored domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error) {
+		if _, accessErr := s.access.Resolve(txCtx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: input.SceneID}); accessErr != nil {
+			return domain.StoredFeatureResponse{}, accessErr
+		}
+		return s.currentStoredCollection(txCtx, workspaceID, userID, stored)
 	})
 	if err != nil {
 		return domain.Collection{}, err
@@ -320,7 +354,12 @@ func (s *CollectionService) Reorder(ctx domain.Context, principal domain.Princip
 		}
 		seen[sceneID] = true
 	}
-	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, struct {
+	for _, sceneID := range input.SceneIDs {
+		if _, err := s.access.Resolve(ctx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: sceneID}); err != nil {
+			return domain.Collection{}, err
+		}
+	}
+	stored, err := s.mutate(ctx, principal, workspaceID, input.RequestID, domain.CollectionReorder, struct {
 		ID    uuid.UUID
 		Input domain.CollectionReorderInput
 	}{collectionID, input}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision) (domain.StoredFeatureResponse, error) {
@@ -340,6 +379,13 @@ func (s *CollectionService) Reorder(ctx domain.Context, principal domain.Princip
 			return domain.StoredFeatureResponse{}, reorderErr
 		}
 		return storedCollection(updated)
+	}, func(txCtx domain.Context, userID uuid.UUID, _ domain.AccessDecision, stored domain.StoredFeatureResponse) (domain.StoredFeatureResponse, error) {
+		for _, sceneID := range input.SceneIDs {
+			if _, accessErr := s.access.Resolve(txCtx, principal, domain.SceneRef{WorkspaceID: workspaceID, SceneID: sceneID}); accessErr != nil {
+				return domain.StoredFeatureResponse{}, accessErr
+			}
+		}
+		return s.currentStoredCollection(txCtx, workspaceID, userID, stored)
 	})
 	if err != nil {
 		return domain.Collection{}, err

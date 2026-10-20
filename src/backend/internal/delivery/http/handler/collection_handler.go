@@ -52,6 +52,8 @@ func writeCollectionError(w http.ResponseWriter, r *http.Request, err error) {
 		code, message, status = "REQUEST_ID_REUSED", "Request ID was already used", http.StatusConflict
 	case errors.Is(err, domain.ErrRevisionConflict):
 		code, message, status = "REVISION_CONFLICT", "Collection changed; reload and retry", http.StatusConflict
+	case errors.Is(err, domain.ErrCollectionNameConflict):
+		code, message, status = "COLLECTION_NAME_CONFLICT", "A collection with this name already exists", http.StatusConflict
 	case errors.Is(err, domain.ErrFeatureDisabled):
 		code, message, status = "FEATURE_DISABLED", "Collections are disabled", http.StatusForbidden
 	default:

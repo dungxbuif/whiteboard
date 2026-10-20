@@ -45,6 +45,6 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
     })}
     {!items.length && !error ? <p className="px-2 py-1 text-xs text-muted-foreground">No collections yet.</p> : null}
     {nextCursor && !filter.trim() ? <Button className="justify-start" onClick={() => void load(nextCursor)} size="sm" type="button" variant="ghost">Load more collections</Button> : null}
-    <CollectionDialog open={open} title="Create collection" pending={pending} onOpenChange={setOpen} onSubmit={async draft => { setPending(true); try { await api.create(workspaceId, draft); setOpen(false); await load(''); } catch { setError('Collection could not be created.'); } finally { setPending(false); } }} />
+    <CollectionDialog open={open} title="Create collection" pending={pending} onOpenChange={value => { setOpen(value); if (!value) api.cancelPending(); }} onSubmit={async draft => { setPending(true); try { await api.create(workspaceId, draft); setOpen(false); await load(''); } catch { setError('Collection could not be created.'); } finally { setPending(false); } }} />
   </section>;
 }

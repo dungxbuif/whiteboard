@@ -5,6 +5,11 @@ permissions. Open **Collections** in the workspace navigation. Editors and owner
 can choose **New collection**, name it, and select workspace or private
 visibility.
 
+Collection names ignore letter case when checking duplicates. A workspace name
+must be unique in its workspace. A private name must be unique among the
+creator's private collections in that workspace. If the name already exists,
+choose a different name.
+
 - A workspace collection is visible to current workspace members.
 - A private collection is visible only to the person who created it.
 - Only the creator of a workspace collection can later make it private. Other
@@ -27,3 +32,6 @@ still access that scene first.
 If another edit changed the collection first, the app reloads the current
 revision and asks you to try the action again. Viewers can open workspace
 collections and their authorized scene links but do not see management actions.
+After a connection timeout, retry the same action: the app safely reuses the
+pending request until the server gives a definite response. Closing the dialog
+cancels that pending attempt.

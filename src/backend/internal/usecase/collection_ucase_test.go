@@ -43,7 +43,7 @@ type collectionRepoStub struct {
 	deleteOwner  bool
 }
 
-func (s *collectionRepoStub) WithMutation(ctx domain.Context, _ domain.Principal, _ uuid.UUID, _ uuid.UUID, _ []byte, fn func(domain.Context) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
+func (s *collectionRepoStub) WithMutation(ctx domain.Context, _ domain.Principal, _ uuid.UUID, _ uuid.UUID, _ domain.CollectionOperation, _ []byte, fn func(domain.Context) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
 	s.mutated = true
 	return fn(ctx)
 }

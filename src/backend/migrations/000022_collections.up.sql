@@ -32,3 +32,13 @@ CREATE TABLE collection_scenes (
 
 CREATE INDEX collection_scenes_scene
   ON collection_scenes(workspace_id,scene_id,collection_id);
+
+ALTER TABLE feature_mutation_receipts
+  ADD COLUMN collection_operation text;
+
+ALTER TABLE feature_mutation_receipts
+  ADD CONSTRAINT feature_mutation_receipts_collection_operation_check CHECK (
+    (action='collection:manage' AND collection_operation IN
+      ('create','update','delete','add_scene','remove_scene','reorder'))
+    OR (action<>'collection:manage' AND collection_operation IS NULL)
+  );

@@ -177,6 +177,110 @@ func TestCollectionAccessibleSubsetPrunesHiddenRowsAndRevocationDenies(t *testin
 	}
 }
 
+func TestCollectionReceiptBindsOperationAndRevalidatesReplay(t *testing.T) {
+	db := accessTestDB(t, 22)
+	owner, editor, workspaceID := accessFixture(t, db)
+	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'editor')", workspaceID, editor)
+	mustExec(t, db, "UPDATE workspace_feature_policies SET collections_enabled=true WHERE workspace_id=?", workspaceID)
+	accessService, err := usecase.NewAccessService(NewAccessRepository(db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo := NewCollectionRepository(db)
+	service := usecase.NewCollectionService(repo, usecase.NewFeatureService(NewFeatureRepository(db), accessService), accessService)
+
+	requestID := uuid.New()
+	var operationErr error
+	err = accessService.WithWorkspaceLock(context.Background(), workspaceID, owner, func(ctx domain.Context) error {
+		principal := domain.UserPrincipal(owner)
+		payload := []byte(`{"same":true}`)
+		if _, callErr := repo.WithMutation(ctx, principal, workspaceID, requestID, domain.CollectionAddScene, payload, func(domain.Context) (domain.StoredFeatureResponse, error) {
+			return domain.StoredFeatureResponse{Status: 200, Body: []byte(`{"id":"` + uuid.NewString() + `"}`)}, nil
+		}); callErr != nil {
+			return callErr
+		}
+		_, operationErr = repo.WithMutation(ctx, principal, workspaceID, requestID, domain.CollectionRemoveScene, payload, func(domain.Context) (domain.StoredFeatureResponse, error) {
+			return domain.StoredFeatureResponse{}, errors.New("must not execute")
+		})
+		return nil
+	})
+	if err != nil || !errors.Is(operationErr, domain.ErrRequestIDReused) {
+		t.Fatalf("lock err=%v cross-operation err=%v", err, operationErr)
+	}
+
+	collection, err := service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "Replay", Visibility: domain.CollectionWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	editorRequest := uuid.New()
+	editorInput := domain.CollectionUpdateInput{RequestID: editorRequest, ExpectedRevision: collection.Revision, Name: "Editor update", Visibility: domain.CollectionWorkspace}
+	editorValue, err := service.Update(context.Background(), domain.UserPrincipal(editor), workspaceID, collection.ID, editorInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Update(context.Background(), domain.UserPrincipal(owner), workspaceID, collection.ID, domain.CollectionUpdateInput{RequestID: uuid.New(), ExpectedRevision: editorValue.Revision, Name: editorValue.Name, Visibility: domain.CollectionPrivate}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Update(context.Background(), domain.UserPrincipal(editor), workspaceID, collection.ID, editorInput); !errors.Is(err, domain.ErrInaccessible) {
+		t.Fatalf("private receipt replay leaked stored response: %v", err)
+	}
+
+	createRequest := uuid.New()
+	createInput := domain.CollectionCreateInput{RequestID: createRequest, Name: "Deleted replay", Visibility: domain.CollectionWorkspace}
+	deleted, err := service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, createInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = service.Delete(context.Background(), domain.UserPrincipal(owner), workspaceID, deleted.ID, domain.CollectionRevisionInput{RequestID: uuid.New(), ExpectedRevision: deleted.Revision}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, createInput); !errors.Is(err, domain.ErrInaccessible) {
+		t.Fatalf("deleted collection replay leaked stored response: %v", err)
+	}
+
+	sceneID := uuid.New()
+	mustExec(t, db, "INSERT INTO scenes(id,workspace_id,title) VALUES (?,?,'Replay scene')", sceneID, workspaceID)
+	sceneCollection, err := service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "Scene replay", Visibility: domain.CollectionWorkspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	addInput := domain.CollectionSceneInput{RequestID: uuid.New(), ExpectedRevision: sceneCollection.Revision, SceneID: sceneID}
+	if _, err = service.AddScene(context.Background(), domain.UserPrincipal(owner), workspaceID, sceneCollection.ID, addInput); err != nil {
+		t.Fatal(err)
+	}
+	mustExec(t, db, "UPDATE scenes SET deleted_at=clock_timestamp() WHERE workspace_id=? AND id=?", workspaceID, sceneID)
+	if _, err = service.AddScene(context.Background(), domain.UserPrincipal(owner), workspaceID, sceneCollection.ID, addInput); !errors.Is(err, domain.ErrInaccessible) {
+		t.Fatalf("deleted scene receipt replay leaked stored response: %v", err)
+	}
+}
+
+func TestCollectionNamesAreCaseInsensitiveUnique(t *testing.T) {
+	db := accessTestDB(t, 22)
+	owner, editor, workspaceID := accessFixture(t, db)
+	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'editor')", workspaceID, editor)
+	mustExec(t, db, "UPDATE workspace_feature_policies SET collections_enabled=true WHERE workspace_id=?", workspaceID)
+	accessService, err := usecase.NewAccessService(NewAccessRepository(db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := usecase.NewCollectionService(NewCollectionRepository(db), usecase.NewFeatureService(NewFeatureRepository(db), accessService), accessService)
+	if _, err = service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "Launch", Visibility: domain.CollectionWorkspace}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Create(context.Background(), domain.UserPrincipal(editor), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "launch", Visibility: domain.CollectionWorkspace}); !errors.Is(err, domain.ErrCollectionNameConflict) {
+		t.Fatalf("workspace duplicate err=%v", err)
+	}
+	if _, err = service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "Private", Visibility: domain.CollectionPrivate}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Create(context.Background(), domain.UserPrincipal(owner), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "PRIVATE", Visibility: domain.CollectionPrivate}); !errors.Is(err, domain.ErrCollectionNameConflict) {
+		t.Fatalf("private duplicate err=%v", err)
+	}
+	if _, err = service.Create(context.Background(), domain.UserPrincipal(editor), workspaceID, domain.CollectionCreateInput{RequestID: uuid.New(), Name: "PRIVATE", Visibility: domain.CollectionPrivate}); err != nil {
+		t.Fatalf("other creator private name should be independent: %v", err)
+	}
+}
+
 func TestCollectionMigrationUpDown(t *testing.T) {
 	db := accessTestDB(t, 21)
 	up, err := os.ReadFile("../../../migrations/000022_collections.up.sql")
@@ -189,6 +293,9 @@ func TestCollectionMigrationUpDown(t *testing.T) {
 	if !db.Migrator().HasTable("collections") || !db.Migrator().HasTable("collection_scenes") {
 		t.Fatal("collection tables missing")
 	}
+	if !db.Migrator().HasColumn("feature_mutation_receipts", "collection_operation") {
+		t.Fatal("collection receipt operation discriminator missing")
+	}
 	down, err := os.ReadFile("../../../migrations/000022_collections.down.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -198,6 +305,9 @@ func TestCollectionMigrationUpDown(t *testing.T) {
 	}
 	if db.Migrator().HasTable("collections") || db.Migrator().HasTable("collection_scenes") {
 		t.Fatal("collection tables survived down")
+	}
+	if db.Migrator().HasColumn("feature_mutation_receipts", "collection_operation") {
+		t.Fatal("collection receipt operation discriminator survived down")
 	}
 }
 

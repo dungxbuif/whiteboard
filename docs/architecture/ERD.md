@@ -104,7 +104,7 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000018 / `scene_versions`, `version_assets` | Immutable canonical checkpoints, exact writer sequence/document ID, request retry binding and same-transaction asset pins; label/pin use a separate metadata revision |
 | 000019 / `user_notifications` | In-app comment notifications unique by user/event, idempotent read requests and event-triggered `notification.deliver` jobs |
 | 000020 / `presentation_links` | Hash-only 24-hour presentation invites scoped to one workspace/scene/session; participants and host state are not persisted |
-| 000022 / `collections`, `collection_scenes` | Workspace/private containers and stable scene order; composite workspace references enforce tenant identity and collection deletion cascades membership only |
+| 000022 / `collections`, `collection_scenes`, receipt operation discriminator | Workspace/private containers and stable scene order; composite workspace references enforce tenant identity, collection deletion cascades membership only, case-folded indexes enforce the visibility scope's name uniqueness, and `feature_mutation_receipts.collection_operation` prevents cross-operation replay |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 

@@ -44,14 +44,15 @@ domain/service), HTTP handler (undefined handler), collection components
 (missing modules), and collection-name filtering (missing accessible filter).
 Each focused test was then made GREEN before the next layer was added.
 
-- `go test ./internal/usecase ./internal/delivery/http/handler`: 168 tests pass.
+- `go test ./internal/usecase ./internal/delivery/http/handler`: 198 tests pass.
 - Guarded `go test ./internal/repository/postgres -run TestCollection -count=1`:
   privacy, moderation delete, composite references, stable reorder, conflict,
   exact retry/changed reuse and migration up/down pass on PostgreSQL.
 - Guarded `go test ./...`: all backend packages pass; `go vet ./...` reports no
   issues.
-- `npm run test:unit --workspace ./frontend -- --run`: 40 files and 151 tests
-  pass; the focused collection file contains four passing cases.
+- `npm run test:unit --workspace ./frontend -- --run`: the pre-concurrency gate
+  passed 41 files and 153 tests; collection API regressions prove timeout retry,
+  definitive response clearing, and explicit cancel.
 - `npm run build --workspace ./frontend`: TypeScript and the production Vite
   build pass.
 - Real-stack Playwright `enterprise-collections.spec.ts`: one browser scenario
@@ -86,4 +87,50 @@ Regression proof adds a real PostgreSQL collection with live and soft-deleted
 members, verifies filtered Get/List counts and pagination, prunes the hidden row
 during subset reorder, verifies removal authorization before membership lookup,
 and verifies revoked workspace access reveals no collection data.
+
+## Receipt and retry hardening
+
+Fresh review requires collection receipts to remain idempotency records rather
+than authorization snapshots. Every receipt replay stays inside the workspace
+lock, repeats current collection visibility and relevant scene checks, and
+rebuilds collection response content through current ACL filtering. Replays for
+deleted/private/revoked resources fail without returning stored content.
+
+Migration `000022` binds `collection:manage` receipts to a concrete collection
+operation (`create`, `update`, `delete`, `add_scene`, `remove_scene`, or
+`reorder`). The operation participates in receipt identity, so one request UUID
+cannot replay an Add as a Remove even when their payload fields match.
+
+The browser collection client keeps a generated request UUID for the exact
+operation and payload after a transport failure with no HTTP response. Retrying
+that operation reuses the UUID; a definitive HTTP response clears it, and an
+explicit cancel clears retained attempts. This covers timeout-after-commit
+without creating a second mutation.
+
+Workspace collection names are case-insensitively unique per workspace. Private
+collection names are case-insensitively unique per creator and workspace.
+PostgreSQL unique violations from those two indexes map to stable
+`409 COLLECTION_NAME_CONFLICT` responses.
+
+## Hardening verification
+
+RED was observed for the missing collection operation discriminator and stable
+name-conflict error, and for the missing browser `createCollectionClient`
+retry state. GREEN evidence after implementation:
+
+- Guarded `go test ./internal/repository/postgres -run TestCollection -count=1`
+  passes real PostgreSQL checks for cross-operation request reuse, private and
+  deleted collection replay denial, deleted-scene replay denial, migration
+  up/down, and both case-insensitive uniqueness scopes.
+- Guarded `go test ./...` passes all backend packages in 28.065 seconds;
+  `go vet ./...` reports no issues.
+- Focused frontend collection tests pass 8/8; TypeScript plus the production
+  Vite build pass. A later shared-worktree full rerun reached 157 passing tests
+  and one unrelated concurrent history-panel copy mismatch; L1 collection tests
+  remained green and the V2 owner was notified.
+- The focused real-stack collection browser command is environment-blocked
+  before application setup because the local PostgreSQL role `test` does not
+  exist. The runner reports one failed fixture and zero passed product tests;
+  no browser assertion is claimed from this rerun. The earlier 1/1 collection
+  scenario remains the latest completed browser evidence.
 

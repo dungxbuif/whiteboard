@@ -17,6 +17,7 @@ function client(overrides: Partial<CollectionClient> = {}): CollectionClient {
     addScene: vi.fn().mockResolvedValue(workspaceCollection),
     removeScene: vi.fn().mockResolvedValue({ ...workspaceCollection, revision: '3', sceneCount: 0, scenes: [] }),
     reorder: vi.fn().mockResolvedValue(workspaceCollection),
+    cancelPending: vi.fn(),
     ...overrides,
   };
 }

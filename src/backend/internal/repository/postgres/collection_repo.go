@@ -5,16 +5,33 @@ import (
 	"devtool/internal/domain"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sort"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
 type CollectionRepository struct{ db *gorm.DB }
 
 func NewCollectionRepository(db *gorm.DB) *CollectionRepository { return &CollectionRepository{db: db} }
+
+type collectionFeatureReceipt struct {
+	WorkspaceID         uuid.UUID       `gorm:"type:uuid;primaryKey"`
+	RequestID           uuid.UUID       `gorm:"type:uuid;primaryKey"`
+	SceneID             *uuid.UUID      `gorm:"type:uuid"`
+	Action              string          `gorm:"not null"`
+	CollectionOperation string          `gorm:"not null"`
+	PrincipalKind       string          `gorm:"not null"`
+	PrincipalID         string          `gorm:"not null"`
+	PayloadHash         string          `gorm:"not null"`
+	ResponseStatus      int             `gorm:"not null"`
+	ResponseBody        json.RawMessage `gorm:"type:bytea;not null"`
+}
+
+func (collectionFeatureReceipt) TableName() string { return "feature_mutation_receipts" }
 
 type collectionRow struct {
 	ID          uuid.UUID
@@ -53,17 +70,17 @@ func requireCollectionTransaction(ctx domain.Context, workspaceID uuid.UUID) (*g
 	return tx.db.WithContext(ctx), nil
 }
 
-func (r *CollectionRepository) WithMutation(ctx domain.Context, principal domain.Principal, workspaceID, requestID uuid.UUID, payload []byte, fn func(domain.Context) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
+func (r *CollectionRepository) WithMutation(ctx domain.Context, principal domain.Principal, workspaceID, requestID uuid.UUID, operation domain.CollectionOperation, payload []byte, fn func(domain.Context) (domain.StoredFeatureResponse, error)) (domain.StoredFeatureResponse, error) {
 	db, err := requireCollectionTransaction(ctx, workspaceID)
-	if err != nil || requestID == uuid.Nil || principal.ID == "" || !json.Valid(payload) {
+	if err != nil || requestID == uuid.Nil || principal.ID == "" || !validCollectionOperation(operation) || !json.Valid(payload) {
 		return domain.StoredFeatureResponse{}, domain.ErrAccessDenied
 	}
 	digest := sha256.Sum256(payload)
 	hash := hex.EncodeToString(digest[:])
-	var existing featureReceipt
+	var existing collectionFeatureReceipt
 	result := db.First(&existing, "workspace_id=? AND request_id=?", workspaceID, requestID)
 	if result.Error == nil {
-		if existing.SceneID != nil || existing.Action != string(domain.FeatureCollectionManage) || existing.PrincipalKind != string(principal.Kind) || existing.PrincipalID != principal.ID || existing.PayloadHash != hash {
+		if existing.SceneID != nil || existing.Action != string(domain.FeatureCollectionManage) || existing.CollectionOperation != string(operation) || existing.PrincipalKind != string(principal.Kind) || existing.PrincipalID != principal.ID || existing.PayloadHash != hash {
 			return domain.StoredFeatureResponse{}, domain.ErrRequestIDReused
 		}
 		return domain.StoredFeatureResponse{Status: existing.ResponseStatus, Body: existing.ResponseBody}, nil
@@ -78,11 +95,28 @@ func (r *CollectionRepository) WithMutation(ctx domain.Context, principal domain
 	if response.Status < 100 || response.Status > 599 || !json.Valid(response.Body) {
 		return domain.StoredFeatureResponse{}, domain.ErrAccessDenied
 	}
-	receipt := featureReceipt{WorkspaceID: workspaceID, RequestID: requestID, Action: string(domain.FeatureCollectionManage), PrincipalKind: string(principal.Kind), PrincipalID: principal.ID, PayloadHash: hash, ResponseStatus: response.Status, ResponseBody: response.Body}
+	receipt := collectionFeatureReceipt{WorkspaceID: workspaceID, RequestID: requestID, Action: string(domain.FeatureCollectionManage), CollectionOperation: string(operation), PrincipalKind: string(principal.Kind), PrincipalID: principal.ID, PayloadHash: hash, ResponseStatus: response.Status, ResponseBody: response.Body}
 	if err = db.Create(&receipt).Error; err != nil {
 		return domain.StoredFeatureResponse{}, err
 	}
 	return response, nil
+}
+
+func validCollectionOperation(value domain.CollectionOperation) bool {
+	switch value {
+	case domain.CollectionCreate, domain.CollectionUpdate, domain.CollectionDelete, domain.CollectionAddScene, domain.CollectionRemoveScene, domain.CollectionReorder:
+		return true
+	default:
+		return false
+	}
+}
+
+func collectionWriteError(err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == postgresUniqueViolation && (pgErr.ConstraintName == "collections_workspace_name_key" || pgErr.ConstraintName == "collections_private_creator_name_key") {
+		return domain.ErrCollectionNameConflict
+	}
+	return accessError(err)
 }
 
 func (r *CollectionRepository) Create(ctx domain.Context, value domain.Collection) (domain.Collection, error) {
@@ -92,7 +126,7 @@ func (r *CollectionRepository) Create(ctx domain.Context, value domain.Collectio
 	}
 	row := collectionRow{ID: value.ID, WorkspaceID: value.WorkspaceID, CreatorID: value.CreatorID, Name: value.Name, Visibility: value.Visibility, Revision: value.Revision}
 	if err = db.Create(&row).Error; err != nil {
-		return domain.Collection{}, accessError(err)
+		return domain.Collection{}, collectionWriteError(err)
 	}
 	return r.Get(ctx, value.WorkspaceID, value.ID, value.CreatorID, false)
 }
@@ -196,7 +230,7 @@ func (r *CollectionRepository) Update(ctx domain.Context, workspaceID, collectio
 	}
 	result := db.Model(&collectionRow{}).Where("workspace_id=? AND id=? AND revision=? AND (creator_id=? OR (visibility='workspace' AND ?='workspace'))", workspaceID, collectionID, expected, userID, visibility).Updates(map[string]any{"name": name, "visibility": visibility, "revision": gorm.Expr("revision+1"), "updated_at": gorm.Expr("clock_timestamp()")})
 	if result.Error != nil {
-		return domain.Collection{}, accessError(result.Error)
+		return domain.Collection{}, collectionWriteError(result.Error)
 	}
 	if result.RowsAffected != 1 {
 		return domain.Collection{}, r.mutationMiss(ctx, workspaceID, collectionID, userID)

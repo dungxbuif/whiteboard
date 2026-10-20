@@ -15,6 +15,18 @@ const (
 )
 
 var ErrInvalidCollection = errors.New("invalid collection input")
+var ErrCollectionNameConflict = errors.New("collection name already exists")
+
+type CollectionOperation string
+
+const (
+	CollectionCreate      CollectionOperation = "create"
+	CollectionUpdate      CollectionOperation = "update"
+	CollectionDelete      CollectionOperation = "delete"
+	CollectionAddScene    CollectionOperation = "add_scene"
+	CollectionRemoveScene CollectionOperation = "remove_scene"
+	CollectionReorder     CollectionOperation = "reorder"
+)
 
 type CollectionScene struct {
 	ID        uuid.UUID `json:"id"`
@@ -75,7 +87,7 @@ type CollectionReorderInput struct {
 }
 
 type CollectionRepository interface {
-	WithMutation(Context, Principal, uuid.UUID, uuid.UUID, []byte, func(Context) (StoredFeatureResponse, error)) (StoredFeatureResponse, error)
+	WithMutation(Context, Principal, uuid.UUID, uuid.UUID, CollectionOperation, []byte, func(Context) (StoredFeatureResponse, error)) (StoredFeatureResponse, error)
 	Create(Context, Collection) (Collection, error)
 	Update(Context, uuid.UUID, uuid.UUID, uuid.UUID, int64, string, CollectionVisibility) (Collection, error)
 	Delete(Context, uuid.UUID, uuid.UUID, uuid.UUID, int64, bool) error

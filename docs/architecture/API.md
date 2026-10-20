@@ -72,7 +72,17 @@ without receiving its name or scene contents. A stale revision returns
 `409 REQUEST_ID_REUSED`; disabled policy returns `403 FEATURE_DISABLED`.
 Only `canSetPrivate:true` callers may convert a workspace collection to private;
 the response does not expose the creator's user ID. Invalid limits, including
-non-decimal values, return `400 INVALID_INPUT`.
+non-decimal values, return `400 INVALID_INPUT`. Workspace names are unique
+case-insensitively within the workspace; private names are unique
+case-insensitively per creator and workspace. Name collisions return
+`409 COLLECTION_NAME_CONFLICT`.
+
+An exact mutation retry is bound to its operation as well as its principal and
+payload. The service reauthorizes the workspace, collection visibility, and any
+referenced scene while holding the workspace lock before returning a receipt;
+it rebuilds collection bodies from current ACL-filtered data. A transport retry
+must reuse its request ID until an HTTP response is received or the caller
+explicitly cancels the attempt.
 
 ## Errors
 
