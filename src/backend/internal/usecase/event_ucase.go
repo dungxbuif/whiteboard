@@ -16,11 +16,15 @@ const (
 )
 
 var eventToken = regexp.MustCompile(`^[a-z0-9][a-z0-9_.:-]{0,127}$`)
-var eventMetadataToken = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_.:-]{0,127}$`)
-var forbiddenEventMetadataKeys = map[string]struct{}{
-	"authorization": {}, "body": {}, "candidate": {}, "comment": {},
-	"content": {}, "credential": {}, "ice": {}, "password": {},
-	"sdp": {}, "secret": {}, "text": {}, "token": {},
+var eventMetadataValueToken = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$`)
+var eventMetadataUUIDKeys = map[string]struct{}{
+	"threadId": {}, "commentId": {}, "versionId": {}, "collectionId": {}, "libraryItemId": {}, "requestId": {},
+}
+var eventMetadataDecimalKeys = map[string]struct{}{
+	"revision": {}, "sequence": {}, "aclVersion": {}, "latencyMs": {}, "count": {},
+}
+var eventMetadataTokenKeys = map[string]struct{}{
+	"action": {}, "eventType": {}, "tool": {}, "scope": {}, "outcome": {}, "failureClass": {}, "status": {}, "role": {},
 }
 
 type eventAccess interface {
@@ -37,27 +41,37 @@ func NewEventService(repo domain.EventRepository, access eventAccess) *EventServ
 	return &EventService{repo: repo, access: access}
 }
 
-func safeEventValue(value any) bool {
-	switch current := value.(type) {
-	case nil, bool, string, float64, float32, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, json.Number:
-		return true
-	case []any:
-		for _, item := range current {
-			if !safeEventValue(item) {
+func safeEventMetadata(metadata map[string]any) bool {
+	for key, value := range metadata {
+		if _, ok := eventMetadataUUIDKeys[key]; ok {
+			text, stringOK := value.(string)
+			if !stringOK || uuid.Validate(text) != nil {
 				return false
 			}
+			continue
 		}
-		return true
-	case map[string]any:
-		for key, item := range current {
-			if _, denied := forbiddenEventMetadataKeys[strings.ToLower(key)]; denied || !eventMetadataToken.MatchString(key) || !safeEventValue(item) {
+		if _, ok := eventMetadataDecimalKeys[key]; ok {
+			switch number := value.(type) {
+			case string:
+				if !decimalCursor(number) {
+					return false
+				}
+			case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64, json.Number:
+			default:
 				return false
 			}
+			continue
 		}
-		return true
-	default:
+		if _, ok := eventMetadataTokenKeys[key]; ok {
+			text, stringOK := value.(string)
+			if !stringOK || !eventMetadataValueToken.MatchString(text) || strings.Contains(strings.ToLower(text), "secret") {
+				return false
+			}
+			continue
+		}
 		return false
 	}
+	return true
 }
 
 func validateEventInput(input domain.EventInput) error {
@@ -75,7 +89,7 @@ func validateEventInput(input domain.EventInput) error {
 	if input.SafeMetadata == nil {
 		input.SafeMetadata = map[string]any{}
 	}
-	if !safeEventValue(input.SafeMetadata) {
+	if !safeEventMetadata(input.SafeMetadata) {
 		return domain.ErrUnsafeEventMetadata
 	}
 	encoded, err := json.Marshal(input.SafeMetadata)
@@ -119,7 +133,7 @@ func (s *EventService) ListWorkspace(ctx domain.Context, principal domain.Princi
 		}
 		for _, event := range rows {
 			scanCursor = event.ID
-			if !workspace.Owner && strings.HasPrefix(event.Kind, "security.") {
+			if !workspace.Owner && (strings.HasPrefix(event.Kind, "security.") || strings.HasPrefix(event.Kind, "acl.")) {
 				continue
 			}
 			if event.SceneID != nil {

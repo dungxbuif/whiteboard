@@ -59,6 +59,10 @@ func TestEventContainsNoSecrets(t *testing.T) {
 		{"nested": map[string]any{"token": "secret"}},
 		{"candidate": "candidate:1"},
 		{"sdp": "v=0"},
+		{"access_token": "secret"},
+		{"rawBody": "private comment"},
+		{"iceCandidate": "candidate:1"},
+		{"threadId": "arbitrary secret value"},
 	} {
 		input := base
 		input.SafeMetadata = unsafe
@@ -74,6 +78,7 @@ func TestRestrictedSceneDoesNotLeak(t *testing.T) {
 		{ID: "1", WorkspaceID: workspaceID, SceneID: &restricted, ActorKind: domain.EventActorUser, ActorID: uuid.NewString(), Kind: "comment.created"},
 		{ID: "2", WorkspaceID: workspaceID, SceneID: &visible, ActorKind: domain.EventActorUser, ActorID: uuid.NewString(), Kind: "comment.created"},
 		{ID: "3", WorkspaceID: workspaceID, ActorKind: domain.EventActorSystem, ActorID: "system", Kind: "security.sso.updated"},
+		{ID: "4", WorkspaceID: workspaceID, ActorKind: domain.EventActorUser, ActorID: uuid.NewString(), Kind: "acl.workspace_members.update", SafeMetadata: map[string]any{"aclVersion": "2"}},
 	}}
 	service := NewEventService(repo, eventAccessStub{workspace: domain.AccessDecision{Access: domain.AccessView}, denied: map[uuid.UUID]bool{restricted: true}})
 	page, err := service.ListWorkspace(context.Background(), domain.UserPrincipal(uuid.New()), workspaceID, "", 50)
@@ -82,5 +87,15 @@ func TestRestrictedSceneDoesNotLeak(t *testing.T) {
 	}
 	if len(page.Items) != 1 || page.Items[0].SceneID == nil || *page.Items[0].SceneID != visible {
 		t.Fatalf("restricted or owner event leaked: %#v", page.Items)
+	}
+}
+
+func TestOwnerCanReadWorkspaceACLActivity(t *testing.T) {
+	workspaceID := uuid.New()
+	repo := &eventRepositoryStub{events: []domain.WorkspaceEvent{{ID: "1", WorkspaceID: workspaceID, ActorKind: domain.EventActorUser, ActorID: uuid.NewString(), SubjectID: uuid.NewString(), Kind: "acl.workspace_members.update", SafeMetadata: map[string]any{"aclVersion": "2"}}}}
+	service := NewEventService(repo, eventAccessStub{workspace: domain.AccessDecision{Access: domain.AccessEdit, Owner: true}})
+	page, err := service.ListWorkspace(context.Background(), domain.UserPrincipal(uuid.New()), workspaceID, "", 50)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("owner ACL activity: items=%#v err=%v", page.Items, err)
 	}
 }

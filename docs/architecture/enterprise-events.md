@@ -10,13 +10,18 @@ agent operations, durable collaboration mutations, and later enterprise jobs.
 They are not a copy of scene content or a replacement for canonical Yjs history.
 
 - Go metadata writers append an event inside the same transaction as the state
-  change by using the transaction-bound context.
+  change by using the transaction-bound context. A direct repository call
+  without such a context creates its own transaction, so the event and outbox
+  row can never commit separately.
 - Go projects `acl_audit_events` and `agent_operation_audit` in bounded batches.
 - The Node collaboration owner projects `collab_mutation_audit`; it remains the
   sole canonical Yjs writer.
-- Projectors use persistent `(cursor_time,cursor_key)` state and the unique
-  `(source,source_key)` constraint. A crash before commit advances neither the
-  cursor nor the event, and a retry cannot duplicate the event.
+- Projectors keep persistent `(cursor_time,cursor_key)` observability state, but
+  select source rows by anti-joining the unique `(source,source_key)` event
+  provenance. The cursor is never an exclusion boundary: a transaction that
+  commits late behind the high-water mark is still projected. A crash before
+  commit advances neither the cursor nor the event, and a retry cannot duplicate
+  the event or outbox notification.
 
 ## Data model
 
@@ -43,10 +48,12 @@ workspace_event_source_cursors
   cursor_time + cursor_key
 ```
 
-Raw comment text, document content, credentials, tokens, SDP, ICE candidates,
-passwords and authorization values are rejected from `safe_metadata`. Projectors
-copy only IDs, action/kind, decimal revisions/sequences, outcomes, scopes and
-bounded timing metadata.
+`safe_metadata` is a flat positive allowlist. Identifier fields must be UUIDs;
+revision, sequence and timing fields must be numeric; action, outcome, scope and
+status fields must be bounded tokens. Unknown, nested or free-form fields are
+rejected, including compound credential/content names such as `access_token`,
+`rawBody` and `iceCandidate`. Projectors copy only these validated identifiers,
+tokens and bounded numbers.
 
 ## Invalidation protocol
 
@@ -70,16 +77,18 @@ refetch authorized pages after reconnect, route focus, or manual refresh.
 `EventService.ListWorkspace` accepts authenticated workspace users, a decimal
 cursor, and a maximum page size of 50. It checks current workspace membership,
 filters every scene event through current scene authority before returning it,
-and withholds `security.*` kinds from non-owners. Public guests and agents do not
+and withholds `security.*` and workspace ACL/admin activity from non-owners.
+Public guests and agents do not
 receive a workspace feed. Task C3 owns HTTP handlers, notifications and the
 human-facing activity guide.
 
 ## Verification
 
-- Go: unsafe metadata, transaction rollback, source retry deduplication, and
-  restricted-scene filtering.
-- Node: crash-before-commit retry, bounded batch validation, recipient
-  reauthorization, and cursor-only fanout.
+- Go: positive metadata allowlist, injected outbox failure rollback, identical
+  retry/no-second-outbox, late-commit and stale-cursor recovery, owner-only ACL
+  activity, and restricted-scene filtering.
+- Node: crash-before-commit retry, late-commit/stale-cursor recovery, bounded
+  batch validation, recipient reauthorization, and cursor-only fanout.
 - Frontend/contracts: strict cursor-only parsing and transport delivery without
   changing document admission.
 

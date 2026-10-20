@@ -66,7 +66,16 @@ func eventFromRow(row workspaceEventRow) (domain.WorkspaceEvent, error) {
 }
 
 func (r *EventRepository) AppendEvent(ctx domain.Context, input domain.EventInput) (domain.WorkspaceEvent, error) {
-	return r.appendWithDB(accessDB(ctx, r.db), input)
+	if _, ok := ctx.Value(accessTransactionKey{}).(accessTransaction); ok {
+		return r.appendWithDB(accessDB(ctx, r.db), input)
+	}
+	var event domain.WorkspaceEvent
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var appendErr error
+		event, appendErr = r.appendWithDB(tx, input)
+		return appendErr
+	})
+	return event, err
 }
 
 func (r *EventRepository) appendWithDB(db *gorm.DB, input domain.EventInput) (domain.WorkspaceEvent, error) {
@@ -203,13 +212,10 @@ func (r *EventRepository) projectACL(tx *gorm.DB, limit int) (int, error) {
 		return 0, err
 	}
 	rows := []aclAuditProjection{}
-	lastID := int64(0)
-	if cursor.CursorKey != "" {
-		if lastID, err = strconv.ParseInt(cursor.CursorKey, 10, 64); err != nil {
-			return 0, err
-		}
-	}
-	if err = tx.Raw(`SELECT id,workspace_id,scene_id,actor_id,subject_id,event_type,acl_version,created_at FROM acl_audit_events WHERE id>? ORDER BY id LIMIT ?`, lastID, limit).Scan(&rows).Error; err != nil {
+	if err = tx.Raw(`SELECT audit.id,audit.workspace_id,audit.scene_id,audit.actor_id,audit.subject_id,audit.event_type,audit.acl_version,audit.created_at
+		FROM acl_audit_events AS audit
+		WHERE NOT EXISTS (SELECT 1 FROM workspace_events AS event WHERE event.source=? AND event.source_key=audit.id::text)
+		ORDER BY audit.id LIMIT ?`, aclAuditSource, limit).Scan(&rows).Error; err != nil {
 		return 0, err
 	}
 	for _, row := range rows {
@@ -241,7 +247,10 @@ func (r *EventRepository) projectAgent(tx *gorm.DB, limit int) (int, error) {
 		return 0, err
 	}
 	rows := []agentAuditProjection{}
-	if err = tx.Raw(`SELECT id,principal_id,workspace_id,scene_id,tool,scope,outcome,failure_class,latency_ms,created_at FROM agent_operation_audit WHERE (created_at,id::text)>(?,?) ORDER BY created_at,id::text LIMIT ?`, cursor.CursorTime, cursor.CursorKey, limit).Scan(&rows).Error; err != nil {
+	if err = tx.Raw(`SELECT audit.id,audit.principal_id,audit.workspace_id,audit.scene_id,audit.tool,audit.scope,audit.outcome,audit.failure_class,audit.latency_ms,audit.created_at
+		FROM agent_operation_audit AS audit
+		WHERE NOT EXISTS (SELECT 1 FROM workspace_events AS event WHERE event.source=? AND event.source_key=audit.id::text)
+		ORDER BY audit.created_at,audit.id::text LIMIT ?`, agentAuditSource, limit).Scan(&rows).Error; err != nil {
 		return 0, err
 	}
 	for _, row := range rows {

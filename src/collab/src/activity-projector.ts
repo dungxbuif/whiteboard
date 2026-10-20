@@ -39,7 +39,7 @@ class PostgresActivityTransaction implements ActivityProjectionStore {
   if(!result.rows[0])throw new Error('activity projection cursor unavailable');return result.rows[0];
  }
  async readMutationAudit(cursor:ActivityProjectionCursor,limit:number):Promise<MutationAuditRow[]>{
-  const result=await this.client.query<MutationAuditRow>(`SELECT workspace_id::text AS "workspaceId",scene_id::text AS "sceneId",request_id AS "requestId",principal_type AS "principalType",principal_id AS "principalId",action,sequence::text,acl_version::text AS "aclVersion",created_at::text AS "createdAt" FROM collab_mutation_audit WHERE (created_at,scene_id::text || '/' || request_id)>($1::timestamptz,$2) ORDER BY created_at,scene_id::text || '/' || request_id LIMIT $3`,[cursor.occurredAt,cursor.key,limit]);
+  const result=await this.client.query<MutationAuditRow>(`SELECT audit.workspace_id::text AS "workspaceId",audit.scene_id::text AS "sceneId",audit.request_id AS "requestId",audit.principal_type AS "principalType",audit.principal_id AS "principalId",audit.action,audit.sequence::text,audit.acl_version::text AS "aclVersion",audit.created_at::text AS "createdAt" FROM collab_mutation_audit AS audit WHERE NOT EXISTS (SELECT 1 FROM workspace_events AS event WHERE event.source=$1 AND event.source_key=audit.scene_id::text || '/' || audit.request_id) ORDER BY audit.created_at,audit.scene_id::text || '/' || audit.request_id LIMIT $2`,[COLLAB_AUDIT_SOURCE,limit]);
   return result.rows;
  }
  async appendProjected(row:MutationAuditRow):Promise<void>{
