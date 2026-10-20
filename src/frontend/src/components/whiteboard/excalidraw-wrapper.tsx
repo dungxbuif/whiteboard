@@ -264,7 +264,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
   const MainMenu = module && Object.prototype.hasOwnProperty.call(module, 'MainMenu') ? module.MainMenu : undefined;
   const statusText = uploadError || state.error || (uploads ? `${uploads} image uploads pending` : collab.principal.current.kind === 'public' && collab.principal.current.session.access === 'view' && state.status !== 'revoked' ? state.status === 'degraded' ? 'Read-only · Recovery required' : 'Read-only' : labels[state.status]);
   const statusSeverity: SceneControlStatus['severity'] = uploadError || state.error || ['revoked', 'degraded'].includes(state.status) ? 'error' : state.status === 'offline' ? 'warning' : state.pending || uploads ? 'pending' : 'neutral';
-  const exportRecovery = () => void collab.exportRecovery().then(value => download({ ...value, pendingCanvas: pending.current }));
+  const exportRecovery = () => collab.exportRecovery().then(value => download({ ...value, pendingCanvas: pending.current }));
   const retry = () => { setUploadError(''); transport.retry(); void retryUploads(); };
   const togglePresentation = () => { if (isPresenting) exit(); else enter(); };
   const applyDiagram = (generated: StoreSceneContent) => {
@@ -294,7 +294,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
         {MainMenu ? <MainMenu>
           <MainMenu.ItemCustom><strong className="block max-w-64 truncate px-2 py-1" title={title}>{title}</strong>{displayName ? <span className="block px-2 pb-1 text-xs text-muted-foreground">{displayName}</span> : null}</MainMenu.ItemCustom>
           {onBack ? <MainMenu.Item onSelect={() => onBack()}>Back to dashboard</MainMenu.Item> : null}
-          {state.status === 'revoked' && onRejoin ? <MainMenu.Item onSelect={() => { exportRecovery(); onRejoin(); }}>Export recovery and rejoin</MainMenu.Item> : null}
+          {state.status === 'revoked' && onRejoin ? <MainMenu.Item onSelect={() => { void exportRecovery().then(onRejoin); }}>Export recovery and rejoin</MainMenu.Item> : null}
         </MainMenu> : null}
       </Excalidraw> : <p className="p-4">Loading whiteboard...</p>}
       <SceneControls canRedo={state.canEdit && undo.canRedo()} canUndo={state.canEdit && undo.canUndo()} onExportRecovery={exportRecovery} onPresent={togglePresentation} onRedo={() => undo.redo()} onRetry={retry} onUndo={() => undo.undo()} status={{ text: statusText, severity: statusSeverity }} title={title} />

@@ -1,10 +1,14 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { SceneContent } from '@collab/contracts';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const empty: SceneContent = { elements: [], appState: {}, files: {}, presentationOrder: [] };
-const mock = vi.hoisted(() => ({ props: null as Record<string, unknown> | null }));
+const mock = vi.hoisted(() => ({
+  props: null as Record<string, unknown> | null,
+  status: 'synced',
+  exportRecovery: vi.fn(async () => ({})),
+}));
 
 vi.mock('@/collab/provider', () => ({
   CollabProvider: ({ children }: { children: unknown }) => children,
@@ -17,7 +21,7 @@ vi.mock('@/collab/provider', () => ({
       sendAwareness: vi.fn(),
       retry: vi.fn(),
     },
-    state: { status: 'synced', canEdit: true, pending: 0, recovery: false, connectionId: 'connection' },
+    state: { status: mock.status, canEdit: true, pending: 0, recovery: false, connectionId: 'connection' },
     content: empty,
     legacy: null,
     sceneRef: { workspaceId: crypto.randomUUID(), sceneId: crypto.randomUUID() },
@@ -26,7 +30,7 @@ vi.mock('@/collab/provider', () => ({
     presence: null,
     voice: null,
     post: vi.fn(),
-    exportRecovery: vi.fn(async () => ({})),
+    exportRecovery: mock.exportRecovery,
     applyLocalScene: vi.fn(),
     applyAgentElements: vi.fn(),
   }),
@@ -37,7 +41,7 @@ vi.mock('@/components/whiteboard/excalidraw-module', () => ({
   const MainMenu = Object.assign(
     ({ children }: { children?: ReactNode }) => <div data-testid="native-main-menu">{children}</div>,
     {
-      Item: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
+      Item: ({ children, onSelect }: { children?: ReactNode; onSelect?: () => void }) => <button onClick={onSelect} type="button">{children}</button>,
       ItemCustom: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
       Separator: () => <hr />,
     },
@@ -57,7 +61,14 @@ vi.mock('@/components/whiteboard/excalidraw-module', () => ({
 
 import { CollaborativeCanvas } from '@/components/whiteboard/excalidraw-wrapper';
 
-afterEach(() => { cleanup(); mock.props = null; });
+afterEach(() => {
+  cleanup();
+  mock.props = null;
+  mock.status = 'synced';
+  mock.exportRecovery.mockReset();
+  mock.exportRecovery.mockResolvedValue({});
+  vi.unstubAllGlobals();
+});
 
 it('uses a full viewport canvas with native top-right and main-menu controls', async () => {
   const { container } = render(<CollaborativeCanvas onBack={vi.fn()} title="Scene title" />);
@@ -68,4 +79,19 @@ it('uses a full viewport canvas with native top-right and main-menu controls', a
   expect(screen.getByTestId('native-main-menu')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Back to dashboard' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Open AI assistant' })).toBeInTheDocument();
+});
+
+it('waits for the recovery export before rejoining a revoked scene', async () => {
+  let finishExport!: (value: object) => void;
+  mock.status = 'revoked';
+  mock.exportRecovery.mockReturnValue(new Promise(resolve => { finishExport = resolve; }));
+  vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:recovery'), revokeObjectURL: vi.fn() });
+  const onRejoin = vi.fn();
+  render(<CollaborativeCanvas onRejoin={onRejoin} title="Revoked scene" />);
+  const action = await screen.findByRole('button', { name: 'Export recovery and rejoin' });
+  fireEvent.click(action);
+  expect(mock.exportRecovery).toHaveBeenCalledOnce();
+  expect(onRejoin).not.toHaveBeenCalled();
+  finishExport({ format: 'recovery' });
+  await waitFor(() => expect(onRejoin).toHaveBeenCalledOnce());
 });
