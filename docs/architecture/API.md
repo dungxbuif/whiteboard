@@ -282,7 +282,7 @@ MCP adds native diagram catalog/schema resources, `generate_diagram`, `patch_ele
 
 `POST /mcp/exports` supports the remote stdio export flow. `GET /mcp/artifacts/{id}` requires the same bearer principal and current independent export scope; the URL alone grants nothing. JSON/SVG/PNG artifacts have a captured decimal revision, five-minute expiry and bounded in-memory cache. Restart/expiry requires re-export. Both endpoints retain Origin checks and audit handling. Public scene/artifact links derive from explicit `WHITEBOARD_PUBLIC_URL`, never an internal API origin. See [renderer operations](../operations/mcp.md) for limits, fonts, process boundaries and release checks.
 
-## V1 immutable scene versions (implemented; router wiring pending)
+## V1 immutable scene versions (implemented and wired; release pending)
 
 Authenticated members use the Go API; public scene-session guests are denied
 history. Responses use decimal-string sequences and metadata revisions.

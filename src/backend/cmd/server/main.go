@@ -169,6 +169,7 @@ func main() {
 	events := usecase.NewEventService(postgresrepo.NewEventRepository(db), accessService)
 	comments := usecase.NewCommentService(postgresrepo.NewCommentRepository(db), features, accessService, events)
 	commentHandler := handler.NewCommentHandler(comments, rooms, accessService)
+	var collabRemote domain.AgentCollabRepository
 	agentHandler.SetExportAssets(usecase.NewExportAssets(agents, sceneAssetRepo, s3Repo.(domain.ExportObjectReader)))
 	if cfg.CollabInternalURL != "" {
 		remote, e := collabrepo.NewAgentClient(cfg.CollabInternalURL, cfg.CollabInternalSecret)
@@ -176,11 +177,16 @@ func main() {
 			logger.Error("invalid collaboration bridge configuration")
 			os.Exit(1)
 		}
+		collabRemote = remote
 		agentHandler.SetBridge(usecase.NewAgentBridge(agents, rooms, capabilities, remote))
 	}
+	versions := usecase.NewVersionService(postgresrepo.NewVersionRepository(db), features, capabilities, collabRemote)
+	versions.SetAssetViewer(assetUsecase)
+	versions.SetEventService(events)
+	versionHandler := handler.NewVersionHandler(versions, accessService)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 

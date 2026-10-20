@@ -18,12 +18,13 @@ Commits containing the work are `ac76f8d` (initial V1 snapshot, captured by a
 shared-index coordination incident) and `6085a15` (durable recovery scan and
 canonical-bytes constraint). No M1 room/voice/protocol files were staged by V1.
 
-## Runtime integration still required
+## Runtime integration
 
-The root integrator must construct `VersionRepository` and `VersionService`,
-call `SetAssetViewer` with the current scoped asset usecase, call
-`SetEventService` with the workspace event service, construct
-`VersionHandler`, and mount `VersionHandler.Routes(loginAuth)` below `/api/v1`.
-The existing private collaboration client must be passed to `VersionService`.
+The production server constructs `VersionRepository` and `VersionService`,
+injects the current scoped asset and workspace-event services, and registers
+`VersionHandler` below `/api/v1` with login authentication. The same private
+collaboration client used by durable agent commands is passed to the version
+service when the configured bridge is available. List/get remain readable from
+PostgreSQL when the optional bridge is disabled; create fails closed.
 No public Node route is required: `server.ts` already owns the service-authenticated
 `POST /internal/scenes/{sceneId}/versions` bridge and checkpointer lifecycle.

@@ -31,12 +31,17 @@ func NewVersionHandler(versions domain.SceneVersionUsecase, access versionAccess
 }
 func (h *VersionHandler) Routes(auth func(http.Handler) http.Handler) http.Handler {
 	r := chi.NewRouter()
-	r.Use(auth)
-	r.Get("/scenes/{id}/versions", h.List)
-	r.Post("/scenes/{id}/versions", h.Create)
-	r.Get("/scenes/{id}/versions/{versionId}", h.Get)
-	r.Patch("/scenes/{id}/versions/{versionId}", h.SetMetadata)
+	h.Register(r, auth)
 	return r
+}
+func (h *VersionHandler) Register(r chi.Router, auth func(http.Handler) http.Handler) {
+	r.Group(func(r chi.Router) {
+		r.Use(auth)
+		r.Get("/scenes/{id}/versions", h.List)
+		r.Post("/scenes/{id}/versions", h.Create)
+		r.Get("/scenes/{id}/versions/{versionId}", h.Get)
+		r.Patch("/scenes/{id}/versions/{versionId}", h.SetMetadata)
+	})
 }
 func (h *VersionHandler) identity(r *http.Request) (domain.Principal, domain.SceneRef, error) {
 	user, ok := middleware.UserIDFromContext(r.Context())
