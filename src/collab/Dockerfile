@@ -8,8 +8,9 @@ COPY src/packages/collab-contracts/package.json packages/collab-contracts/packag
 COPY src/packages/diagram-kit/package.json packages/diagram-kit/package.json
 RUN npm ci --ignore-scripts --no-audit
 COPY src/packages/collab-contracts packages/collab-contracts
+COPY src/packages/diagram-kit packages/diagram-kit
 COPY src/collab collab
-RUN npm run build --workspace ./collab
+RUN npm run build --workspace ./packages/collab-contracts && npm run build --workspace ./packages/diagram-kit && npm run build --workspace ./collab
 RUN npm prune --omit=dev --ignore-scripts --no-audit
 
 FROM node:24.19.0-bookworm-slim
@@ -17,6 +18,7 @@ ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/collab-contracts ./packages/collab-contracts
+COPY --from=build /app/packages/diagram-kit ./packages/diagram-kit
 COPY --from=build /app/collab/package.json ./collab/package.json
 COPY --from=build /app/collab/dist ./collab/dist
 USER node
