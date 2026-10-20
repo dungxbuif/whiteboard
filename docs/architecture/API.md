@@ -112,11 +112,21 @@ Distributed/reverse-proxy limiting remains an independent deployment concern.
 Implementation and regression evidence for credential attempt limits is in the
 [authentication hardening verification](../work/verification/auth-hardening-2026-10-19.md).
 
-Dashboard management uses the existing scene PATCH `{folderId}` and POST
-`/api/v1/scenes` `{title,folderId,content}` contracts. A duplicate of a promoted
-v2 scene reads the authenticated durable projection first, then creates a new
-scene from only its canonical content and chosen title/folder. A legacy scene
-uses its scene GET content. Session and collaborator state is not copied. These
+Dashboard management uses the existing scene PATCH `{folderId}` contract and
+`POST /api/v1/scenes/{id}/duplicate` with `{title,folderId}`. The duplicate
+endpoint requires a login session, `X-Workspace-ID`, current scene edit access,
+and workspace owner/editor membership; it returns `201` with the new scene.
+The server reads a v2 scene through a signed collaboration export projection,
+including acknowledged edits not yet compacted into the scene row. This bounded
+export path supports scenes above the ordinary read projection's 500-element/
+256 KiB limit. A legacy scene uses its stored content. Referenced scene assets
+are copied to new object keys and scene-scoped rows, with file IDs and image
+references rewritten. The scene remains hidden until content and assets are
+complete; failed copies use an independent cleanup context to remove staged
+objects and rows. If object storage deletion fails, the hidden scene and stage
+records remain for recovery instead of appearing as a partial copy.
+Session and collaborator state is not copied. Browser `POST /api/v1/scenes`
+with `{title,folderId,content}` remains for new scenes and imports, not duplication. These
 metadata and content mutations are available only with current edit access;
 workspace rename additionally requires owner membership. Folder PATCH rejects
 invalid names/targets as `400 INVALID_INPUT`, and workspace PATCH rejects an

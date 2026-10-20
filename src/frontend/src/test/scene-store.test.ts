@@ -220,4 +220,34 @@ describe("scene store", () => {
     await pending;
     expect(useSceneStore.getState().scenes).toEqual([other]);
   });
+
+  it("does not append or activate a scene created before a workspace switch", async () => {
+    let resolvePost!: (value: { data: Scene }) => void;
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace-1" });
+    vi.mocked(api.post).mockReturnValue(new Promise((resolve) => { resolvePost = resolve; }));
+    const pending = useSceneStore.getState().createScene("workspace-1", null);
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace-2" });
+    useSceneStore.getState().reset();
+    const other = { ...scene, id: "other", workspaceId: "workspace-2" };
+    useSceneStore.setState({ scenes: [other] });
+    resolvePost({ data: scene });
+    await pending;
+    expect(useSceneStore.getState().scenes).toEqual([other]);
+    expect(useSceneStore.getState().activeScene).toBeNull();
+  });
+
+  it("does not open a scene fetched before a workspace switch", async () => {
+    let resolveGet!: (value: { data: Scene }) => void;
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace-1" });
+    vi.mocked(api.get).mockReturnValue(new Promise((resolve) => { resolveGet = resolve; }));
+    const pending = useSceneStore.getState().openSceneById("workspace-1", scene.id);
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace-2" });
+    useSceneStore.getState().reset();
+    const other = { ...scene, id: "other", workspaceId: "workspace-2" };
+    useSceneStore.setState({ scenes: [other] });
+    resolveGet({ data: scene });
+    await pending;
+    expect(useSceneStore.getState().scenes).toEqual([other]);
+    expect(useSceneStore.getState().activeScene).toBeNull();
+  });
 });

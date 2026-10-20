@@ -75,8 +75,12 @@ type versionRemoteStub struct {
 
 type duplicateSceneRepoStub struct {
 	domain.SceneRepository
-	source  *domain.Scene
-	created *domain.Scene
+	source                 *domain.Scene
+	created                *domain.Scene
+	deleted                bool
+	published              bool
+	cleanupContextCanceled bool
+	publishErr             error
 }
 
 func (s *duplicateSceneRepoStub) FindByID(_ domain.Context, _ uuid.UUID, id uuid.UUID) (*domain.Scene, error) {
@@ -89,11 +93,17 @@ func (s *duplicateSceneRepoStub) Create(_ domain.Context, scene *domain.Scene) e
 	s.created = scene
 	return nil
 }
-func (s *duplicateSceneRepoStub) Update(_ domain.Context, scene *domain.Scene) error {
+func (s *duplicateSceneRepoStub) PublishDuplicate(_ domain.Context, scene *domain.Scene) error {
+	s.published = true
+	if s.publishErr != nil {
+		return s.publishErr
+	}
 	s.created = scene
 	return nil
 }
-func (s *duplicateSceneRepoStub) HardDelete(_ domain.Context, _ uuid.UUID, _ uuid.UUID) error {
+func (s *duplicateSceneRepoStub) HardDelete(ctx domain.Context, _ uuid.UUID, _ uuid.UUID) error {
+	s.cleanupContextCanceled = ctx.Err() != nil
+	s.deleted = true
 	return nil
 }
 
@@ -106,11 +116,23 @@ func (duplicateAccessStub) ResolveWorkspace(_ domain.Context, _ domain.Principal
 	return domain.AccessDecision{Access: domain.AccessEdit}, nil
 }
 
-type duplicateAssetStagerStub struct{ called bool }
+type duplicateAssetStagerStub struct {
+	called, cleaned, cleanupContextCanceled bool
+	stageErr, cleanupErr                    error
+	onStage                                 func()
+}
 
 func (s *duplicateAssetStagerStub) StageSceneCopy(_ domain.Context, _ domain.Principal, _, _ domain.SceneRef, _ uuid.UUID, content json.RawMessage) (json.RawMessage, error) {
 	s.called = true
-	return content, nil
+	if s.onStage != nil {
+		s.onStage()
+	}
+	return content, s.stageErr
+}
+func (s *duplicateAssetStagerStub) CleanupSceneCopy(ctx domain.Context, _ domain.SceneRef, _ uuid.UUID) error {
+	s.cleaned = true
+	s.cleanupContextCanceled = ctx.Err() != nil
+	return s.cleanupErr
 }
 
 func TestDuplicateExportsLargeDurableContentBeforeCreatingScene(t *testing.T) {
@@ -128,6 +150,64 @@ func TestDuplicateExportsLargeDurableContentBeforeCreatingScene(t *testing.T) {
 	copy, err := service.Duplicate(context.Background(), domain.UserPrincipal(user), ref, "Copy", nil)
 	if err != nil || copy == nil || remote.operation != "export-projection" || remote.limit <= 256*1024 || !assets.called || len(copy.Content) <= 256*1024 {
 		t.Fatalf("copy=%v err=%v operation=%s limit=%d staged=%v", copy, err, remote.operation, remote.limit, assets.called)
+	}
+}
+
+func TestDuplicateFailureCleansHiddenSceneWithIndependentContext(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	user := uuid.New()
+	source := &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}
+	scenes := &duplicateSceneRepoStub{source: source}
+	stageFailure := errors.New("copy failed")
+	assets := &duplicateAssetStagerStub{stageErr: stageFailure}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Simulate the client disconnecting while external object staging fails.
+	assets.onStage = cancel
+	_, err := service.Duplicate(ctx, domain.UserPrincipal(user), ref, "Copy", nil)
+	if !errors.Is(err, stageFailure) || !assets.cleaned || assets.cleanupContextCanceled || !scenes.deleted || scenes.cleanupContextCanceled || !scenes.created.DeletedAt.Valid {
+		t.Fatalf("err=%v assets=%+v scenes=%+v", err, assets, scenes)
+	}
+}
+
+func TestDuplicateCleanupFailureRetainsHiddenScene(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}}
+	assets := &duplicateAssetStagerStub{stageErr: errors.New("stage failed"), cleanupErr: errors.New("delete object failed")}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if err == nil || !strings.Contains(err.Error(), "delete object failed") || scenes.deleted || !scenes.created.DeletedAt.Valid {
+		t.Fatalf("err=%v hidden=%v deleted=%v", err, scenes.created, scenes.deleted)
+	}
+}
+
+func TestDuplicatePublishFailureCompensatesStagedAssets(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}, publishErr: errors.New("publish failed")}
+	assets := &duplicateAssetStagerStub{}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if err == nil || !strings.Contains(err.Error(), "publish failed") || !assets.called || !assets.cleaned || !scenes.deleted || scenes.cleanupContextCanceled {
+		t.Fatalf("err=%v assets=%+v scenes=%+v", err, assets, scenes)
+	}
+}
+
+func TestDuplicateCancellationAfterStagingDoesNotPublish(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	scenes := &duplicateSceneRepoStub{source: &domain.Scene{ID: ref.SceneID, WorkspaceID: ref.WorkspaceID, WriterMode: "v1", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`)}}
+	assets := &duplicateAssetStagerStub{}
+	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
+	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	assets.onStage = cancel
+	_, err := service.Duplicate(ctx, domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
+	if !errors.Is(err, context.Canceled) || !assets.cleaned || !scenes.deleted || scenes.published || !scenes.created.DeletedAt.Valid {
+		t.Fatalf("err=%v assets=%+v scenes=%+v", err, assets, scenes)
 	}
 }
 

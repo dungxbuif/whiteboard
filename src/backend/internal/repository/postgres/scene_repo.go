@@ -36,6 +36,20 @@ func (r *SceneRepository) HardDelete(ctx context.Context, workspaceID, id uuid.U
 	return accessDB(ctx, r.db).Unscoped().Where("workspace_id=? AND id=?", workspaceID, id).Delete(&domain.Scene{}).Error
 }
 
+// PublishDuplicate makes a fully staged duplicate visible in one database write.
+func (r *SceneRepository) PublishDuplicate(ctx context.Context, scene *domain.Scene) error {
+	result := accessDB(ctx, r.db).Unscoped().Model(&domain.Scene{}).
+		Where("workspace_id=? AND id=? AND deleted_at IS NOT NULL", scene.WorkspaceID, scene.ID).
+		Updates(map[string]any{"content": scene.Content, "content_version": gorm.Expr("content_version + 1"), "deleted_at": nil, "updated_at": gorm.Expr("NOW()")})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
 func (r *SceneRepository) FindByID(ctx context.Context, workspaceID uuid.UUID, id uuid.UUID) (*domain.Scene, error) {
 	var scene domain.Scene
 	if err := accessDB(ctx, r.db).First(&scene, "workspace_id = ? AND id = ?", workspaceID, id).Error; err != nil {

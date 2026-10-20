@@ -26,7 +26,9 @@ Owners and editors with scene edit access can open a scene's menu to **Move** it
 to another folder or **Duplicate** it. Moving changes its folder without
 changing its link. Duplicating asks for a copy name and destination, creates a
 new scene, then opens the copy. The copy includes the latest saved drawing,
-including acknowledged collaboration edits; it does not copy collaborators or
+including acknowledged collaboration edits and uploaded images. A large drawing
+can be duplicated without using the smaller scene-preview limit. A failed copy
+does not leave a partial scene in the dashboard. It does not copy collaborators or
 other session state. Viewers do not see these edit actions. If a list reload
 fails after a successful move or copy, the completed change remains visible and
 a later reload reconciles the list.

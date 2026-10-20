@@ -18,3 +18,15 @@ Before implementation: scene duplication must be a server-side authenticated ope
 - Real-stack Playwright suite attempted; all 27 tests could not start because the local PostgreSQL role `test` does not exist. The image-bearing Postgres integration test is gated by `ACCESS_TEST_DATABASE_URL` and is skipped without its dedicated test database.
 
 Task 4 owns the shared human and AI-readable API docs. Parent was notified of the new endpoint contract for that documentation pass.
+
+## Follow-up review plan (before implementation)
+
+Keep a new duplicate scene hidden until its content and scene-scoped assets are complete. On any failure, use an independent bounded cleanup context, remove staged object copies and their rows, then hard-delete the hidden scene; surface cleanup failures so an operator can distinguish them, and retain a hidden scene if object deletion fails. Guard create-folder, create-scene, and open-scene completions against workspace switches, including navigation after scene creation. Reconcile `docs/architecture/API.md`, `docs/user/dashboard.md`, `src/frontend/public/docs/dashboard-management-api.md`, and the public dashboard copy so they describe the server-side duplicate endpoint and asset handling. Verify failure/cancellation cleanup, deferred workspace responses, full Go/frontend suites and build.
+
+## Follow-up implementation
+
+- Duplicate creation inserts a soft-deleted destination scene. The server publishes content and clears `deleted_at` in one database update only after the collaboration read and object staging finish. Cancellation before publication triggers cleanup.
+- Stage records identify every copied object. Failure compensation runs with a fresh 30-second context, deletes object keys, removes their scene-asset and stage rows transactionally, then hard-deletes the hidden scene. If object deletion fails, the hidden scene and records remain; the returned error includes the cleanup failure and scene ID for recovery. Ambiguous create failures also attempt independent hard-delete by the preallocated scene ID.
+- Create-folder, create-scene, and open-scene responses now honor workspace/request generation. The New scene callback checks the active workspace before submission after import parsing and before navigation after creation.
+- `docs/architecture/API.md`, `docs/user/dashboard.md`, `src/frontend/public/docs/dashboard.md`, and `src/frontend/public/docs/dashboard-management-api.md` now describe the server-side duplicate route, durable content, copied image assets, and distinct scene-create/import contract. `src/frontend/public/llms.txt` already links the AI-readable API page, so its index needed no change.
+- Added failure/cancellation compensation tests, DB asset cleanup and hidden-publication assertions, deferred workspace-switch store tests, and a navigation callback test. Full Go suite: 363 passed in 14 packages. Full frontend suite: 233 passed in 51 files. Frontend production build passed. The PostgreSQL-backed cleanup/publication assertions remain gated by `ACCESS_TEST_DATABASE_URL`; the previously attempted real-stack suite could not start without the local `test` role.

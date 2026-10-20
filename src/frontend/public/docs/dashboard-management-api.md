@@ -11,13 +11,16 @@ action in the dashboard is not authorization.
 | `PATCH /folders/{id}` | Workspace owner/editor | Optional `name` (trimmed, 1–100 characters), optional `newParentId` (folder UUID or `null` for root) | `204`; omitted parent leaves location unchanged |
 | `PATCH /scenes/{id}` | Current scene edit access | `{ "folderId": "folder UUID" }` or `{ "folderId": null }` | `200` updated scene |
 | `GET /scenes/{id}/projection` | Login user with current `scene:read` capability | None | `200` durable projection with `content` and `sequence` |
-| `POST /scenes` | Current scene creation access | `{ "title": "Copy name", "folderId": null, "content": { ... } }` | `201` new scene |
+| `POST /scenes/{id}/duplicate` | Login user with scene edit access and workspace owner/editor membership | `{ "title": "Copy name", "folderId": null }` (folder UUID or `null`) | `201` new scene with copied content and images |
+| `POST /scenes` | Workspace creation access | `{ "title": "New scene", "folderId": null, "content": { ... } }` | `201` new scene or import; not a duplication route |
 
 The projection includes acknowledged collaboration updates after the last
-scene-row compaction. It is for authenticated v2 scene reads, including scene
-duplication. For legacy scenes, read `GET /scenes/{id}`. Copy only canonical
-`content` into the create request; do not copy presence, collaborator, or
-session state. Projection requests accept scene UUIDs and public aliases within
+scene-row compaction. The ordinary projection is for bounded authenticated v2
+reads; it has a 500-element/256 KiB limit. Use the duplicate endpoint for a
+copy: the server reads the larger bounded export projection, copies scene-owned
+image objects and rows, and rewrites image references. It keeps the new scene
+hidden until the copy completes. Presence, collaborator, and session state are
+not copied. Projection requests accept scene UUIDs and public aliases within
 the selected workspace. All projection responses, including authentication
 failure and service errors, set `Cache-Control: no-store`; clients must not
 cache the content or state vector. A missing collaboration writer fails closed.

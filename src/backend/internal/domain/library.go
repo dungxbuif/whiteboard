@@ -84,6 +84,7 @@ type LibraryAssetStager interface {
 
 type LibraryObjectCopier interface {
 	CopyObject(Context, string, string, string, string) error
+	Delete(Context, string, string) error
 }
 
 type LibraryUsecase interface {

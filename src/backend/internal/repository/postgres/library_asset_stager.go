@@ -139,6 +139,35 @@ func (s *LibraryAssetStager) StageSceneCopy(ctx domain.Context, principal domain
 	}
 	return json.Marshal(document)
 }
+
+// CleanupSceneCopy removes staged object copies before their rows. A failure
+// leaves the hidden scene and stage records available for a later retry.
+func (s *LibraryAssetStager) CleanupSceneCopy(ctx domain.Context, target domain.SceneRef, requestID uuid.UUID) error {
+	if s == nil || s.db == nil || s.objects == nil {
+		return domain.ErrInvalidLibrary
+	}
+	var rows []libraryStageRow
+	if err := s.db.WithContext(ctx).Where("workspace_id=? AND target_scene_id=? AND request_id=?", target.WorkspaceID, target.SceneID, requestID).Find(&rows).Error; err != nil {
+		return err
+	}
+	var deleteErr error
+	for _, row := range rows {
+		if err := s.objects.Delete(ctx, row.StorageBucket, row.StorageKey); err != nil {
+			deleteErr = errors.Join(deleteErr, err)
+		}
+	}
+	if deleteErr != nil {
+		return deleteErr
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, row := range rows {
+			if err := tx.Exec("DELETE FROM scene_assets WHERE workspace_id=? AND scene_id=? AND id=?", target.WorkspaceID, target.SceneID, row.TargetAssetID).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Exec("DELETE FROM library_asset_stages WHERE workspace_id=? AND target_scene_id=? AND request_id=?", target.WorkspaceID, target.SceneID, requestID).Error
+	})
+}
 func (s *LibraryAssetStager) Stage(ctx domain.Context, principal domain.Principal, target domain.SceneRef, requestID uuid.UUID, pins []domain.LibraryAssetPin) (map[string]uuid.UUID, error) {
 	if s == nil || s.db == nil || s.objects == nil || requestID == uuid.Nil {
 		return nil, domain.ErrInvalidLibrary

@@ -2,10 +2,13 @@ package usecase
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"devtool/internal/domain"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -103,20 +106,39 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 		content = projection.Content
 	}
 	copy := &domain.Scene{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, FolderID: folderID, Title: title, Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), ContentVersion: 1, CreatedBy: principal.UserID, UpdatedBy: principal.UserID, WriterMode: "v1"}
+	copy.DeletedAt.Time, copy.DeletedAt.Valid = time.Now(), true // invisible until staging commits
 	if err = s.scenes.Create(ctx, copy); err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if cleanupErr := s.scenes.HardDelete(cleanupCtx, ref.WorkspaceID, copy.ID); cleanupErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("duplicate create cleanup failed (hidden scene %s may remain): %w", copy.ID, cleanupErr))
+		}
 		return nil, err
 	}
-	result, err := s.stager.StageSceneCopy(ctx, principal, ref, domain.SceneRef{WorkspaceID: ref.WorkspaceID, SceneID: copy.ID}, uuid.New(), content)
+	target := domain.SceneRef{WorkspaceID: ref.WorkspaceID, SceneID: copy.ID}
+	requestID := uuid.New()
+	result, err := s.stager.StageSceneCopy(ctx, principal, ref, target, requestID, content)
+	if err == nil {
+		err = ctx.Err()
+	}
 	if err == nil {
 		copy.Content = result
-		copy.ContentPatch = true
-		err = s.scenes.Update(ctx, copy)
+		err = s.scenes.PublishDuplicate(ctx, copy)
 	}
 	if err != nil {
-		_ = s.scenes.HardDelete(ctx, ref.WorkspaceID, copy.ID)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if cleanupErr := s.stager.CleanupSceneCopy(cleanupCtx, target, requestID); cleanupErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("duplicate asset cleanup failed (hidden scene %s retained): %w", copy.ID, cleanupErr))
+		}
+		if cleanupErr := s.scenes.HardDelete(cleanupCtx, ref.WorkspaceID, copy.ID); cleanupErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("duplicate scene cleanup failed (hidden scene %s retained): %w", copy.ID, cleanupErr))
+		}
 		return nil, err
 	}
-	return s.scenes.FindByID(ctx, ref.WorkspaceID, copy.ID)
+	copy.DeletedAt.Valid = false
+	copy.ContentVersion++
+	return copy, nil
 }
 
 // CurrentProjection reads the durable collaboration document, including updates

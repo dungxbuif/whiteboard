@@ -158,12 +158,15 @@ const useSceneStore = create<SceneState>((set, get) => {
     },
 
     createScene: async (workspaceId, folderId, title = "Untitled scene", content = EMPTY_SCENE_CONTENT) => {
+      const generation = listGeneration;
       const response = await api.post<Scene>(
         "/scenes/",
         { title, folderId, content },
         { headers: workspaceHeaders(workspaceId) },
       );
-      set((state) => ({ scenes: [response.data, ...state.scenes], activeScene: response.data }));
+      if (generation === listGeneration && workspaceIsCurrent(workspaceId)) {
+        set((state) => ({ scenes: [response.data, ...state.scenes], activeScene: response.data }));
+      }
       return response.data;
     },
 
@@ -174,7 +177,7 @@ const useSceneStore = create<SceneState>((set, get) => {
       const response = await api.get<Scene>(`/scenes/${sceneId}/`, {
         headers: workspaceHeaders(workspaceId),
       });
-      if (generation !== openGeneration) return;
+      if (generation !== openGeneration || !workspaceIsCurrent(workspaceId)) return;
       set((state) => ({
         scenes: state.scenes.some((scene) => scene.id === response.data.id)
           ? updateScene(state.scenes, response.data)

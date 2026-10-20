@@ -21,7 +21,9 @@ export function DashboardHeader() {
     try {
       const content = file ? await parseSceneImport(file) : undefined;
       const title = file ? file.name.replace(/\.(excalidraw|json)$/i, "").trim() || "Imported scene" : undefined;
+      if (useWorkspaceStore.getState().activeWorkspaceId !== activeWorkspaceId) return;
       const scene = await createScene(activeWorkspaceId, folderId, title, content);
+      if (useWorkspaceStore.getState().activeWorkspaceId !== activeWorkspaceId) return;
       navigate(`/w/${activeWorkspaceId}/scenes/${scene.id}`);
     } catch (cause) {
       setError(cause instanceof Error && !('isAxiosError' in cause) ? cause.message : "Could not create scene. Please try again.");

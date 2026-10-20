@@ -139,4 +139,18 @@ describe("folder store", () => {
     await pending;
     expect(useFolderStore.getState().folders).toEqual([other]);
   });
+
+  it("does not append a folder created before a workspace switch", async () => {
+    let resolvePost!: (value: { data: Folder }) => void;
+    useWorkspaceStore.setState({ activeWorkspaceId: "workspace" });
+    vi.mocked(api.post).mockReturnValue(new Promise((resolve) => { resolvePost = resolve; }));
+    const pending = useFolderStore.getState().createFolder("workspace", "Child", null);
+    useWorkspaceStore.setState({ activeWorkspaceId: "other-workspace" });
+    useFolderStore.getState().reset();
+    const other = { ...root, id: "other", workspaceId: "other-workspace" };
+    useFolderStore.setState({ folders: [other] });
+    resolvePost({ data: child });
+    await pending;
+    expect(useFolderStore.getState().folders).toEqual([other]);
+  });
 });

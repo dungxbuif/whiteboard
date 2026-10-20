@@ -118,12 +118,13 @@ const useFolderStore = create<FolderState>((set) => ({
   },
 
   createFolder: async (workspaceId, name, parentId) => {
+    const generation = folderGeneration;
     const response = await api.post<Folder>(
       "/folders/",
       { name, parentId },
       { headers: workspaceHeaders(workspaceId) },
     );
-    set((state) => ({ folders: [...state.folders, response.data] }));
+    if (generation === folderGeneration && workspaceIsCurrent(workspaceId)) set((state) => ({ folders: [...state.folders, response.data] }));
     return response.data;
   },
 

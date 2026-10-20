@@ -4,17 +4,25 @@ import (
 	"context"
 	"devtool/internal/domain"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 )
 
-type libraryCopyStub struct{ calls int }
+type libraryCopyStub struct {
+	calls, deletes int
+	deleteErr      error
+}
 
 func (s *libraryCopyStub) CopyObject(domain.Context, string, string, string, string) error {
 	s.calls++
 	return nil
+}
+func (s *libraryCopyStub) Delete(domain.Context, string, string) error {
+	s.deletes++
+	return s.deleteErr
 }
 
 func TestSceneCopyStagesImageAndRewritesReferences(t *testing.T) {
@@ -57,6 +65,22 @@ func TestSceneCopyStagesImageAndRewritesReferences(t *testing.T) {
 	db.Table("scene_assets").Where("workspace_id=? AND scene_id=? AND id=? AND file_id=?", workspace, target, result.Files[newFile].AssetID, newFile).Count(&count)
 	if count != 1 {
 		t.Fatalf("target asset rows=%d", count)
+	}
+	copier.deleteErr = errors.New("storage unavailable")
+	if err := stager.CleanupSceneCopy(context.Background(), domain.SceneRef{WorkspaceID: workspace, SceneID: target}, requestID); err == nil {
+		t.Fatal("expected object cleanup failure")
+	}
+	db.Table("scene_assets").Where("workspace_id=? AND scene_id=?", workspace, target).Count(&count)
+	if count != 1 {
+		t.Fatalf("copied row removed before object cleanup: %d", count)
+	}
+	copier.deleteErr = nil
+	if err := stager.CleanupSceneCopy(context.Background(), domain.SceneRef{WorkspaceID: workspace, SceneID: target}, requestID); err != nil {
+		t.Fatal(err)
+	}
+	db.Table("scene_assets").Where("workspace_id=? AND scene_id=?", workspace, target).Count(&count)
+	if count != 0 || copier.deletes != 2 {
+		t.Fatalf("target rows=%d object deletions=%d", count, copier.deletes)
 	}
 }
 

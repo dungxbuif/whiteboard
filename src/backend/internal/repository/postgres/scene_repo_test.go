@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"devtool/internal/domain"
 
@@ -73,5 +74,21 @@ func TestSceneRepository(t *testing.T) {
 	}
 	if err := repo.Restore(ctx, workspaceID, scene.ID); err != nil {
 		t.Fatalf("restore failed: %v", err)
+	}
+	hidden := &domain.Scene{ID: uuid.New(), WorkspaceID: workspaceID, Title: "Copy", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), CreatedBy: &userID, UpdatedBy: &userID}
+	hidden.DeletedAt.Time, hidden.DeletedAt.Valid = time.Now(), true
+	if err := repo.Create(ctx, hidden); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.FindByID(ctx, workspaceID, hidden.ID); err == nil {
+		t.Fatal("unfinished duplicate became visible")
+	}
+	hidden.Content = json.RawMessage(`{"elements":[{"id":"copy"}],"appState":{},"files":{}}`)
+	if err := repo.PublishDuplicate(ctx, hidden); err != nil {
+		t.Fatal(err)
+	}
+	published, err := repo.FindByID(ctx, workspaceID, hidden.ID)
+	if err != nil || published.ContentVersion != 2 || !json.Valid(published.Content) {
+		t.Fatalf("published=%+v err=%v", published, err)
 	}
 }

@@ -22,7 +22,8 @@ Its subfolders move with it.
 Owners and editors with scene edit access can use a scene's menu to **Move** it
 to a folder or **Duplicate** it with a new name and destination. The copy opens
 as a new scene with the latest durable drawing, including acknowledged
-collaboration edits. It excludes collaborator and session state. Viewers do not
+collaboration edits and uploaded images. Large scenes can be copied; a failed
+copy does not appear as a partial scene. It excludes collaborator and session state. Viewers do not
 see these edit controls. A successful move or copy remains visible if its
 follow-up list reload fails; a later reload can refresh the list.
 
