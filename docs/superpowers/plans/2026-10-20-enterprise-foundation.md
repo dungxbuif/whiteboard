@@ -25,7 +25,7 @@ New mutations use principal-bound UUID requestIds and decimal revisions.
 - Duplicate/out-of-order events and restricted-scene pages: F2 replay/filter tests.
 - Worker crash after side effect before acknowledgement: F3 lease/idempotency test.
 
-## Task UI1: Move existing scene controls into Excalidraw
+## Task 1: UI1 — Move existing scene controls into Excalidraw
 
 **Files:** Modify `src/frontend/src/components/whiteboard/excalidraw-wrapper.tsx`,
 `collaboration-toolbar.tsx`, `src/frontend/src/index.css`; create
@@ -56,7 +56,7 @@ recovery actions; preserve existing accessible button names.
 - [ ] Reconcile `docs/architecture/BROWSER_COLLABORATION.md`, dashboard/scene user
   guide and public counterpart; commit `feat(ui): integrate controls into canvas`.
 
-## Task UI2: Shared overlay panel and focus ownership
+## Task 2: UI2 — Shared overlay panel and focus ownership
 
 **Files:** Create `src/frontend/src/components/whiteboard/scene-panels.tsx`,
 `scene-panels.test.tsx`; modify `whiteboard/ai-command-panel.tsx`,
@@ -79,7 +79,7 @@ do not expose dead feature buttons. Consumes UI1 native control surface.
 - [ ] Run focused tests and UI1 real-stack cases; document panel behavior in
   the same internal/public guides and commit `feat(ui): coordinate canvas panels`.
 
-## Task F1: Feature authority, policy and idempotent metadata writes
+## Task 3: F1 — Feature authority, policy and idempotent metadata writes
 
 **Files:** Create `src/backend/internal/domain/enterprise.go`,
 `internal/usecase/feature_ucase.go`, `internal/repository/postgres/feature_repo.go`,
@@ -113,7 +113,7 @@ frontend `src/lib/collaboration-api.ts`/share-link settings DTOs for
   docs and a reviewed ADR for feature policy; commit
   `feat(access): authorize enterprise feature actions`.
 
-## Task F2: Transactional events, projection and invalidations
+## Task 4: F2 — Transactional events, projection and invalidations
 
 **Files:** Create `src/backend/internal/domain/workspace_event.go`,
 `internal/usecase/event_ucase.go`, `internal/repository/postgres/event_repo.go`,
@@ -141,7 +141,7 @@ or subject names; recipients must be reauthorized before delivery.
 - [ ] Prove old MCP activity shape and mutation ACK/receipt regressions unchanged;
   reconcile protocol/API/event ERD and commit `feat(activity): project workspace events`.
 
-## Task F3: Bounded feature jobs and readiness
+## Task 5: F3 — Bounded feature jobs and readiness
 
 **Files:** Create `src/backend/cmd/feature-worker/main.go`,
 `internal/usecase/feature_jobs.go`, `internal/repository/postgres/job_repo.go`,
