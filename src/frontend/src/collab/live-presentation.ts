@@ -9,6 +9,7 @@ export type LivePresentationState={
 export type LivePresentationTransport={
  subscribeControl(listener:(control:Control)=>void):()=>void;subscribe(listener:()=>void):()=>void;getSnapshot():TransportState;
  sendControl(type:string,payload:Record<string,unknown>):string|undefined;
+ abortPresentationStart?():void;
 };
 export type PresentationGrant={sessionId:string;token:string;expiresAt:string};
 export type PresentationInvite={id:string;token:string;expiresAt:string};
@@ -38,7 +39,7 @@ export class LivePresentation {
  async beginHost(){
   if(!this.api)throw new Error('Presentation API is unavailable');
   this.set({...initial(),status:'starting'});this.createRequestId??=crypto.randomUUID();
-  try{const grant=await this.api.create(this.createRequestId);if(!this.transport.sendControl('presentation_start',{token:grant.token}))throw new Error('Presentation socket is reconnecting');this.set({...this.state,sessionId:grant.sessionId});this.startTimer=setTimeout(()=>{this.startTimer=undefined;if(this.state.status==='starting')this.set({...this.state,status:'error',reason:'START_TIMEOUT',error:'The presentation did not start. Try again.'});},10_000);this.createRequestId=undefined;return grant;}
+  try{const grant=await this.api.create(this.createRequestId);if(!this.transport.sendControl('presentation_start',{token:grant.token}))throw new Error('Presentation socket is reconnecting');this.set({...this.state,sessionId:grant.sessionId});this.startTimer=setTimeout(()=>{this.startTimer=undefined;if(this.state.status==='starting'){this.set({...this.state,status:'error',reason:'START_TIMEOUT',error:'The presentation did not start. Try again.'});this.transport.abortPresentationStart?.();}},10_000);this.createRequestId=undefined;return grant;}
   catch(error){this.clearStartTimer();this.set({...this.state,status:'error',error:error instanceof Error?error.message:'Could not start presentation'});throw error;}
  }
  async createInvite(){

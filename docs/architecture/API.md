@@ -428,6 +428,14 @@ a matching spotlight. The browser follows native frame IDs and treats a deleted
 frame as an explicit missing target. View lock operates only on the camera and
 never changes F1 scene authority.
 
+Before the runtime sends a pending queue to its host, it freshly checks that
+host's scene access and `presentation:host` feature, then binds the send to the
+same attached host connection and exact session revision. Failure ends the
+session before any pending identity is disclosed. If host start has no
+authoritative state acknowledgement within ten seconds, the browser closes the
+initiating collaboration socket so server detach clears a possibly accepted
+session before retry.
+
 The public `/present/{token}` route performs HTTP join and then opens the normal
 collaboration transport with `presentation_auth`. Admission returns a private
 audience token only to that socket. Credential loss unmounts the canvas and

@@ -67,7 +67,7 @@ export class Rooms {
   const status=this.presentations.wait(room,claims.sessionId,{connectionId:session.connectionId,principalId:claims.principalId,displayName:claims.displayName});
   session.presentation={kind:'pending',sessionId:claims.sessionId,room};clearTimeout(session.authTimer);clearTimeout(session.expires);session.expires=setTimeout(()=>this.invalidate(session,'TOKEN_EXPIRED'),Math.max(0,claims.exp*1000-Date.now()));
   await this.control(session,'presentation_waiting',id,status);
-  const state=this.presentations.state(room),host=[...this.sessions].find(value=>value.connectionId===state?.hostConnectionId);if(host&&state)await this.control(host,'presentation_state','server',state);
+  const state=this.presentations.state(room);if(state)await this.publishPresentation(ref,state,'server');
  }
  private async authenticate(session:Session,id:string,token:string,type:string){
   if(type==='auth'&&session.principal||type==='refresh'&&!session.principal)throw new CollabError('UNAUTHENTICATED','Invalid authentication transition',401);
@@ -225,14 +225,27 @@ export class Rooms {
   for(const target of this.matching(ref))if(target!==except&&!target.presentation&&await this.recipient(target))await this.control(target,'presentation_stop','server',{sessionId,reason});
  }
  private async publishPresentation(ref:SceneRef,state:NonNullable<ReturnType<PresentationSessions['state']>>,id:string){
-  for(const target of this.matching(ref)){
-   if(!await this.recipient(target))continue;
-   const current=this.presentations.state(roomKey(ref));
-   if(!current||current.sessionId!==state.sessionId||current.revision!==state.revision)return;
-   if(target.invalid||!this.sessions.has(target)||!target.ref||roomKey(target.ref)!==roomKey(ref))continue;
+  const room=roomKey(ref),host=[...this.sessions].find(target=>target.connectionId===state.hostConnectionId);
+  if(!host||host.invalid||!host.principal||!host.ref||roomKey(host.ref)!==room||!await this.recipient(host)){await this.endPresentationAuthority(ref,state,host);return;}
+  let current=this.presentations.state(room);
+  if(!current||current.sessionId!==state.sessionId||current.revision!==state.revision||current.hostConnectionId!==host.connectionId)return;
+  try{await requireFeature(this.store.authority,host.principal.roomToken,ref,'presentation:host');}catch{await this.endPresentationAuthority(ref,state,host);return;}
+  current=this.presentations.state(room);
+  if(!current||current.sessionId!==state.sessionId||current.revision!==state.revision||current.hostConnectionId!==host.connectionId||host.invalid||!this.sessions.has(host)||!host.ref||roomKey(host.ref)!==room){await this.endPresentationAuthority(ref,state,host);return;}
+  const targets=[host,...this.matching(ref).filter(target=>target!==host)];
+  for(const target of targets){
+   if(target!==host&&!await this.recipient(target))continue;
+   current=this.presentations.state(room);
+   if(!current||current.sessionId!==state.sessionId||current.revision!==state.revision||current.hostConnectionId!==host.connectionId)return;
+   if(target.invalid||!this.sessions.has(target)||!target.ref||roomKey(target.ref)!==room)continue;
    const payload=target.connectionId===current.hostConnectionId?current:{...current,pending:[]};
    await this.control(target,'presentation_state',id,payload);
   }
+ }
+ private async endPresentationAuthority(ref:SceneRef,state:NonNullable<ReturnType<PresentationSessions['state']>>,host?:Session){
+  const current=this.presentations.state(roomKey(ref));if(!current||current.sessionId!==state.sessionId||current.revision!==state.revision||current.hostConnectionId!==state.hostConnectionId)return;
+  this.presentations.disconnect(current.hostConnectionId);await this.endPresentationClients(ref,current.sessionId,'AUTHORITY_CHANGED',host);
+  if(host&&!host.invalid&&this.sessions.has(host)){await this.control(host,'presentation_stop','server',{sessionId:current.sessionId,reason:'AUTHORITY_CHANGED'});this.invalidate(host,'AUTHORITY_CHANGED');}
  }
  private requireAttached(session:Session){if(session.invalid||!this.sessions.has(session))throw new CollabError('PRESENTATION_ENDED','Presentation host connection ended',409);}
  private async screen(session:Session,id:string,type:string,payload:unknown){

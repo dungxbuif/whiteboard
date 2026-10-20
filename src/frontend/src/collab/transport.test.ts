@@ -67,6 +67,12 @@ it('surfaces a rejected presentation_auth as terminal instead of reconnecting jo
  expect(controls.at(-1)).toMatchObject({type:'error',payload:{code:'PRESENTATION_ENDED'}});expect(transport.state.status).toBe('revoked');transport.stop();
 });
 
+it('aborts a pending presentation start by closing the exact active socket',async()=>{
+ const store=new OfflineStore(crypto.randomUUID()),socket=new Socket(),transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'host-token',expiresAt:new Date(Date.now()+300000).toISOString()}),url:'ws://local',socket:()=>socket as unknown as WireSocket});
+ const close=vi.spyOn(socket,'close');await transport.start();socket.dispatchEvent(new Event('open'));transport.abortPresentationStart();
+ expect(close).toHaveBeenCalledOnce();expect(socket.readyState).toBe(3);transport.stop();
+});
+
 it('forwards cursor-only feature invalidations without disturbing document admission', async () => {
   const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
   const socket = new Socket(); const transport = new CollabTransport({ sceneRef: scope, principalId: 'alice', adapter: new ExcalidrawAdapter(), store, grant: async () => ({ token: 'token', expiresAt: new Date(Date.now() + 600000).toISOString() }), url: 'ws://local', socket: () => socket as unknown as WireSocket });

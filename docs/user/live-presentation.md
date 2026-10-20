@@ -41,6 +41,11 @@ restarts. The host can then start a new session and copy a new invite. Up to
 100 guests may wait and up to 100 may be admitted at once. Repeated join
 attempts are limited to 60 per minute per IP.
 
+If starting does not finish within ten seconds, the app closes and reconnects
+the presentation connection before offering a retry. Wait for collaboration to
+reconnect, then start again; the previous attempt cannot remain as a hidden
+active session.
+
 If an audience credential expires or is revoked, the canvas closes and the app
 offers **Rejoin waiting room**. Rejoining repeats host admission and never
 restores audience authority from cached UI state. Voice, screen sharing and

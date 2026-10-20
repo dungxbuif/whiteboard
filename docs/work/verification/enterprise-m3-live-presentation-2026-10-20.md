@@ -115,3 +115,22 @@ packages but currently fails two concurrent I3 SCIM handler tests; the M3
 usecase and runtime-client packages pass independently. These SCIM failures do
 not touch the M3 paths and remain outside this commit.
 
+## Final authority and start-timeout closure gate
+
+Pending-queue delivery must use the same fresh recipient path as every other
+presentation broadcast. Immediately before a host receives a queue containing
+guest identity, the runtime rechecks the host's room access, the
+`presentation:host` feature, its exact connection attachment, and the current
+session revision. If any check fails, the runtime ends that presentation and
+does not disclose the pending identity.
+
+A host start that receives no authoritative state within ten seconds closes the
+exact collaboration socket used for the start. Server detach therefore ends any
+session that accepted the request but whose acknowledgement was delayed, while
+the transport reconnects for a clean retry. Late state for the timed-out session
+cannot revive the terminal client state.
+
+Verification adds a gated feature-loss race during pending admission fanout and
+a delayed-start test that advances beyond ten seconds, asserts the exact socket
+abort, rejects late resurrection, and proves a retry uses the clean connection.
+

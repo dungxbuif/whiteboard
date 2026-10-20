@@ -240,6 +240,7 @@ export class CollabTransport {
     const requestId = crypto.randomUUID(); this.ephemeralRequests.set(requestId, now);
     this.socket.send(JSON.stringify({ type, requestId, payload })); return requestId;
   }
+  abortPresentationStart = () => { if (!this.stopped) this.socket?.close(); };
   retry = () => { if (!this.stopped) { this.socket?.close(); void this.connect(); } };
   async exportRecovery() {
     await this.durable;

@@ -339,6 +339,15 @@ func recomputeMembership(tx *gorm.DB, w, u uuid.UUID, _ bool, now time.Time) err
 	}
 	return tx.Exec(`INSERT INTO workspace_members(workspace_id,user_id,role,created_at) VALUES(?,?,?,?) ON CONFLICT(workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role WHERE workspace_members.role<>'owner'`, w, u, role, now).Error
 }
+func materializeActiveGroupSources(tx *gorm.DB, w uuid.UUID, row scimUserRow, now time.Time) error {
+	if !row.Active || row.RetainedManualAccess {
+		return nil
+	}
+	return tx.Exec(`INSERT INTO workspace_membership_sources(workspace_id,user_id,source_kind,source_id,role,created_at)
+		SELECT g.workspace_id,?, 'group',g.id,g.role,? FROM workspace_scim_groups g
+		JOIN workspace_scim_group_members gm ON gm.workspace_id=g.workspace_id AND gm.group_id=g.id
+		WHERE g.workspace_id=? AND gm.scim_user_id=? ON CONFLICT DO NOTHING`, row.UserID, now, w, row.ID).Error
+}
 func (r *SCIMRepository) replaceUser(tx *gorm.DB, w, id uuid.UUID, match string, in domain.SCIMUser, now time.Time) (domain.SCIMUser, error) {
 	row, e := r.getUserDB(tx.Clauses(clause.Locking{Strength: "UPDATE"}), w, id)
 	if e != nil {
@@ -372,10 +381,7 @@ func (r *SCIMRepository) replaceUser(tx *gorm.DB, w, id uuid.UUID, match string,
 		if e = tx.Create(&membershipSourceRow{WorkspaceID: w, UserID: row.UserID, SourceKind: sourceKind, SourceID: row.ID, Role: in.Role, CreatedAt: now}).Error; e != nil {
 			return domain.SCIMUser{}, e
 		}
-		if e = tx.Exec(`INSERT INTO workspace_membership_sources(workspace_id,user_id,source_kind,source_id,role,created_at)
-			SELECT g.workspace_id,?, 'group',g.id,g.role,? FROM workspace_scim_groups g
-			JOIN workspace_scim_group_members gm ON gm.workspace_id=g.workspace_id AND gm.group_id=g.id
-			WHERE g.workspace_id=? AND gm.scim_user_id=? ON CONFLICT DO NOTHING`, row.UserID, now, w, row.ID).Error; e != nil {
+		if e = materializeActiveGroupSources(tx, w, row, now); e != nil {
 			return domain.SCIMUser{}, e
 		}
 	}
@@ -428,6 +434,13 @@ func (r *SCIMRepository) AdoptUser(ctx context.Context, w, id uuid.UUID, now tim
 			out = scimUserDomain(row)
 			return nil
 		}
+		role, member, err := existingMembership(tx, w, row.UserID)
+		if err != nil {
+			return err
+		}
+		if member && role == domain.WorkspaceRoleOwner {
+			return domain.ErrOwnerProtected
+		}
 		row.RetainedManualAccess = false
 		row.Version++
 		row.UpdatedAt = now
@@ -441,6 +454,9 @@ func (r *SCIMRepository) AdoptUser(ctx context.Context, w, id uuid.UUID, now tim
 			if err = tx.Create(&membershipSourceRow{WorkspaceID: w, UserID: row.UserID, SourceKind: domain.SCIMMembershipSourceAdopted, SourceID: row.ID, Role: row.DirectRole, CreatedAt: now}).Error; err != nil {
 				return err
 			}
+		}
+		if err = materializeActiveGroupSources(tx, w, row, now); err != nil {
+			return err
 		}
 		if err = recomputeMembership(tx, w, row.UserID, false, now); err != nil {
 			return err

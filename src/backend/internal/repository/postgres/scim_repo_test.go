@@ -3,6 +3,7 @@ package postgres
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log"
 	"os"
 	"strings"
@@ -118,23 +119,45 @@ func TestSCIMExplicitAdoptionMakesManualMembershipManaged(t *testing.T) {
 	mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'viewer')", workspace, userID)
 	repo := NewSCIMRepository(db)
 	now := time.Now().UTC()
-	user, e := repo.CreateUser(context.Background(), workspace, domain.SCIMUser{UserName: "adopt@example.test", Active: true, Role: "editor", ExternalID: "adopt-1"}, now)
+	user, e := repo.CreateUser(context.Background(), workspace, domain.SCIMUser{UserName: "adopt@example.test", Active: true, Role: "viewer", ExternalID: "adopt-1"}, now)
 	if e != nil || !user.RetainedManualAccess {
 		t.Fatalf("retained=%+v err=%v", user, e)
+	}
+	group, e := repo.CreateGroup(context.Background(), workspace, domain.SCIMGroup{DisplayName: "Adopted editors", Role: "editor", Members: []domain.SCIMGroupMember{{Value: user.ID}}}, now)
+	if e != nil {
+		t.Fatal(e)
 	}
 	user, e = repo.AdoptUser(context.Background(), workspace, uuid.MustParse(user.ID), now.Add(time.Second))
 	if e != nil || user.RetainedManualAccess {
 		t.Fatalf("adopted=%+v err=%v", user, e)
+	}
+	var adoptedRole string
+	db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, userID).Scan(&adoptedRole)
+	if adoptedRole != "editor" {
+		t.Fatalf("active editor group was not materialized: role=%s", adoptedRole)
+	}
+	var groupSources int64
+	db.Table("workspace_membership_sources").Where("workspace_id=? AND user_id=? AND source_kind='group' AND source_id=?", workspace, userID, group.ID).Count(&groupSources)
+	if groupSources != 1 {
+		t.Fatalf("materialized group sources=%d", groupSources)
 	}
 	user.Role = "viewer"
 	user, e = repo.ReplaceUser(context.Background(), workspace, uuid.MustParse(user.ID), user.Meta.Version, user, now.Add(2*time.Second))
 	if e != nil {
 		t.Fatal(e)
 	}
-	var adoptedRole string
+	adoptedRole = ""
+	db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, userID).Scan(&adoptedRole)
+	if adoptedRole != "editor" {
+		t.Fatalf("active group lost after direct downgrade role=%s", adoptedRole)
+	}
+	if e = repo.DeleteGroup(context.Background(), workspace, uuid.MustParse(group.ID), group.Meta.Version, now.Add(3*time.Second)); e != nil {
+		t.Fatal(e)
+	}
+	adoptedRole = ""
 	db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, userID).Scan(&adoptedRole)
 	if adoptedRole != "viewer" {
-		t.Fatalf("adopted downgrade role=%s", adoptedRole)
+		t.Fatalf("adopted direct role after group removal=%s", adoptedRole)
 	}
 	if _, e = repo.DeleteUser(context.Background(), workspace, uuid.MustParse(user.ID), user.Meta.Version, now.Add(time.Minute)); e != nil {
 		t.Fatal(e)
@@ -143,6 +166,46 @@ func TestSCIMExplicitAdoptionMakesManualMembershipManaged(t *testing.T) {
 	db.Table("workspace_members").Where("workspace_id=? AND user_id=?", workspace, userID).Count(&count)
 	if count != 0 {
 		t.Fatalf("adopted membership retained=%d", count)
+	}
+}
+
+func TestSCIMOwnerAdoptionRejectedAndDeprovisionReportsRetainedAccess(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		nonLast bool
+	}{{name: "last owner"}, {name: "non-last owner", nonLast: true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := accessTestDB(t, 27)
+			owner, workspace := domainRepositoryWorkspace(t, db, "SCIM owner")
+			target := owner
+			if tc.nonLast {
+				target = uuid.New()
+				mustExec(t, db, "INSERT INTO users(id,email,name) VALUES (?,?,'Second owner')", target, "second-owner@example.test")
+				mustExec(t, db, "INSERT INTO workspace_members(workspace_id,user_id,role) VALUES (?,?,'owner')", workspace, target)
+			}
+			var account domain.User
+			if e := db.First(&account, "id=?", target).Error; e != nil {
+				t.Fatal(e)
+			}
+			repo := NewSCIMRepository(db)
+			now := time.Now().UTC()
+			user, e := repo.CreateUser(context.Background(), workspace, domain.SCIMUser{UserName: account.Email, Active: true, Role: "viewer", ExternalID: "owner-" + target.String()}, now)
+			if e != nil || !user.RetainedManualAccess {
+				t.Fatalf("owner mapping=%+v err=%v", user, e)
+			}
+			if _, e = repo.AdoptUser(context.Background(), workspace, uuid.MustParse(user.ID), now.Add(time.Second)); !errors.Is(e, domain.ErrOwnerProtected) {
+				t.Fatalf("owner adoption=%v", e)
+			}
+			deprovisioned, e := repo.DeleteUser(context.Background(), workspace, uuid.MustParse(user.ID), user.Meta.Version, now.Add(2*time.Second))
+			if e != nil || deprovisioned.Active || !deprovisioned.RetainedManualAccess || deprovisioned.WorkspaceAccess == nil || !deprovisioned.WorkspaceAccess.RetainedManualAccess {
+				t.Fatalf("owner deprovision=%+v err=%v", deprovisioned, e)
+			}
+			var role string
+			db.Raw("SELECT role FROM workspace_members WHERE workspace_id=? AND user_id=?", workspace, target).Scan(&role)
+			if role != "owner" {
+				t.Fatalf("owner membership role=%s", role)
+			}
+		})
 	}
 }
 

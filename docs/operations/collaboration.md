@@ -66,6 +66,14 @@ These checks prevent a disconnected host or delayed broadcast from recreating
 an ended session. Link create/revoke similarly checks the same runtime host
 revision before and inside persistence.
 
+Pending-queue fanout additionally rechecks the current host's room admission and
+`presentation:host` feature before revealing guest identity. A failed check ends
+the session and emits `AUTHORITY_CHANGED`. Host start acknowledgement has a
+ten-second client deadline; expiry closes that exact socket, allowing the normal
+detach path to terminate any server-side session before a reconnect and retry.
+Watch repeated `START_TIMEOUT` plus host socket churn as an authority or network
+incident rather than retrying on the same connection.
+
 The runtime caps pending guests, admitted guests and retained live reactions at
 100 each. Pending sockets receive no ready, sync, roster, asset or media data.
 During incident review, never log invite, pending, host or audience tokens. To

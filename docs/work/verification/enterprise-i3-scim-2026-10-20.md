@@ -9,6 +9,11 @@ reconciliation, RFC paging/filter/PATCH edge cases, extension-aware discovery,
 and suppression of SQL values containing SCIM PII. Verification below must be
 re-run after these changes before wiring.
 
+Final gate remediation also verifies adoption materializes active group
+sources before effective-role recomputation and rejects both last-owner and
+non-last-owner adoption. Owner deprovision must return retained manual access
+and leave the owner membership intact.
+
 Required proof:
 
 - ServiceProviderConfig, ResourceTypes, Schemas, Users, and Groups use SCIM

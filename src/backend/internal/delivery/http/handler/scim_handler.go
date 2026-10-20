@@ -91,6 +91,8 @@ func writeSCIMError(w http.ResponseWriter, e error) {
 		status, detail = http.StatusNotImplemented, "SCIM operation is not supported"
 	case errors.Is(e, domain.ErrAccessDenied), errors.Is(e, domain.ErrInaccessible):
 		status, detail = http.StatusForbidden, "Workspace owner access required"
+	case errors.Is(e, domain.ErrOwnerProtected):
+		status, kind, detail = http.StatusConflict, "mutability", "Workspace owner membership cannot be adopted or deprovisioned"
 	}
 	writeSCIM(w, status, domain.SCIMError{Schemas: []string{domain.SCIMErrorSchema}, Status: strconv.Itoa(status), SCIMType: kind, Detail: detail})
 }

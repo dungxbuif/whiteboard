@@ -29,7 +29,11 @@ resource when the identity still matches. Conflicting identities return the
 SCIM uniqueness error. Updates use weak ETags; stale `If-Match` values return
 `412`. Owners can explicitly adopt a retained manual membership through
 `POST /api/v1/workspaces/{workspace}/scim/users/{scimUser}/adopt`. Adoption is
-idempotent and makes later SCIM deprovision responsible for that membership.
+idempotent, restores every currently active SCIM group source, and makes later
+SCIM deprovision responsible for that membership. Workspace owners are never
+adoptable: their retained-manual state remains true and deprovision responses
+truthfully report that owner access is still retained, whether or not another
+owner exists.
 
 Migration `000027_workspace_scim` owns credentials, users, groups, group
 members, and membership-source tables. Root wiring mounts discovery and SCIM

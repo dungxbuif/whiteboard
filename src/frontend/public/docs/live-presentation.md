@@ -76,6 +76,13 @@ runtime revision. A removed `frameId` is rendered as a missing-frame state; a
 client must not substitute another frame by array position.
 Clients ignore lower revisions and all late state for a session already marked
 terminal. Waiting-room Leave removes the guest from the host queue immediately.
+Before a host receives a pending queue, the runtime freshly checks that host's
+room authority, `presentation:host` feature, exact connection and session
+revision. Failure ends the session without disclosing the pending identity.
+
+Host start waits ten seconds for authoritative `presentation_state`. On timeout,
+the client closes the initiating collaboration socket so the server detach path
+ends any accepted session; retry is allowed only after transport reconnection.
 
 The browser route is `/present/{token}`. It shows a display-name form, waiting,
 admitted canvas, denied/removed/ended, and rejoin states. Pending UI mounts no

@@ -27,6 +27,19 @@ describe('presentation room isolation',()=>{
    expect((await host.wait('presentation_state',leave)).payload).toMatchObject({sessionId,revision:2,pending:[]});
   }finally{await fixture.close();}
  });
+ it('ends the session without disclosing a pending guest when host authority is lost during queue fanout',async()=>{
+  const fixture=await roomFixture();try{
+   const host=await fixture.connect('host'),sessionId=randomUUID();const started=host.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'host',sessionId})});await host.wait('presentation_state',started);
+   let entered!:()=>void,release!:()=>void;const gated=new Promise<void>(resolve=>entered=resolve),gate=new Promise<void>(resolve=>release=resolve);
+   fixture.hooks.beforeFeature=async principalId=>{if(principalId==='host'){entered();await gate;}};
+   const waitingPromise=fixture.connectPresentation({workspaceId:'workspace',sceneId:'scene',sessionId,principalId:'presentation:private-guest',displayName:'Private Guest',exp:Math.floor(Date.now()/1000)+300});
+   await gated;fixture.hooks.featureEnabled=false;release();const waiting=await waitingPromise;
+   expect((await host.wait('presentation_stop','server')).payload).toEqual({sessionId,reason:'AUTHORITY_CHANGED'});
+   expect((await waiting.wait('presentation_stop','server')).payload).toEqual({sessionId,reason:'AUTHORITY_CHANGED'});
+   expect(host.messages.some(message=>message.type==='presentation_state'&&JSON.stringify(message.payload).includes('Private Guest'))).toBe(false);
+   expect(()=>fixture.rooms.resolvePresentationHost({workspaceId:'workspace',sceneId:'scene'},sessionId,'host')).toThrow(/not active/i);
+  }finally{await fixture.close();}
+ });
  it('does not start after the exact host session disconnects during authority gating',async()=>{
   const fixture=await roomFixture();try{
    const host=await fixture.connect('host'),sessionId=randomUUID();let entered!:()=>void,release!:()=>void;const gated=new Promise<void>(resolve=>entered=resolve),gate=new Promise<void>(resolve=>release=resolve);
@@ -117,6 +130,14 @@ describe('presentation room isolation',()=>{
    const host=await fixture.connect('user'),observer=await fixture.connect('editor'),sessionId=randomUUID();const started=host.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'user',sessionId})});await host.wait('presentation_state',started);await observer.wait('presentation_state',started);
    const leave=host.send('presentation_leave',{sessionId});const stopped=await host.wait('presentation_stop',leave);expect(stopped.payload).toEqual({sessionId,reason:'HOST_ENDED'});
    expect((await observer.wait('presentation_stop','server')).payload).toEqual({sessionId,reason:'HOST_ENDED'});
+  }finally{await fixture.close();}
+ });
+ it('allows a clean host retry after the timed-out socket detaches',async()=>{
+  const fixture=await roomFixture();try{
+   const first=await fixture.connect('host'),firstSession=randomUUID();const started=first.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'host',sessionId:firstSession})});await first.wait('presentation_state',started);
+   const closed=once(first.socket,'close');first.socket.close();await closed;
+   const retry=await fixture.connect('host'),retrySession=randomUUID();const retried=retry.send('presentation_start',{token:JSON.stringify({workspaceId:'workspace',sceneId:'scene',principalId:'host',sessionId:retrySession})});
+   expect((await retry.wait('presentation_state',retried)).payload).toMatchObject({sessionId:retrySession,hostConnectionId:retry.connectionId});
   }finally{await fixture.close();}
  });
 });

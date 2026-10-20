@@ -4,10 +4,11 @@ import type { Control, TransportState } from './transport';
 
 class Transport {
   state: TransportState={status:'synced',canEdit:true,pending:0,recovery:false,connectionId:'host'};
-  controls=new Set<(value:Control)=>void>();sent:{type:string;payload:Record<string,unknown>}[]=[];
+  controls=new Set<(value:Control)=>void>();sent:{type:string;payload:Record<string,unknown>}[]=[];abortedStarts=0;
   subscribeControl=(listener:(value:Control)=>void)=>{this.controls.add(listener);return()=>this.controls.delete(listener)};
   listeners=new Set<()=>void>();subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>this.listeners.delete(listener)};getSnapshot=()=>this.state;
   sendControl=(type:string,payload:Record<string,unknown>)=>{this.sent.push({type,payload});return crypto.randomUUID()};
+  abortPresentationStart=()=>{this.abortedStarts++;};
   emit(type:string,payload:Record<string,unknown>){for(const listener of this.controls)listener({type,requestId:'server',payload})}
   update(status:TransportState['status']){this.state={...this.state,status};for(const listener of this.listeners)listener();}
 }
@@ -63,9 +64,12 @@ describe('live presentation controller',()=>{
   const transport=new Transport(),live=new LivePresentation(transport,api());live.start();await live.beginHost();transport.emit('error',{code:'PRESENTATION_ACTIVE',message:'Another host is already presenting'});
   expect(live.getSnapshot()).toMatchObject({status:'error',error:'Another host is already presenting'});
  });
- it('exposes retry when the runtime never acknowledges a host start',async()=>{
-  vi.useFakeTimers();const transport=new Transport(),live=new LivePresentation(transport,api());live.start();await live.beginHost();vi.advanceTimersByTime(10_001);
-  expect(live.getSnapshot()).toMatchObject({status:'error',reason:'START_TIMEOUT'});vi.useRealTimers();
+ it('aborts a timed-out host socket, ignores its delayed state, and retries with a fresh grant',async()=>{
+  vi.useFakeTimers();const transport=new Transport(),secondSession='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',presentationApi=api();presentationApi.create.mockResolvedValueOnce({sessionId:session,token:'first-token',expiresAt:'2099-01-01T00:00:00Z'}).mockResolvedValueOnce({sessionId:secondSession,token:'second-token',expiresAt:'2099-01-01T00:00:00Z'});
+  const live=new LivePresentation(transport,presentationApi);live.start();await live.beginHost();vi.advanceTimersByTime(10_001);
+  expect(live.getSnapshot()).toMatchObject({status:'error',reason:'START_TIMEOUT',sessionId:session});expect(transport.abortedStarts).toBe(1);
+  transport.emit('presentation_state',state({revision:1}));expect(live.getSnapshot()).toMatchObject({status:'error',reason:'START_TIMEOUT'});
+  await live.beginHost();expect(transport.sent.at(-1)).toEqual({type:'presentation_start',payload:{token:'second-token'}});expect(live.getSnapshot()).toMatchObject({status:'starting',sessionId:secondSession});vi.useRealTimers();
  });
  it('ignores lower revisions and cannot resurrect a terminal session',()=>{
   const transport=new Transport(),live=new LivePresentation(transport);live.start();transport.emit('presentation_state',state({revision:5,frameId:'current'}));transport.emit('presentation_state',state({revision:4,frameId:'stale'}));
