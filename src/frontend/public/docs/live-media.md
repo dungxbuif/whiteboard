@@ -8,6 +8,9 @@ Signed-in editors first send `screen_request`. A successful
 **Start sharing** action. That click invokes `getDisplayMedia` with
 `audio:false` and maximum video constraints of 1280×720 at 15 fps. Successful
 capture confirms the server-issued session and clears the reservation.
+The client waits for that activation admission and offers to every validated
+peer returned by the server, including receivers that joined between reservation
+and the second click.
 
 `screen_signal` accepts only current same-room admitted connection and session
 IDs. `screen_stop`, authority loss, disconnect, picker cancellation, late

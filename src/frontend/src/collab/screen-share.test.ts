@@ -25,9 +25,18 @@ function setup(){
 it('waits for admission and a second explicit start before requesting video only',async()=>{
  const fixture=setup();const joined=fixture.screen.join();expect(fixture.media).not.toHaveBeenCalled();fixture.admitPublisher();await joined;
  expect(fixture.screen.getSnapshot().status).toBe('ready');expect(fixture.media).not.toHaveBeenCalled();
- const started=fixture.screen.startSharing();expect(fixture.media).toHaveBeenCalledWith({video:{width:{max:1280},height:{max:720},frameRate:{max:15}},audio:false});await started;
+ const started=fixture.screen.startSharing();expect(fixture.media).toHaveBeenCalledWith({video:{width:{max:1280},height:{max:720},frameRate:{max:15}},audio:false});await vi.waitFor(()=>expect(fixture.transport.sent.filter(control=>control.type==='screen_request')).toHaveLength(2));const activation=lastScreenRequest(fixture.transport.sent)!;fixture.transport.emit('screen_admission',{admitted:true,connectionId:'self',kind:'screen',publisher:'self',receiving:false,sessionId:'00000000-0000-4000-8000-000000000001',peers:[]},activation.requestId);await started;
  expect(fixture.audioTrack.stop).toHaveBeenCalled();expect(fixture.screen.getSnapshot()).toMatchObject({status:'sharing',publisher:'self',receiving:false});
  expect(lastScreenRequest(fixture.transport.sent)?.payload).toEqual({sessionId:'00000000-0000-4000-8000-000000000001'});
+});
+
+it('offers to a receiver that joins after reservation and before activation',async()=>{
+ const fixture=setup();const joined=fixture.screen.join();fixture.admitPublisher();await joined;
+ const started=fixture.screen.startSharing();await vi.waitFor(()=>expect(fixture.transport.sent.filter(control=>control.type==='screen_request')).toHaveLength(2));const activation=lastScreenRequest(fixture.transport.sent)!;
+ expect(fixture.peers).toHaveLength(0);expect(fixture.screen.getSnapshot().status).toBe('permission');
+ fixture.transport.emit('screen_admission',{admitted:true,connectionId:'self',kind:'screen',publisher:'self',receiving:false,sessionId:'00000000-0000-4000-8000-000000000001',peers:['receiver']},activation.requestId);
+ await started;await vi.waitFor(()=>expect(fixture.peers).toHaveLength(1));expect(fixture.peers[0].addTrack).toHaveBeenCalledWith(fixture.videoTrack,fixture.stream);expect(fixture.peers[0].createOffer).toHaveBeenCalled();
+ expect(fixture.transport.sent.find(control=>control.type==='screen_signal'&&control.payload.to==='receiver')?.payload).toMatchObject({description:{type:'offer'}});
 });
 
 it('lateCaptureStopsAllTracks',async()=>{

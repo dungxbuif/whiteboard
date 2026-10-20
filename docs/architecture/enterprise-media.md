@@ -34,6 +34,12 @@ bounded routing metadata, `screen_signal` relays bounded SDP/ICE to an admitted
 same-room peer, and `screen_stop` releases a receiver or the whole publisher
 session. Screen errors do not close the drawing transport.
 
+The browser binds the activation `screen_request` to its request ID and does not
+enter sharing state until the matching `screen_admission` arrives. It merges the
+validated activation `peers` with receiver admissions observed during the
+reservation, so receivers that join before the publisher's second click receive
+an offer after activation instead of being dropped.
+
 Browser capture has two explicit steps: request admission, then select **Start
 sharing**. The second click calls `getDisplayMedia` with video limited to
 1280×720 at 15 fps and `audio:false`. Cancelled, late, ended, disconnected, or
