@@ -92,7 +92,7 @@ Mark risk flags in the `Risk Flags` column when relevant:
 | ID | Type | Lane | Status | Scope | Next artifact |
 | --- | --- | --- | --- | --- | --- |
 | COLLAB-V2 | phase | high-risk | in_review | Deployed on VM100: legacy dashboard style, ACL/invites/public edit, Yjs/custom socket, presence/voice, native MCP and diagram catalog. Final public-origin operational acceptance remains open. | [Programme plans](../superpowers/plans/2026-10-16-collaboration-v2.md), [phase](phases/PHASE-COLLAB-V2.md) |
-| COLLAB-V2-RELEASE | release | high-risk | in_progress | Backup/restore, secrets, Linux/amd64 images, migration 13, deploy, denial/log checks, Docker DNS restart/replay, authenticated TURN allocation, automatic reboot recovery, public roles/share/invite, native MCP write/export, mobile/keyboard and Homelab reconciliation pass. Public two-peer browser voice/media and sign-off remain. | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md) |
+| COLLAB-V2-RELEASE | release | high-risk | done | Backup/restore, secrets, Linux/amd64 images, migration 13, deploy, denial/log checks, Docker DNS restart/replay, authenticated TURN allocation, automatic reboot recovery, public roles/share/invite, native MCP write/export, mobile/keyboard, public two-peer browser voice/media and Homelab reconciliation pass. | [Release checklist](../operations/RELEASE_CHECKLIST.md), [release note](../releases/2026-10-19-collaboration-v2.md) |
 | PROD-REBOOT-RECOVERY | bug | high-risk | done | Controlled VM reboot restored external networks, four healthy services, migration 13 and public health automatically through the recovery unit. | [Release note](../releases/2026-10-19-collaboration-v2.md) |
 | RELEASE-SECURITY-REVIEW | release | high-risk | done | Whole-branch correctness/auth/deployment review passed; production audit is clean and all nine development/build findings are classified. | [Dependency review](verification/collaboration-dependencies.md) |
 | PLANNING-RECONCILIATION | maintenance | normal | done | Epic/ticket/roadmap/validation/API status now distinguishes shipped local behavior, retired transports and open release gates. | [Requirements](../requirements/REQUIREMENTS.md), [validation](VALIDATION_MATRIX.md) |
@@ -110,8 +110,9 @@ Linux/amd64 images are recorded, migration 13 is clean, and public
 health/deep-link/S3/MCP checks pass. A Compose tmpfs parsing defect found during
 create is fixed and verified. Controlled reboot, Docker DNS restart/replay and
 authenticated TURN allocation, public share/invite/roles, native MCP
-write/export and mobile/keyboard canaries pass. Continue the public two-peer
-browser voice/media canary, then sign off the release.
+write/export, mobile/keyboard and public two-peer browser voice/media canaries
+pass. The release evidence is reconciled; AI-provider UAT and retired OAuth
+revocation remain external provider actions.
 Homelab reconciliation is committed locally as `9722490`; that
 repository has no remote.
 

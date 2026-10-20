@@ -47,7 +47,7 @@ The frozen Linux/amd64 images are:
 - Backend: `sha256:e0c6c51e31624401102a6bac4a555d99977748b2f9c6a321df6156e18fb0e167`.
 - Collaboration: `sha256:ef235e1c3e3aa293072785c161660f526bf112c4daaeb8fac507333f8c7f8f69`.
 - MCP: `sha256:0cd512501273886674680b5e9c14d87ee0b59802bf0399541120b07b32bd03de`.
-- Frontend: `sha256:b6efa2d39826cf1eae03b71fd3e12897ae7f4a897c7e5c79984e5d5969b5c3db`.
+- Frontend: `sha256:dcd52e04c00d2761357453ed4e878c79047016948bdad3865756d65139e40a7b` (production styling follow-up `76fcfd5`).
 
 Four independent collaboration service secrets, each at least 32 bytes and
 distinct from the login JWT secret, are installed without recording their
@@ -102,7 +102,17 @@ A freshly issued production TURN credential completed authenticated UDP
 Allocate and returned a relayed address; Refresh with lifetime zero released it.
 No credential value is recorded.
 
-Final sign-off still requires the public two-peer browser voice/media canary.
+The public browser media canary opened two scene peers over HTTPS, observed
+`connected` WebRTC state, received approximately 60,037 bytes / 750 audio
+packets on each peer and exchanged nine signaling frames. Both browsers ran on
+the same host, so this canary selected host/host candidates; the independent
+cross-network relay-only TURN proof remains in the packaging evidence. The
+production scene canary then drew a rectangle, reached `Saved`, completed
+semantic Undo and Redo with `Saved` acknowledgements, and undid the final edit
+to leave the user's scene unchanged. Temporary scenes, links, users and agent
+keys were cleaned up.
+
+Release sign-off is complete for the shipped collaboration scope.
 Live AI provider
 UAT is externally blocked until the user supplies `AI_API_KEY`. Retired Google
 OAuth credential revocation remains an external Google Cloud operation; the

@@ -2,7 +2,7 @@
 
 Status: implemented, included in the 17/17 local real-stack acceptance and
 deployed on VM100. Docker DNS restart/replay, controlled reboot recovery and
-public roles/mobile/keyboard acceptance pass. Authorized by the
+public roles/mobile/keyboard/two-peer browser media acceptance pass. Authorized by the
 approved Collaboration v2 programme. Links:
 [programme](../superpowers/plans/2026-10-16-collaboration-v2.md),
 [phase](../work/phases/PHASE-COLLAB-V2.md).

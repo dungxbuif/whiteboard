@@ -57,5 +57,10 @@ preserved. History is capped at 25 entries and 32 MiB.
 Focused validation passes 51 collaboration document tests and 6 frontend
 undo/scene-diff tests. The complete frontend suite passes 25 files / 94 tests
 plus the production build. The complete collaboration suite passes 15 files /
-150 tests against the guarded loopback `*_test` database. Production deployment
-and the authoritative projection canary remain before closing this note.
+150 tests against the guarded loopback `*_test` database. Production commit
+`76fcfd5` is deployed with a healthy frontend image. On the user-authenticated
+production scene, a rectangle reached `Saved`, semantic Undo reached `Saved`,
+semantic Redo reached `Saved`, and a final Undo restored the original empty
+scene. A separate temporary-scene harness attempt failed before drawing because
+its interaction did not produce an update; cleanup confirmed zero temporary
+scenes and zero agent keys, so it is not used as product evidence.

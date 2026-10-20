@@ -1,9 +1,10 @@
 # Browser collaboration and recovery
 
 Status: implemented and deployed on VM100. Authenticated deep-link save/reload,
-Docker DNS restart/replay, controlled reboot recovery, public roles and
-mobile/keyboard acceptance pass. Public two-peer browser media remains in the
-release checklist.
+Docker DNS restart/replay, controlled reboot recovery, public roles,
+mobile/keyboard and the public two-peer browser media canary pass. Same-host
+browser media uses host/host candidates; cross-network relay proof is recorded
+separately.
 
 Open a scene and wait for **Saved** or **Read-only**. The canvas stays read-only until the server checks current access and the document finishes synchronizing. A pending count means changes are on this device and still await the server's durable acknowledgement. Closing the tab does not mean those changes were saved on the server.
 
