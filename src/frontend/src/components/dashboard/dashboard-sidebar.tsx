@@ -6,6 +6,7 @@ import { WorkspaceSwitcher } from "@/components/workspace-switcher";
 import type { SurfaceTheme } from "@/lib/surface-theme";
 import useWorkspaceStore from "@/store/workspace-store";
 import { UserMenu } from "./user-menu";
+import { NotificationInbox } from "@/components/comments/notification-inbox";
 
 export function DashboardSidebar({ theme, onThemeChange }: { theme: SurfaceTheme; onThemeChange: (value: SurfaceTheme) => void }) {
   const workspaceId = useWorkspaceStore(state => state.activeWorkspaceId);
@@ -19,7 +20,7 @@ export function DashboardSidebar({ theme, onThemeChange }: { theme: SurfaceTheme
         <FolderTree />
         {workspace?.role === "owner" && <div className="mt-4 grid gap-1"><p className="px-2 text-xs text-muted-foreground">Workspace settings</p>{[["members", "Members"], ["agents", "Agent keys"]].map(([path, label]) => <a key={path} className="rounded-md px-2 py-2 text-sm hover:bg-accent" href={`/w/${workspace.publicId || workspace.id}/settings/${path}`} onClick={event => { event.preventDefault(); navigate(event.currentTarget.getAttribute("href")!); }}>{label}</a>)}</div>}
       </div>
-      <div className="p-2"><UserMenu theme={theme} onThemeChange={onThemeChange} /></div>
+      <div className="grid gap-1 p-2"><NotificationInbox /><UserMenu theme={theme} onThemeChange={onThemeChange} /></div>
     </nav>
   );
 }

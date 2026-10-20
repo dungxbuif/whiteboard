@@ -30,6 +30,10 @@ writer.
 - Stop and claim admission share one serialized gate. Shutdown closes that gate
   before starting the drain timer, so a loop already preparing its next poll
   cannot begin a new database lease after shutdown admission.
+- Comment workspace events enqueue `notification.deliver` with the event ID.
+  The registered handler calls `NotificationService.DeliverEvent`; delivery
+  runs under the workspace authority lock and its `(user_id,event_id)` unique
+  key makes a retry after an uncertain completion safe.
 
 ## Operations
 

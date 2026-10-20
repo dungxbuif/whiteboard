@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react';
-import { Bot } from 'lucide-react';
+import { Bot, MessageCircle } from 'lucide-react';
 import '@excalidraw/excalidraw/index.css';
 import type { AssetReference, NativeElement, SceneContent } from '@collab/contracts';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types';
@@ -22,6 +22,10 @@ import { AICommandPanel } from './ai-command-panel';
 import { SceneControlCluster, SceneControls, type SceneControlStatus } from './scene-controls';
 import { ScenePanel, ScenePanelsProvider, useScenePanels } from './scene-panels';
 import { loadExcalidrawModule, type ExcalidrawModule } from './excalidraw-module';
+import { CommentPanel } from '@/components/comments/comment-panel';
+import { CommentAnchor } from '@/components/comments/comment-anchor';
+import type { CommentThread } from '@/lib/comment-api';
+import useWorkspaceStore from '@/store/workspace-store';
 
 type CanvasFile = { id: string; dataURL?: string; mimeType: string; created: number; assetId?: string };
 const appKeys = ['viewBackgroundColor', 'gridSize', 'gridStep', 'gridModeEnabled', 'theme'] as const;
@@ -52,6 +56,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
   const [module, setModule] = useState<ExcalidrawModule | null>(null);
   const [api, setAPI] = useState<ExcalidrawImperativeAPI | null>(null);
   const [uploadError, setUploadError] = useState(''); const [uploads, setUploads] = useState(0);
+  const [commentThreads, setCommentThreads] = useState<CommentThread[]>([]);
   const files = useRef<Record<string, CanvasFile>>({});
   const refs = useRef<Record<string, AssetReference>>({});
   const pending = useRef<ImageDraft | null>(null);
@@ -63,6 +68,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
   const rendering = useRef(false), uploading = useRef(false), mounted = useRef(true);
   const { isPresenting, activeSlideIndex, enter, exit, setActiveSlide } = usePresentationStore();
   const panels = useScenePanels();
+  const workspaceRole = useWorkspaceStore(state => state.workspaces.find(workspace => workspace.id === sceneRef.workspaceId)?.role);
   const canEdit = state.canEdit || (state.status === 'legacy' && legacy?.access === 'edit');
   const renderedContent = legacy && state.status === 'legacy' ? (activeScene?.id === sceneRef.sceneId ? activeScene.content : legacy.content) as SceneContent : !transport.scope && initialContent ? initialContent : content;
   const slideIds = syncPresentationOrder(renderedContent.elements, renderedContent.presentationOrder ?? []);
@@ -275,6 +281,9 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
       }).catch(error => setUploadError(String(error)));
     } else void collab.applyAgentElements(generated.elements as NativeElement[]).catch(error => setUploadError(String(error)));
   };
+  const selectedElementId = api ? Object.entries((api.getAppState() as { selectedElementIds?: Record<string, boolean> }).selectedElementIds ?? {}).find(([, selected]) => selected)?.[0] : undefined;
+  const selectedElement = selectedElementId ? renderedContent.elements.find(element => element.id === selectedElementId) : undefined;
+  const commentAnchor = selectedElement ? { elementId: selectedElement.id, x: selectedElement.x + (selectedElement.width ?? 0) / 2, y: selectedElement.y + (selectedElement.height ?? 0) / 2 } : { x: 0, y: 0 };
   return <main className="relative h-[100dvh] min-w-0 overflow-hidden bg-background" data-testid="scene-canvas-root">
     <section className="absolute inset-0 min-h-0" aria-label="Excalidraw canvas">
       {Excalidraw ? <Excalidraw
@@ -287,6 +296,7 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
         renderTopRightUI={() => <SceneControlCluster>
           {state.status !== 'legacy' ? <CollaborationToolbar /> : null}
           <Button className="min-h-11" onClick={togglePresentation} type="button">{isPresenting ? 'Exit presentation' : 'Present'}</Button>
+          {!isPresenting ? <Button aria-label="Open comments" className="min-h-11" onClick={(event) => panels.open('comments', event.currentTarget)} size="icon" type="button" variant="outline"><MessageCircle aria-hidden="true" size={16} /></Button> : null}
           {!isPresenting && canEdit ? <Button aria-label="Open AI assistant" className="min-h-11" onClick={(event) => panels.open('ai', event.currentTarget)} size="icon" type="button" variant="outline"><Bot aria-hidden="true" size={16} /></Button> : null}
         </SceneControlCluster>}
         viewModeEnabled={!canEdit || isPresenting}
@@ -298,8 +308,10 @@ function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, init
         </MainMenu> : null}
       </Excalidraw> : <p className="p-4">Loading whiteboard...</p>}
       <SceneControls canRedo={state.canEdit && undo.canRedo()} canUndo={state.canEdit && undo.canUndo()} onExportRecovery={exportRecovery} onPresent={togglePresentation} onRedo={() => undo.redo()} onRetry={retry} onUndo={() => undo.undo()} status={{ text: statusText, severity: statusSeverity }} title={title} />
+      {commentThreads.map((thread, index) => <CommentAnchor anchor={thread.anchor} elements={renderedContent.elements as never} key={thread.id} label={String(index + 1)} onOpen={() => panels.open('comments')} />)}
       {isPresenting && <><SlideNavigator activeIndex={activeSlideIndex} onMove={(index, direction) => { if (!canEdit) return; const next = [...slideIds], swap = index + direction; [next[index], next[swap]] = [next[swap], next[index]]; if (state.status === 'legacy') useSceneStore.getState().updatePresentationOrder(sceneRef.workspaceId, sceneRef.sceneId, next); else adapter.reorderPresentation(next); setActiveSlide(swap, next.length); }} onSelect={index => setActiveSlide(index, slideIds.length)} slideIds={slideIds} /><PresentationControls activeIndex={activeSlideIndex} onExit={exit} onNext={() => setActiveSlide(activeSlideIndex + 1, slideIds.length)} onPrevious={() => setActiveSlide(activeSlideIndex - 1, slideIds.length)} slideCount={slideIds.length} /></>}
       <ScenePanel id="ai" title="AI assistant"><AICommandPanel embedded scene={renderedContent} onApplyDiagram={applyDiagram} /></ScenePanel>
+      <ScenePanel id="comments" title="Comments"><CommentPanel anchor={commentAnchor} onThreadsChange={setCommentThreads} principal={collab.principal.current.kind === 'public' ? { kind: 'public', id: collab.principal.current.id, token: collab.principal.current.session.token } : { kind: 'user', id: collab.principal.current.id, owner: workspaceRole === 'owner' }} registerRefetch={collab.registerFeatureRefetch} sceneRef={sceneRef} /></ScenePanel>
     </section>
   </main>;
 }

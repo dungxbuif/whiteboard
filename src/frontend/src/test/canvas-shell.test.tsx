@@ -83,6 +83,9 @@ it('uses a full viewport canvas with native top-right and main-menu controls', a
   expect(screen.getByTestId('native-main-menu')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Back to dashboard' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Open AI assistant' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Open comments' }));
+  expect(screen.getByTestId('scene-panel-layer')).toHaveClass('absolute', 'inset-0');
+  expect(container.querySelector('main')).toHaveClass('h-[100dvh]');
 });
 
 it('waits for the recovery export before rejoining a revoked scene', async () => {

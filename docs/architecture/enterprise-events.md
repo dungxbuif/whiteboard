@@ -78,9 +78,9 @@ refetch authorized pages after reconnect, route focus, or manual refresh.
 cursor, and a maximum page size of 50. It checks current workspace membership,
 filters every scene event through current scene authority before returning it,
 and withholds `security.*` and workspace ACL/admin activity from non-owners.
-Public guests and agents do not
-receive a workspace feed. Task C3 owns HTTP handlers, notifications and the
-human-facing activity guide.
+Public guests and agents do not receive a workspace feed. C2 consumes comment
+events through idempotent, current-authority notification jobs; task C3 owns
+the activity HTTP handlers and human-facing activity guide.
 
 ## Verification
 

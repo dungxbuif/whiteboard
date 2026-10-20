@@ -185,6 +185,14 @@ Authors may edit or redact their own messages. Workspace owners may redact any
 message; authenticated owners/editors may resolve or reopen threads. Redaction
 keeps the message and revision with an empty body plus `deletedAt`. Authenticated
 authors are subscribed on creation/reply; guests have no workspace inbox.
+
+Authenticated members use `GET /api/v1/notifications?cursor=<notification
+UUID>&limit=1..50` and `POST /api/v1/notifications/{id}/read` with strict JSON
+`{requestId}`. Pages contain actionable
+`/w/{workspace}/scenes/{scene}?thread={thread}` links. Delivery is unique per
+`(user,event)`, excludes the actor, and checks current scene/comment authority;
+list and mark-read repeat that check. Public scene-session principals cannot
+use the private inbox.
 Writes are capped at 30 committed mutations per principal and scene per minute.
 Mutation, subscription, idempotency receipt, cursor-only event/outbox row and
 comment data share the workspace-lock transaction. Events contain only IDs,

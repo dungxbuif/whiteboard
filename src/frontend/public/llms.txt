@@ -11,6 +11,7 @@ Self-hosted workspaces and editable Excalidraw scenes.
 - [Workspace invitations](docs/collaboration.md): locally verified release-candidate invitation API, roles, registration, credential-attempt 429/Retry-After handling and replacement-scene recovery limits.
 - [Diagram catalog](docs/diagram-catalog.md): native presets and supported input schemas.
 - [Version history](docs/version-history.md): immutable checkpoint API, authorization, retry semantics and limits.
+- [Comments and notifications](docs/comments-and-notifications.md): anchored threads, guest policy, moderation, pagination, inbox routes and current-authority rules.
 
 - [Scene assets](docs/scene-assets.md): locally verified release-candidate scoped upload/view, size/MIME limits, expiry and required headers.
 

@@ -28,6 +28,7 @@ shared_fields: [status, trace]
 | comment_threads | Scene-scoped anchored discussion | Comment service | Composite workspace/scene/id key, creator principal snapshot, optional element ID plus fallback x/y, open/resolved revision. |
 | comments | Durable plain-text message or redaction marker | Comment service | Composite tenant/thread/message key, author principal snapshot, body, revision and edit/delete timestamps. |
 | comment_subscriptions | Authenticated user's thread subscription | Comment service | Composite thread/user key; guests never receive private subscriptions. |
+| user_notifications | Authorized member inbox item | Notification worker/API | Unique user/event delivery, scene/thread deep-link identity and per-user read receipt. |
 | scene_versions | Immutable product checkpoint plus mutable label/pin metadata | Node writer / Go reader | Exact document UUID/source sequence, canonical JSON bytes, SHA-256, creator, kind and request binding; 25 MiB maximum. |
 | version_assets | Asset retention pins for a version | Node writer | Composite version/scene/workspace and asset/scene/workspace foreign keys prevent cross-scene pins. |
 
@@ -41,6 +42,7 @@ shared_fields: [status, trace]
 | acl_audit_events | workspaces | Many-to-one | Cascades on physical workspace removal. |
 | comment_threads | scenes | Composite many-to-one | `(workspace_id,scene_id)` prevents cross-tenant anchors. |
 | comments | comment_threads | Composite many-to-one | `(workspace_id,scene_id,thread_id)` prevents foreign-thread writes. |
+| user_notifications | users, workspace_events, scenes, comment_threads | Tenant-scoped many-to-one | Composite workspace/scene/thread references prevent a notification from linking to a foreign discussion. |
 | comment_subscriptions | comment_threads, users | Composite many-to-one | Thread scope and real user identity are both enforced by foreign keys. |
 | scene_versions | scenes | Composite many-to-one | `(workspace_id,scene_id)` fixes each checkpoint to one tenant scene. |
 | version_assets | scene_versions, scene_assets | Composite many-to-one | Both references carry workspace and scene, so a version cannot pin a foreign asset. |
@@ -94,6 +96,7 @@ Migration 000012 changes active Excalidraw file-ID uniqueness to workspace+scene
 | 000013 / `agent_operation_audit` | Go-authoritative operation outcome, key/principal/scope/correlation, latency and failure class; no raw token or scene contents |
 | 000017 / `comment_threads`, `comments`, `comment_subscriptions` | Scene-scoped anchored discussions, revisioned plain-text/redaction messages and authenticated-user subscriptions; feature receipts and workspace events remain the transaction/idempotency layers |
 | 000018 / `scene_versions`, `version_assets` | Immutable canonical checkpoints, exact writer sequence/document ID, request retry binding and same-transaction asset pins; label/pin use a separate metadata revision |
+| 000019 / `user_notifications` | In-app comment notifications unique by user/event, idempotent read requests and event-triggered `notification.deliver` jobs |
 
 Deleting a `collab_documents` row cascades its update log and receipts, then receipt-linked mutation audit. Therefore reset-by-delete is forbidden as a recovery shortcut. Trash leaves these rows intact. Replacement-scene recovery retains original rows and an independently verified archive. Mutation receipts are not a user-facing version-history product.
 
