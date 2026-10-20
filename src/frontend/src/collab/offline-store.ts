@@ -14,7 +14,7 @@ export class OfflineStore {
   constructor(private name = 'devtool-collab-v2') {}
   private open() {
     return this.database ??= new Promise<IDBDatabase>((resolve, reject) => {
-      const opening = indexedDB.open(this.name, 2);
+      const opening = indexedDB.open(this.name, 3);
       opening.onupgradeneeded = () => { for (const name of ['pending', 'snapshots', 'blobs', 'drafts']) if (!opening.result.objectStoreNames.contains(name)) opening.result.createObjectStore(name); };
       opening.onsuccess = () => resolve(opening.result); opening.onerror = () => reject(opening.error);
     });
@@ -37,9 +37,9 @@ export class OfflineStore {
   }
   async replaceUnsent(scope:PendingScope,rows:PendingUpdate[],replacement:PendingUpdate):Promise<boolean>{
     return this.transaction('pending','readwrite',async store=>{
-      const current=await request(store.getAll()) as PendingUpdate[],selected=current.filter(row=>scopeKey(row.scope)===scopeKey(scope)).sort((a,b)=>a.created-b.created);
-      if(selected.length!==rows.length||selected.some((row,index)=>row.sent||row.requestId!==rows[index]?.requestId))return false;
-      for(const row of selected)await request(store.delete(key(scope,row.requestId)));
+      const current=await request(store.getAll()) as PendingUpdate[],available=new Map(current.filter(row=>scopeKey(row.scope)===scopeKey(scope)).map(row=>[row.requestId,row]));
+      if(rows.some(row=>{const found=available.get(row.requestId);return !found||found.sent||found.created!==row.created;}))return false;
+      for(const row of rows)await request(store.delete(key(scope,row.requestId)));
       await request(store.put({...replacement,update:replacement.update.slice(),sent:false},key(scope,replacement.requestId)));return true;
     });
   }

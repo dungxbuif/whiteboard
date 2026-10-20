@@ -23,13 +23,16 @@ browser history controls, offline replay guidance and production API wiring.
 - Authorized fanout sends committed update frames before their durable sequence.
   Tombstoned image file metadata survives restore so an offline edit can revive
   the stable element map without losing its referenced asset.
-- Never-sent offline intent is causally rewritten after fresh sync, independent
-  of Yjs client-ID ordering. Reconnect waits for local durability and atomically
-  replaces the complete creation-ordered pending set, independent of IndexedDB
-  key order. Ambiguous sent rows keep immutable request bytes.
+- Every never-sent offline transaction records its immediately preceding and
+  resulting semantic state. Fresh-sync replay applies those patches in creation
+  order, so edit/revert, file add/remove, element order and app-state changes
+  remain sequential. IndexedDB v3 preserves older rows; ambiguous sent or legacy
+  rows keep immutable request bytes, stop automatic transmission and remain in
+  recovery while safe unsent rows are rebased atomically.
 - Restore uses trusted worker validation up to the 64 MiB snapshot ceiling.
-  Ordinary inbound frames remain 1 MiB; oversized restore fanout sends authorized
-  512 KiB durable sync chunks before publishing its committed sequence.
+  Ordinary inbound frames remain 1 MiB; oversized restore fanout queues only its
+  latest sequence marker, reloads authorized durable state, and sends 512 KiB
+  sync chunks before publishing the committed sequence.
 
 ## Verification plan
 
@@ -45,11 +48,12 @@ browser history controls, offline replay guidance and production API wiring.
 ## Verification results
 
 - Focused offline-replay race suite passed three consecutive runs. It covers a
-  delayed local durability write crossing reconnect, multi-row replacement whose
-  creation order differs from IndexedDB key order, and a 32-iteration Yjs
-  client-ID loop for image revival. If atomic replacement loses a concurrent
-  storage race, the transport degrades without sending raw bytes and preserves
-  the pending rows for recovery.
+  delayed local durability write crossing reconnect, sequential edit/revert plus
+  file add/remove, multi-row replacement whose creation order differs from
+  IndexedDB key order, a v2-to-v3 IndexedDB upgrade, ambiguous sent rows, and a
+  32-iteration Yjs client-ID loop for image revival. If atomic replacement loses
+  a concurrent storage race, the transport degrades without sending raw bytes and
+  preserves the pending rows for recovery.
 - Focused collab restore/integration coverage passed inside the full guarded
   suite. It covers bindings/order/images, tombstone image revival, a valid restore
   update above the socket frame ceiling, atomic stale rejection, idempotency,
@@ -63,14 +67,15 @@ browser history controls, offline replay guidance and production API wiring.
 - Full collab: 26 files, 196 tests passed against guarded PostgreSQL.
 - Full guarded workspace `npm test`: collab 196, MCP 43, collaboration
   contracts 22 and diagram kit 41 tests passed; dependent bundles built.
-- Full frontend: 43 files, 169 tests passed; TypeScript/Vite production build
+- Full frontend: 43 files, 173 tests passed; TypeScript/Vite production build
   completed successfully. The replay assertion waits for its observable outbound
   frame, avoiding a fixed-delay race exposed only by the parallel full suite.
 - Full backend: guarded `go test ./...` passed, including the authenticated
   version routes and authority/hash binding used by restore.
 - Documentation: `git diff --check` passed; the human guide and its public
-  agent-readable API page describe retry identity, sequence fanout, image revival
-  and undo-reset behavior. `llms.txt` already links the public version guide.
+  agent-readable API page describe retry identity, sequence fanout, sequential
+  semantic replay, fail-closed legacy recovery, image revival and undo reset.
+  `llms.txt` already links the public version guide.
 
 The real-stack run also caught and fixed a V1 integration omission: login version
 handlers now attach the canonical membership grant ID before minting Node-bound

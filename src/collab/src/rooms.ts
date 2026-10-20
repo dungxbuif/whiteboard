@@ -21,7 +21,7 @@ const AUTH_PER_MINUTE=60,EPHEMERAL_PER_MINUTE=120,AWARENESS_PER_SECOND=30;
 
 function invalidInput<T>(parse:()=>T):T {try{return parse();}catch(error){if(error instanceof CollabError)throw error;throw new CollabError('INVALID_UPDATE','Malformed transport input',400);}}
 type Session={connectionId:string;alive:boolean;socket:WebSocket;ref?:SceneRef;principal?:Principal;claims?:Decision;access?:string;presentation?:{kind:'pending'|'audience';sessionId:string;room:string;credential?:PresentationDecision};expires?:NodeJS.Timeout;authTimer:NodeJS.Timeout;pending:number;chain:Promise<void>;ip:string;invalid:boolean};
-type Fanout={ref:SceneRef;updates:Array<{bytes:Uint8Array;sequence?:string}>;bytes:number;overflow:boolean};
+type Fanout={ref:SceneRef;updates:Array<{bytes?:Uint8Array;sequence?:string}>;bytes:number;overflow:boolean;resync:boolean};
 export class Rooms {
  private sessions=new Set<Session>();private rates=new RateLimit();private ingress=new IngressLimit();private tasks=new Set<Promise<void>>();
  private fanouts=new Map<string,Fanout>();
@@ -252,8 +252,10 @@ export class Rooms {
  }
  private committed=({ref,receipt,update}:{ref:SceneRef;receipt:MutationReceipt;update:Uint8Array})=>{
   if(this.closing)return;const key=roomKey(ref);let pending=this.fanouts.get(key);const created=!pending;
-  if(!pending){pending={ref,updates:[],bytes:0,overflow:false};this.fanouts.set(key,pending);}
+  if(!pending){pending={ref,updates:[],bytes:0,overflow:false,resync:false};this.fanouts.set(key,pending);}
   if(pending.overflow)return;
+  if(update.length>MAX_FRAME_BYTES-256){pending.resync=true;pending.updates=[{sequence:receipt.sequence}];pending.bytes=0;if(created)this.track(this.flushFanout(key,pending));return;}
+  if(pending.resync){pending.updates=[{sequence:receipt.sequence}];return;}
   // Bound both retained bytes and tiny-update metadata; overflow recovers from durable sync.
   if(pending.bytes+update.length>4*MAX_FRAME_BYTES||pending.updates.length>=1024){pending.overflow=true;pending.updates=[];pending.bytes=0;this.invalidateScene(ref.sceneId,'BACKPRESSURE');return;}
   pending.updates.push({bytes:update,sequence:receipt.sequence});pending.bytes+=update.length;
@@ -264,13 +266,13 @@ export class Rooms {
    while(!this.closing&&!pending.overflow&&pending.updates.length){
     await new Promise(resolve=>setTimeout(resolve,100));
     if(this.closing||pending.overflow)break;
-    const updates=pending.updates;pending.updates=[];pending.bytes=0;const id='s'; // Broadcast identity is not an ACK; durable receipts retain original request IDs.
+    const updates=pending.updates,resync=pending.resync;pending.updates=[];pending.bytes=0;pending.resync=false;const id='s'; // Broadcast identity is not an ACK; durable receipts retain original request IDs.
     // Avoid a merged frame exceeding the existing transport ceiling. Each accepted
     // update fits already; small updates share a frame, large updates stand alone.
-    const oversized=updates.some(item=>item.bytes.length>MAX_FRAME_BYTES-256);
+    const oversized=resync;
     const frames:Uint8Array[]=[];let group:Uint8Array[]=[];let bytes=0;
     const flush=()=>{if(group.length){frames.push(encodeFrame({channel:3,updateId:id,payload:group.length===1?group[0]:Y.mergeUpdates(group)}));group=[];bytes=0;}};
-    if(!oversized){for(const item of updates){const update=item.bytes;if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();}
+    if(!oversized){for(const item of updates){const update=item.bytes!;if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();}
     const sequence=updates.map(item=>item.sequence).filter((value):value is string=>typeof value==='string'&&/^\d+$/.test(value)).sort((a,b)=>BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:0).at(-1);
     for(const session of this.matching(pending.ref)){
      // No cached authorization: the fresh read keeps current ACL and ownership

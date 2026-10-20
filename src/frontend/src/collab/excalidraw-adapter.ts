@@ -43,6 +43,7 @@ export class ExcalidrawAdapter {
         let map = files.get(id); if (!map) { map = new Y.Map(); files.set(id, map); }
         fields(map, file);
       }
+      for (const id of files.keys()) if (!(id in content.files)) files.delete(id);
       order(this.doc.getArray('presentationOrder'), content.presentationOrder ?? []);
     }, origin);
   }

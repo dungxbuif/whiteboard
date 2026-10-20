@@ -19,7 +19,7 @@ function synced(socket: Socket, server: ExcalidrawAdapter, access = 'edit', docu
   const bytes = Y.encodeStateAsUpdate(server.doc);
   socket.receive({ type: 'sync_chunk', requestId: 'auth', payload: { documentId, index: 0, count: 1, totalBytes: bytes.length, data: btoa(String.fromCharCode(...bytes)) } });
 }
-it('collab reload replays retained updates only after synchronization and matching ACK clears them', async () => {
+it('collab legacy pending bytes fail closed after synchronization and remain recoverable', async () => {
   const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
   const author = new ExcalidrawAdapter(); author.applyRemote(Y.encodeStateAsUpdate(server.doc));
   const vector = Y.encodeStateVector(author.doc); await author.applyAgentElements([rectangle('offline')]);
@@ -31,13 +31,9 @@ it('collab reload replays retained updates only after synchronization and matchi
   synced(socket, server); await tick();
   expect(transport.state.sequence).toBe('1');
   expect(adapter.content().elements.map(e => e.id)).toContain('offline');
-  await vi.waitFor(() => expect(socket.sent.filter(item => typeof item !== 'string')).toHaveLength(1));
-  const frames = socket.sent.filter((item): item is Uint8Array => typeof item !== 'string');
-  expect(decodeFrame(frames[0]).updateId).toBe('durable-request');
-  socket.receive({ type: 'ack', requestId: 'other', payload: { requestId: 'other', sequence: '2', stateVector: '' } }); await tick();
-  expect(await store.pending(scope)).toHaveLength(1);
-  socket.receive({ type: 'ack', requestId: 'durable-request', payload: { requestId: 'durable-request', sequence: '2', stateVector: '' } }); await tick();
-  expect(await store.pending(scope)).toHaveLength(0); expect(transport.state.sequence).toBe('2'); transport.stop();
+  await vi.waitFor(() => expect(transport.state.status).toBe('degraded'));
+  expect(socket.sent.filter(item => typeof item !== 'string')).toHaveLength(0);
+  expect(await store.pending(scope)).toHaveLength(1);transport.stop();
 });
 it.each(['view', 'wrong-generation'])('collab %s admission retains recovery without replay writes', async mode => {
   const store = new OfflineStore(crypto.randomUUID()), server = new ExcalidrawAdapter(); server.applyLocalScene(scene());
@@ -85,6 +81,15 @@ it('rebases a never-sent offline image edit causally after a restore sync',async
  const transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter,store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>sockets.shift() as unknown as WireSocket});
  await transport.start();const first=(transport as any).socket as Socket;first.dispatchEvent(new Event('open'));synced(first,server);await tick();window.dispatchEvent(new Event('offline'));let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve),enqueue=store.enqueuePending.bind(store);vi.spyOn(store,'enqueuePending').mockImplementation(async(...args)=>{await gate;return enqueue(...args);});const desired=adapter.content();desired.elements[0].x=88;adapter.applyLocalScene(desired);const restored=server.content();restored.elements[0].isDeleted=true;server.applyLocalScene(restored);
  window.dispatchEvent(new Event('online'));await tick();const second=(transport as any).socket as Socket;second.dispatchEvent(new Event('open'));synced(second,server);await tick();expect(second.sent.some(value=>typeof value!=='string')).toBe(false);release();await vi.waitFor(()=>expect(second.sent.some(value=>typeof value!=='string')).toBe(true));const frame=second.sent.find((value):value is Uint8Array=>typeof value!=='string')!;server.applyRemote(decodeFrame(frame).payload);expect(server.content().elements[0]).toMatchObject({x:88,isDeleted:false});transport.stop();vi.restoreAllMocks();
+});
+it('preserves sequential edit then revert intent across restore reconnect',async()=>{
+ const firstElement=rectangle('first'),secondElement=rectangle('second'),base={...scene([firstElement,secondElement]),appState:{gridSize:20},files:{}};const server=new ExcalidrawAdapter();server.applyLocalScene(base);const sockets=[new Socket(),new Socket()],store=new OfflineStore(crypto.randomUUID()),adapter=new ExcalidrawAdapter(),transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter,store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>sockets.shift() as unknown as WireSocket});
+ await transport.start();const first=(transport as any).socket as Socket;first.dispatchEvent(new Event('open'));synced(first,server);await tick();window.dispatchEvent(new Event('offline'));const intermediate=structuredClone(base);intermediate.elements[0].x=10;intermediate.elements.reverse();intermediate.appState={gridSize:40};intermediate.files={temporary:{id:'temporary',assetId:'00000000-0000-4000-8000-000000000001',mimeType:'image/png',created:1}};adapter.applyLocalScene(intermediate);await transport.whenDurable();adapter.applyLocalScene(base);await transport.whenDurable();expect(await store.pending(scope)).toHaveLength(2);
+ const restored=server.content();restored.appState={...restored.appState,viewBackgroundColor:'#eeeeee'};server.applyLocalScene(restored);window.dispatchEvent(new Event('online'));await tick();const second=(transport as any).socket as Socket;second.dispatchEvent(new Event('open'));synced(second,server);await vi.waitFor(()=>expect(second.sent.some(value=>typeof value!=='string')).toBe(true));server.applyRemote(decodeFrame(second.sent.find((value):value is Uint8Array=>typeof value!=='string')!).payload);expect(server.content().elements.map(element=>({id:element.id,x:element.x}))).toEqual(base.elements.map(element=>({id:element.id,x:element.x})));expect(server.content().appState.gridSize).toBe(20);expect(server.content().files).not.toHaveProperty('temporary');transport.stop();
+});
+it('rebases safe rows but fails closed when a sent row is ambiguous after reconnect',async()=>{
+ const server=new ExcalidrawAdapter();server.applyLocalScene(scene([rectangle('base')]));const sockets=[new Socket(),new Socket()],store=new OfflineStore(crypto.randomUUID()),adapter=new ExcalidrawAdapter(),transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter,store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>sockets.shift() as unknown as WireSocket});
+ await transport.start();const first=(transport as any).socket as Socket;first.dispatchEvent(new Event('open'));synced(first,server);await tick();window.dispatchEvent(new Event('offline'));const changed=adapter.content();changed.elements[0].x=10;adapter.applyLocalScene(changed);await transport.whenDurable();const original=(await store.pending(scope))[0].requestId;await store.nextBatch(scope,1_000_000);const later=adapter.content();later.elements[0].y=20;adapter.applyLocalScene(later);await transport.whenDurable();server.applyLocalScene(scene([]));window.dispatchEvent(new Event('online'));await tick();const second=(transport as any).socket as Socket;second.dispatchEvent(new Event('open'));synced(second,server);await vi.waitFor(()=>expect(transport.state.status).toBe('degraded'));expect(second.sent.some(value=>typeof value!=='string')).toBe(false);const retained=await store.pending(scope);expect(retained.some(row=>row.requestId===original&&row.sent)).toBe(true);expect(retained.some(row=>row.requestId!==original&&row.intent&&!row.sent)).toBe(true);transport.stop();
 });
 it('never sends raw offline bytes when the atomic causal replacement loses a race',async()=>{
  const server=new ExcalidrawAdapter();server.applyLocalScene(scene());const sockets=[new Socket(),new Socket()],store=new OfflineStore(crypto.randomUUID()),adapter=new ExcalidrawAdapter(),transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter,store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>sockets.shift() as unknown as WireSocket});

@@ -54,14 +54,17 @@ based on current state.
 `VERSION_INCOMPATIBLE` rejects another document generation. Missing image pins
 reject the whole restore. File records referenced by later tombstoned image
 elements remain available for an offline edit to revive. Queued offline updates
-remain and may replay later. Never-sent pending edits persist base/desired intent;
-after sync the browser waits for local durability and atomically replaces the
-complete creation-ordered pending set with one causal rebase update. A restore
+remain and may replay later. Never-sent pending edits persist per-transaction
+base/desired intent; after sync the browser waits for local durability and
+atomically replaces the safe creation-ordered pending rows with one causal rebase update. A restore
 therefore cannot win through a client-ID or IndexedDB key-order tie-break.
 If that atomic replacement observes another local writer, no raw update is sent;
 the pending rows remain recoverable and the client requires a fresh reconnect.
-Already-sent ambiguous requests retain their original identity and bytes. Restore validation
+IndexedDB schema v3 preserves legacy rows during upgrade. Already-sent requests
+and legacy rows without intent retain their original identity and bytes, disable
+automatic replay, and remain available in the recovery export. Restore validation
 accepts internal deltas up to the 64 MiB snapshot ceiling while client mutation
 frames remain capped at 1 MiB. Oversized restore fanout uses 512 KiB durable sync
-chunks followed by the committed sequence. Acknowledgement clears both the
+chunks followed by the committed sequence; the room queue retains only a small
+sequence marker while it reloads the authorized durable state. Acknowledgement clears both the
 collaboration-local undo stack and Excalidraw's native history.

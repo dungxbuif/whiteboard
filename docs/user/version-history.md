@@ -32,9 +32,13 @@ review the latest diff and confirm again. The app advances that sequence when a
 collaborator's durable update arrives. Local and canvas undo histories clear only
 after the restore acknowledgement. Durable queued edits are retained; an offline
 device can replay them later as newer edits. Image metadata needed by a later
-tombstoned element is retained. Never-sent offline edits record their semantic
-intent. Reconnect first waits for those local writes to finish, then atomically
-replaces the complete creation-ordered pending set with one causal update based on
-the fresh restore sync. Editing an image offline therefore revives it
-deterministically instead of depending on CRDT client-ID or IndexedDB key order.
+tombstoned element is retained. Each never-sent offline transaction records its
+own before/after intent, including element order, canvas settings and file
+removals. Reconnect first waits for those local writes to finish, then atomically
+replaces the creation-ordered safe rows with one causal update based on the fresh
+restore sync. Editing and reverting an image offline therefore replays in the
+same order instead of depending on CRDT client-ID or IndexedDB key order.
+Already-sent or older pending rows that lack semantic intent are kept for recovery
+and stop automatic transmission after a restore; export recovery before resolving
+them.
 Coordinate with offline collaborators before restoring an important scene.

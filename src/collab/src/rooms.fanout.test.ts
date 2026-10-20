@@ -46,9 +46,9 @@ it('announces the highest durable sequence after update frames',async()=>{
  expect(typeof f.sent[0]).not.toBe('string');
  }finally{doc.destroy();await f.rooms.close();}
 });
-it('fans an oversized trusted restore out as bounded sync chunks before its sequence',async()=>{
- const f=fixture(),doc=new Y.Doc();doc.getMap('values').set('large','x'.repeat(MAX_FRAME_BYTES+64));f.store.read=async()=>({doc,access:'edit',documentId:'document',sequence:'12',stateVector:''});
- try{f.store.emit('committed',{ref:f.ref,receipt:{requestId:'restore',sequence:'12'},update:Y.encodeStateAsUpdate(doc)});await wait(250);
+it('fans a trusted restore larger than the retained fanout budget as bounded sync chunks before its sequence',async()=>{
+ const f=fixture(),doc=new Y.Doc();doc.getMap('values').set('large','x'.repeat(4*MAX_FRAME_BYTES+64));f.store.read=async()=>({doc,access:'edit',documentId:'document',sequence:'12',stateVector:''});
+ try{f.store.emit('committed',{ref:f.ref,receipt:{requestId:'restore',sequence:'12'},update:Y.encodeStateAsUpdate(doc)});const queued=[...(f.rooms as any).fanouts.values()][0];expect(queued).toMatchObject({bytes:0,resync:true,updates:[{sequence:'12'}]});expect(queued.updates[0].bytes).toBeUndefined();await wait(250);
   const controls=f.sent.map(value=>typeof value==='string'?JSON.parse(value):null).filter(Boolean);const chunks=controls.filter(value=>value.type==='sync_chunk');expect(chunks.length).toBeGreaterThan(1);expect(chunks.every(value=>value.payload.data.length<700000)).toBe(true);expect(controls.at(-1)).toMatchObject({type:'committed',payload:{sequence:'12'}});expect(f.sent.every(value=>typeof value==='string')).toBe(true);
  }finally{doc.destroy();await f.rooms.close();}
 });
