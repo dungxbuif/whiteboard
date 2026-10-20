@@ -22,6 +22,30 @@ type drainRepo struct {
 	claims    int
 }
 
+type notificationDelivererStub struct {
+	eventID int64
+}
+
+func (s *notificationDelivererStub) DeliverEvent(_ context.Context, eventID int64) error {
+	s.eventID = eventID
+	return nil
+}
+
+func TestNotificationJobHandlerRequiresAndDeliversEventID(t *testing.T) {
+	service := &notificationDelivererStub{}
+	handle := notificationJobHandler(service)
+	if err := handle(context.Background(), domain.FeatureJob{}); err == nil {
+		t.Fatal("notification job without event ID was accepted")
+	}
+	eventID := int64(42)
+	if err := handle(context.Background(), domain.FeatureJob{EventID: &eventID}); err != nil {
+		t.Fatal(err)
+	}
+	if service.eventID != eventID {
+		t.Fatalf("delivered event ID=%d want=%d", service.eventID, eventID)
+	}
+}
+
 func (r *drainRepo) Claim(_ context.Context, _ time.Time, _ int, workerID string, _ time.Duration) ([]domain.FeatureJob, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -42,7 +66,7 @@ func (r *drainRepo) Retry(context.Context, uuid.UUID, string, time.Time, string)
 func (r *drainRepo) DeadLetter(context.Context, uuid.UUID, string, string) error       { return nil }
 
 func TestLoadConfigRequiresWorkerSettings(t *testing.T) {
-	for _, key := range []string{"DATABASE_URL", "FEATURE_WORKER_ID", "FEATURE_WORKER_ADDR"} {
+	for _, key := range []string{"DATABASE_URL", "FEATURE_WORKER_ID", "FEATURE_WORKER_ADDR", "CASBIN_MODEL_PATH"} {
 		t.Setenv(key, "")
 	}
 	if _, err := loadConfig(); err == nil {
@@ -54,11 +78,12 @@ func TestLoadConfigAcceptsExplicitSettings(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://worker@example.invalid/whiteboard")
 	t.Setenv("FEATURE_WORKER_ID", "worker-a")
 	t.Setenv("FEATURE_WORKER_ADDR", "127.0.0.1:8090")
+	t.Setenv("CASBIN_MODEL_PATH", "configs/casbin_model.conf")
 	cfg, err := loadConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.DatabaseURL != os.Getenv("DATABASE_URL") || cfg.WorkerID != "worker-a" || cfg.Addr != "127.0.0.1:8090" {
+	if cfg.DatabaseURL != os.Getenv("DATABASE_URL") || cfg.WorkerID != "worker-a" || cfg.Addr != "127.0.0.1:8090" || cfg.CasbinModelPath != "configs/casbin_model.conf" {
 		t.Fatalf("unexpected config: %#v", cfg)
 	}
 }

@@ -216,7 +216,7 @@ func TestEnterpriseRouterMountsDualPrincipalCommentRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	comments := handler.NewCommentHandler(nil, nil, nil)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, comments, nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, comments, nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/"+uuid.NewString()+"/comments", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -234,11 +234,29 @@ func TestEnterpriseRouterMountsAuthenticatedVersionRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	versions := handler.NewVersionHandler(nil, access)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, versions)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, versions, nil)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/"+uuid.NewString()+"/versions", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusTeapot {
 		t.Fatalf("version route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedNotificationRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	notifications := handler.NewNotificationHandler(nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, notifications)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("notification route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
 	}
 }

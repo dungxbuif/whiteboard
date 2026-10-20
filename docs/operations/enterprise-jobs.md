@@ -7,8 +7,9 @@ writer.
 
 ## Runtime contract
 
-- Required environment: `DATABASE_URL`, `FEATURE_WORKER_ID`, and
-  `FEATURE_WORKER_ADDR`. Production Compose passes those variables explicitly;
+- Required environment: `DATABASE_URL`, `FEATURE_WORKER_ID`,
+  `FEATURE_WORKER_ADDR`, and `CASBIN_MODEL_PATH`. Production Compose passes
+  those variables explicitly;
   the worker does not inherit account, collaboration, TURN, AI, or unrelated S3
   secrets from the application environment.
 - Production Compose binds health endpoints to `127.0.0.1:8090` inside the

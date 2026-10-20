@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"devtool/internal/domain"
 	postgresrepo "devtool/internal/repository/postgres"
 	"devtool/internal/usecase"
 	"errors"
@@ -25,9 +26,23 @@ const (
 )
 
 type config struct {
-	DatabaseURL string
-	WorkerID    string
-	Addr        string
+	DatabaseURL     string
+	WorkerID        string
+	Addr            string
+	CasbinModelPath string
+}
+
+type notificationDeliverer interface {
+	DeliverEvent(context.Context, int64) error
+}
+
+func notificationJobHandler(service notificationDeliverer) usecase.FeatureJobHandler {
+	return func(ctx context.Context, job domain.FeatureJob) error {
+		if job.EventID == nil {
+			return domain.ErrInvalidNotification
+		}
+		return service.DeliverEvent(ctx, *job.EventID)
+	}
 }
 
 type workerStopGate struct {
@@ -74,13 +89,14 @@ func loadConfig() (config, error) {
 		"DATABASE_URL":        os.Getenv("DATABASE_URL"),
 		"FEATURE_WORKER_ID":   os.Getenv("FEATURE_WORKER_ID"),
 		"FEATURE_WORKER_ADDR": os.Getenv("FEATURE_WORKER_ADDR"),
+		"CASBIN_MODEL_PATH":   os.Getenv("CASBIN_MODEL_PATH"),
 	}
 	for key, value := range values {
 		if value == "" {
 			return config{}, fmt.Errorf("missing required environment variable: %s", key)
 		}
 	}
-	return config{DatabaseURL: values["DATABASE_URL"], WorkerID: values["FEATURE_WORKER_ID"], Addr: values["FEATURE_WORKER_ADDR"]}, nil
+	return config{DatabaseURL: values["DATABASE_URL"], WorkerID: values["FEATURE_WORKER_ID"], Addr: values["FEATURE_WORKER_ADDR"], CasbinModelPath: values["CASBIN_MODEL_PATH"]}, nil
 }
 
 func main() {
@@ -95,7 +111,16 @@ func main() {
 		logger.Error("feature worker database connection failed", "error", err)
 		os.Exit(1)
 	}
-	jobs, err := usecase.NewFeatureJobs(postgresrepo.NewJobRepository(db), cfg.WorkerID, map[string]usecase.FeatureJobHandler{})
+	access, err := usecase.NewAccessService(postgresrepo.NewAccessRepository(db), cfg.CasbinModelPath)
+	if err != nil {
+		logger.Error("feature worker access policy setup failed", "error", err)
+		os.Exit(1)
+	}
+	features := usecase.NewFeatureService(postgresrepo.NewFeatureRepository(db), access)
+	notifications := usecase.NewNotificationService(postgresrepo.NewNotificationRepository(db), features, access)
+	jobs, err := usecase.NewFeatureJobs(postgresrepo.NewJobRepository(db), cfg.WorkerID, map[string]usecase.FeatureJobHandler{
+		"notification.deliver": notificationJobHandler(notifications),
+	})
 	if err != nil {
 		logger.Error("feature worker setup failed", "error", err)
 		os.Exit(1)

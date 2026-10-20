@@ -113,12 +113,14 @@ func newRouter(
 	var features *handler.FeatureHandler
 	var comments *handler.CommentHandler
 	var versions *handler.VersionHandler
+	var notifications *handler.NotificationHandler
 	if len(services) > 0 {
 		access = services[0].access
 		agents = services[0].agents
 		features = services[0].features
 		comments = services[0].comments
 		versions = services[0].versions
+		notifications = services[0].notifications
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	if sceneHandler != nil {
@@ -137,6 +139,9 @@ func newRouter(
 	// mounted on the Go API.
 
 	router.Route("/api/v1", func(r chi.Router) {
+		if notifications != nil {
+			notifications.Register(r, authMiddleware)
+		}
 		if versions != nil {
 			versions.Register(r, authMiddleware)
 		}
@@ -305,15 +310,16 @@ func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.Workspac
 	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features})
 }
 
-func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler) http.Handler {
+func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler, notifications *handler.NotificationHandler) http.Handler {
 	assets.SetAccessService(access)
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions})
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions, notifications: notifications})
 }
 
 type routerServices struct {
-	access   domain.AccessService
-	agents   *handler.AgentHandler
-	features *handler.FeatureHandler
-	comments *handler.CommentHandler
-	versions *handler.VersionHandler
+	access        domain.AccessService
+	agents        *handler.AgentHandler
+	features      *handler.FeatureHandler
+	comments      *handler.CommentHandler
+	versions      *handler.VersionHandler
+	notifications *handler.NotificationHandler
 }

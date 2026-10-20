@@ -184,9 +184,11 @@ func main() {
 	versions.SetAssetViewer(assetUsecase)
 	versions.SetEventService(events)
 	versionHandler := handler.NewVersionHandler(versions, accessService)
+	notifications := usecase.NewNotificationService(postgresrepo.NewNotificationRepository(db), features, accessService)
+	notificationHandler := handler.NewNotificationHandler(notifications)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
