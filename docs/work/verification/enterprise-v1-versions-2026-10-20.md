@@ -1,0 +1,28 @@
+# Enterprise V1 version checkpoint verification — 2026-10-20
+
+Scope: immutable manual and automatic scene checkpoint capture, asset pins,
+Go history API boundary, private Node bridge, PostgreSQL migration 000018 and
+human/agent documentation.
+
+## Evidence ledger
+
+| Gate | Command / evidence | Result |
+| --- | --- | --- |
+| Focused Node/Yjs/PostgreSQL | `COLLAB_TEST_DATABASE_URL=postgres://dungxbuif@127.0.0.1:55439/devtool_a1_test?sslmode=disable npx vitest run versions version-checkpointer` | PASS: 2 files, 8 tests. Exact sequence/hash, immutable retry, atomic image pin rollback, concurrent compaction survival, one-minute floor, five-minute coalescing and durable dirty-scene recovery. |
+| Full backend | `ACCESS_TEST_DATABASE_URL=postgres://dungxbuif@127.0.0.1:55439/devtool_a1_test?sslmode=disable go test ./...` | PASS across command, HTTP, repository, S3 and usecase packages. |
+| Migration/repository focus | `ACCESS_TEST_DATABASE_URL=... go test ./internal/repository/postgres -run TestVersionRepositoryReadsContentAndGuardsMetadataRevision -count=1` | PASS. Migration 000018 applied in a disposable random schema; canonical content/read, metadata conflict and immutable-content trigger verified. |
+| Guest denial / Go binding | `go test ./internal/usecase ./internal/delivery/http/handler` | PASS. Public principal is rejected before repository access; create grant binds canonical payload, request ID and exact sequence; GET mints fresh scoped asset URLs. |
+| Full collab suite | `COLLAB_TEST_DATABASE_URL=... npm test --workspace ./collab` | BLOCKED by concurrent M1 work: `rooms.ts` referenced the not-yet-committed `Authority.requireFeature`. The same V1 sources passed the focused build/tests before that concurrent edit and the direct focused suite afterward. |
+
+Commits containing the work are `ac76f8d` (initial V1 snapshot, captured by a
+shared-index coordination incident) and `6085a15` (durable recovery scan and
+canonical-bytes constraint). No M1 room/voice/protocol files were staged by V1.
+
+## Runtime integration still required
+
+The root integrator must construct `VersionRepository` and `VersionService`,
+call `SetAssetViewer` with the current scoped asset usecase, construct
+`VersionHandler`, and mount `VersionHandler.Routes(loginAuth)` below `/api/v1`.
+The existing private collaboration client must be passed to `VersionService`.
+No public Node route is required: `server.ts` already owns the service-authenticated
+`POST /internal/scenes/{sceneId}/versions` bridge and checkpointer lifecycle.
