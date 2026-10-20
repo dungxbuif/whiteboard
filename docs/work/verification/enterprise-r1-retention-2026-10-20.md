@@ -28,3 +28,9 @@ held-prefix progress, notification cascade safety, scene holds, and canonical
 history preservation. The four-case frontend settings suite, the full 174-test
 frontend suite across 43 files, TypeScript 7/Vite production build, the full
 420-test Go suite across 14 packages, and `go vet` pass.
+
+Production reconciliation: the API server now constructs and mounts the
+retention handler through the authenticated enterprise router, and the feature
+worker registers `retention.purge` against the same feature policy and access
+authority. The worker focused suite passes. Owner settings routing and browser
+evidence remain open; production deletion remains disabled through rollout.

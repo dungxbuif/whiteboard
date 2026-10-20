@@ -332,3 +332,39 @@ func TestEnterpriseRouterMountsAuthenticatedDomainRoutes(t *testing.T) {
 		t.Fatalf("domain route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
 	}
 }
+
+func TestEnterpriseRouterMountsAuthenticatedSSORoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	sso := handler.NewSSOHandler(nil, access, "https://example.test")
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, EnterpriseExtras{SSO: sso})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/sso", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("SSO route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedRetentionRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	retention := handler.NewRetentionHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, EnterpriseExtras{Retention: retention})
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/retention/policy", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("retention route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}

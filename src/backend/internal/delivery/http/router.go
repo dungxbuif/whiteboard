@@ -118,6 +118,8 @@ func newRouter(
 	var presentations *handler.PresentationHandler
 	var collections *handler.CollectionHandler
 	var domains *handler.DomainHandler
+	var sso *handler.SSOHandler
+	var retention *handler.RetentionHandler
 	if len(services) > 0 {
 		access = services[0].access
 		agents = services[0].agents
@@ -129,6 +131,8 @@ func newRouter(
 		presentations = services[0].presentations
 		collections = services[0].collections
 		domains = services[0].domains
+		sso = services[0].sso
+		retention = services[0].retention
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	if sceneHandler != nil {
@@ -147,6 +151,12 @@ func newRouter(
 	// mounted on the Go API.
 
 	router.Route("/api/v1", func(r chi.Router) {
+		if sso != nil {
+			sso.Register(r, authMiddleware)
+		}
+		if retention != nil {
+			retention.Register(r, authMiddleware)
+		}
 		if domains != nil {
 			domains.Register(r, authMiddleware)
 		}
@@ -330,9 +340,19 @@ func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.Workspac
 	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features})
 }
 
-func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler, notifications *handler.NotificationHandler, activity *handler.ActivityHandler, presentations *handler.PresentationHandler, collections *handler.CollectionHandler, domains *handler.DomainHandler) http.Handler {
+type EnterpriseExtras struct {
+	SSO       *handler.SSOHandler
+	Retention *handler.RetentionHandler
+}
+
+func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler, notifications *handler.NotificationHandler, activity *handler.ActivityHandler, presentations *handler.PresentationHandler, collections *handler.CollectionHandler, domains *handler.DomainHandler, extras ...EnterpriseExtras) http.Handler {
 	assets.SetAccessService(access)
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions, notifications: notifications, activity: activity, presentations: presentations, collections: collections, domains: domains})
+	services := routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions, notifications: notifications, activity: activity, presentations: presentations, collections: collections, domains: domains}
+	if len(extras) > 0 {
+		services.sso = extras[0].SSO
+		services.retention = extras[0].Retention
+	}
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, services)
 }
 
 type routerServices struct {
@@ -346,4 +366,6 @@ type routerServices struct {
 	presentations *handler.PresentationHandler
 	collections   *handler.CollectionHandler
 	domains       *handler.DomainHandler
+	sso           *handler.SSOHandler
+	retention     *handler.RetentionHandler
 }

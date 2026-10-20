@@ -37,6 +37,17 @@ gate. Unit fixture evidence does not prove a real external IdP configuration.
 Production release still requires its exact issuer, client, secret and redirect
 UAT.
 
+## Production wiring reconciliation
+
+The production server now constructs the session repository and SSO repository
+before access policy, uses `NewAccessServiceWithAssurance` and
+`AuthMiddlewareWithSessions`, and injects the same session authority into
+password login and OIDC. The enterprise router registers public begin/callback/
+exchange routes plus authenticated link and workspace configuration routes.
+Startup requires a distinct exact 32-byte `SSO_ENCRYPTION_KEY` and an exact
+HTTPS `/api/v1/sso/callback` URL. Router/config focused tests pass. Browser IdP
+fixture and external-provider UAT remain open release evidence.
+
 ## Security remediation plan
 
 The independent audit found five current-authority gaps. The remediation keeps
