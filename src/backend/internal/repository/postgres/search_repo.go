@@ -51,7 +51,7 @@ func (r *SearchRepository) Search(ctx context.Context, workspaceID uuid.UUID, qu
 		})
 	}
 
-	sceneQuery := accessDB(ctx, r.db).Model(&domain.Scene{}).Where("workspace_id = ?", workspaceID)
+	sceneQuery := accessDB(ctx, r.db).Model(&domain.Scene{}).Where("workspace_id = ? AND pending_duplicate = FALSE", workspaceID)
 	if view == domain.SearchViewTrash {
 		sceneQuery = sceneQuery.Unscoped().Where("deleted_at IS NOT NULL")
 	} else {

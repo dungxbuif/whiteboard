@@ -114,7 +114,7 @@ func (r *FolderRepository) RestoreRecursive(ctx context.Context, workspaceID uui
 			Select("id").
 			Where("workspace_id = ? AND path LIKE ?", workspaceID, folder.Path+"%")
 		if err := tx.Unscoped().Model(&domain.Scene{}).
-			Where("workspace_id = ? AND folder_id IN (?)", workspaceID, folderIDs).
+			Where("workspace_id = ? AND folder_id IN (?) AND pending_duplicate = FALSE", workspaceID, folderIDs).
 			Update("deleted_at", nil).Error; err != nil {
 			return fmt.Errorf("failed to restore folder scenes: %w", err)
 		}

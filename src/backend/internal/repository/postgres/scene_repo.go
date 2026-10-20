@@ -39,8 +39,8 @@ func (r *SceneRepository) HardDelete(ctx context.Context, workspaceID, id uuid.U
 // PublishDuplicate makes a fully staged duplicate visible in one database write.
 func (r *SceneRepository) PublishDuplicate(ctx context.Context, scene *domain.Scene) error {
 	result := accessDB(ctx, r.db).Unscoped().Model(&domain.Scene{}).
-		Where("workspace_id=? AND id=? AND deleted_at IS NOT NULL", scene.WorkspaceID, scene.ID).
-		Updates(map[string]any{"content": scene.Content, "content_version": gorm.Expr("content_version + 1"), "deleted_at": nil, "updated_at": gorm.Expr("NOW()")})
+		Where("workspace_id=? AND id=? AND deleted_at IS NOT NULL AND pending_duplicate = TRUE", scene.WorkspaceID, scene.ID).
+		Updates(map[string]any{"content": scene.Content, "content_version": gorm.Expr("content_version + 1"), "deleted_at": nil, "pending_duplicate": false, "updated_at": gorm.Expr("NOW()")})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -62,7 +62,7 @@ func (r *SceneRepository) List(ctx context.Context, workspaceID uuid.UUID, folde
 	var scenes []domain.Scene
 	query := accessDB(ctx, r.db).Where("workspace_id = ?", workspaceID)
 	if deletedOnly {
-		query = query.Unscoped().Where("deleted_at IS NOT NULL")
+		query = query.Unscoped().Where("deleted_at IS NOT NULL AND pending_duplicate = FALSE")
 	}
 	if folderID == nil && !deletedOnly {
 		query = query.Where("folder_id IS NULL")
@@ -111,13 +111,13 @@ func (r *SceneRepository) SoftDelete(ctx context.Context, workspaceID uuid.UUID,
 
 func (r *SceneRepository) Restore(ctx context.Context, workspaceID uuid.UUID, id uuid.UUID) error {
 	result := accessDB(ctx, r.db).Unscoped().Model(&domain.Scene{}).
-		Where("workspace_id = ? AND id = ? AND deleted_at IS NOT NULL", workspaceID, id).
+		Where("workspace_id = ? AND id = ? AND deleted_at IS NOT NULL AND pending_duplicate = FALSE", workspaceID, id).
 		Update("deleted_at", nil)
 	if result.Error != nil {
 		return fmt.Errorf("failed to restore scene: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
-		return fmt.Errorf("failed to restore scene: %w", gorm.ErrRecordNotFound)
+		return domain.ErrInaccessible
 	}
 	return nil
 }

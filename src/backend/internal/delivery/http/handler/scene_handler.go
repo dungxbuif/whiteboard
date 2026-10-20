@@ -202,6 +202,10 @@ func (h *SceneHandler) lifecycleAction(w http.ResponseWriter, r *http.Request, a
 		return
 	}
 	if err := action(r.Context(), workspaceID, sceneID); err != nil {
+		if errors.Is(err, domain.ErrInaccessible) {
+			middleware.WriteAccessError(w, r, err)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -28,7 +28,7 @@ changing its link. Duplicating asks for a copy name and destination, creates a
 new scene, then opens the copy. The copy includes the latest saved drawing,
 including acknowledged collaboration edits and uploaded images. A large drawing
 can be duplicated without using the smaller scene-preview limit. A failed copy
-does not leave a partial scene in the dashboard. It does not copy collaborators or
+does not leave a partial scene in the dashboard or Trash. It does not copy collaborators or
 other session state. Viewers do not see these edit actions. If a list reload
 fails after a successful move or copy, the completed change remains visible and
 a later reload reconciles the list.

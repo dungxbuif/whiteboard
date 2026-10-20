@@ -179,7 +179,8 @@ func TestDuplicateCleanupFailureRetainsHiddenScene(t *testing.T) {
 	service := NewVersionService(nil, nil, &versionCapsStub{}, nil)
 	service.SetDuplicateDependencies(scenes, nil, assets, duplicateAccessStub{})
 	_, err := service.Duplicate(context.Background(), domain.UserPrincipal(uuid.New()), ref, "Copy", nil)
-	if err == nil || !strings.Contains(err.Error(), "delete object failed") || scenes.deleted || !scenes.created.DeletedAt.Valid {
+	var cleanup *domain.DuplicateCleanupError
+	if err == nil || !errors.As(err, &cleanup) || cleanup.SceneID != scenes.created.ID || !strings.Contains(err.Error(), "delete object failed") || scenes.deleted || !scenes.created.DeletedAt.Valid || !scenes.created.PendingDuplicate {
 		t.Fatalf("err=%v hidden=%v deleted=%v", err, scenes.created, scenes.deleted)
 	}
 }

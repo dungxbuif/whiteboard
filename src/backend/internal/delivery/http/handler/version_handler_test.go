@@ -5,6 +5,7 @@ import (
 	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,6 +37,19 @@ func TestVersionHandlerDuplicateUsesAuthenticatedRoute(t *testing.T) {
 	routes.ServeHTTP(response, request)
 	if response.Code != http.StatusCreated || service.called != "duplicate" || !strings.Contains(response.Body.String(), `"title":"Copy"`) {
 		t.Fatalf("status=%d called=%s body=%s", response.Code, service.called, response.Body.String())
+	}
+}
+
+func TestVersionHandlerDuplicateCleanupFailureHasDistinctCode(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	service := &versionServiceHandlerStub{err: &domain.DuplicateCleanupError{SceneID: uuid.New(), Phase: "asset", Cause: errors.New("stage failed"), Cleanup: errors.New("object deletion failed")}}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodPost, "/scenes/scene/duplicate", strings.NewReader(`{"title":"Copy","folderId":null}`))
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), `"code":"DUPLICATE_CLEANUP_FAILED"`) || strings.Contains(response.Body.String(), "object deletion failed") {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
 }
 

@@ -12,7 +12,7 @@ import (
 )
 
 func TestSceneRepository(t *testing.T) {
-	db := accessTestDB(t, 9)
+	db := accessTestDB(t, 999)
 
 	ctx := context.Background()
 	userID := uuid.New()
@@ -75,7 +75,7 @@ func TestSceneRepository(t *testing.T) {
 	if err := repo.Restore(ctx, workspaceID, scene.ID); err != nil {
 		t.Fatalf("restore failed: %v", err)
 	}
-	hidden := &domain.Scene{ID: uuid.New(), WorkspaceID: workspaceID, Title: "Copy", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), CreatedBy: &userID, UpdatedBy: &userID}
+	hidden := &domain.Scene{ID: uuid.New(), WorkspaceID: workspaceID, Title: "Copy", Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), CreatedBy: &userID, UpdatedBy: &userID, PendingDuplicate: true}
 	hidden.DeletedAt.Time, hidden.DeletedAt.Valid = time.Now(), true
 	if err := repo.Create(ctx, hidden); err != nil {
 		t.Fatal(err)
@@ -83,12 +83,27 @@ func TestSceneRepository(t *testing.T) {
 	if _, err := repo.FindByID(ctx, workspaceID, hidden.ID); err == nil {
 		t.Fatal("unfinished duplicate became visible")
 	}
+	trash, err = repo.List(ctx, workspaceID, nil, true)
+	if err != nil || len(trash) != 0 {
+		t.Fatalf("pending duplicate leaked to trash: %+v err=%v", trash, err)
+	}
+	search, err := NewSearchRepository(db).Search(ctx, workspaceID, "Copy", domain.SearchViewTrash, 10)
+	if err != nil || len(search) != 0 {
+		t.Fatalf("pending duplicate leaked to search: %+v err=%v", search, err)
+	}
+	if err := repo.Restore(ctx, workspaceID, hidden.ID); err != domain.ErrInaccessible {
+		t.Fatalf("pending duplicate restore err=%v", err)
+	}
+	var stillPending domain.Scene
+	if err := db.Unscoped().First(&stillPending, "id=?", hidden.ID).Error; err != nil || !stillPending.PendingDuplicate || !stillPending.DeletedAt.Valid {
+		t.Fatalf("pending scene changed: %+v err=%v", stillPending, err)
+	}
 	hidden.Content = json.RawMessage(`{"elements":[{"id":"copy"}],"appState":{},"files":{}}`)
 	if err := repo.PublishDuplicate(ctx, hidden); err != nil {
 		t.Fatal(err)
 	}
 	published, err := repo.FindByID(ctx, workspaceID, hidden.ID)
-	if err != nil || published.ContentVersion != 2 || !json.Valid(published.Content) {
+	if err != nil || published.PendingDuplicate || published.ContentVersion != 2 || !json.Valid(published.Content) {
 		t.Fatalf("published=%+v err=%v", published, err)
 	}
 }

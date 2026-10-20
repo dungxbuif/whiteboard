@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"testing"
+	"time"
 
 	"devtool/internal/domain"
 
@@ -10,7 +11,7 @@ import (
 )
 
 func TestFolderRepository(t *testing.T) {
-	db := accessTestDB(t, 9)
+	db := accessTestDB(t, 999)
 
 	repo := NewFolderRepository(db)
 	ctx := context.Background()
@@ -59,6 +60,11 @@ func TestFolderRepository(t *testing.T) {
 		if err := db.Create(scene).Error; err != nil {
 			t.Fatalf("failed to create child scene: %v", err)
 		}
+		pending := &domain.Scene{ID: uuid.New(), WorkspaceID: wsID, FolderID: &child.ID, Title: "Pending copy", Content: []byte(`{}`), PendingDuplicate: true}
+		pending.DeletedAt.Time, pending.DeletedAt.Valid = time.Now(), true
+		if err := db.Create(pending).Error; err != nil {
+			t.Fatalf("failed to create pending copy: %v", err)
+		}
 
 		// Test UpdatePathRecursive
 		err := repo.UpdatePathRecursive(ctx, wsID, "/root/", "/newroot/", 2)
@@ -97,6 +103,10 @@ func TestFolderRepository(t *testing.T) {
 		}
 		if err := db.First(&domain.Scene{}, "id = ?", scene.ID).Error; err != nil {
 			t.Errorf("expected child scene to be restored: %v", err)
+		}
+		var hidden domain.Scene
+		if err := db.Unscoped().First(&hidden, "id = ?", pending.ID).Error; err != nil || !hidden.PendingDuplicate || !hidden.DeletedAt.Valid {
+			t.Errorf("folder restore exposed pending copy: %+v err=%v", hidden, err)
 		}
 	})
 }

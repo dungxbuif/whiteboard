@@ -5,7 +5,9 @@ import (
 	"devtool/internal/domain"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -131,7 +133,11 @@ func decodeVersion(w http.ResponseWriter, r *http.Request, value any) bool {
 func writeVersionError(w http.ResponseWriter, r *http.Request, err error) {
 	code, message, status := "INVALID_INPUT", "Invalid version request", http.StatusBadRequest
 	var remote *domain.AgentCollabError
+	var cleanup *domain.DuplicateCleanupError
 	switch {
+	case errors.As(err, &cleanup):
+		code, message, status = "DUPLICATE_CLEANUP_FAILED", "Scene copy failed and requires cleanup", http.StatusInternalServerError
+		slog.Error("scene duplicate cleanup failed", "scene_id", cleanup.SceneID.String(), "phase", cleanup.Phase, "request_id", chimiddleware.GetReqID(r.Context()), "cleanup_error_type", fmt.Sprintf("%T", cleanup.Cleanup))
 	case errors.As(err, &remote):
 		code, status = remote.Code, remote.Status
 		message = "Version capture failed"

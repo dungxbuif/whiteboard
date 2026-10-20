@@ -7,8 +7,6 @@ import (
 	"devtool/internal/domain"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -105,13 +103,13 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 		}
 		content = projection.Content
 	}
-	copy := &domain.Scene{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, FolderID: folderID, Title: title, Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), ContentVersion: 1, CreatedBy: principal.UserID, UpdatedBy: principal.UserID, WriterMode: "v1"}
+	copy := &domain.Scene{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, FolderID: folderID, Title: title, Content: json.RawMessage(`{"elements":[],"appState":{},"files":{}}`), ContentVersion: 1, CreatedBy: principal.UserID, UpdatedBy: principal.UserID, WriterMode: "v1", PendingDuplicate: true}
 	copy.DeletedAt.Time, copy.DeletedAt.Valid = time.Now(), true // invisible until staging commits
 	if err = s.scenes.Create(ctx, copy); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if cleanupErr := s.scenes.HardDelete(cleanupCtx, ref.WorkspaceID, copy.ID); cleanupErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("duplicate create cleanup failed (hidden scene %s may remain): %w", copy.ID, cleanupErr))
+			return nil, &domain.DuplicateCleanupError{SceneID: copy.ID, Phase: "create", Cause: err, Cleanup: cleanupErr}
 		}
 		return nil, err
 	}
@@ -129,14 +127,15 @@ func (s *VersionService) Duplicate(ctx domain.Context, principal domain.Principa
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if cleanupErr := s.stager.CleanupSceneCopy(cleanupCtx, target, requestID); cleanupErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("duplicate asset cleanup failed (hidden scene %s retained): %w", copy.ID, cleanupErr))
+			return nil, &domain.DuplicateCleanupError{SceneID: copy.ID, Phase: "asset", Cause: err, Cleanup: cleanupErr}
 		}
 		if cleanupErr := s.scenes.HardDelete(cleanupCtx, ref.WorkspaceID, copy.ID); cleanupErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("duplicate scene cleanup failed (hidden scene %s retained): %w", copy.ID, cleanupErr))
+			return nil, &domain.DuplicateCleanupError{SceneID: copy.ID, Phase: "scene", Cause: err, Cleanup: cleanupErr}
 		}
 		return nil, err
 	}
 	copy.DeletedAt.Valid = false
+	copy.PendingDuplicate = false
 	copy.ContentVersion++
 	return copy, nil
 }

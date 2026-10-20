@@ -167,7 +167,7 @@ func TestAccessMigration(t *testing.T) {
 
 }
 func TestWorkspaceListAndSearchFilter(t *testing.T) {
-	db := accessTestDB(t, 7)
+	db := accessTestDB(t, 999)
 	owner, editor, w := accessFixture(t, db)
 	viewer, outsider := uuid.New(), uuid.New()
 	for _, id := range []uuid.UUID{viewer, outsider} {

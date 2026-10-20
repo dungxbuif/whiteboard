@@ -124,7 +124,14 @@ are copied to new object keys and scene-scoped rows, with file IDs and image
 references rewritten. The scene remains hidden until content and assets are
 complete; failed copies use an independent cleanup context to remove staged
 objects and rows. If object storage deletion fails, the hidden scene and stage
-records remain for recovery instead of appearing as a partial copy.
+records remain for recovery instead of appearing as a partial copy. Migration
+`000029` marks these rows `pending_duplicate`; Trash, search, scene Restore and
+recursive folder Restore exclude them until the publish update clears the marker
+and `deleted_at` atomically.
+The down migration refuses to remove the marker while pending copies exist.
+A cleanup failure returns `500 DUPLICATE_CLEANUP_FAILED` and logs
+the hidden scene ID, phase and request ID without exposing storage details to
+the caller.
 Session and collaborator state is not copied. Browser `POST /api/v1/scenes`
 with `{title,folderId,content}` remains for new scenes and imports, not duplication. These
 metadata and content mutations are available only with current edit access;
