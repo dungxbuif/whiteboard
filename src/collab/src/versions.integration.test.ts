@@ -13,12 +13,14 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-async function setup(now?: () => number) {
+async function setup(options: { now?: () => number; versionsEnabled?: boolean } = {}) {
   const f = await fixture();
   cleanup.push(() => f.close());
+  await f.pool.query(await readFile(new URL('../../backend/migrations/000014_enterprise_feature_policy.up.sql', import.meta.url), 'utf8'));
   await f.pool.query(await readFile(new URL('../../backend/migrations/000015_workspace_events.up.sql', import.meta.url), 'utf8'));
   await f.pool.query(await readFile(new URL('../../backend/migrations/000018_scene_versions.up.sql', import.meta.url), 'utf8'));
-  const store = new Persistence(f.pool, f.authority, { promoteV2: true, now });
+  if (options.versionsEnabled ?? true) await f.pool.query('UPDATE workspace_feature_policies SET versions_enabled=true WHERE workspace_id=$1', [f.ref.workspaceId]);
+  const store = new Persistence(f.pool, f.authority, { promoteV2: true, now: options.now });
   const state = await store.read(f.ref, f.principal);
   return { ...f, store, state };
 }
@@ -115,7 +117,7 @@ it('versionSurvivesCompaction', async () => {
 
 it('automaticCheckpointUsesLatestSequenceAndOneMinuteFloor', async () => {
   let now = Date.now();
-  const f = await setup(() => now);
+  const f = await setup({ now: () => now });
   const first = await f.store.captureAutomaticVersion(f.ref);
   expect(first?.sequence).toBe(f.state.sequence);
 
@@ -133,4 +135,34 @@ it('automaticCheckpointUsesLatestSequenceAndOneMinuteFloor', async () => {
   const second = await f.store.captureAutomaticVersion(f.ref);
   expect(second?.sequence).toBe(receipt.sequence);
   expect((await f.pool.query("SELECT count(*) FROM scene_versions WHERE kind='automatic'")).rows[0].count).toBe('2');
+});
+
+it('manualCheckpointRechecksDisabledPolicyInsideWriterTransaction', async () => {
+  const f = await setup();
+  const create = input(f.state.sequence);
+  const token = await grant(f, create);
+  await f.pool.query('UPDATE workspace_feature_policies SET versions_enabled=false WHERE workspace_id=$1', [f.ref.workspaceId]);
+  await expect(f.store.captureVersion(f.ref, token, create)).rejects.toMatchObject({ code: 'FEATURE_DISABLED', status: 403 });
+  expect((await f.pool.query('SELECT count(*) FROM scene_versions')).rows[0].count).toBe('0');
+  expect((await f.pool.query("SELECT count(*) FROM workspace_events WHERE source='scene_version'")).rows[0].count).toBe('0');
+});
+
+it('automaticCheckpointAndBacklogStayEmptyWhenVersionsDefaultDisabled', async () => {
+  const f = await setup({ versionsEnabled: false });
+  const client = new Y.Doc({ gc: false });
+  Y.applyUpdate(client, Y.encodeStateAsUpdate(f.state.doc));
+  const vector = Y.encodeStateVector(client);client.getMap('appState').set('gridSize', 20);
+  const receipt = await f.store.appendUpdate(f.ref, f.principal, randomUUID(), Y.encodeStateAsUpdate(client, vector));client.destroy();
+  await f.pool.query("UPDATE collab_mutation_audit SET created_at=created_at-interval '6 minutes' WHERE scene_id=$1 AND sequence=$2", [f.ref.sceneId, receipt.sequence]);
+  expect(await f.store.listDueVersionScenes()).toEqual([]);
+  expect(await f.store.captureAutomaticVersion(f.ref)).toBeUndefined();
+  expect((await f.pool.query('SELECT count(*) FROM scene_versions')).rows[0].count).toBe('0');
+  expect((await f.pool.query("SELECT count(*) FROM workspace_events WHERE source='scene_version'")).rows[0].count).toBe('0');
+});
+
+it('automaticCheckpointRechecksEnabledToDisabledRace', async () => {
+  const f = await setup();
+  await f.pool.query('UPDATE workspace_feature_policies SET versions_enabled=false WHERE workspace_id=$1', [f.ref.workspaceId]);
+  expect(await f.store.captureAutomaticVersion(f.ref)).toBeUndefined();
+  expect((await f.pool.query('SELECT count(*) FROM scene_versions')).rows[0].count).toBe('0');
 });

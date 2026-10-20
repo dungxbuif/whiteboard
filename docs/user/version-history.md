@@ -3,6 +3,8 @@
 Version history saves a durable scene copy at one exact collaboration sequence.
 Editors can create named checkpoints and pin important entries. Viewers can
 inspect history when member history is enabled. Public-link guests cannot.
+When workspace version history is disabled, neither manual nor automatic
+checkpoints are created.
 
 A conflict means somebody edited after the history panel loaded. Reload and
 create with a new request ID. Retrying the same unchanged request is safe and

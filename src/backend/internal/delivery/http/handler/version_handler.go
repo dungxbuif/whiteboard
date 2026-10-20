@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -56,7 +57,9 @@ func (h *VersionHandler) identity(r *http.Request) (domain.Principal, domain.Sce
 	if err != nil {
 		return domain.Principal{}, domain.SceneRef{}, err
 	}
-	return domain.UserPrincipal(user), domain.SceneRef{WorkspaceID: workspace, SceneID: scene}, nil
+	principal := domain.UserPrincipal(user)
+	principal.CredentialExpiresAt, _ = r.Context().Value(domain.ContextKeyCredentialExpiry).(time.Time)
+	return principal, domain.SceneRef{WorkspaceID: workspace, SceneID: scene}, nil
 }
 func decodeVersion(w http.ResponseWriter, r *http.Request, value any) bool {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, versionRequestMaxBytes))

@@ -56,11 +56,14 @@ func canonicalVersionPayload(input domain.CreateVersionInput) ([]byte, error) {
 }
 
 func (s *VersionService) Create(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, input domain.CreateVersionInput) (domain.SceneVersion, error) {
-	if principal.Kind != domain.PrincipalUser || principal.UserID == nil || input.RequestID == uuid.Nil || !validSequence(input.ExpectedSequence) || !validVersionLabel(input.Label) || s.features == nil || s.caps == nil || s.remote == nil {
+	if principal.Kind != domain.PrincipalUser || principal.UserID == nil || input.RequestID == uuid.Nil || !validSequence(input.ExpectedSequence) || !validVersionLabel(input.Label) || s.features == nil || s.caps == nil {
 		return domain.SceneVersion{}, domain.ErrInvalidVersionInput
 	}
 	if err := s.features.Require(ctx, principal, ref, domain.FeatureVersionCreate); err != nil {
 		return domain.SceneVersion{}, err
+	}
+	if s.remote == nil {
+		return domain.SceneVersion{}, &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}
 	}
 	payload, err := canonicalVersionPayload(input)
 	if err != nil {

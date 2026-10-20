@@ -2,23 +2,63 @@ package handler
 
 import (
 	"context"
+	"devtool/internal/delivery/http/middleware"
 	"devtool/internal/domain"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
 type versionServiceHandlerStub struct {
 	called    string
 	principal domain.Principal
+	err       error
+}
+
+func TestVersionHandlerPropagatesLoginCredentialExpiry(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	expires := time.Now().Add(15 * time.Minute).Truncate(time.Second)
+	secret := []byte(strings.Repeat("v", 32))
+	token, err := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.RegisteredClaims{Subject: user.String(), ExpiresAt: jwt.NewNumericDate(expires)}).SignedString(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &versionServiceHandlerStub{}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(middleware.AuthMiddleware(secret))
+	request := httptest.NewRequest(http.MethodPost, "/scenes/scene/versions", strings.NewReader(`{"requestId":"`+uuid.NewString()+`","expectedSequence":"1","pinned":false}`))
+	request.Header.Set(domain.HeaderAuthorization, domain.BearerPrefix+token)
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated || !service.principal.CredentialExpiresAt.Equal(expires) {
+		t.Fatalf("status=%d expiry=%v want=%v body=%s", response.Code, service.principal.CredentialExpiresAt, expires, response.Body.String())
+	}
 }
 
 func (s *versionServiceHandlerStub) Create(_ domain.Context, p domain.Principal, _ domain.SceneRef, _ domain.CreateVersionInput) (domain.SceneVersion, error) {
 	s.called, s.principal = "create", p
+	if s.err != nil {
+		return domain.SceneVersion{}, s.err
+	}
 	return domain.SceneVersion{ID: uuid.New(), DocumentID: uuid.New(), Sequence: "1"}, nil
+}
+
+func TestVersionHandlerReturnsUnavailableWhenWriterBridgeIsMissing(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	service := &versionServiceHandlerStub{err: &domain.AgentCollabError{Status: 503, Code: "UNAVAILABLE"}}
+	routes := NewVersionHandler(service, versionAccessHandlerStub{workspace, scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodPost, "/scenes/scene/versions", strings.NewReader(`{"requestId":"`+uuid.NewString()+`","expectedSequence":"1","pinned":false}`))
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+	routes.ServeHTTP(response, request)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"code":"UNAVAILABLE"`) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
 }
 func (s *versionServiceHandlerStub) List(_ domain.Context, p domain.Principal, _ domain.SceneRef, _ string, _ int) (domain.VersionPage, error) {
 	s.called, s.principal = "list", p

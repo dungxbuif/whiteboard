@@ -133,6 +133,17 @@ func TestVersionCreateBindsSequenceAndPayload(t *testing.T) {
 	}
 }
 
+func TestVersionCreateWithoutPrivateBridgeIsRetryableUnavailable(t *testing.T) {
+	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
+	principal := domain.UserPrincipal(uuid.New())
+	service := NewVersionService(&versionRepoStub{}, &versionFeatureStub{}, &versionCapsStub{}, nil)
+	_, err := service.Create(context.Background(), principal, ref, domain.CreateVersionInput{RequestID: uuid.New(), ExpectedSequence: "1", Pinned: false})
+	var remote *domain.AgentCollabError
+	if !errors.As(err, &remote) || remote.Status != 503 || remote.Code != "UNAVAILABLE" {
+		t.Fatalf("nil bridge err=%T %v", err, err)
+	}
+}
+
 func TestVersionGetMintsFreshImageURLs(t *testing.T) {
 	ref := domain.SceneRef{WorkspaceID: uuid.New(), SceneID: uuid.New()}
 	repo := &versionRepoStub{version: domain.SceneVersion{ID: uuid.New(), Content: json.RawMessage(`{"elements":[],"appState":{},"files":{"file-1":{"assetId":"` + uuid.NewString() + `"}}}`)}}

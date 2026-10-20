@@ -105,6 +105,7 @@ export class Persistence extends EventEmitter {
   const decision=await this.authority.verifyDecision(grant,{...ref,action:'version:create',requestId:input.requestId,payloadHash,expectedSequence:input.expectedSequence});
   if(decision.access!=='edit'||decision.principalType!=='user')throw new CollabError('FORBIDDEN');
   return this.transaction(ref,decision,async client=>{
+   if(!await this.versionsEnabled(client,ref))throw new CollabError('FEATURE_DISABLED','Version history is disabled',403);
    const previous=(await client.query('SELECT id,document_id,source_sequence::text,content_hash,label,pinned,kind,creator_kind,creator_id,metadata_revision::text,created_at,updated_at,payload_hash FROM scene_versions WHERE scene_id=$1 AND request_id=$2',[ref.sceneId,input.requestId])).rows[0];
    if(previous){
     if(previous.payload_hash!==payloadHash||previous.creator_kind!==decision.principalType||previous.creator_id!==decision.principalId)throw new CollabError('REQUEST_ID_REUSED','Request ID already binds another version',409);
@@ -132,6 +133,7 @@ export class Persistence extends EventEmitter {
  }
  async captureAutomaticVersion(ref:SceneRef):Promise<VersionSummary|undefined>{
   return this.transaction(ref,undefined,async client=>{
+   if(!await this.versionsEnabled(client,ref))return undefined;
    const {row,doc}=await this.load(client,ref);
    try{
     const previous=(await client.query("SELECT source_sequence::text,created_at FROM scene_versions WHERE scene_id=$1 AND kind='automatic' ORDER BY created_at DESC,id DESC LIMIT 1",[ref.sceneId])).rows[0];
@@ -159,12 +161,17 @@ export class Persistence extends EventEmitter {
   const rows=await this.pool.query(`SELECT d.workspace_id,d.scene_id,d.sequence::text FROM collab_documents d
    JOIN workspaces w ON w.id=d.workspace_id AND w.deleted_at IS NULL
    JOIN scenes s ON s.id=d.scene_id AND s.workspace_id=d.workspace_id AND s.deleted_at IS NULL
+   JOIN workspace_feature_policies policy ON policy.workspace_id=d.workspace_id AND policy.versions_enabled
    LEFT JOIN LATERAL (SELECT max(source_sequence) AS sequence FROM scene_versions WHERE scene_id=d.scene_id) v ON true
    JOIN LATERAL (SELECT min(created_at) AS dirty_at FROM collab_mutation_audit WHERE scene_id=d.scene_id AND sequence>COALESCE(v.sequence,-1)) dirty ON dirty.dirty_at IS NOT NULL
    WHERE d.sequence>COALESCE(v.sequence,-1) AND dirty.dirty_at<=clock_timestamp()-interval '5 minutes'
     AND ($2::uuid IS NULL OR (d.workspace_id,d.scene_id)>($2::uuid,$3::uuid))
    ORDER BY d.workspace_id,d.scene_id LIMIT $1`,[Math.max(1,Math.min(64,limit)),after?.workspaceId??null,after?.sceneId??null]);
   return rows.rows.map(row=>({ref:{workspaceId:row.workspace_id,sceneId:row.scene_id},sequence:row.sequence}));
+ }
+ private async versionsEnabled(client:PoolClient,ref:SceneRef):Promise<boolean>{
+  const policy=await client.query('SELECT versions_enabled FROM workspace_feature_policies WHERE workspace_id=$1',[ref.workspaceId]);
+  return policy.rowCount===1&&policy.rows[0].versions_enabled===true;
  }
  private async append(ref:SceneRef,decision:Decision,original:Uint8Array,makeUpdate:(doc:Y.Doc)=>Uint8Array):Promise<MutationReceipt>{
   if(decision.access!=='edit')throw new CollabError('FORBIDDEN');

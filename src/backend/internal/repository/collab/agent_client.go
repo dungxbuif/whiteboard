@@ -15,7 +15,7 @@ import (
 const requestTimeout = 8 * time.Second
 const maxErrorBytes = 4096
 
-var allowedCodes = map[string]bool{"INVALID_UPDATE": true, "UNAUTHENTICATED": true, "FORBIDDEN": true, "STALE_AUTHORITY": true, "CONFLICT": true, "REQUEST_ID_REUSED": true, "RATE_LIMITED": true, "UNAVAILABLE": true, "COLLAB_DISABLED": true, "PROMOTION_REQUIRED": true, "SNAPSHOT_HISTORY_LIMIT": true, "PROJECTION_TOO_LARGE": true, "VERSION_TOO_LARGE": true, "VERSION_ASSET_UNAVAILABLE": true}
+var allowedCodes = map[string]bool{"INVALID_UPDATE": true, "UNAUTHENTICATED": true, "FORBIDDEN": true, "STALE_AUTHORITY": true, "CONFLICT": true, "REQUEST_ID_REUSED": true, "RATE_LIMITED": true, "UNAVAILABLE": true, "COLLAB_DISABLED": true, "PROMOTION_REQUIRED": true, "SNAPSHOT_HISTORY_LIMIT": true, "PROJECTION_TOO_LARGE": true, "VERSION_TOO_LARGE": true, "VERSION_ASSET_UNAVAILABLE": true, "FEATURE_DISABLED": true}
 
 type AgentClient struct {
 	origin string
