@@ -1,9 +1,10 @@
 # Production Deployment
 
-Status: collaboration v2 is deployed on VM100 from application commit
-`772d3ea`. Controlled reboot, Docker DNS restart/replay, authenticated TURN and
-core public infrastructure canaries pass. The remaining product acceptance
-matrix is on the release checklist. For promoted scenes, use the
+Status: enterprise parity is deployed on VM100 from application commit
+`325f9fd`. The backend, collaboration runtime, feature worker, MCP adapter and
+frontend are healthy, and the forward migration job exits successfully. The
+authenticated browser/provider UAT matrix remains on the release checklist.
+For promoted scenes, use the
 [replacement-scene recovery runbook](collaboration-recovery.md); image-only
 rollback is not valid.
 
