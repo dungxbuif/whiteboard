@@ -75,4 +75,5 @@ existing deployed-status statement refers to the prior dashboard baseline.
   soft-deleted rows classified per the [deployment runbook](../../operations/DEPLOYMENT.md).
   The authenticated duplicate route reads the existing durable writer. The
   approved design and plan now record the corrected server-side copy contract.
-  Release changelog is unchanged until production rollout is verified.
+  The [changelog](../../releases/CHANGELOG.md) has an Unreleased
+  release-candidate entry; a production release entry awaits rollout proof.
