@@ -12,13 +12,15 @@ import { Button } from '@/components/ui/button';
 import { navigate } from '@/lib/router';
 import { normalizeSceneContent } from '@/lib/scene-content';
 import useSceneStore, { syncPresentationOrder } from '@/store/scene-store';
+import type { SceneContent as StoreSceneContent } from '@/store/scene-store';
 import useAuthStore from '@/store/auth-store';
 import usePresentationStore from '@/store/presentation-store';
 import { PresentationControls } from './presentation-controls';
 import { SlideNavigator } from './slide-navigator';
 import { AICommandPanel } from './ai-command-panel';
+import { SceneControlCluster, SceneControls, type SceneControlStatus } from './scene-controls';
+import { loadExcalidrawModule, type ExcalidrawModule } from './excalidraw-module';
 
-type ExcalidrawModule = typeof import('@excalidraw/excalidraw');
 type CanvasFile = { id: string; dataURL?: string; mimeType: string; created: number; assetId?: string };
 const appKeys = ['viewBackgroundColor', 'gridSize', 'gridStep', 'gridModeEnabled', 'theme'] as const;
 const json = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
@@ -35,7 +37,13 @@ export function ExcalidrawWrapper() {
   if (!scene || !user) return null;
   return <CollabProvider sceneRef={{ workspaceId: scene.workspaceId, sceneId: scene.id }} principal={{ kind: 'user', id: user.id }}><CollaborativeCanvas title={scene.title} onBack={() => { void useSceneStore.getState().closeScene().then(() => navigate('/')); }} /></CollabProvider>;
 }
-export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, initialContent }: { initialContent?: SceneContent; title: string; onBack?: () => void; displayName?: string; onRejoin?: () => void }) {
+type CollaborativeCanvasProps = { initialContent?: SceneContent; title: string; onBack?: () => void; displayName?: string; onRejoin?: () => void };
+
+export function CollaborativeCanvas(props: CollaborativeCanvasProps) {
+  return <CollaborativeCanvasContent {...props} />;
+}
+
+function CollaborativeCanvasContent({ title, onBack, displayName, onRejoin, initialContent }: CollaborativeCanvasProps) {
   const saveStatus = useSceneStore(state => state.saveStatus);
   const activeScene = useSceneStore(state => state.activeScene);
   const collab = useCollab(); const { adapter, transport, state, content, legacy, sceneRef, undo } = collab;
@@ -58,7 +66,7 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
   const legacyScope = { ...sceneRef, principalId: collab.principal.current.id, documentId: 'legacy-v1' };
   const assetScope = state.status === 'legacy' ? legacyScope : transport.scope;
   const currentRef = useRef(collab); currentRef.current = collab;
-  useEffect(() => { const owner = ++lifetime.current; mounted.current = true; void import('@excalidraw/excalidraw').then(value => { if (mounted.current && lifetime.current === owner) setModule(value); }); return () => { mounted.current = false; lifetime.current++; }; }, [transport]);
+  useEffect(() => { const owner = ++lifetime.current; mounted.current = true; void loadExcalidrawModule().then(value => { if (mounted.current && lifetime.current === owner) setModule(value); }); return () => { mounted.current = false; lifetime.current++; }; }, [transport]);
   useEffect(() => {
     if (!api || !module) return;
     if (localProjection.current === signature(renderedContent)) return;
@@ -250,16 +258,44 @@ export function CollaborativeCanvas({ title, onBack, displayName, onRejoin, init
   }
   const labels = { connecting: 'Connecting · Read-only until admitted', synced: 'Saved', pending: `${state.pending} pending updates`, offline: 'Offline · Changes stay on this device', readonly: 'Read-only', revoked: 'Access revoked · Recovery retained', degraded: 'Recovery required', legacy: ({ idle: 'Saved', saved: 'Saved', pending: 'Waiting to save', saving: 'Saving', error: 'Save failed' } as const)[saveStatus] };
   const Excalidraw = module?.Excalidraw as ComponentType<Record<string, unknown>> | undefined;
-  return <main className="grid h-screen min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-background">
-    <header className="flex min-h-14 min-w-0 flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-2">
-      <div className="flex min-w-0 items-center gap-3">{onBack && <Button aria-label="Back to dashboard" variant="ghost" onClick={onBack}>Back</Button>}<h1 className="truncate font-semibold">{title}</h1>{displayName && <span>{displayName}</span>}</div>
-      <div className="flex flex-wrap items-center gap-2">{state.status !== 'legacy' && <CollaborationToolbar />}<Button onClick={() => isPresenting ? exit() : enter()}>{isPresenting ? 'Exit presentation' : 'Present'}</Button>{state.status !== 'legacy' && <><Button disabled={!state.canEdit || !undo.canUndo()} onClick={() => undo.undo()}>Undo my edit</Button><Button disabled={!state.canEdit || !undo.canRedo()} onClick={() => undo.redo()}>Redo my edit</Button></>}{state.status === 'revoked' && onRejoin && <Button onClick={() => void collab.exportRecovery().then(value => { download({ ...value, pendingCanvas: pending.current }); onRejoin(); })}>Export recovery and rejoin</Button>}<span role="status">{uploads ? `${uploads} image uploads pending` : collab.principal.current.kind === 'public' && collab.principal.current.session.access === 'view' && state.status !== 'revoked' ? state.status === 'degraded' ? 'Read-only · Recovery required' : 'Read-only' : labels[state.status]}</span>{(state.recovery || uploadError || ['offline', 'revoked', 'degraded'].includes(state.status)) && <Button onClick={() => void collab.exportRecovery().then(value => download({ ...value, pendingCanvas: pending.current }))}>Export recovery</Button>}{(uploadError || ['offline', 'degraded', 'revoked'].includes(state.status)) && <Button onClick={() => { setUploadError(''); transport.retry(); void retryUploads(); }}>Retry connection / uploads</Button>}</div>
-      {(uploadError || state.error) && <p role="alert" className="w-full text-sm text-destructive">{uploadError || state.error}</p>}
-    </header>
-    <section className="relative min-h-0" aria-label="Excalidraw canvas">
-      {Excalidraw ? <Excalidraw excalidrawAPI={setAPI} initialData={normalizeSceneContent({ ...renderedContent, files: Object.fromEntries(Object.entries(renderedContent.files).filter(([, file]) => 'dataURL' in file && typeof file.dataURL === 'string' && file.dataURL.length > 0)) })} name={title} isCollaborating={!!state.connectionId} viewModeEnabled={!canEdit || isPresenting} onChange={onChange} onPointerUpdate={(value: { pointer: { x: number; y: number } }) => transport.sendAwareness({ cursor: value.pointer })} /> : <p>Loading whiteboard...</p>}
+  const MainMenu = module && Object.prototype.hasOwnProperty.call(module, 'MainMenu') ? module.MainMenu : undefined;
+  const statusText = uploadError || state.error || (uploads ? `${uploads} image uploads pending` : collab.principal.current.kind === 'public' && collab.principal.current.session.access === 'view' && state.status !== 'revoked' ? state.status === 'degraded' ? 'Read-only · Recovery required' : 'Read-only' : labels[state.status]);
+  const statusSeverity: SceneControlStatus['severity'] = uploadError || state.error || ['revoked', 'degraded'].includes(state.status) ? 'error' : state.status === 'offline' ? 'warning' : state.pending || uploads ? 'pending' : 'neutral';
+  const exportRecovery = () => void collab.exportRecovery().then(value => download({ ...value, pendingCanvas: pending.current }));
+  const retry = () => { setUploadError(''); transport.retry(); void retryUploads(); };
+  const togglePresentation = () => { if (isPresenting) exit(); else enter(); };
+  const applyDiagram = (generated: StoreSceneContent) => {
+    if (state.status === 'legacy') {
+      const desired = { ...renderedContent, elements: [...renderedContent.elements, ...generated.elements] } as SceneContent;
+      void offlineStore.saveDraft(legacyScope, desired).then(() => {
+        if (mounted.current && currentRef.current.transport === transport && transport.isActive() && transport.state.status === 'legacy') useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired);
+      }).catch(error => setUploadError(String(error)));
+    } else void collab.applyAgentElements(generated.elements as NativeElement[]).catch(error => setUploadError(String(error)));
+  };
+  return <main className="relative h-[100dvh] min-w-0 overflow-hidden bg-background" data-testid="scene-canvas-root">
+    <section className="absolute inset-0 min-h-0" aria-label="Excalidraw canvas">
+      {Excalidraw ? <Excalidraw
+        excalidrawAPI={setAPI}
+        initialData={normalizeSceneContent({ ...renderedContent, files: Object.fromEntries(Object.entries(renderedContent.files).filter(([, file]) => 'dataURL' in file && typeof file.dataURL === 'string' && file.dataURL.length > 0)) })}
+        isCollaborating={!!state.connectionId}
+        name={title}
+        onChange={onChange}
+        onPointerUpdate={(value: { pointer: { x: number; y: number } }) => transport.sendAwareness({ cursor: value.pointer })}
+        renderTopRightUI={() => <SceneControlCluster>
+          {state.status !== 'legacy' ? <CollaborationToolbar /> : null}
+          <Button className="min-h-11" onClick={togglePresentation} type="button">{isPresenting ? 'Exit presentation' : 'Present'}</Button>
+        </SceneControlCluster>}
+        viewModeEnabled={!canEdit || isPresenting}
+      >
+        {MainMenu ? <MainMenu>
+          <MainMenu.ItemCustom><strong className="block max-w-64 truncate px-2 py-1" title={title}>{title}</strong>{displayName ? <span className="block px-2 pb-1 text-xs text-muted-foreground">{displayName}</span> : null}</MainMenu.ItemCustom>
+          {onBack ? <MainMenu.Item onSelect={() => onBack()}>Back to dashboard</MainMenu.Item> : null}
+          {state.status === 'revoked' && onRejoin ? <MainMenu.Item onSelect={() => { exportRecovery(); onRejoin(); }}>Export recovery and rejoin</MainMenu.Item> : null}
+        </MainMenu> : null}
+      </Excalidraw> : <p className="p-4">Loading whiteboard...</p>}
+      <SceneControls canRedo={state.canEdit && undo.canRedo()} canUndo={state.canEdit && undo.canUndo()} onExportRecovery={exportRecovery} onPresent={togglePresentation} onRedo={() => undo.redo()} onRetry={retry} onUndo={() => undo.undo()} status={{ text: statusText, severity: statusSeverity }} title={title} />
       {isPresenting && <><SlideNavigator activeIndex={activeSlideIndex} onMove={(index, direction) => { if (!canEdit) return; const next = [...slideIds], swap = index + direction; [next[index], next[swap]] = [next[swap], next[index]]; if (state.status === 'legacy') useSceneStore.getState().updatePresentationOrder(sceneRef.workspaceId, sceneRef.sceneId, next); else adapter.reorderPresentation(next); setActiveSlide(swap, next.length); }} onSelect={index => setActiveSlide(index, slideIds.length)} slideIds={slideIds} /><PresentationControls activeIndex={activeSlideIndex} onExit={exit} onNext={() => setActiveSlide(activeSlideIndex + 1, slideIds.length)} onPrevious={() => setActiveSlide(activeSlideIndex - 1, slideIds.length)} slideCount={slideIds.length} /></>}
-      {!isPresenting && canEdit && <AICommandPanel scene={renderedContent} onApplyDiagram={generated => { if (state.status === 'legacy') { const desired = { ...renderedContent, elements: [...renderedContent.elements, ...generated.elements] } as SceneContent; void offlineStore.saveDraft(legacyScope, desired).then(() => { if (mounted.current && currentRef.current.transport === transport && transport.isActive() && transport.state.status === 'legacy') useSceneStore.getState().scheduleSave(sceneRef.workspaceId, sceneRef.sceneId, desired); }).catch(error => setUploadError(String(error))); } else void collab.applyAgentElements(generated.elements as NativeElement[]).catch(error => setUploadError(String(error))); }} />}
+      {!isPresenting && canEdit ? <AICommandPanel scene={renderedContent} onApplyDiagram={applyDiagram} /> : null}
     </section>
   </main>;
 }
