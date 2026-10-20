@@ -110,9 +110,11 @@ func newRouter(
 	var access domain.AccessService
 	var accessHandler *handler.AccessHandler
 	var agents *handler.AgentHandler
+	var features *handler.FeatureHandler
 	if len(services) > 0 {
 		access = services[0].access
 		agents = services[0].agents
+		features = services[0].features
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	if sceneHandler != nil {
@@ -181,6 +183,10 @@ func newRouter(
 			}
 
 			r.Route("/workspaces", func(r chi.Router) {
+				if features != nil {
+					r.Get("/{id}/feature-policy", features.Get)
+					r.Patch("/{id}/feature-policy", features.Update)
+				}
 				if agents != nil {
 					r.Get("/{id}/agent-keys", agents.List)
 					r.Post("/{id}/agent-keys", agents.Create)
@@ -280,12 +286,17 @@ func NewRouterWithAccess(auth *handler.AuthHandler, workspaces *handler.Workspac
 	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitationHandler, routerServices{access: access})
 }
 
-func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler) http.Handler {
+func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, featureHandlers ...*handler.FeatureHandler) http.Handler {
 	assets.SetAccessService(access)
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents})
+	var features *handler.FeatureHandler
+	if len(featureHandlers) > 0 {
+		features = featureHandlers[0]
+	}
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features})
 }
 
 type routerServices struct {
-	access domain.AccessService
-	agents *handler.AgentHandler
+	access   domain.AccessService
+	agents   *handler.AgentHandler
+	features *handler.FeatureHandler
 }

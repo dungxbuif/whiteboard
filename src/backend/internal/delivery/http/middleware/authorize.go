@@ -119,7 +119,8 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 			resource := parts[2]
 			scoped := resource == "scenes" || resource == "folders" || resource == "assets" || resource == "search"
 			management := resource == "workspaces" && len(parts) > 4 && (parts[4] == "members" || parts[4] == "invitations")
-			if !scoped && !management {
+			featurePolicy := resource == "workspaces" && len(parts) > 4 && parts[4] == "feature-policy"
+			if !scoped && !management && !featurePolicy {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -132,7 +133,7 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 				return
 			}
 			raw := r.Header.Get(domain.HeaderWorkspaceID)
-			if management {
+			if management || featurePolicy {
 				raw = parts[3]
 			}
 			workspace, e := access.ResolveWorkspaceID(r.Context(), raw)
@@ -147,7 +148,8 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 				if e != nil {
 					return e
 				}
-				ownerOnly := management || r.URL.Query().Get("trash") == "true" || r.URL.Query().Get("view") == domain.SearchViewTrash
+				read := r.Method == http.MethodGet || r.Method == http.MethodHead || resource == "assets" && len(parts) > 3 && parts[3] == "presign-view"
+				ownerOnly := management || featurePolicy && !read || r.URL.Query().Get("trash") == "true" || r.URL.Query().Get("view") == domain.SearchViewTrash
 				if len(parts) > 4 && (parts[4] == "members" || parts[4] == "share" || parts[4] == "share-links" || parts[4] == "restore") {
 					ownerOnly = true
 				}
@@ -169,7 +171,6 @@ func CollaborationAccessMiddleware(access domain.AccessService) func(http.Handle
 					}
 					ctx = context.WithValue(ctx, domain.ContextKeySceneID, id)
 				}
-				read := r.Method == http.MethodGet || r.Method == http.MethodHead || resource == "assets" && len(parts) > 3 && parts[3] == "presign-view"
 				if !read && !ownerOnly && resource != "assets" && d.Access != domain.AccessEdit {
 					return domain.ErrAccessDenied
 				}
