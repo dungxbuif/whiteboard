@@ -19,6 +19,7 @@ const (
 	ActionSceneExport             = "scene:export"
 	ActionVersionCreate           = "version:create"
 	ActionVersionRestore          = "version:restore"
+	ActionLibraryInsert           = "library:insert"
 )
 
 var ErrInvalidCapability = errors.New("invalid capability request")
@@ -27,7 +28,7 @@ var ErrAssetConflict = errors.New("file ID already has incompatible asset metada
 type SceneMutation struct {
 	WorkspaceID      string `json:"workspaceId" validate:"required,uuid"`
 	SceneID          string `json:"sceneId" validate:"required,uuid"`
-	Action           string `json:"action" validate:"required,oneof=scene:update scene:command scene:read scene:export version:create version:restore"`
+	Action           string `json:"action" validate:"required,oneof=scene:update scene:command scene:read scene:export version:create version:restore library:insert"`
 	RequestID        string `json:"requestId" validate:"required,min=1,max=128,ascii"`
 	PayloadHash      string `json:"payloadHash" validate:"required,len=64,hexadecimal,lowercase"`
 	ExpectedSequence string `json:"expectedSequence,omitempty"`

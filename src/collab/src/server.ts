@@ -96,6 +96,10 @@ export async function startServer(store:Persistence,config:ServerConfig){
     const result=await store.restoreVersion({workspaceId:envelope.workspaceId,sceneId:envelope.sceneId},envelope.grant,envelope.input as import('./version-restore.js').RestoreVersionInput);
     response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify(result));return;
    }
+   if(operation==='library-insertions'){
+    const allowed=['grant','insertionBase64'];if(!envelope||Object.keys(envelope).some(k=>!allowed.includes(k))||typeof envelope.grant!=='string'||typeof envelope.insertionBase64!=='string'||!envelope.insertionBase64.length)throw new CollabError('INVALID_UPDATE','Invalid library insertion envelope',400);
+    const bytes=Buffer.from(envelope.insertionBase64,'base64');if(bytes.toString('base64')!==envelope.insertionBase64)throw new CollabError('INVALID_UPDATE','Noncanonical base64',400);const input=(await import('./library.js')).parseLibraryInsertion(bytes);requestId=input.requestId;if(request.url!==`/internal/scenes/${input.sceneId}/library-insertions`)throw new CollabError('FORBIDDEN');const result=await store.applyLibraryInsertion(envelope.grant,bytes);response.writeHead(200,{'content-type':'application/json'}).end(JSON.stringify(result));return;
+   }
    if(operation!=='commands'){
     const allowed=['grant','workspaceId','sceneId',...(operation==='activity'?['cursor','limit']:[])];
     if(!envelope||Object.keys(envelope).some(k=>!allowed.includes(k))||typeof envelope.grant!=='string'||typeof envelope.workspaceId!=='string'||typeof envelope.sceneId!=='string'||request.url!==`/internal/scenes/${envelope.sceneId}/${operation}`)throw new CollabError('INVALID_UPDATE','Invalid read envelope',400);

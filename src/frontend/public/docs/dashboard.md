@@ -11,6 +11,9 @@ Workspace and creator-private containers use canonical reloadable routes and
 organize links without moving scenes or changing scene access. See
 [Collections](collections.md).
 
+Owners publish reusable native diagram bundles in [Libraries](libraries.md);
+members browse them and scene editors insert fresh copies.
+
 New scene opens an empty canvas. Import scenes accepts an Excalidraw JSON file up to 25 MiB. Invalid files show an error without creating a scene. Imported content is submitted in the scene creation request, preserving native editable elements.
 
 Theme and navigation preferences are local to this browser. The account menu exposes theme switching and sign out. Workspace owners also have Members and Agent keys settings links.

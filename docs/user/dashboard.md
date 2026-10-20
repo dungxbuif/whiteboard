@@ -12,6 +12,9 @@ workspace collections and your private collections in the same dashboard
 style. Collections are independent of folders: adding or removing a scene link
 does not move the scene or change who can open it. See [Collections](collections.md).
 
+Workspace owners can publish reusable native diagram bundles, while members can
+browse and editors can insert them into scenes. See [Libraries](libraries.md).
+
 New scene opens an empty canvas. Import scenes accepts an Excalidraw JSON file up to 25 MiB. Invalid files show an error without creating a scene. Imported content is submitted in the scene creation request, preserving native editable elements.
 
 Theme and navigation preferences are local to this browser. The account menu exposes theme switching and sign out. Workspace owners also have Members and Agent keys settings links.

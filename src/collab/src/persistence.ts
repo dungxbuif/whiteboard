@@ -11,6 +11,7 @@ import {RateLimit} from './rate-limit.js';
 import {RuntimeOwnership,type OwnerLease} from './ownership.js';
 import {MAX_VERSION_BYTES,canonicalSceneBytes,canonicalVersionPayload,referencedAssetIDs,type CaptureVersionInput,type VersionSummary} from './versions.js';
 import {canonicalRestorePayload,restoreUpdate,type RestoreVersionInput,type RestoreVersionResult} from './version-restore.js';
+import {libraryInsertionUpdate,materializeLibraryInsertion,parseLibraryInsertion,type LibraryInsertionResult} from './library.js';
 export type SceneState={doc:Y.Doc;content:SceneContent;documentId:string;sequence:string;stateVector:string;access:'view'|'edit'};
 type Row={document_id:string;sequence:string;snapshot_sequence:string;snapshot:Buffer;snapshot_at:Date;legacy_content:unknown;legacy_content_version:string};
 function versionSummary(row:Record<string,unknown>):VersionSummary{
@@ -103,6 +104,13 @@ export class Persistence extends EventEmitter {
   bytes=bytes.slice();const mutation=parseMutation(bytes),ref={workspaceId:mutation.workspaceId,sceneId:mutation.sceneId};
   const decision=await this.authority.verifyDecision(grant,{...ref,action:'scene:command',requestId:mutation.requestId,payloadHash:hash(bytes),expectedSequence:mutation.expectedSequence});
   return this.append(ref,decision,bytes,doc=>commandUpdate(doc,mutation));
+ }
+ async applyLibraryInsertion(grant:string,bytes:Uint8Array):Promise<LibraryInsertionResult>{
+  if(bytes.byteLength>MAX_VERSION_BYTES)throw new CollabError('INVALID_UPDATE','Library insertion too large',400);
+  bytes=bytes.slice();const input=parseLibraryInsertion(bytes),ref={workspaceId:input.workspaceId,sceneId:input.sceneId},content=materializeLibraryInsertion(input);
+  const decision=await this.authority.verifyDecision(grant,{...ref,action:'library:insert',requestId:input.requestId,payloadHash:hash(bytes),expectedSequence:input.expectedSequence});
+  if(decision.principalType!=='user')throw new CollabError('FORBIDDEN');
+  const receipt=await this.append(ref,decision,bytes,doc=>libraryInsertionUpdate(doc,content));return {...receipt,elementIds:content.elements.map(element=>element.id)};
  }
  async captureVersion(ref:SceneRef,grant:string,input:CaptureVersionInput):Promise<VersionSummary>{
   requestID(input.requestId);
