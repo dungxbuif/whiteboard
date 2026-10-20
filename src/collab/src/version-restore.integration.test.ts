@@ -37,3 +37,12 @@ it('offline replay after restore is a later edit and document ID remains stable'
  const state=await f.store.read(f.ref,f.principal);expect(state.documentId).toBe(f.state.documentId);expect(state.content.elements[0]).toMatchObject({id:'offline',x:77});
  client.destroy();state.doc.destroy();
 });
+
+it('rejects a restore request ID already used by a checkpoint without partial writes',async()=>{
+ const f=await setup(),requestId=randomUUID(),create:CaptureVersionInput={requestId,expectedSequence:f.state.sequence,pinned:false};
+ const version=await f.store.captureVersion(f.ref,await token(f,'version:create',create.requestId,create.expectedSequence,canonicalVersionPayload(create)),create);
+ const input:RestoreVersionInput={versionId:version.id,requestId,expectedSequence:f.state.sequence};
+ await expect(f.store.restoreVersion(f.ref,await token(f,'version:restore',input.requestId,input.expectedSequence,canonicalRestorePayload(f.ref,input)),input)).rejects.toMatchObject({code:'REQUEST_ID_REUSED'});
+ expect((await f.pool.query("SELECT count(*) FROM collab_receipts WHERE action='version:restore'")).rows[0].count).toBe('0');
+ expect((await f.pool.query('SELECT count(*) FROM scene_versions')).rows[0].count).toBe('1');
+});

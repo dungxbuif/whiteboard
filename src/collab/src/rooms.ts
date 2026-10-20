@@ -21,7 +21,7 @@ const AUTH_PER_MINUTE=60,EPHEMERAL_PER_MINUTE=120,AWARENESS_PER_SECOND=30;
 
 function invalidInput<T>(parse:()=>T):T {try{return parse();}catch(error){if(error instanceof CollabError)throw error;throw new CollabError('INVALID_UPDATE','Malformed transport input',400);}}
 type Session={connectionId:string;alive:boolean;socket:WebSocket;ref?:SceneRef;principal?:Principal;claims?:Decision;access?:string;presentation?:{kind:'pending'|'audience';sessionId:string;room:string;credential?:PresentationDecision};expires?:NodeJS.Timeout;authTimer:NodeJS.Timeout;pending:number;chain:Promise<void>;ip:string;invalid:boolean};
-type Fanout={ref:SceneRef;updates:Uint8Array[];bytes:number;overflow:boolean};
+type Fanout={ref:SceneRef;updates:Array<{bytes:Uint8Array;sequence?:string}>;bytes:number;overflow:boolean};
 export class Rooms {
  private sessions=new Set<Session>();private rates=new RateLimit();private ingress=new IngressLimit();private tasks=new Set<Promise<void>>();
  private fanouts=new Map<string,Fanout>();
@@ -250,13 +250,13 @@ export class Rooms {
   const chunk=512*1024,count=Math.max(1,Math.ceil(bytes.length/chunk));
   for(let index=0;index<count;index++)await this.control(session,'sync_chunk',id,{documentId:state.documentId,sequence:state.sequence,index,count,totalBytes:bytes.length,data:Buffer.from(bytes.subarray(index*chunk,(index+1)*chunk)).toString('base64')});
  }
- private committed=({ref,update}:{ref:SceneRef;receipt:MutationReceipt;update:Uint8Array})=>{
+ private committed=({ref,receipt,update}:{ref:SceneRef;receipt:MutationReceipt;update:Uint8Array})=>{
   if(this.closing)return;const key=roomKey(ref);let pending=this.fanouts.get(key);const created=!pending;
   if(!pending){pending={ref,updates:[],bytes:0,overflow:false};this.fanouts.set(key,pending);}
   if(pending.overflow)return;
   // Bound both retained bytes and tiny-update metadata; overflow recovers from durable sync.
   if(pending.bytes+update.length>4*MAX_FRAME_BYTES||pending.updates.length>=1024){pending.overflow=true;pending.updates=[];pending.bytes=0;this.invalidateScene(ref.sceneId,'BACKPRESSURE');return;}
-  pending.updates.push(update);pending.bytes+=update.length;
+  pending.updates.push({bytes:update,sequence:receipt.sequence});pending.bytes+=update.length;
   if(created)this.track(this.flushFanout(key,pending));
  };
  private async flushFanout(key:string,pending:Fanout){
@@ -269,12 +269,14 @@ export class Rooms {
     // update fits already; small updates share a frame, large updates stand alone.
     const frames:Uint8Array[]=[];let group:Uint8Array[]=[];let bytes=0;
     const flush=()=>{if(group.length){frames.push(encodeFrame({channel:3,updateId:id,payload:group.length===1?group[0]:Y.mergeUpdates(group)}));group=[];bytes=0;}};
-    for(const update of updates){if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();
+    for(const item of updates){const update=item.bytes;if(bytes+update.length>MAX_FRAME_BYTES/2)flush();group.push(update);bytes+=update.length;}flush();
+    const sequence=updates.map(item=>item.sequence).filter((value):value is string=>typeof value==='string'&&/^\d+$/.test(value)).sort((a,b)=>BigInt(a)<BigInt(b)?-1:BigInt(a)>BigInt(b)?1:0).at(-1);
     for(const session of this.matching(pending.ref)){
      // No cached authorization: the fresh read keeps current ACL and ownership
      // fences and reconstructs current durable state before any batch is delivered.
      if(!await this.recipient(session))continue;
      for(const frame of frames)await this.send(session,frame);
+     if(sequence)await this.control(session,'committed','server',{sequence});
     }
    }
   }catch{this.invalidateScene(pending.ref.sceneId,'UNAVAILABLE');}finally{if(this.fanouts.get(key)===pending)this.fanouts.delete(key);}

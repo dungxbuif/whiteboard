@@ -36,10 +36,11 @@ export function restoreUpdate(current:Y.Doc,targetInput:SceneContent):Uint8Array
   candidate.transact(()=>{
    const elements=candidate.getMap<Y.Map<unknown>>('elements');
    const wanted=new Set(target.elements.map(element=>element.id));
+	   const retainedFileIDs=new Set<string>();
    for(const [id,map] of elements){
     if(!(map instanceof Y.Map))throw new Error('Element must remain a field map');
     const next=target.elements.find(element=>element.id===id);
-    if(!next){map.set('isDeleted',true);continue;}
+	    if(!next){const fileId=map.get('fileId');if(typeof fileId==='string'&&fileId)retainedFileIDs.add(fileId);map.set('isDeleted',true);continue;}
     if(map.get('type')!==next.type)throw new Error('Restore cannot change an element type');
     replaceFields(map,next as unknown as Record<string,unknown>);
    }
@@ -47,7 +48,9 @@ export function restoreUpdate(current:Y.Doc,targetInput:SceneContent):Uint8Array
    const order=candidate.getArray<string>('order');order.delete(0,order.length);order.insert(0,target.elements.map(element=>element.id));
    const app=candidate.getMap<unknown>('appState');replaceFields(app,target.appState);
    const files=candidate.getMap<Y.Map<unknown>>('files');
-   for(const id of [...files.keys()])if(!(id in target.files))files.delete(id);
+	   // Keep file maps required by tombstoned later image elements. An offline
+	   // edit may legally revive that stable element after this restore commits.
+	   for(const id of [...files.keys()])if(!(id in target.files)&&!retainedFileIDs.has(id))files.delete(id);
    for(const [id,file] of Object.entries(target.files)){
     const existing=files.get(id);
     if(existing instanceof Y.Map)replaceFields(existing,file as unknown as Record<string,unknown>);

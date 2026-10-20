@@ -162,6 +162,10 @@ export class CollabTransport {
       else { this.fail(new Error(String(p.code))); }
       return;
     }
+    if (control.type === 'committed') {
+      if (typeof p.sequence !== 'string' || !/^\d+$/.test(p.sequence)) throw new Error('Invalid committed sequence');
+      this.noteCommittedSequence(p.sequence); this.controls.forEach(listener => listener(control)); return;
+    }
     if (control.type === 'resync_required') { this.access = 'view'; this.synced = false; this.set({ canEdit: false, connectionId: undefined, status: 'connecting' }); return; }
     if (control.type === 'feature_changed') { control.payload = parseFeatureChanged(p); this.controls.forEach(listener => listener(control)); return; }
     this.controls.forEach(listener => listener(control));
@@ -179,7 +183,7 @@ export class CollabTransport {
   private async updatePending() { if (!this.scope) return; const count = (await this.options.store.pending(this.scope)).length; this.set({ pending: count, recovery: count > 0, ...(this.synced && this.access === 'edit' ? { status: count ? 'pending' : 'synced' } : {}) }); }
   private scheduleFlush() { if (this.flushTimer) return; this.flushTimer = setTimeout(() => { this.flushTimer = undefined; void this.flush().catch(error => this.fail(error)); }, SEND_INTERVAL_MS); }
   async whenDurable() { await this.durable; if (this.durableError) throw this.durableError; }
-  noteCommittedSequence(sequence: string) { if (!/^\d+$/.test(sequence)) throw new Error('Invalid committed sequence'); this.set({ sequence }); }
+  noteCommittedSequence(sequence: string) { if (!/^\d+$/.test(sequence)) throw new Error('Invalid committed sequence'); if (this.state.sequence !== undefined && BigInt(sequence) <= BigInt(this.state.sequence)) return; this.set({ sequence }); }
   async flush() {
     const generation = this.generation;
     if (this.stopped) return;

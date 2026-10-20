@@ -30,6 +30,6 @@ describe('HistoryPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Restore version' }));
     fireEvent.click(screen.getByRole('button', { name: 'Confirm restore' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/scene changed/i);
-    expect(screen.getByRole('button', { name: 'Confirm restore' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Confirm restore' })).toBeDisabled();
   });
 });

@@ -178,6 +178,8 @@ export class Persistence extends EventEmitter {
     if(!recovery)throw new CollabError('UNAVAILABLE','Restore recovery checkpoint is missing',503);
     return {requestId:input.requestId,sequence:String(previous.sequence),stateVector:String(previous.state_vector),preRestoreVersionId:String(recovery.id)};
    }
+   const checkpointCollision=(await client.query('SELECT id FROM scene_versions WHERE scene_id=$1 AND request_id=$2',[ref.sceneId,input.requestId])).rows[0];
+   if(checkpointCollision)throw new CollabError('REQUEST_ID_REUSED','Request ID already belongs to a version checkpoint',409);
    const {row,doc}=await this.load(client,ref);
    try{
     if(row.sequence!==input.expectedSequence)throw new CollabError('CONFLICT','Expected sequence differs from current sequence',409);

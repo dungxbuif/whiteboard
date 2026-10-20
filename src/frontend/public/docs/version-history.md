@@ -44,5 +44,14 @@ sequence. Node rechecks edit authority and policy under the writer lock. Success
 keeps `documentId`, creates one pinned pre-restore version, then atomically commits
 one validated Yjs update, receipt, audit row and safe events. Stale input commits
 nothing. Identical retry returns the same receipt and recovery checkpoint.
+An uncertain HTTP result must be retried with the same request ID. A definitive
+sequence conflict must first rebase to the latest sequence and then use a new
+request ID. Reusing an ID that already captured a checkpoint returns
+`REQUEST_ID_REUSED` and commits nothing. Authorized room recipients receive the
+durable sequence after the corresponding update frame so their next request is
+based on current state.
 `VERSION_INCOMPATIBLE` rejects another document generation. Missing image pins
-reject the whole restore. Queued offline updates remain and may replay later.
+reject the whole restore. File records referenced by later tombstoned image
+elements remain available for an offline edit to revive. Queued offline updates
+remain and may replay later. Acknowledgement clears both the collaboration-local
+undo stack and Excalidraw's native history.

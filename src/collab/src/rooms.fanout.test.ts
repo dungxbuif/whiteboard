@@ -39,3 +39,10 @@ it('serializes later commits behind the current authority check and bounds pendi
 it('cancels queued broadcasts when workspace authority is invalidated',async()=>{
  const f=fixture(),doc=new Y.Doc();try{doc.getMap('values').set('x',1);f.store.emit('committed',{ref:f.ref,receipt:{requestId:'one'},update:Y.encodeStateAsUpdate(doc)});f.rooms.invalidateWorkspace(f.ref.workspaceId);await wait(150);expect(f.reads()).toBe(0);expect(f.sent.every(s=>typeof s==='string')).toBe(true);expect((f.rooms as any).fanouts.size).toBe(0);}finally{doc.destroy();await f.rooms.close();}
 });
+
+it('announces the highest durable sequence after update frames',async()=>{
+ const f=fixture(),doc=new Y.Doc();try{doc.getMap('values').set('x',1);f.store.emit('committed',{ref:f.ref,receipt:{requestId:'one',sequence:'9'},update:Y.encodeStateAsUpdate(doc)});await wait(250);
+ const control=f.sent.filter(value=>typeof value==='string').map(value=>JSON.parse(value)).find(value=>value.type==='committed');expect(control?.payload.sequence).toBe('9');
+ expect(typeof f.sent[0]).not.toBe('string');
+ }finally{doc.destroy();await f.rooms.close();}
+});

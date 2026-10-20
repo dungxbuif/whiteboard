@@ -31,7 +31,8 @@ it('collab reload replays retained updates only after synchronization and matchi
   synced(socket, server); await tick();
   expect(transport.state.sequence).toBe('1');
   expect(adapter.content().elements.map(e => e.id)).toContain('offline');
-  const frames = socket.sent.filter((item): item is Uint8Array => typeof item !== 'string'); expect(frames).toHaveLength(1);
+  await vi.waitFor(() => expect(socket.sent.filter(item => typeof item !== 'string')).toHaveLength(1));
+  const frames = socket.sent.filter((item): item is Uint8Array => typeof item !== 'string');
   expect(decodeFrame(frames[0]).updateId).toBe('durable-request');
   socket.receive({ type: 'ack', requestId: 'other', payload: { requestId: 'other', sequence: '2', stateVector: '' } }); await tick();
   expect(await store.pending(scope)).toHaveLength(1);
@@ -64,6 +65,13 @@ it('forwards cursor-only feature invalidations without disturbing document admis
   socket.receive({ type: 'feature_changed', requestId: 'server', payload: { eventCursor: '42' } }); await tick();
   expect(invalidations).toEqual([{ eventCursor: '42' }]); expect(transport.state.status).toBe('synced');
   transport.stop();
+});
+
+it('advances the current sequence after a remote committed update',async()=>{
+ const store=new OfflineStore(crypto.randomUUID()),server=new ExcalidrawAdapter();server.applyLocalScene(scene());const socket=new Socket(),transport=new CollabTransport({sceneRef:scope,principalId:'alice',adapter:new ExcalidrawAdapter(),store,grant:async()=>({token:'token',expiresAt:new Date(Date.now()+600000).toISOString()}),url:'ws://local',socket:()=>socket as unknown as WireSocket});
+ await transport.start();socket.dispatchEvent(new Event('open'));synced(socket,server);await tick();
+ socket.receive({type:'committed',requestId:'server',payload:{sequence:'2'}});await tick();expect(transport.state.sequence).toBe('2');
+ socket.receive({type:'committed',requestId:'server',payload:{sequence:'1'}});await tick();expect(transport.state.sequence).toBe('2');transport.stop();
 });
 
 it('collab revoked editor retains pending recovery and stale connection ACK cannot clear it', async () => {

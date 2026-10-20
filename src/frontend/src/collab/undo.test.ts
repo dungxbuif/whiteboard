@@ -24,3 +24,10 @@ it('undo tombstones a local addition and redo revives the same stable element ma
   undo.redo();expect(adapter.content().elements).toMatchObject([{id:'local',isDeleted:false}]);
   expect(adapter.doc.getMap('elements').get('local')).toBe(map);
 });
+
+it('clear drops acknowledged restore history without mutating the restored document',()=>{
+ const adapter=new ExcalidrawAdapter();adapter.applyLocalScene(scene());const undo=createLocalUndo(adapter);
+ const changed=adapter.content();changed.elements[0].x=44;undo.apply(changed);undo.undo();
+ expect(undo.canRedo()).toBe(true);const before=adapter.content();undo.clear();
+ expect(undo.canUndo()).toBe(false);expect(undo.canRedo()).toBe(false);expect(adapter.content()).toEqual(before);
+});

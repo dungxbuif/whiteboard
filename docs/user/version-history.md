@@ -6,9 +6,11 @@ inspect history when member history is enabled. Public-link guests cannot.
 When workspace version history is disabled, neither manual nor automatic
 checkpoints are created.
 
-A conflict means somebody edited after the history panel loaded. Reload and
-retry from the current sequence with a new request ID. Retrying the same
-unchanged request is safe and returns the original checkpoint or restore.
+A conflict means somebody edited after the history panel loaded. The restore
+dialog waits for the latest collaboration sequence before allowing another
+confirmation, then uses a new request ID. If a network or server interruption
+makes the outcome uncertain, retrying reuses the same request ID so it returns
+the original result instead of restoring twice.
 
 Referenced images are pinned with the checkpoint. Missing, deleted or foreign
 scene images make the whole create fail. A scene larger than 25 MiB cannot be
@@ -24,7 +26,9 @@ It keeps the same live document identity and writes one ordinary durable update,
 so collaborators receive it through the normal room stream.
 
 Restore requires the exact current collaboration sequence. If the scene changed,
-review the latest diff and confirm again. Local undo history clears only after the
-restore acknowledgement. Durable queued edits are retained; an offline device can
-replay them later as newer edits, so coordinate with offline collaborators before
-restoring an important scene.
+review the latest diff and confirm again. The app advances that sequence when a
+collaborator's durable update arrives. Local and canvas undo histories clear only
+after the restore acknowledgement. Durable queued edits are retained; an offline
+device can replay them later as newer edits. Image metadata needed by a later
+tombstoned element is retained so that offline edit can safely revive the image.
+Coordinate with offline collaborators before restoring an important scene.

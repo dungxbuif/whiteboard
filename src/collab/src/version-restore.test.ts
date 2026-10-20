@@ -39,4 +39,18 @@ describe('version restore semantics',()=>{
   expect(()=>restoreUpdate(current,scene([{...rect('a'),type:'ellipse'} as NativeElement]))).toThrow(/type/i);
   current.destroy();
  });
+
+ it('retains a tombstoned image file so an offline edit can revive it',async()=>{
+  const file={id:'file-later',assetId:'00000000-0000-4000-8000-000000000001',mimeType:'image/png',created:1};
+  const image={...rect('later-image'),type:'image',fileId:'file-later',status:'saved',scale:[1,1],crop:null} as unknown as NativeElement;
+  const current=createSceneDoc(scene([rect('kept'),image],{files:{'file-later':file}}));
+  const offline=new Y.Doc({gc:false});Y.applyUpdate(offline,Y.encodeStateAsUpdate(current));const offlineVector=Y.encodeStateVector(offline);
+  const offlineImage=offline.getMap<Y.Map<unknown>>('elements').get('later-image')!;offlineImage.set('x',88);offlineImage.set('isDeleted',false);
+  const offlineUpdate=Y.encodeStateAsUpdate(offline,offlineVector);
+  const restored=await validateCandidate(current,restoreUpdate(current,scene([rect('kept')])));Y.applyUpdate(current,restored.update);
+  expect(materializeScene(current).files).toHaveProperty('file-later');
+  const replayed=await validateCandidate(current,offlineUpdate);Y.applyUpdate(current,replayed.update);
+  expect(materializeScene(current).elements.find(element=>element.id==='later-image')).toMatchObject({x:88,isDeleted:false,fileId:'file-later'});
+  offline.destroy();current.destroy();
+ });
 });
