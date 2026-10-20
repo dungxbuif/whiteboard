@@ -41,19 +41,20 @@ type Comment struct {
 }
 
 type CommentThread struct {
-	ID          uuid.UUID     `json:"id"`
-	WorkspaceID uuid.UUID     `json:"-"`
-	SceneID     uuid.UUID     `json:"sceneId"`
-	CreatorKind PrincipalKind `json:"creatorKind"`
-	CreatorID   string        `json:"-"`
-	CreatorName string        `json:"creatorName"`
-	Anchor      CommentAnchor `json:"anchor"`
-	Status      string        `json:"status"`
-	Revision    int64         `json:"revision"`
-	Subscribed  bool          `json:"subscribed"`
-	Messages    []Comment     `json:"messages"`
-	CreatedAt   time.Time     `json:"createdAt"`
-	UpdatedAt   time.Time     `json:"updatedAt"`
+	ID                uuid.UUID     `json:"id"`
+	WorkspaceID       uuid.UUID     `json:"-"`
+	SceneID           uuid.UUID     `json:"sceneId"`
+	CreatorKind       PrincipalKind `json:"creatorKind"`
+	CreatorID         string        `json:"-"`
+	CreatorName       string        `json:"creatorName"`
+	Anchor            CommentAnchor `json:"anchor"`
+	Status            string        `json:"status"`
+	Revision          int64         `json:"revision"`
+	Subscribed        bool          `json:"subscribed"`
+	Messages          []Comment     `json:"messages"`
+	NextMessageCursor string        `json:"nextMessageCursor,omitempty"`
+	CreatedAt         time.Time     `json:"createdAt"`
+	UpdatedAt         time.Time     `json:"updatedAt"`
 }
 
 type CommentPage struct {
@@ -94,6 +95,7 @@ type CommentRepository interface {
 	CreateThread(Context, CommentThread, Comment, *uuid.UUID) error
 	AddReply(Context, Comment, *uuid.UUID) error
 	Thread(Context, SceneRef, uuid.UUID, Principal) (CommentThread, error)
+	ThreadPage(Context, SceneRef, uuid.UUID, Principal, *uuid.UUID, int) (CommentThread, error)
 	Message(Context, SceneRef, uuid.UUID, uuid.UUID) (Comment, error)
 	UpdateMessage(Context, SceneRef, uuid.UUID, uuid.UUID, int64, string, bool) (Comment, error)
 	UpdateThread(Context, SceneRef, uuid.UUID, int64, *bool) (CommentThread, error)
@@ -110,5 +112,5 @@ type CommentUsecase interface {
 	DeleteMessage(Context, Principal, SceneRef, uuid.UUID, uuid.UUID, RevisionInput) error
 	UpdateThread(Context, Principal, SceneRef, uuid.UUID, ThreadEditInput) (CommentThread, error)
 	List(Context, Principal, SceneRef, string, int) (CommentPage, error)
-	GetThread(Context, Principal, SceneRef, uuid.UUID) (CommentThread, error)
+	GetThread(Context, Principal, SceneRef, uuid.UUID, string, int) (CommentThread, error)
 }

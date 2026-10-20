@@ -346,14 +346,22 @@ func (s *CommentService) List(ctx domain.Context, principal domain.Principal, re
 	return page, nil
 }
 
-func (s *CommentService) GetThread(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, threadID uuid.UUID) (domain.CommentThread, error) {
-	if threadID == uuid.Nil {
+func (s *CommentService) GetThread(ctx domain.Context, principal domain.Principal, ref domain.SceneRef, threadID uuid.UUID, cursor string, limit int) (domain.CommentThread, error) {
+	if threadID == uuid.Nil || limit < 1 || limit > maxCommentPageSize {
 		return domain.CommentThread{}, domain.ErrInvalidCommentInput
+	}
+	var cursorID *uuid.UUID
+	if cursor != "" {
+		id, err := uuid.Parse(cursor)
+		if err != nil {
+			return domain.CommentThread{}, domain.ErrInvalidCommentInput
+		}
+		cursorID = &id
 	}
 	if err := s.features.Require(ctx, principal, ref, domain.FeatureCommentRead); err != nil {
 		return domain.CommentThread{}, err
 	}
-	return s.repo.Thread(ctx, ref, threadID, principal)
+	return s.repo.ThreadPage(ctx, ref, threadID, principal, cursorID, limit)
 }
 
 var _ domain.CommentUsecase = (*CommentService)(nil)

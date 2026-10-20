@@ -130,20 +130,37 @@ func (r *CommentRepository) AddReply(ctx domain.Context, message domain.Comment,
 	return err
 }
 
-func (r *CommentRepository) messages(ctx domain.Context, ref domain.SceneRef, threadID uuid.UUID, principal domain.Principal) ([]domain.Comment, error) {
+func (r *CommentRepository) messagesPage(ctx domain.Context, ref domain.SceneRef, threadID uuid.UUID, principal domain.Principal, cursor *uuid.UUID, limit int) ([]domain.Comment, string, error) {
+	db := accessDB(ctx, r.db).Where("workspace_id=? AND scene_id=? AND thread_id=?", ref.WorkspaceID, ref.SceneID, threadID)
+	if cursor != nil {
+		var cursorRow commentRow
+		if err := db.Where("id=?", *cursor).First(&cursorRow).Error; err != nil {
+			return nil, "", accessError(err)
+		}
+		db = accessDB(ctx, r.db).Where("workspace_id=? AND scene_id=? AND thread_id=? AND (created_at,id) > (?,?)", ref.WorkspaceID, ref.SceneID, threadID, cursorRow.CreatedAt, cursorRow.ID)
+	}
 	rows := []commentRow{}
-	err := accessDB(ctx, r.db).Where("workspace_id=? AND scene_id=? AND thread_id=?", ref.WorkspaceID, ref.SceneID, threadID).Order("created_at,id").Limit(commentMessagePageSize).Find(&rows).Error
+	err := db.Order("created_at,id").Limit(limit + 1).Find(&rows).Error
 	if err != nil {
-		return nil, err
+		return nil, "", err
+	}
+	next := ""
+	if len(rows) > limit {
+		rows = rows[:limit]
+		next = rows[len(rows)-1].ID.String()
 	}
 	items := make([]domain.Comment, len(rows))
 	for i, row := range rows {
 		items[i] = commentFromRow(row, principal)
 	}
-	return items, nil
+	return items, next, nil
 }
 
 func (r *CommentRepository) Thread(ctx domain.Context, ref domain.SceneRef, id uuid.UUID, principal domain.Principal) (domain.CommentThread, error) {
+	return r.ThreadPage(ctx, ref, id, principal, nil, commentMessagePageSize)
+}
+
+func (r *CommentRepository) ThreadPage(ctx domain.Context, ref domain.SceneRef, id uuid.UUID, principal domain.Principal, cursor *uuid.UUID, limit int) (domain.CommentThread, error) {
 	var row commentThreadRow
 	db := accessDB(ctx, r.db)
 	err := db.Where("workspace_id=? AND scene_id=? AND id=?", ref.WorkspaceID, ref.SceneID, id).First(&row).Error
@@ -158,7 +175,7 @@ func (r *CommentRepository) Thread(ctx domain.Context, ref domain.SceneRef, id u
 		row.Subscribed = count == 1
 	}
 	thread := threadFromRow(row)
-	thread.Messages, err = r.messages(ctx, ref, id, principal)
+	thread.Messages, thread.NextMessageCursor, err = r.messagesPage(ctx, ref, id, principal, cursor, limit)
 	return thread, err
 }
 

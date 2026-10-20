@@ -5,6 +5,7 @@ import (
 	"devtool/internal/domain"
 	"devtool/internal/usecase"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -108,7 +109,7 @@ func TestThreadScopeAndOwnerModeration(t *testing.T) {
 	}
 	foreignScene := uuid.New()
 	mustExec(t, db, "INSERT INTO scenes(id,workspace_id,title) VALUES (?,?,'Foreign')", foreignScene, f.ref.WorkspaceID)
-	_, err = f.service.GetThread(context.Background(), domain.UserPrincipal(f.owner), domain.SceneRef{WorkspaceID: f.ref.WorkspaceID, SceneID: foreignScene}, thread.ID)
+	_, err = f.service.GetThread(context.Background(), domain.UserPrincipal(f.owner), domain.SceneRef{WorkspaceID: f.ref.WorkspaceID, SceneID: foreignScene}, thread.ID, "", 50)
 	if !errors.Is(err, domain.ErrInaccessible) {
 		t.Fatalf("foreign thread leaked: %v", err)
 	}
@@ -180,9 +181,39 @@ func TestCommentOwnEditDeleteAndRevisionConflict(t *testing.T) {
 	if err = f.service.DeleteMessage(context.Background(), principal, f.ref, thread.ID, message.ID, domain.RevisionInput{RequestID: uuid.New(), ExpectedRevision: 2}); err != nil {
 		t.Fatal(err)
 	}
-	redacted, err := f.service.GetThread(context.Background(), principal, f.ref, thread.ID)
+	redacted, err := f.service.GetThread(context.Background(), principal, f.ref, thread.ID, "", 50)
 	if err != nil || redacted.Messages[0].DeletedAt == nil || redacted.Messages[0].Body != "" {
 		t.Fatalf("thread=%+v err=%v", redacted, err)
+	}
+}
+
+func TestCommentThreadPagesEveryReplyAfterFifty(t *testing.T) {
+	f, db := commentFixture(t, nil)
+	principal := domain.UserPrincipal(f.owner)
+	thread, err := f.service.CreateThread(context.Background(), principal, f.ref, domain.CreateThreadInput{RequestID: uuid.New(), Anchor: domain.CommentAnchor{X: 1, Y: 2}, Body: "message-00"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for index := 1; index < 55; index++ {
+		mustExec(t, db, `INSERT INTO comments(id,workspace_id,scene_id,thread_id,author_kind,author_id,author_name,body)
+			VALUES (?,?,?,?, 'user', ?, 'Test', ?)`, uuid.New(), f.ref.WorkspaceID, f.ref.SceneID, thread.ID, f.owner.String(), fmt.Sprintf("message-%02d", index))
+	}
+	first, err := f.service.GetThread(context.Background(), principal, f.ref, thread.ID, "", 50)
+	if err != nil || len(first.Messages) != 50 || first.NextMessageCursor == "" || first.Messages[49].Body != "message-49" {
+		t.Fatalf("first=%+v err=%v", first, err)
+	}
+	second, err := f.service.GetThread(context.Background(), principal, f.ref, thread.ID, first.NextMessageCursor, 50)
+	if err != nil || len(second.Messages) != 5 || second.NextMessageCursor != "" || second.Messages[0].Body != "message-50" || second.Messages[4].Body != "message-54" {
+		t.Fatalf("second=%+v err=%v", second, err)
+	}
+
+	foreign, err := f.service.CreateThread(context.Background(), principal, f.ref, domain.CreateThreadInput{RequestID: uuid.New(), Anchor: domain.CommentAnchor{X: 3, Y: 4}, Body: "foreign"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.service.GetThread(context.Background(), principal, f.ref, thread.ID, foreign.Messages[0].ID.String(), 50)
+	if !errors.Is(err, domain.ErrInaccessible) {
+		t.Fatalf("foreign cursor accepted: %v", err)
 	}
 }
 

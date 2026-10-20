@@ -204,17 +204,18 @@ type commentResponse struct {
 	UpdatedAt  time.Time            `json:"updatedAt"`
 }
 type commentThreadResponse struct {
-	ID          uuid.UUID            `json:"id"`
-	SceneID     uuid.UUID            `json:"sceneId"`
-	CreatorKind domain.PrincipalKind `json:"creatorKind"`
-	CreatorName string               `json:"creatorName"`
-	Anchor      domain.CommentAnchor `json:"anchor"`
-	Status      string               `json:"status"`
-	Revision    string               `json:"revision"`
-	Subscribed  bool                 `json:"subscribed"`
-	Messages    []commentResponse    `json:"messages"`
-	CreatedAt   time.Time            `json:"createdAt"`
-	UpdatedAt   time.Time            `json:"updatedAt"`
+	ID                uuid.UUID            `json:"id"`
+	SceneID           uuid.UUID            `json:"sceneId"`
+	CreatorKind       domain.PrincipalKind `json:"creatorKind"`
+	CreatorName       string               `json:"creatorName"`
+	Anchor            domain.CommentAnchor `json:"anchor"`
+	Status            string               `json:"status"`
+	Revision          string               `json:"revision"`
+	Subscribed        bool                 `json:"subscribed"`
+	Messages          []commentResponse    `json:"messages"`
+	NextMessageCursor string               `json:"nextMessageCursor,omitempty"`
+	CreatedAt         time.Time            `json:"createdAt"`
+	UpdatedAt         time.Time            `json:"updatedAt"`
 }
 
 func commentPayload(value domain.Comment) commentResponse {
@@ -225,7 +226,7 @@ func threadPayload(value domain.CommentThread) commentThreadResponse {
 	for i, message := range value.Messages {
 		messages[i] = commentPayload(message)
 	}
-	return commentThreadResponse{ID: value.ID, SceneID: value.SceneID, CreatorKind: value.CreatorKind, CreatorName: value.CreatorName, Anchor: value.Anchor, Status: value.Status, Revision: strconv.FormatInt(value.Revision, 10), Subscribed: value.Subscribed, Messages: messages, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}
+	return commentThreadResponse{ID: value.ID, SceneID: value.SceneID, CreatorKind: value.CreatorKind, CreatorName: value.CreatorName, Anchor: value.Anchor, Status: value.Status, Revision: strconv.FormatInt(value.Revision, 10), Subscribed: value.Subscribed, Messages: messages, NextMessageCursor: value.NextMessageCursor, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt}
 }
 
 func (h *CommentHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -287,7 +288,15 @@ func (h *CommentHandler) Get(w http.ResponseWriter, r *http.Request) {
 		writeCommentError(w, r, domain.ErrInaccessible)
 		return
 	}
-	thread, err := h.comments.GetThread(r.Context(), identity.principal, identity.ref, threadID)
+	limit := 50
+	if raw := r.URL.Query().Get("messageLimit"); raw != "" {
+		limit, err = strconv.Atoi(raw)
+	}
+	if err != nil {
+		writeCommentError(w, r, domain.ErrInvalidCommentInput)
+		return
+	}
+	thread, err := h.comments.GetThread(r.Context(), identity.principal, identity.ref, threadID, r.URL.Query().Get("messageCursor"), limit)
 	if err != nil {
 		writeCommentError(w, r, err)
 		return

@@ -162,7 +162,7 @@ and mutation.
 | --- | --- | --- |
 | GET `/api/v1/scenes/{id}/comments` | `cursor=<thread UUID>&limit=1..50` (default 50) | 200 `{items,nextCursor}` |
 | POST `/api/v1/scenes/{id}/comments` | `{requestId,anchor:{elementId?,x,y},body}` | 201 thread |
-| GET `/api/v1/scenes/{id}/comments/{threadId}` | none | 200 thread |
+| GET `/api/v1/scenes/{id}/comments/{threadId}` | `messageCursor=<message UUID>&messageLimit=1..50` (default 50) | 200 thread with at most 50 messages and optional `nextMessageCursor` |
 | POST `/api/v1/scenes/{id}/comments/{threadId}/replies` | `{requestId,body}` | 201 message |
 | PATCH `/api/v1/scenes/{id}/comments/{threadId}/messages/{messageId}` | `{requestId,expectedRevision,body}` | 200 message |
 | DELETE `/api/v1/scenes/{id}/comments/{threadId}/messages/{messageId}` | strict JSON `{requestId,expectedRevision}` | 204 |
@@ -176,6 +176,10 @@ payload; an exact retry returns the stored result while changed reuse returns
 Foreign thread/message IDs return 404 without revealing another tenant or
 scene. Responses expose safe author display names and `mine`, never accept an
 author/display name in mutation bodies, and never expose stored principal IDs.
+Message pages use stable `(created_at,id)` order. Pass `nextMessageCursor` as
+the next request's `messageCursor` until it is omitted; cursors are bound to
+the requested workspace, scene and thread, so a cursor copied from another
+thread returns the same 404 as an inaccessible resource.
 
 Authors may edit or redact their own messages. Workspace owners may redact any
 message; authenticated owners/editors may resolve or reopen threads. Redaction

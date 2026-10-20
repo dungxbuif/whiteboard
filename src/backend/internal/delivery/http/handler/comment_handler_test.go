@@ -13,8 +13,11 @@ import (
 )
 
 type commentServiceStub struct {
-	principal domain.Principal
-	called    string
+	principal       domain.Principal
+	called          string
+	messageCursor   string
+	messageLimit    int
+	getThreadResult domain.CommentThread
 }
 
 func (s *commentServiceStub) remember(name string, principal domain.Principal) {
@@ -44,8 +47,12 @@ func (s *commentServiceStub) List(_ context.Context, p domain.Principal, _ domai
 	s.remember("list", p)
 	return domain.CommentPage{Items: []domain.CommentThread{}}, nil
 }
-func (s *commentServiceStub) GetThread(_ context.Context, p domain.Principal, ref domain.SceneRef, thread uuid.UUID) (domain.CommentThread, error) {
+func (s *commentServiceStub) GetThread(_ context.Context, p domain.Principal, ref domain.SceneRef, thread uuid.UUID, cursor string, limit int) (domain.CommentThread, error) {
 	s.remember("get", p)
+	s.messageCursor, s.messageLimit = cursor, limit
+	if s.getThreadResult.ID != uuid.Nil {
+		return s.getThreadResult, nil
+	}
 	return domain.CommentThread{ID: thread, SceneID: ref.SceneID, Revision: 1}, nil
 }
 
@@ -131,5 +138,29 @@ func TestCommentHandlerDeleteRequiresStrictBody(t *testing.T) {
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest || service.called != "" {
 		t.Fatalf("status=%d called=%s", response.Code, service.called)
+	}
+}
+
+func TestCommentHandlerForwardsMessagePageAndReturnsContinuation(t *testing.T) {
+	workspace, scene, user := uuid.New(), uuid.New(), uuid.New()
+	thread, cursor, next := uuid.New(), uuid.New(), uuid.New()
+	service := &commentServiceStub{getThreadResult: domain.CommentThread{
+		ID: thread, SceneID: scene, Revision: 1, NextMessageCursor: next.String(),
+	}}
+	handler := NewCommentHandler(service, commentRoomStub{}, commentAccessStub{workspace: workspace, scene: scene}).Routes(commentAuth(user))
+	request := httptest.NewRequest(http.MethodGet, "/scenes/scene/comments/"+thread.String()+"?messageCursor="+cursor.String()+"&messageLimit=17", nil)
+	request.Header.Set(domain.HeaderWorkspaceID, workspace.String())
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if service.messageCursor != cursor.String() || service.messageLimit != 17 {
+		t.Fatalf("cursor=%q limit=%d", service.messageCursor, service.messageLimit)
+	}
+	if !strings.Contains(response.Body.String(), `"nextMessageCursor":"`+next.String()+`"`) {
+		t.Fatalf("body=%s", response.Body.String())
 	}
 }

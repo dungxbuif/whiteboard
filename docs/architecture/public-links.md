@@ -59,3 +59,9 @@ to a private inbox, and never gain canvas edit authority from comment
 permission. Comment bodies remain in comment storage and authenticated API
 responses; realtime invalidations and workspace events contain cursor/ID
 metadata only.
+
+Guests page through long discussions with the same bounded thread contract as
+members: each response contains at most 50 messages and may return a
+`nextMessageCursor`. Every continuation request rechecks the current link
+revision and `allowComments`; a cursor is valid only for its original
+workspace, scene and thread.
