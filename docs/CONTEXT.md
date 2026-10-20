@@ -11,8 +11,8 @@ updated: 2026-10-20
 ## Current Focus
 
 - **Active Phase:** Enterprise parity implementation — [phase](work/phases/PHASE-ENTERPRISE.md).
-- **Active Work:** The approved 22-task programme is executing in dependency order. Wave 0/1 begins with full-viewport floating canvas controls, feature policy/idempotency, events/outbox and the bounded feature worker.
-- **Next Work:** Complete and review [foundation tasks UI1–UI2/F1–F3](superpowers/plans/2026-10-20-enterprise-foundation.md), then begin comments/activity and live-media packages. No enterprise runtime change has shipped yet.
+- **Active Work:** The approved 22-task programme is executing in dependency order. Wave 0/1 is reviewed complete: full-viewport floating canvas controls, feature policy/idempotency, events/outbox, browser invalidation refetch and the bounded feature worker. C1 comments and M1 screen media are now in progress.
+- **Next Work:** Complete and review C1/M1, then continue comments/activity and live-presentation packages. No enterprise runtime change has shipped yet.
 - **Released baseline:** VM100 frontend source `24b1cd0`; evidence-only follow-up `1d2af8a` is on master. Current [release evidence](releases/2026-10-19-collaboration-v2.md) records public canaries, production image and proof boundaries.
 
 ## Project
@@ -54,6 +54,11 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - 2026-10-20: User approved the enterprise detail design and complete 22-task
   programme for implementation. Work moved to an isolated
   `codex/enterprise-parity` worktree; foundation execution starts with Wave 0/1.
+
+- 2026-10-20: Foundation UI1–UI2/F1–F3 passed fresh review after fixes for
+  feature-route composition, policy enforcement, projection cursor safety,
+  authorized browser refetch, worker lease/drain races and recovery ordering.
+  Local gates reached 178 Go tests and 155 collaboration tests; Wave 2 began.
 
 - 2026-10-20: Prepared enterprise proposed detail design plus six implementation
   plan documents / 22 tasks, legacy comparison, requirements coverage and

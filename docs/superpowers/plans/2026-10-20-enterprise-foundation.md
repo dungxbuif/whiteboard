@@ -39,21 +39,21 @@ onPresent,onExportRecovery,onRetry,children}: SceneControlsProps)` and native
 `renderTopRightUI`/MainMenu integration. `status` carries text, severity and
 recovery actions; preserve existing accessible button names.
 
-- [ ] Write tests `fillsViewportWithoutHeader`, `controlsAvoidNativeTools`,
+- [x] Write tests `fillsViewportWithoutHeader`, `controlsAvoidNativeTools`,
   `keepsSavedRecoveryAndBackAccessible`: canvas bounds equal viewport (1px
   tolerance), zero reserved header height, title/Back/People/Join voice reachable,
   no idle `Voice 0/10`, native tool hitboxes unobstructed on both viewport sizes.
-- [ ] Run `rtk npm run test:unit --workspace ./frontend -- scene-controls` in
+- [x] Run `rtk npm run test:unit --workspace ./frontend -- scene-controls` in
   `src`; expect RED for missing component. Run
   `rtk npm run test:e2e:collab --workspace ./frontend -- canvas-controls` after
   the real-stack fixture is ready; expect viewport/control RED before the fix.
-- [ ] Implement a single `100dvh` canvas root; use native `renderTopRightUI` for
+- [x] Implement a single `100dvh` canvas root; use native `renderTopRightUI` for
   People/voice/Present and MainMenu for Back/secondary undo/redo/recovery.
   Float title/status within the canvas without changing native editor geometry.
   Safe-area aware overlays ignore pointer input outside their buttons.
-- [ ] Run focused tests, the real-stack canvas-controls case and frontend build;
+- [x] Run focused tests, the real-stack canvas-controls case and frontend build;
   verify light/dark, keyboard, mobile and public view-only state with screenshots.
-- [ ] Reconcile `docs/architecture/BROWSER_COLLABORATION.md`, dashboard/scene user
+- [x] Reconcile `docs/architecture/BROWSER_COLLABORATION.md`, dashboard/scene user
   guide and public counterpart; commit `feat(ui): integrate controls into canvas`.
 
 ## Task 2: UI2 — Shared overlay panel and focus ownership
@@ -67,16 +67,16 @@ and `ScenePanelsProvider`, `useScenePanels(): {active:ScenePanelId|null,
 open(id:ScenePanelId):void,close():void}`. Only implemented panels are registered;
 do not expose dead feature buttons. Consumes UI1 native control surface.
 
-- [ ] Write `onlyOnePanelOpen`, `escapeReturnsFocus`, `textareaUndoIsNative`,
+- [x] Write `onlyOnePanelOpen`, `escapeReturnsFocus`, `textareaUndoIsNative`,
   `panelDoesNotResizeCanvas`, `mobilePanelHas44pxControls`; assert replacing a
   panel restores/retargets focus and never changes scene elements or viewport.
-- [ ] Run `rtk npm run test:unit --workspace ./frontend -- scene-panels`; expect
+- [x] Run `rtk npm run test:unit --workspace ./frontend -- scene-panels`; expect
   missing provider RED, then implement named panel registration and overlay focus
   management. Use non-docked native Sidebar only if its installed behavior
   preserves canvas bounds; otherwise use the existing accessible dialog primitive.
-- [ ] Integrate AI and floating presentation navigation; test no collision with
+- [x] Integrate AI and floating presentation navigation; test no collision with
   native Library/zoom tools and no global shortcut interception in inputs.
-- [ ] Run focused tests and UI1 real-stack cases; document panel behavior in
+- [x] Run focused tests and UI1 real-stack cases; document panel behavior in
   the same internal/public guides and commit `feat(ui): coordinate canvas panels`.
 
 ## Task 3: F1 — Feature authority, policy and idempotent metadata writes
@@ -99,17 +99,17 @@ Update existing `internal/domain/share_link.go`, share-link service/handler and
 frontend `src/lib/collaboration-api.ts`/share-link settings DTOs for
 `allowComments`, preserving the existing view/edit contract.
 
-- [ ] Add `TestFeaturePolicyMatrix`, `TestCommentDoesNotGrantEdit`,
+- [x] Add `TestFeaturePolicyMatrix`, `TestCommentDoesNotGrantEdit`,
   `TestFeatureRevokeDuringMutation`, `TestMetadataRetryBinding` with actual
   PostgreSQL; viewers cannot restore/manage, public comment false defaults deny,
   matching request returns prior JSON, changed request returns 409.
-- [ ] Run `rtk go test ./internal/usecase ./internal/repository/postgres -run
+- [x] Run `rtk go test ./internal/usecase ./internal/repository/postgres -run
   'Feature|MetadataRetry' -count=1` with guarded DB; expect missing implementation
   RED. Allocate free migration numbers >=14 for policy and feature receipts.
-- [ ] Implement current-authority workspace-first lock and transaction-bound
+- [x] Implement current-authority workspace-first lock and transaction-bound
   Casbin feature rules. Share-link `allow_comments` changes bump ACL/revision.
   Go handler validates strict DTO/body and never trusts workspace headers alone.
-- [ ] Run negative and concurrency tests plus full Go tests; add API/ERD/access
+- [x] Run negative and concurrency tests plus full Go tests; add API/ERD/access
   docs and a reviewed ADR for feature policy; commit
   `feat(access): authorize enterprise feature actions`.
 
@@ -128,17 +128,17 @@ for collab audit. All sources use unique `(source,sourceKey)` and persistent
 high-water cursors. `feature_changed {eventCursor:string}` contains no content
 or subject names; recipients must be reauthorized before delivery.
 
-- [ ] Add `eventRollbackIsAtomic`, `projectionCrashRetryDeduplicates`,
+- [x] Add `eventRollbackIsAtomic`, `projectionCrashRetryDeduplicates`,
   `restrictedSceneDoesNotLeak`, `TestEventContainsNoSecrets`. Assert commit-only
   events, identical retry does not notify twice, stale cursor triggers refetch,
   and raw text/body/SDP/ICE/token fields are rejected from safe metadata.
-- [ ] Run backend event tests and `rtk npm test --workspace ./collab --
+- [x] Run backend event tests and `rtk npm test --workspace ./collab --
   activity-projector` in `src`; expect RED, then implement outbox/projectors
   with limit 100, source-specific cursor locking and idempotent inserts.
-- [ ] Wire invalidations on existing admitted `/collab/`; dashboard initially
+- [x] Wire invalidations on existing admitted `/collab/`; dashboard initially
   refetches on focus/route and manual refresh (no second socket needed). An
   invalidation can be dropped safely because pages are refetched after reconnect.
-- [ ] Prove old MCP activity shape and mutation ACK/receipt regressions unchanged;
+- [x] Prove old MCP activity shape and mutation ACK/receipt regressions unchanged;
   reconcile protocol/API/event ERD and commit `feat(activity): project workspace events`.
 
 ## Task 5: F3 — Bounded feature jobs and readiness
