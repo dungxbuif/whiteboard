@@ -216,7 +216,7 @@ func TestEnterpriseRouterMountsDualPrincipalCommentRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	comments := handler.NewCommentHandler(nil, nil, nil)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, comments, nil, nil, nil, nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, comments, nil, nil, nil, nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/"+uuid.NewString()+"/comments", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -234,7 +234,7 @@ func TestEnterpriseRouterMountsAuthenticatedVersionRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	versions := handler.NewVersionHandler(nil, access)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, versions, nil, nil, nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, versions, nil, nil, nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/scenes/"+uuid.NewString()+"/versions", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -252,7 +252,7 @@ func TestEnterpriseRouterMountsAuthenticatedNotificationRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	notifications := handler.NewNotificationHandler(nil)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, notifications, nil, nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, notifications, nil, nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -270,7 +270,7 @@ func TestEnterpriseRouterMountsAuthenticatedActivityRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	activity := handler.NewActivityHandler(nil, access)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, activity, nil)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, activity, nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/activity", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
@@ -288,11 +288,29 @@ func TestEnterpriseRouterMountsAuthenticatedPresentationRoutes(t *testing.T) {
 	}
 	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
 	presentations := handler.NewPresentationHandler(nil, access)
-	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, presentations)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, presentations, nil)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/scenes/"+uuid.NewString()+"/presentations", nil)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusTeapot {
 		t.Fatalf("presentation route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
+	}
+}
+
+func TestEnterpriseRouterMountsAuthenticatedCollectionRoutes(t *testing.T) {
+	workspace := uuid.New()
+	auth := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTeapot)
+		})
+	}
+	access := routerEnterpriseAccess{workspace: workspace, user: uuid.New()}
+	collections := handler.NewCollectionHandler(nil, access)
+	router := NewRouterWithEnterprise(nil, nil, nil, nil, handler.NewAssetHandler(nil), auth, access, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, collections)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/"+workspace.String()+"/collections", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusTeapot {
+		t.Fatalf("collection route not mounted through login auth: status=%d body=%s", response.Code, response.Body.String())
 	}
 }

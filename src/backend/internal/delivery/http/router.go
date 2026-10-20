@@ -116,6 +116,7 @@ func newRouter(
 	var notifications *handler.NotificationHandler
 	var activity *handler.ActivityHandler
 	var presentations *handler.PresentationHandler
+	var collections *handler.CollectionHandler
 	if len(services) > 0 {
 		access = services[0].access
 		agents = services[0].agents
@@ -125,6 +126,7 @@ func newRouter(
 		notifications = services[0].notifications
 		activity = services[0].activity
 		presentations = services[0].presentations
+		collections = services[0].collections
 		accessHandler = handler.NewAccessHandler(access)
 	}
 	if sceneHandler != nil {
@@ -143,6 +145,9 @@ func newRouter(
 	// mounted on the Go API.
 
 	router.Route("/api/v1", func(r chi.Router) {
+		if collections != nil {
+			collections.Register(r, authMiddleware)
+		}
 		if presentations != nil {
 			presentations.Register(r, authMiddleware)
 		}
@@ -320,9 +325,9 @@ func NewRouterWithAgents(auth *handler.AuthHandler, workspaces *handler.Workspac
 	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features})
 }
 
-func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler, notifications *handler.NotificationHandler, activity *handler.ActivityHandler, presentations *handler.PresentationHandler) http.Handler {
+func NewRouterWithEnterprise(auth *handler.AuthHandler, workspaces *handler.WorkspaceHandler, folders *handler.FolderHandler, scenes *handler.SceneHandler, assets *handler.AssetHandler, authMiddleware func(http.Handler) http.Handler, access domain.AccessService, search *handler.SearchHandler, sharing *handler.SharingHandler, public *handler.PublicHandler, realtime, ai, config http.Handler, invitations *handler.InvitationHandler, agents *handler.AgentHandler, features *handler.FeatureHandler, comments *handler.CommentHandler, versions *handler.VersionHandler, notifications *handler.NotificationHandler, activity *handler.ActivityHandler, presentations *handler.PresentationHandler, collections *handler.CollectionHandler) http.Handler {
 	assets.SetAccessService(access)
-	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions, notifications: notifications, activity: activity, presentations: presentations})
+	return newRouter(auth, workspaces, folders, scenes, assets, authMiddleware, nil, search, sharing, public, realtime, ai, config, invitations, routerServices{access: access, agents: agents, features: features, comments: comments, versions: versions, notifications: notifications, activity: activity, presentations: presentations, collections: collections})
 }
 
 type routerServices struct {
@@ -334,4 +339,5 @@ type routerServices struct {
 	notifications *handler.NotificationHandler
 	activity      *handler.ActivityHandler
 	presentations *handler.PresentationHandler
+	collections   *handler.CollectionHandler
 }

@@ -198,9 +198,12 @@ func main() {
 	}
 	presentationHandler := handler.NewPresentationHandler(presentations, accessService)
 	capabilityHandler.SetPresentationAuthority(presentations)
+	collections := usecase.NewCollectionService(postgresrepo.NewCollectionRepository(db), features, accessService)
+	collections.SetEventService(events)
+	collectionHandler := handler.NewCollectionHandler(collections, accessService)
 	server := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler),
+		Handler:           httpdelivery.NewRouterWithEnterprise(authHandler, workspaceHandler, folderHandler, sceneHandler, assetHandler, authMiddleware, accessService, searchHandler, sharingHandler, publicHandler, nil, aiHandler.Handler(), nil, invitationHandler, agentHandler, featureHandler, commentHandler, versionHandler, notificationHandler, activityHandler, presentationHandler, collectionHandler),
 		ReadHeaderTimeout: domain.DefaultReadHeaderTimeout,
 	}
 
