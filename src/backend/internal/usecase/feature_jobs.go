@@ -11,11 +11,15 @@ import (
 type FeatureJobHandler func(context.Context, domain.FeatureJob) error
 
 type FeatureJobs struct {
-	repo     domain.FeatureJobRepository
-	workerID string
-	handlers map[string]FeatureJobHandler
-	now      func() time.Time
+	repo               domain.FeatureJobRepository
+	workerID           string
+	handlers           map[string]FeatureJobHandler
+	now                func() time.Time
+	operationTimeout   time.Duration
+	bookkeepingReserve time.Duration
 }
+
+const featureJobBookkeepingReserve = 5 * time.Second
 
 var featureJobBackoff = [...]time.Duration{
 	time.Minute,
@@ -38,7 +42,12 @@ func NewFeatureJobs(repo domain.FeatureJobRepository, workerID string, handlers 
 		}
 		copyHandlers[kind] = handler
 	}
-	return &FeatureJobs{repo: repo, workerID: workerID, handlers: copyHandlers, now: func() time.Time { return time.Now().UTC() }}, nil
+	return &FeatureJobs{
+		repo: repo, workerID: workerID, handlers: copyHandlers,
+		now:                func() time.Time { return time.Now().UTC() },
+		operationTimeout:   domain.FeatureJobOperationTimeout,
+		bookkeepingReserve: featureJobBookkeepingReserve,
+	}, nil
 }
 
 func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (domain.JobBatchResult, error) {
@@ -74,11 +83,18 @@ func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (do
 			result.DeadLettered++
 			continue
 		}
-		opCtx, cancel := context.WithTimeout(ctx, domain.FeatureJobOperationTimeout)
-		handleErr := handler(opCtx, job)
-		cancel()
+		handlerTimeout := s.operationTimeout - s.bookkeepingReserve
+		if handlerTimeout <= 0 {
+			return result, errors.New("feature job operation timeout must exceed bookkeeping reserve")
+		}
+		operationCtx, cancelOperation := context.WithTimeout(ctx, s.operationTimeout)
+		handlerCtx, cancelHandler := context.WithTimeout(operationCtx, handlerTimeout)
+		handleErr := handler(handlerCtx, job)
+		cancelHandler()
 		if handleErr == nil {
-			if err := s.repo.Complete(ctx, job.ID, s.workerID); err != nil {
+			err := s.repo.Complete(operationCtx, job.ID, s.workerID)
+			cancelOperation()
+			if err != nil {
 				return result, err
 			}
 			result.Completed++
@@ -86,14 +102,18 @@ func (s *FeatureJobs) RunOnce(ctx context.Context, now time.Time, limit int) (do
 		}
 		message := featureJobFailureReason(handleErr)
 		if job.Attempts >= domain.FeatureJobMaxAttempts {
-			if err := s.repo.DeadLetter(ctx, job.ID, s.workerID, message); err != nil {
+			err := s.repo.DeadLetter(operationCtx, job.ID, s.workerID, message)
+			cancelOperation()
+			if err != nil {
 				return result, err
 			}
 			result.DeadLettered++
 			continue
 		}
 		delay := featureJobBackoff[min(max(job.Attempts, 1)-1, len(featureJobBackoff)-1)]
-		if err := s.repo.Retry(ctx, job.ID, s.workerID, claimNow.Add(delay), message); err != nil {
+		err = s.repo.Retry(operationCtx, job.ID, s.workerID, claimNow.Add(delay), message)
+		cancelOperation()
+		if err != nil {
 			return result, fmt.Errorf("schedule feature job retry: %w", err)
 		}
 		result.Retried++

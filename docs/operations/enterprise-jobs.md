@@ -17,13 +17,16 @@ writer.
 - One run processes at most 100 due rows. It claims each row with `FOR UPDATE
   SKIP LOCKED` immediately before its handler, using a 60-second single-job
   lease, so later work never waits behind another handler with an aging lease.
-  Each handler receives a 30-second context deadline.
+  Each operation has a 30-second deadline: handlers receive the first 25 seconds
+  and the final five seconds are reserved for completion, retry, or dead-letter
+  persistence.
 - Failures retry after 1, 2, 4, 8, 16, 32, then 60 minutes. Ten claimed attempts
   move the row to dead letter. Handler side effects must be idempotent because a
   process may stop after the effect and before completion is recorded.
 - Shutdown marks readiness false and prevents the next claim. The active
-  operation retains a live context for its bounded handler and completion/retry
-  write; the process allows up to 30 seconds for that operation to drain.
+  operation retains its bounded operation context; the handler yields before the
+  reserved bookkeeping window, and the process allows up to 30 seconds for the
+  handler plus completion/retry write to drain.
 
 ## Operations
 

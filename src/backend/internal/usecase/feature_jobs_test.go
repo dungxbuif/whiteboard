@@ -12,15 +12,17 @@ import (
 )
 
 type featureJobRepoStub struct {
-	mu           sync.Mutex
-	jobs         []domain.FeatureJob
-	completed    []uuid.UUID
-	retried      []uuid.UUID
-	dead         []uuid.UUID
-	retryReasons []string
-	deadReasons  []string
-	claimLimits  []int
-	claimTimes   []time.Time
+	mu                 sync.Mutex
+	jobs               []domain.FeatureJob
+	completed          []uuid.UUID
+	retried            []uuid.UUID
+	dead               []uuid.UUID
+	retryReasons       []string
+	deadReasons        []string
+	claimLimits        []int
+	claimTimes         []time.Time
+	completeDelay      time.Duration
+	completeContextErr chan error
 }
 
 func (r *featureJobRepoStub) Claim(_ context.Context, now time.Time, limit int, workerID string, lease time.Duration) ([]domain.FeatureJob, error) {
@@ -36,10 +38,22 @@ func (r *featureJobRepoStub) Claim(_ context.Context, now time.Time, limit int, 
 	return claimed, nil
 }
 
-func (r *featureJobRepoStub) Complete(_ context.Context, id uuid.UUID, _ string) error {
+func (r *featureJobRepoStub) Complete(ctx context.Context, id uuid.UUID, _ string) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.completed = append(r.completed, id)
+	delay := r.completeDelay
+	contextErr := r.completeContextErr
+	r.mu.Unlock()
+	if contextErr != nil {
+		contextErr <- ctx.Err()
+	}
+	if delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 
@@ -168,5 +182,38 @@ func TestRunOnceRefreshesClockBeforeEachLease(t *testing.T) {
 	}
 	if len(repo.claimTimes) < 2 || !repo.claimTimes[1].Equal(later) {
 		t.Fatalf("second job received an aging lease base: %v", repo.claimTimes)
+	}
+}
+
+func TestOperationBudgetReservesBookkeepingAtHandlerBoundary(t *testing.T) {
+	repo := &featureJobRepoStub{
+		jobs:               []domain.FeatureJob{{ID: uuid.New(), Kind: "boundary", Attempts: 1}},
+		completeDelay:      10 * time.Millisecond,
+		completeContextErr: make(chan error, 1),
+	}
+	jobs, err := NewFeatureJobs(repo, "worker-a", map[string]FeatureJobHandler{
+		"boundary": func(ctx context.Context, _ domain.FeatureJob) error {
+			<-ctx.Done()
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	jobs.operationTimeout = 60 * time.Millisecond
+	jobs.bookkeepingReserve = 20 * time.Millisecond
+	started := time.Now()
+	result, err := jobs.RunOnce(context.Background(), started, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Completed != 1 {
+		t.Fatalf("boundary result not persisted: %#v", result)
+	}
+	if contextErr := <-repo.completeContextErr; contextErr != nil {
+		t.Fatalf("bookkeeping received exhausted context: %v", contextErr)
+	}
+	if elapsed := time.Since(started); elapsed >= 60*time.Millisecond {
+		t.Fatalf("handler and bookkeeping exceeded total operation budget: %v", elapsed)
 	}
 }
