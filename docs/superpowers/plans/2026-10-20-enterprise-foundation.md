@@ -154,13 +154,13 @@ Claims max100 rows, 60-second lease, 30-second operation deadline, backoff
 1/2/4/8/16/32/60 minutes and dead-letter after 10 failures. Handlers are
 idempotent; destructive handlers additionally consume R1/R2 safeguards.
 
-- [ ] Add `TestTwoWorkersClaimOnce`, `TestExpiredLeaseResumes`,
+- [x] Add `TestTwoWorkersClaimOnce`, `TestExpiredLeaseResumes`,
   `TestCrashAfterEffectRetriesSafely`, `TestShutdownDrainsWithinDeadline`;
   queue outage must make worker unready without changing web mutation durability.
-- [ ] Run `rtk go test ./internal/usecase ./internal/repository/postgres -run
+- [x] Run `rtk go test ./internal/usecase ./internal/repository/postgres -run
   'Job|Lease' -count=1`; expect RED. Implement leases via SKIP LOCKED with
   deterministic injectable clock and no unbounded in-memory queue.
-- [ ] Add health/readiness and Compose nonroot/resource/secrets configuration;
+- [x] Add health/readiness and Compose nonroot/resource/secrets configuration;
   verify process kill/restart in isolated packaging fixture before VM100.
-- [ ] Reconcile deployment/environment/Homelab worker docs during rollout;
+- [x] Reconcile deployment/environment/Homelab worker docs during rollout;
   commit `feat(jobs): run bounded enterprise background work`.

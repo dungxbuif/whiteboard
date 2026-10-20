@@ -7,6 +7,10 @@ matrix is on the release checklist. For promoted scenes, use the
 [replacement-scene recovery runbook](collaboration-recovery.md); image-only
 rollback is not valid.
 
+Enterprise metadata jobs use the separately health-checked backend-image worker
+described in [enterprise-jobs.md](enterprise-jobs.md). Deploy it with feature
+flags disabled until each owning feature package has passed its release gate.
+
 ## Deployment Target
 
 The release bundle targets one Linux host or VM running Docker Compose. The

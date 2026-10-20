@@ -1,5 +1,19 @@
 # E2 isolated packaging proof
 
+## Enterprise feature worker
+
+Build the backend image and run the worker lifecycle proof:
+
+```sh
+rtk docker build -f src/backend/Dockerfile -t whiteboard-enterprise-backend:local src/backend
+rtk node tests/packaging/feature-worker.mjs
+```
+
+The fixture creates a unique network and disposable PostgreSQL database, applies
+all migrations, starts the real non-root/read-only worker, kills it, and verifies
+a replacement claims an expired lease. Cleanup removes only resources prefixed
+with the fixture process ID. The fixture uses no production database or secrets.
+
 Build from repository root using the root workspace lock:
 
 ```sh

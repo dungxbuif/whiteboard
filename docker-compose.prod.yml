@@ -44,6 +44,36 @@ services:
       timeout: 3s
       retries: 6
 
+  feature-worker:
+    container_name: whiteboard-feature-worker
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    entrypoint: ["/app/feature-worker"]
+    env_file: .env.prod
+    environment:
+      FEATURE_WORKER_ID: whiteboard-feature-worker
+      FEATURE_WORKER_ADDR: 127.0.0.1:8090
+    networks:
+      - whiteboard-app
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+    mem_limit: 256m
+    pids_limit: 64
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/readyz"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
   collab:
     container_name: whiteboard-collab
     build:
