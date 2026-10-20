@@ -45,7 +45,7 @@ func (s *ShareLinkService) Create(ctx domain.Context, actor uuid.UUID, ref domai
 		}
 		hash = string(b)
 	}
-	link := domain.ShareLink{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, TokenHash: shareTokenHash(raw), PasswordHash: hash, Access: in.Access, Active: true, ExpiresAt: in.ExpiresAt}
+	link := domain.ShareLink{ID: uuid.New(), WorkspaceID: ref.WorkspaceID, SceneID: ref.SceneID, TokenHash: shareTokenHash(raw), PasswordHash: hash, Access: in.Access, AllowComments: in.AllowComments, Active: true, ExpiresAt: in.ExpiresAt}
 	e = s.access.WithWorkspaceLock(ctx, ref.WorkspaceID, actor, func(ctx domain.Context) error {
 		if e := s.owner(ctx, actor, ref); e != nil {
 			return e

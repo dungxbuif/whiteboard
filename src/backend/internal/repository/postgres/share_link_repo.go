@@ -23,7 +23,7 @@ func (r *ShareLinkRepository) Create(ctx context.Context, link *domain.ShareLink
 }
 func (r *ShareLinkRepository) List(ctx context.Context, ref domain.SceneRef) ([]domain.ShareLink, error) {
 	links := []domain.ShareLink{}
-	e := shareDB(ctx, r.db).Select("id,access,active,expires_at").Where("workspace_id=? AND scene_id=?", ref.WorkspaceID, ref.SceneID).Order("created_at,id").Find(&links).Error
+	e := shareDB(ctx, r.db).Select("id,access,allow_comments,active,expires_at").Where("workspace_id=? AND scene_id=?", ref.WorkspaceID, ref.SceneID).Order("created_at,id").Find(&links).Error
 	return links, e
 }
 func (r *ShareLinkRepository) FindByHash(ctx context.Context, hash string) (*domain.ShareLink, error) {

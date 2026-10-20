@@ -29,6 +29,7 @@ type ShareLink struct {
 	TokenHash          string     `json:"-"`
 	PasswordHash       string     `json:"-"`
 	Access             string     `json:"access"`
+	AllowComments      bool       `json:"allowComments"`
 	Active             bool       `json:"active"`
 	ExpiresAt          *time.Time `json:"expiresAt"`
 	LegacyPermissionID *uuid.UUID `json:"-"`
@@ -37,9 +38,10 @@ type ShareLink struct {
 	Revision           int64      `json:"-" gorm:"not null;default:1"`
 }
 type CreateShareLink struct {
-	Access    string     `json:"access" validate:"required,oneof=view edit"`
-	Password  string     `json:"password,omitempty" validate:"omitempty,min=6,max=72"`
-	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	Access        string     `json:"access" validate:"required,oneof=view edit"`
+	AllowComments bool       `json:"allowComments"`
+	Password      string     `json:"password,omitempty" validate:"omitempty,min=6,max=72"`
+	ExpiresAt     *time.Time `json:"expiresAt,omitempty"`
 }
 type CreatedShareLink struct {
 	ShareLink
