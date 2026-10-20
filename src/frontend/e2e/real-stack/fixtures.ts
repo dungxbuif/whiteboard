@@ -6,6 +6,6 @@ export const test = base.extend<{}, { stack: RealStack }>({
     try { await stack.start(); await use(stack); }
     catch (e) { console.error(stack.safeLogs()); throw e; }
     finally { await stack.close(); }
-  }, { scope: 'worker', timeout: 180_000 }],
+  }, { scope: 'test', timeout: 180_000 }],
 });
 export { expect };

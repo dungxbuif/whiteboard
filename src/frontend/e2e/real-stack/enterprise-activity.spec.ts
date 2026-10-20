@@ -50,6 +50,7 @@ test('activityMobileAndKeyboard keeps paging authorized and the scene panel insi
     await viewer.getByRole('button', { name: 'Load older activity' }).click();
     await expect(viewer.getByRole('alert')).toBeVisible();
     await expect(viewer.getByText('comment.created')).toHaveCount(0);
+    await stack.pool.query(`INSERT INTO workspace_members(workspace_id,user_id,role) VALUES ($1,$2,'viewer') ON CONFLICT (workspace_id,user_id) DO UPDATE SET role='viewer'`, [stack.owner.workspaceId, stack.viewer.id]);
 
     await owner.goto(`${stack.baseURL}/w/${stack.owner.workspaceId}/scenes/${scene.id}`);
     await expect(owner.getByRole('status')).toHaveText('Saved', { timeout: 30_000 });
