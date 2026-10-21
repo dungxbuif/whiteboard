@@ -78,6 +78,10 @@ Credentialed role-by-role browser UAT, provider checks, and cross-network media
 remain operator-owned follow-up. They are not inferred from public HTTP or
 container health.
 
+The existing authenticated browser session also loaded the production workspace
+settings Members page. This confirms the session and dashboard shell are live;
+it does not replace the owner/editor/viewer mutation canaries.
+
 ## Docs review
 
 - Internal API index, release checklist, and this verification note reflect the

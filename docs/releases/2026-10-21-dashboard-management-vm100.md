@@ -32,14 +32,16 @@ commit `1847241`; release documentation is in `ee87365`.
 - Backend, collaboration, feature worker, MCP, and frontend are running.
 - `GET https://whiteboard.dungxbuif.com/healthz` returned `200` with body
   `ok`; the public root and scene deep-link shells returned `200`.
+- The existing authenticated Chrome session loaded the production workspace
+  settings Members page and displayed the owner/member controls.
 
 ## Verification boundary
 
 Local Go, frontend unit/build, and dashboard Playwright gates passed before the
 build. The production checks above prove deployment and public routing.
-Credentialed owner/editor/viewer canaries, provider checks, and cross-network
-media remain operator-owned follow-up and are not inferred from HTTP or
-container health.
+Credentialed owner/editor/viewer mutation canaries, provider checks, and
+cross-network media remain operator-owned follow-up and are not inferred from
+HTTP, container health, or one authenticated settings-page load.
 
 ## Rollback
 
