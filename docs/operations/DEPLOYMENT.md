@@ -40,9 +40,13 @@ Create or rotate password users with the backend `userctl` CLI after the
 migration job completes. The CLI stores bcrypt hashes and never prints the
 password.
 
-Use `AI_BASE_URL=https://api.deepseek.com/v1` and the DeepSeek model names when
-using the supplied DeepSeek key. Select a vision-capable compatible model if
-image-to-diagram is required.
+The backend accepts an OpenAI-compatible provider. `src/.env.example` contains
+a DeepSeek example; VM100's 2026-10-20 cutover record instead documents an FPT
+endpoint and `DeepSeek-V4.1-Flash` for both model roles. Match the URL, model
+names, and backend-only credential to the chosen provider. Select a
+vision-capable compatible model if image-to-diagram is required. A provider
+`/models` and bounded completion probe passed at cutover; authenticated
+Whiteboard AI UAT has not been recorded.
 
 ## Release process
 
@@ -130,7 +134,8 @@ rows, and only then remove the hidden scene. Never reset the claim flag or
 retry deletion blindly: a prior owner may already have deleted some objects.
 
 1. Run the pre-release checklist and all repository tests.
-2. Build and start the migration job, backend, collaboration runtime, MCP adapter, and frontend:
+2. Build and start the migration job, backend, collaboration runtime, feature
+   worker, MCP adapter, and frontend:
    `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`.
    The production manifest attaches the services to the pre-created
    `homelab-net`, `whiteboard-app`, and `edge-http-net` networks; the frontend
@@ -146,10 +151,13 @@ retry deletion blindly: a prior owner may already have deleted some objects.
 
 ## Rollback
 
-Keep the previous application image tags available. Roll back by setting the
-previous tags in the Compose file and running `docker compose up -d`; do not
-run down migrations during an application rollback. Restore the database only
-from a verified backup when a schema rollback is explicitly required.
+Keep the previous application image tags available. For a pre-promotion
+rollback, use the preserved image/manifest/environment set after checking
+schema compatibility. Promoted v2 scenes require the
+[replacement-scene recovery runbook](collaboration-recovery.md); an old writer
+cannot safely resume their history. Do not run down migrations during an image
+rollback. Restore a database only from a verified backup under a reviewed
+schema and data recovery plan.
 
 Before release, verify PostgreSQL backups and a restore point, and rotate the
 JWT and TURN secrets described in `docs/operations/auth-secrets-rotation.md`.

@@ -10,6 +10,18 @@ shared_fields: [status, links]
 
 # Harness Docs Guide
 
+## Whiteboard project map
+
+- [Local setup](engineering/SETUP.md), [developer commands](engineering/LOCAL_DEVELOPMENT.md), and [troubleshooting](engineering/TROUBLESHOOTING.md).
+- [Architecture](architecture/ARCHITECTURE.md), [API catalog](architecture/API.md), [data model](architecture/ERD.md), and [integration boundaries](architecture/INTEGRATIONS.md).
+- [Production deployment and migration 000029](operations/DEPLOYMENT.md), [release gate](operations/RELEASE_CHECKLIST.md), [observation](operations/OBSERVABILITY.md), and [promoted-scene recovery](operations/collaboration-recovery.md).
+- [Dashboard guide](user/dashboard.md) and public-source plain-Markdown [agent API reference](../src/frontend/public/docs/dashboard-management-api.md).
+- [Current local management evidence](work/verification/dashboard-management-2026-10-21.md) and [enterprise VM100 rollout evidence](releases/2026-10-21-enterprise-parity-vm100.md). The management release candidate has not reached VM100.
+
+These links point to canonical details. `src/frontend/public/llms.txt` is the
+public AI-agent-readable index served with the frontend; public Markdown pages
+under `src/frontend/public/docs/` can be fetched directly.
+
 This document explains the documentation system used by Harness. The root `README.md` explains the idea and philosophy; this file explains how to use the actual docs framework.
 
 ## Document Format

@@ -12,12 +12,14 @@ shared_fields: [status, linked_decisions]
 
 ## Implementation and deployment status
 
-This document describes the collaboration-v2 system deployed on VM100 from
-`772d3ea`. Access/dashboard, durable persistence, browser transport,
-presence/follow/voice, agent commands and native rendering passed local
-acceptance; initial public deep-link/S3/MCP canaries also pass. See the
-[release checklist](../operations/RELEASE_CHECKLIST.md) for the remaining
-remaining public product acceptance gates and [real-stack verification](../work/verification/collaboration-v2-real-stack.md) for local evidence boundaries.
+This document describes the collaboration-v2 foundation. Enterprise parity is
+deployed on VM100 from `325f9fd` with the backend, collaboration runtime,
+feature worker, MCP adapter, and frontend healthy. Authenticated enterprise
+browser/provider UAT remains pending. Dashboard management (workspace rename,
+folder rename/move, scene move/duplicate, and durable projection) is a locally
+verified release candidate, not yet deployed. See the [release checklist](../operations/RELEASE_CHECKLIST.md),
+[management verification](../work/verification/dashboard-management-2026-10-21.md),
+and [enterprise rollout record](../releases/2026-10-21-enterprise-parity-vm100.md).
 
 The tenant is a workspace. There is no separate organization hierarchy. Dashboard components reuse the original reference layout, colors and light/dark tokens. The scene retains native Excalidraw styling.
 
@@ -27,6 +29,7 @@ The tenant is a workspace. There is no separate organization hierarchy. Dashboar
 | --- | --- | --- |
 | React/Vite frontend | Workspace management, native canvas, recovery UI | No database/service keys; short-lived scoped room credentials |
 | Go API | Password login, workspace/scene permissions, invitations, metadata, asset capabilities, agent keys | Authoritative current PostgreSQL roles/grants; workspace-lock-first transactions |
+| Feature worker | Enterprise metadata jobs | PostgreSQL lease/queue state; separate health check and release gate |
 | Node collaboration runtime | Authenticated WebSocket content, awareness, follow and voice signaling | One active runtime owner; durable Yjs log/receipts/snapshots in PostgreSQL |
 | Node MCP adapter | HTTP/stdio agent tools, diagram compilation and export | Scoped agent bearer through Go; bounded adapter audit and renderer resources |
 | S3-compatible store | Image bytes | Short-lived scene-authorized upload/view URLs |
@@ -85,10 +88,13 @@ SVG, PNG and Excalidraw JSON export use the current authorized durable projectio
 
 ## Deployment and recovery
 
-Migrations7–13 shipped together from production v1 version6; production now
-reports version13 with `dirty=false`. Prior images, private configuration and a
-successfully restored cutover backup are retained. Production uses one active
-collab runtime; scaling replicas requires a different ownership design.
+Migrations 7–13 shipped together for collaboration v2 from production v1
+version 6. The later enterprise deployment applied its forward migrations and
+reported a successful migration job. Migration `000029` for dashboard
+duplication remains a release-candidate gate; do not infer its production
+application from earlier successful jobs. Prior images and private backups are
+retained. Production uses one active collaboration runtime; scaling replicas
+requires a different ownership design.
 
 Image rollback alone cannot recover promoted scenes. The bounded recovery procedure verifies an archive and creates a replacement scene with a new scene/document identity, retaining the original quarantined history. It refuses assets/images or scene-specific overrides until an operator maps them safely. Existing queued edits stay bound to their original scene. See [recovery runbook](../operations/collaboration-recovery.md).
 

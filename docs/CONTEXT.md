@@ -3,17 +3,17 @@ artifact_type: context
 id: CONTEXT
 status: active
 owner: shared
-updated: 2026-10-20
+updated: 2026-10-21
 ---
 
 # Context
 
 ## Current Focus
 
-- **Active Phase:** Enterprise parity implementation — [phase](work/phases/PHASE-ENTERPRISE.md).
-- **Active Work:** The approved 22-task programme is executing in dependency order. Wave 0/1 and C1 durable comments are reviewed complete. M1 screen authority and V1 immutable checkpoints are in progress.
-- **Next Work:** Complete and review M1/V1, then continue notifications/activity and live-presentation packages. No enterprise runtime change has shipped yet.
-- **Released baseline:** VM100 frontend source `24b1cd0`; evidence-only follow-up `1d2af8a` is on master. Current [release evidence](releases/2026-10-19-collaboration-v2.md) records public canaries, production image and proof boundaries.
+- **Active Phase:** Dashboard management release candidate after enterprise parity rollout.
+- **Active Work:** Workspace/folder/scene management and durable projection passed local checks. Production image, migration `000029`, VM100 and public-origin canaries remain pending.
+- **Next Work:** Complete the [management release gate](operations/RELEASE_CHECKLIST.md) without treating prior enterprise checks as proof of this candidate.
+- **Released baseline:** Enterprise parity deployed on VM100 from `325f9fd`; service health and forward migrations passed. Authenticated enterprise browser/provider UAT remains pending. See the [rollout record](releases/2026-10-21-enterprise-parity-vm100.md).
 
 ## Project
 
@@ -25,8 +25,8 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 - Phase 1 has 15 tickets (EXC-001 to EXC-014 plus EXC-034).
 - EXC-001 through EXC-034 are implemented; external credential rotation remains a release operation.
 - Architecture, requirements, user stories and ADR documentation are traced in
-  harness format. Enterprise parity and Harness enforcement remain explicit
-  backlog, not delivered scope.
+  harness format. Enterprise parity is deployed with remaining acceptance gates;
+  dashboard management is not deployed.
 
 ## Active Decisions
 
@@ -43,13 +43,18 @@ Excalidraw Ecosystem Rewrite — self-hosted whiteboard with Go Clean Architectu
 ## Blockers
 
 - Retired Google OAuth history was scrubbed before the remote push; provider-side credential revocation is still required.
-- Live AI provider UAT requires the user-provided backend-only OpenAI-compatible key.
-- Enterprise contract/policy defaults are draft for review before implementation;
-  see the [enterprise phase](work/phases/PHASE-ENTERPRISE.md). Real OIDC tenant
-  credentials and DNS publication are rollout inputs, not prerequisites for
-  unrelated comments/media/content implementation.
+- VM100's FPT provider cutover passed a provider-side model and bounded
+  completion probe; authenticated Whiteboard AI UAT remains unverified.
+- Enterprise parity is deployed, but authenticated browser and external
+  provider UAT still require production sessions/provider configuration.
+  Dashboard management additionally requires migration `000029` and its own
+  public-origin canary.
 
 ## Recent Changes
+
+- 2026-10-21: Enterprise parity reached VM100 from `325f9fd`; Compose,
+  migrations, five service health checks and public health passed. Authenticated
+  browser/provider UAT remains open. See the [rollout record](releases/2026-10-21-enterprise-parity-vm100.md).
 
 - 2026-10-21: Dashboard management parity (workspace rename, folder rename/move,
   scene move/duplicate, Collections policy state, durable scene projection) is

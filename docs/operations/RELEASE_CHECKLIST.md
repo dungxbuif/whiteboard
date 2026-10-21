@@ -14,6 +14,24 @@ shared_fields: [status]
 
 This change is verified locally in [dashboard management evidence](../work/verification/dashboard-management-2026-10-21.md); production rollout and VM100 checks remain pending. Before rollout, run backend tests, frontend unit/build checks, dashboard Playwright specs, production image builds, Compose configuration and migration checks. Drain old backend writers and follow the [migration 000029 runbook](DEPLOYMENT.md) before upgrading. Use disposable owner and editor/viewer accounts to check workspace rename denial and success, folder rename/move, scene move/duplicate with current v2 content, disabled Collections copy and transient Retry. Check unauthenticated and authorized `GET /api/v1/scenes/{id}/projection`, including `Cache-Control: no-store` on both success and rejection. Finally check `/healthz` and service health. Record only statuses and route names; keep credentials and content out of evidence.
 
+### Management release record
+
+| Gate | State on 2026-10-21 | Required evidence |
+| --- | --- | --- |
+| Local Go, frontend unit/build, dashboard browser | Passed | [Local verification](../work/verification/dashboard-management-2026-10-21.md) |
+| Frozen source and production images | Unverified | Commit and image IDs for backend, worker, collab, MCP, frontend |
+| Fresh PostgreSQL backup and isolated restore | Unverified | Private backup path, restore and row/migration checks; preserve S3 objects |
+| Old-writer drain and migration `000029` | Unverified | Candidate-row classification, migration job exit 0, version clean, both columns present |
+| VM100 Compose and service health | Unverified | Quiet config, migration exit 0, five healthy services, public `/healthz` |
+| Public management/API canary | Unverified | Disposable roles, move/duplicate, Collections states, projection authorization and no-store headers |
+| Rollback acceptance | Pending release owner | Preserve prior images/manifest/env and use scene recovery for promoted v2 content |
+
+Do not promote this release-candidate table to deployed status based on the
+earlier enterprise parity rollout. [Operations](DEPLOYMENT.md),
+[API contract](../architecture/API.md), and the public
+[agent-readable endpoint catalog](../../src/frontend/public/docs/dashboard-management-api.md)
+are the canonical details.
+
 ## Field Ownership
 
 - Human owns release approval and rollback acceptance.

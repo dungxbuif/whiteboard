@@ -19,11 +19,11 @@ shared_fields: [status, trace]
 
 | System | Purpose | Contract | Owner | Status |
 | --- | --- | --- | --- | --- |
-| PostgreSQL 16 | Users, workspaces, ACL, scenes, durable Yjs state, receipts and audits | SQL migrations 1–13 and repository transactions | Whiteboard operator | active; production at migration 13, clean |
+| PostgreSQL | Users, workspaces, ACL, scenes, durable Yjs state, receipts and audits | Versioned SQL migrations and repository transactions | Whiteboard operator | active; enterprise forward migration job passed, migration 000029 remains pending for management rollout |
 | S3-compatible object storage | Immutable raster scene assets | AWS S3 signing/API; scoped capability endpoints | Whiteboard operator | active; production `whiteboard` bucket write/read/delete canary passed |
 | Coturn | STUN/TURN relay for WebRTC voice | TURN REST credentials issued after current scene authorization | Homelab gateway operator | active release candidate; tested gateway IP required until split DNS is fixed |
-| OpenAI-compatible provider | Chat, diagram generation, image reasoning and diagram-to-code | Backend-only OpenAI-compatible HTTP API | Product owner | implementation active; live production UAT blocked on key |
-| Chromium renderer | Isolated PNG/SVG export for MCP | Local Playwright CDP process with network denial and bounded lifecycle | Whiteboard MCP service | deployed in the frozen Linux/amd64 MCP image; public authenticated read canary passed, write/export remains |
+| OpenAI-compatible provider | Chat, diagram generation, image reasoning and diagram-to-code | Backend-only OpenAI-compatible HTTP API | Product owner | provider endpoint and bounded completion probe passed at VM100 cutover; authenticated app-level AI UAT remains unverified |
+| Chromium renderer | Isolated PNG/SVG export for MCP | Local Playwright CDP process with network denial and bounded lifecycle | Whiteboard MCP service | deployed; public authenticated MCP write/export passed during collaboration-v2 canary |
 
 ## Credentials And Secrets
 

@@ -4,7 +4,13 @@
 | --- | --- | --- | --- | --- |
 | local | Development and focused browser fixtures | `http://localhost:5173` | shared | Vite proxies API; use the dedicated real-stack harness for acceptance |
 | real-stack test | Disposable actual Go/Node/MCP/PostgreSQL/S3/browser | generated loopback ports | shared | Random test schemas and generated secrets; never production env |
-| production | Public self-hosted release | `https://whiteboard.dungxbuif.com` | shared | VM100 Docker Compose; gateway/Pi5 HTTPS routing; currently v1 |
+| production | Public self-hosted release | `https://whiteboard.dungxbuif.com` | shared | VM100 Docker Compose; gateway/Pi5 HTTPS routing; enterprise parity deployed from `325f9fd`, management release candidate pending |
+
+The production stack includes the frontend, Go API, collaboration runtime,
+feature worker, MCP adapter, and a one-shot migration job. PostgreSQL, RustFS,
+and Coturn are separate Homelab services. The [deployment runbook](DEPLOYMENT.md)
+owns the operational procedure. Current [release gates](RELEASE_CHECKLIST.md)
+must be checked again before dashboard management reaches VM100.
 
 ## Secrets
 
