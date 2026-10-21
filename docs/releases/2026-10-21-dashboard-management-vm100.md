@@ -15,7 +15,8 @@ Status: **deployed and smoke-verified**.
 This release promotes workspace rename; folder rename and move; scene move and
 server-side duplicate; disabled Collections with retry states; and
 authenticated durable scene projection. The implementation is in application
-commit `1847241`; release documentation is in `ee87365`.
+commit `1847241`; the final pushed release head is `d639b15` (documentation
+and verification commits only after the runtime build).
 
 ## Production evidence
 
