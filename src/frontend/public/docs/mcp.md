@@ -4,6 +4,27 @@ Status: collaboration v2 is deployed on VM100. Public MCP authentication,
 discovery, workspace/scene reads and revoked-key rejection pass; native
 production write/export remains a final release canary.
 
+## Personal agent quick start
+
+The production frontend exposes Streamable HTTP at `/mcp`. Create a scoped
+workspace key with the normal authenticated API, copy the one-time `key` field,
+and configure it only in the agent's protected environment:
+
+```sh
+export WHITEBOARD_ORIGIN=https://whiteboard.dungxbuif.com
+export WHITEBOARD_LOGIN_TOKEN='...'
+export WORKSPACE_ID='...'
+curl --fail -H "Authorization: Bearer $WHITEBOARD_LOGIN_TOKEN" \
+  -H 'Content-Type: application/json' -X POST \
+  "$WHITEBOARD_ORIGIN/api/v1/workspaces/$WORKSPACE_ID/agent-keys" \
+  -d '{"scopes":["workspace:read","scene:read","scene:create","scene:write","scene:export"],"sceneIds":[]}'
+```
+
+Set the returned value as `WHITEBOARD_AGENT_KEY` and connect to
+`$WHITEBOARD_ORIGIN/mcp`. Keys are workspace-scoped bearer credentials, are
+stored server-side only as SHA-256 digests, and are shown once at creation.
+Do not put a key in a URL, source file, prompt, or logs.
+
 - Scopes are independent: `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, `scene:export`.
 - Build from `src/` in order: `npm run build --workspace ./packages/collab-contracts`, `npm run build --workspace ./packages/diagram-kit`, then `npm run build --workspace ./mcp` (includes export renderer).
 - Configure `WHITEBOARD_API_URL` for Go, `WHITEBOARD_PUBLIC_URL` for the public frontend/reverse-proxy serving `/w/...` and `/mcp/...`, `WHITEBOARD_AGENT_KEY`, and a unique absolute `MCP_AUDIT_PATH`. Both origins require HTTPS remotely (loopback HTTP is allowed), with no credentials, path, query or fragment. Scene/artifact links and remote exports use the public origin; it does not fall back to the API origin. Never give remote adapters internal service secrets.

@@ -2,6 +2,31 @@
 
 Owners can create a workspace-bound bearer key with selected scopes and optional scene targets. Copy the key once; only its SHA-256 digest is stored. Revoking a key or removing/deactivating its owner prevents subsequent requests. Agents never manage members, permissions, sharing, or keys.
 
+## Personal agent quick start
+
+The public frontend proxies Streamable HTTP at `/mcp`; no separate MCP host or
+account-wide credential is required. Create a key for your own default
+workspace with the normal signed-in session, then give only the one-time `key`
+value to the agent runtime:
+
+```sh
+export WHITEBOARD_ORIGIN=https://whiteboard.dungxbuif.com
+export WHITEBOARD_LOGIN_TOKEN='...keep this in your password manager...'
+export WORKSPACE_ID='...your personal workspace UUID...'
+
+curl --fail --silent --show-error -X POST \
+  -H "Authorization: Bearer $WHITEBOARD_LOGIN_TOKEN" \
+  -H 'Content-Type: application/json' \
+  "$WHITEBOARD_ORIGIN/api/v1/workspaces/$WORKSPACE_ID/agent-keys" \
+  -d '{"scopes":["workspace:read","scene:read","scene:create","scene:write","scene:export"],"sceneIds":[]}'
+```
+
+The response contains `key` exactly once. Store it as `WHITEBOARD_AGENT_KEY`
+in the agent's protected environment and use
+`https://whiteboard.dungxbuif.com/mcp` as its Streamable HTTP URL. The key is
+limited to that workspace and its selected scopes; it is not a login token and
+must never be placed in a URL, source file, prompt, or chat transcript.
+
 Scopes are `workspace:read`, `scene:read`, `scene:create`, `scene:write`, `scene:move`, `scene:trash`, and `scene:export`. Tools require their named scope independently; write does not imply read or create. A scene-targeted key cannot create arbitrary scenes. Current owner permissions also apply.
 
 MCP exposes `list_workspaces`, `list_scenes`, `get_scene`, `create_scene`, native diagram discovery/validation, `generate_diagram`, `patch_elements`, `delete_elements`, and `get_scene_activity`. Lists return at most 50 results and a cursor, without global totals. Scene projection returns at most 500 elements and 256 KiB. Oversized projection is rejected rather than silently truncated.

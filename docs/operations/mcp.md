@@ -5,6 +5,17 @@ workspace/scene reads and revoked-key rejection pass; native production
 write/export remains a final release canary. See the
 [Collaboration v2 programme](../superpowers/plans/2026-10-16-collaboration-v2.md).
 
+## Personal agent endpoint
+
+The public frontend routes the complete `/mcp` prefix to the MCP adapter and
+preserves the `Authorization: Bearer <wb_agent_...>` header. Personal agents
+use the same workspace-scoped key flow as other agents: an owner creates a key
+through `POST /api/v1/workspaces/{workspaceId}/agent-keys`, copies the one-time
+`key` response, and configures it as `WHITEBOARD_AGENT_KEY` in the agent's
+protected environment. No MCP service-wide key is stored in Compose or source
+control. A personal default workspace is eligible for the same scopes and
+authorization checks as any other workspace.
+
 ## Configuration and build
 
 Build from `src` in order: `npm ci`, `npm run build --workspace ./packages/collab-contracts`, `npm run build --workspace ./packages/diagram-kit`, then `npm run build --workspace ./mcp`. The last command emits Node ESM into `mcp/dist` and the Vite browser bundle plus verified fonts into `mcp/render-dist`. Generated output is ignored. Playwright 1.60.0 Chromium must be installed in the runtime; the renderer image uses the matching upstream image and `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`.
