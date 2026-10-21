@@ -16,7 +16,7 @@ shared_fields: [status, links]
 - [Architecture](architecture/ARCHITECTURE.md), [API catalog](architecture/API.md), [data model](architecture/ERD.md), and [integration boundaries](architecture/INTEGRATIONS.md).
 - [Production deployment and migration 000029](operations/DEPLOYMENT.md), [release gate](operations/RELEASE_CHECKLIST.md), [observation](operations/OBSERVABILITY.md), and [promoted-scene recovery](operations/collaboration-recovery.md).
 - [Dashboard guide](user/dashboard.md) and public-source plain-Markdown [agent API reference](../src/frontend/public/docs/dashboard-management-api.md).
-- [Current local management evidence](work/verification/dashboard-management-2026-10-21.md) and [enterprise VM100 rollout evidence](releases/2026-10-21-enterprise-parity-vm100.md). The management release candidate has not reached VM100.
+- [Current management evidence](work/verification/dashboard-management-2026-10-21.md), [management VM100 release](releases/2026-10-21-dashboard-management-vm100.md), and [enterprise VM100 rollout evidence](releases/2026-10-21-enterprise-parity-vm100.md).
 
 These links point to canonical details. `src/frontend/public/llms.txt` is the
 public AI-agent-readable index served with the frontend; public Markdown pages

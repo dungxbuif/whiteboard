@@ -65,12 +65,18 @@ tests and build passed after this UX change; backend code was unchanged.
 
 ## Release boundary
 
-Production image build, Compose configuration and migration gates, VM100 health,
-and disposable-user public-origin management checks were **not run** in this
-task. No deployment or push occurred. The pending checks are listed in the
-[release checklist](../../operations/RELEASE_CHECKLIST.md). Current public
-dashboard docs describe the new controls as the local release candidate; the
-existing deployed-status statement refers to the prior dashboard baseline.
+The candidate was deployed to VM100 after the local gates above. Compose
+configuration and the five production images built successfully. Migration
+`000029` reached version `29` cleanly after the ambiguous legacy-row recovery;
+one qualifying hidden legacy scene was preserved and its original deletion
+state restored. Backend, collaboration, feature worker, MCP, and frontend are
+running, and the public health endpoint, root shell, and scene deep-link shell
+returned `200`. The complete production record is in the [VM100 release
+note](../../releases/2026-10-21-dashboard-management-vm100.md).
+
+Credentialed role-by-role browser UAT, provider checks, and cross-network media
+remain operator-owned follow-up. They are not inferred from public HTTP or
+container health.
 
 ## Docs review
 
@@ -81,9 +87,10 @@ existing deployed-status statement refers to the prior dashboard baseline.
   `src/frontend/public/docs/dashboard.md` explain the controls and error states.
   `src/frontend/public/llms.txt` points agents to the new plain Markdown API
   reference.
-- Migration `000029` adds pending-copy and cleanup-claim state. It has **not**
-  been applied in production; the old backend must be drained and ambiguous
-  soft-deleted rows classified per the [deployment runbook](../../operations/DEPLOYMENT.md).
+- Migration `000029` adds pending-copy and cleanup-claim state. It is applied in
+  production at clean version `29`; the old backend was drained and one
+  ambiguous legacy row was classified and restored per the [deployment
+  runbook](../../operations/DEPLOYMENT.md).
   The authenticated duplicate route reads the existing durable writer. The
   approved design and plan now record the corrected server-side copy contract.
   The [changelog](../../releases/CHANGELOG.md) has an Unreleased

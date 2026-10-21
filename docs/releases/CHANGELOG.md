@@ -12,14 +12,20 @@ shared_fields: [status]
 
 ## Unreleased
 
+- Dashboard management VM100 release (2026-10-21): migration `000029` is clean
+  at version `29`; five services, public health, root, and scene deep-link
+  shells passed after preserving and restoring one ambiguous legacy hidden
+  scene. Credentialed role/provider/media canaries remain operator follow-up.
+  [Release note](2026-10-21-dashboard-management-vm100.md).
+
 - Dashboard management release candidate (2026-10-21): owners can rename
   workspaces; owners/editors can rename and move folders and move or duplicate
   scenes with current durable content. Collections now explains disabled
   workspace policy and offers Retry for transient failures. An authenticated
   scene projection route supports current v2 copies with `Cache-Control:
   no-store` on all responses. Local Go, frontend, build and dashboard browser
-  checks pass. Production image/Compose/migration gates, disposable-user UAT
-  and VM100 health remain pending; this entry does not claim deployment.
+  checks pass. Production deployment evidence is recorded in the release note;
+  credentialed disposable-user UAT remains pending.
   [User guide](../user/dashboard.md), [local evidence](../work/verification/dashboard-management-2026-10-21.md).
 
 - Planning only (2026-10-20): [enterprise programme](../superpowers/plans/2026-10-20-enterprise-parity.md)
