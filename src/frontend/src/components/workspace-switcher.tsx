@@ -1,4 +1,4 @@
-import { Check, ChevronsUpDown, Plus, Folder, Pencil } from "lucide-react";
+import { Check, ChevronDown, Plus, Folder, Pencil } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
@@ -44,40 +44,41 @@ export function WorkspaceSwitcher() {
           variant="ghost"
           size="sm"
           role="combobox"
-          className="h-14 w-full justify-between px-2 font-medium hover:bg-accent"
+          className="h-14 w-full justify-between rounded-lg px-2 text-left hover:bg-accent data-[state=open]:bg-accent"
         >
           <div className="flex items-center gap-2 overflow-hidden">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-background">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <span aria-hidden="true" className="text-xs font-semibold">{(activeWorkspace?.name || "W").slice(0, 2).toUpperCase()}</span>
             </div>
-            <span className="truncate">{activeWorkspace?.name || "Select Workspace"}</span>
+            <span className="grid min-w-0 flex-1 text-left leading-tight"><span className="truncate text-sm font-semibold">{activeWorkspace?.name || "Select workspace"}</span><span className="truncate text-xs text-muted-foreground">{activeWorkspace?.role || "Personal workspace"}</span></span>
           </div>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[240px]">
+      <DropdownMenuContent align="start" className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg">
+        <div className="px-2 py-1.5 text-xs text-muted-foreground">Workspaces</div>
         {Array.isArray(workspaces) && workspaces.map((workspace) => (
           <DropdownMenuItem
             key={workspace.id}
             onClick={() => selectWorkspace(workspace)}
-            className="flex items-center justify-between"
+            className="flex items-center justify-between gap-2 p-2"
           >
             <div className="flex min-w-0 items-center gap-2">
-              <Folder className="h-4 w-4" />
-              <span className="truncate">{workspace.name}</span>
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted"><Folder className="h-3.5 w-3.5" /></div>
+              <span className="truncate text-sm font-medium">{workspace.name}</span>
             </div>
             {activeWorkspaceId === workspace.id && <Check className="h-4 w-4" />}
           </DropdownMenuItem>
         ))}
         {activeWorkspace?.role === "owner" && <>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="gap-2" onSelect={() => { setRenameName(activeWorkspace.name); setRenameError(""); setRenameDialogOpen(true); }}>
+          <DropdownMenuItem className="gap-2 p-2" onSelect={() => { setRenameName(activeWorkspace.name); setRenameError(""); setRenameDialogOpen(true); }}>
             <Pencil className="h-4 w-4" /> Rename workspace
           </DropdownMenuItem>
         </>}
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="gap-2 font-medium"
+          className="cursor-pointer gap-2 p-2 font-medium"
           onSelect={() => {
             setWorkspaceName("");
             setCreateError("");

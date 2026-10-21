@@ -14,10 +14,10 @@ export function UserMenu({ theme, onThemeChange }: { theme: SurfaceTheme; onThem
   const label = user?.name || user?.email || "Account";
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <Button variant="ghost" aria-label="Account menu" className="h-auto w-full justify-start gap-2 px-2 py-2 text-left">
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-muted text-xs">{label.slice(0, 2).toUpperCase()}</span>
-        <span className="grid min-w-0 flex-1 text-sm"><span className="truncate font-semibold">{label}</span><span className="truncate text-xs font-normal text-muted-foreground">{user?.email}</span></span>
-        <ChevronsUpDown className="size-4 shrink-0" />
+      <Button variant="ghost" aria-label="Account menu" className="h-auto w-full justify-start gap-2 rounded-lg px-2 py-2 text-left data-[state=open]:bg-accent">
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-xs text-primary-foreground">{label.slice(0, 2).toUpperCase()}</span>
+        <span className="grid min-w-0 flex-1 text-sm leading-tight"><span className="truncate font-semibold">{label}</span><span className="truncate text-xs font-normal text-muted-foreground">{user?.email}</span></span>
+        <ChevronsUpDown className="size-4 shrink-0 opacity-60" />
       </Button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" side="top" className="w-60">

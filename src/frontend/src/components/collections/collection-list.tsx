@@ -78,10 +78,10 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
       } else setError('Collection could not be created.');
     } finally { if (version === workspaceVersion.current) setPending(false); }
   };
-  return <section aria-labelledby="collection-sidebar-heading" className="mt-4 grid gap-1 border-t pt-4">
+  return <section aria-labelledby="collection-sidebar-heading" className="mt-4 grid gap-1 border-t border-sidebar-border pt-4">
     <div className="flex items-center justify-between px-2">
-      <p className="text-xs text-muted-foreground" id="collection-sidebar-heading">Collections</p>
-      {canManage && !disabled ? <Button aria-label="New collection" className="h-7 w-7" onClick={() => setOpen(true)} size="icon" type="button" variant="ghost"><Plus /></Button> : null}
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground" id="collection-sidebar-heading">Collections</p>
+      {canManage && !disabled ? <Button aria-label="New collection" className="h-7 w-7 rounded-md" onClick={() => setOpen(true)} size="icon" type="button" variant="ghost"><Plus /></Button> : null}
     </div>
     {items.length ? <Input aria-label="Filter collections" className="mx-2 h-8 w-[calc(100%-1rem)]" onChange={event => setFilter(event.target.value)} placeholder="Filter collections" value={filter} /> : null}
     {error ? <p className="px-2 text-xs text-destructive" role="alert">{error}</p> : null}
@@ -89,7 +89,7 @@ export function CollectionList({ workspaceId, workspaceSlug, canManage, api = co
     {error ? <Button className="justify-start" disabled={loading} onClick={() => void load('')} size="sm" type="button" variant="ghost">Retry collections</Button> : null}
     {items.filter(item => item.name.toLocaleLowerCase().includes(filter.trim().toLocaleLowerCase())).map(item => {
       const href = collectionPath(workspaceSlug, item.id);
-      return <a className="flex min-w-0 items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" href={href} key={item.id} onClick={event => { event.preventDefault(); navigate(href); onNavigate?.(); }}>
+      return <a className="dashboard-nav-item flex min-w-0 h-9 items-center gap-2 rounded-md px-2 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" href={href} key={item.id} onClick={event => { event.preventDefault(); navigate(href); onNavigate?.(); }}>
         {item.visibility === 'private' ? <LockKeyhole className="h-4 w-4 text-muted-foreground" /> : <FolderHeart className="h-4 w-4 text-primary" />}
         <span className="min-w-0 flex-1 truncate">{item.name}</span><span className="text-xs text-muted-foreground">{item.sceneCount}</span>
       </a>;

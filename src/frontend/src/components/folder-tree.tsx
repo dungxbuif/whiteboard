@@ -48,18 +48,19 @@ export function FolderTree() {
   const tree = useMemo(() => buildFolderTree(folders), [folders]);
 
   return (
-    <nav aria-label="Folders" className="grid gap-1">
-      <Button className="justify-start" onClick={() => navigateDashboard()} type="button" variant="ghost">
+    <nav aria-label="Folders" className="mt-3 grid gap-1 border-t border-sidebar-border pt-3">
+      <p className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Files</p>
+      <Button className="dashboard-nav-item h-9 justify-start rounded-md px-2 text-sm" onClick={() => navigateDashboard()} type="button" variant="ghost">
         <Folder /> All files
       </Button>
-      <Button className="justify-start" onClick={() => navigateDashboard({ view: "starred" })} type="button" variant="ghost">
+      <Button className="dashboard-nav-item h-9 justify-start rounded-md px-2 text-sm" onClick={() => navigateDashboard({ view: "starred" })} type="button" variant="ghost">
         <Star /> Starred
       </Button>
-      {role === "owner" && <Button className="justify-start" onClick={() => navigateDashboard({ view: "trash" })} type="button" variant="ghost">
+      {role === "owner" && <Button className="dashboard-nav-item h-9 justify-start rounded-md px-2 text-sm" onClick={() => navigateDashboard({ view: "trash" })} type="button" variant="ghost">
         <Trash2 /> Trash
       </Button>}
       {tree.length ? <ul>{tree.map((node) => <TreeItem key={node.id} node={node} />)}</ul> : (
-        <p className="px-2 py-3 text-sm text-muted-foreground">No folders yet</p>
+        <p className="px-2 py-2 text-xs text-muted-foreground">No folders yet</p>
       )}
     </nav>
   );

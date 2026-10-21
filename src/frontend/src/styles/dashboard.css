@@ -73,6 +73,10 @@
   background: hsl(var(--sidebar-background));
   color: hsl(var(--sidebar-foreground));
 }
+.dashboard-nav-item { color: hsl(var(--sidebar-foreground)); }
+.dashboard-nav-item:hover { background: hsl(var(--sidebar-accent)); color: hsl(var(--sidebar-accent-foreground)); }
+.dashboard-nav-item svg { width: 1rem; height: 1rem; flex: 0 0 auto; opacity: .7; }
+.dashboard-sidebar .border-sidebar-border { border-color: hsl(var(--sidebar-border)); }
 .dashboard-sidebar button:focus-visible,
 .dashboard-sidebar input:focus-visible {
   --ring: var(--sidebar-ring);
